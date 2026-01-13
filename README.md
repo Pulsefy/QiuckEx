@@ -101,7 +101,7 @@ We welcome contributions! Fork the repo, create a feature branch (`git checkout 
 This project is MIT licensed. See [LICENSE](LICENSE) for details.
 
 ## Support & Community
-- **Discord**: Join [QuickEx Community](https://discord.gg/quickex) for help/discussions.
+- **Discord**: Join [QuickEx Community](https://discord.gg/wNQQEcSsq) for help/discussions.
 
 
 Built with ❤️ by Pulsefy. Powered by Stellar. Questions? Let's chat! 🚀
