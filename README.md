@@ -1,6 +1,7 @@
 # QuickEx
 
-<img width="1024" height="1024" alt="quickex no-bg" src="https://github.com/user-attachments/assets/819eccbd-56d4-4800-b12b-e53b9f379bf3" />
+<img width="1024" height="1024" alt="quickex no-bg (1)" src="https://github.com/user-attachments/assets/551fc54f-72ed-4fa9-9b8d-5516d8457ca8" />
+
 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
