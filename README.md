@@ -2,31 +2,22 @@
 
 <img width="1024" height="1024" alt="quickex no-bg (1)" src="https://github.com/user-attachments/assets/551fc54f-72ed-4fa9-9b8d-5516d8457ca8" />
 
+QuickEx is a fast, privacy-focused payment link platform built on the Stellar blockchain. It enables users to create unique, shareable usernames (e.g., `quickex.to/yourname`) and generate instant payment requests for USDC, XLM, or any Stellar asset. Payments can be received via QR code or direct wallet integration—no apps required—leveraging Stellar's sub-second settlements and optional X-Ray privacy for shielded transactions (mainnet now live). With low fees (<0.01¢), it's designed for instant, borderless transfers.
 
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue)](https://stellar.org)
-[![Next.js](https://img.shields.io/badge/Tech-Next.js-black)](https://nextjs.org)
-[![Rust](https://img.shields.io/badge/Smart%20Contracts-Rust-orange)](https://www.rust-lang.org/)
-[![Monorepo](https://img.shields.io/badge/Monorepo-TurboRepo-green)](https://turbo.build/repo)
-
-QuickEx is a fast, privacy-focused payment link platform built on the Stellar blockchain. Create unique usernames like `quickex.to/yourname` and generate instant payment requests for USDC, XLM, or any Stellar asset. Anyone can pay via QR code or wallet — no apps required.
-Powered by Stellar's sub-second settlements and X-Ray privacy (mainnet live Jan 2026).
-
-Perfect for freelancers, creators, remittances, tips, and global P2P transfers. Low fees (<0.01¢), instant, and borderless.
+This tool is ideal for freelancers invoicing clients, creators accepting tips, individuals handling remittances, or anyone facilitating global P2P payments. Whether you're a solo developer sharing a quick link for a gig or a small business streamlining donations, QuickEx prioritises simplicity, self-custody, and security without intermediaries.
 
 ## Features
 
 ### Core
-- **Unique Username Links**: Claim `quickex.to/yourname` — permanent and easy to share.
-- **One-Click Link Generator**: Set amount, memo, and privacy → get shareable links like `quickex.to/yourname/50`.
-- **QR Code & Wallet Integration**: Auto-open Freighter/Lobstr for seamless payments.
-- **Real-Time Dashboard**: View earnings, transaction history, and totals (pulled from Horizon API).
+- **Unique Username Links**: Claim a permanent `quickex.to/yourname` for easy sharing.
+- **One-Click Link Generator**: Specify amount, memo, and privacy settings to create links like `quickex.to/yourname/50`.
+- **QR Code & Wallet Integration**: Auto-opens Freighter or Lobstr for seamless payments.
+- **Real-Time Dashboard**: Tracks earnings, history, and totals via Horizon API.
 
 ### Privacy & Security
-- **X-Ray Privacy Toggle**: Shield amounts/senders with ZK proofs (testnet ready, mainnet Jan 22, 2026).
-- **Scam Alerts**: Warn on suspicious links (no memo, unusual patterns).
-- **Self-Custody**: Payments go directly to your wallet — no central custody.
+- **X-Ray Privacy Toggle**: Uses ZK proofs to hide amounts/senders (testnet ready; mainnet live since January 22, 2026).
+- **Scam Alerts**: Flags suspicious links (e.g., no memo or unusual patterns).
+- **Self-Custody**: Funds route directly to your wallet—no central holding.
 
 ### Advanced (v2+)
 - Multi-asset support with auto-swap.
@@ -36,72 +27,153 @@ Perfect for freelancers, creators, remittances, tips, and global P2P transfers. 
 
 ## Tech Stack
 - **Frontend**: Next.js 15, Tailwind CSS, Vercel hosting.
-- **Backend**: Next.js API routes, Supabase (usernames), Horizon API (transactions).
+- **Backend**: Next.js API routes (or dedicated Node.js/Express), Supabase (usernames), Horizon API (transactions).
+- **Mobile**: React Native (for iOS/Android apps).
 - **Blockchain**: Stellar SDK, Soroban (Rust contracts for privacy/escrow).
-- **Wallet**: Freighter/Lobstr integration via WalletConnect.
+- **Wallet**: Freighter/Lobstr via WalletConnect.
 - **Monorepo**: TurboRepo for shared packages (UI components, Stellar utils).
 
-## Monorepo Structure
+## Repository Structure
+QuickEx uses a monorepo for efficient development across apps and shared libraries. The structure features an `app/` parent folder containing the core application directories (frontend, backend, mobile, contract), with shared packages for reusability. This setup allows for streamlined builds, testing, and dependency management via TurboRepo.
+
 ```
 quickex/
-├── apps/
-│   └── quickex-frontend/  # Main Next.js app
+├── app/
+│   ├── frontend/          # Next.js app (web dashboard and link generator)
+│   ├── backend/           # API server (Node.js/Express or Next.js API routes; handles usernames, transactions)
+│   ├── mobile/            # React Native app (iOS/Android for on-the-go payments)
+│   └── contract/          # Soroban Rust contracts (privacy/escrow logic)
 ├── packages/
 │   ├── ui/                # Shared Tailwind components
 │   └── stellar-sdk/       # Stellar utils (Horizon queries, wallet connect)
-├── turbo.json             # Build/dev pipelines
-└── pnpm-workspace.yaml    # Workspace config
+├── turbo.json             # Build/dev pipelines (configured for app/ subfolders)
+└── pnpm-workspace.yaml    # Workspace config (includes app/* and packages/*)
 ```
 
-## Quick Start
+
+
+## Setup Instructions
 
 ### Prerequisites
-- Node.js 18+
-- pnpm (recommended for monorepo)
-- Stellar testnet wallet (Freighter recommended).
+Before getting started, ensure you have the following installed:
+- Node.js 18+ ([nodejs.org](https://nodejs.org)).
+- pnpm (for monorepo management; install via `npm install -g pnpm`).
+- A Stellar wallet (Freighter recommended; download from [freighter.app](https://freighter.app)).
+- Supabase account (free tier; sign up at [supabase.com](https://supabase.com)).
+- Git (for cloning).
+- Rust toolchain (for contracts; install via [rustup.rs](https://rustup.rs)).
+- React Native CLI (for mobile; see [reactnative.dev](https://reactnative.dev/docs/environment-setup)).
 
 ### Installation
-1. Clone the repo:
+1. Clone the repository:
    ```
    git clone https://github.com/pulsefy/QuickEx.git
    cd QuickEx
    ```
-2. Install dependencies:
+
+2. Install dependencies across the monorepo:
    ```
    pnpm install
    ```
-3. Set up environment:
-   - Create `.env.local` with `SUPABASE_URL` and `SUPABASE_ANON_KEY` (from Supabase project).
-   - Add Stellar network config (testnet for dev).
-4. Run locally:
+
+### Environment Setup
+1. Create a Supabase project and retrieve your `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the dashboard.
+2. Copy `.env.example` to `.env.local` in the root directory and populate it:
+   ```
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_PUBLIC_STELLAR_NETWORK=testnet  # Use 'mainnet' for production
+   ```
+3. Configure the Stellar network:
+   - **Development**: Defaults to testnet; fund your wallet at [laboratory.stellar.org](https://laboratory.stellar.org).
+   - **Production**: Set to `mainnet` in `.env.local` and ensure your wallet holds real assets.
+4. For contracts: Add environment variables to `app/contract/.env` (e.g., `STELLAR_NETWORK=testnet`).
+5. For mobile: After installation, navigate to `app/mobile` and run `npx pod-install` (iOS) or configure the Android SDK.
+
+### Running Locally
+1. Launch all services using TurboRepo:
    ```
    pnpm turbo run dev
    ```
-   Open [http://localhost:3000](http://localhost:3000).
+   This starts the frontend (`app/frontend`), backend (`app/backend`), and prepares contracts/mobile.
+2. Access the web app at [http://localhost:3000](http://localhost:3000).
+3. For the mobile app:
+   ```
+   cd app/mobile && npx react-native run-ios  # or run-android
+   ```
+4. For contracts (testing/deploying):
+   ```
+   cd app/contract && cargo test  # Run unit tests
+   # Deploy to testnet: Use Soroban CLI as per Soroban docs
+   ```
+
+Connect your wallet in the app to claim a username and test features.
+
+### Testing
+Run tests to validate code quality and functionality:
+1. Lint and type-check the entire monorepo:
+   ```
+   pnpm turbo run lint
+   pnpm turbo run type-check
+   ```
+2. Execute end-to-end tests (Playwright for frontend, Jest for others):
+   ```
+   pnpm turbo run test:e2e
+   ```
+   Tests require a testnet wallet; detailed setup is in [TESTING.md](TESTING.md).
+3. Mobile-specific tests:
+   ```
+   cd app/mobile && npm test
+   ```
 
 ### Deployment
-- Push to GitHub → auto-deploy on Vercel (connects to monorepo root).
-- Custom domain: Add to Vercel dashboard.
+Deployment is automated for most components, but requires platform-specific configuration:
+
+1. **Frontend and Backend (Vercel)**:
+   - Connect the GitHub repository to Vercel via the dashboard.
+   - Add environment variables from `.env.local` (e.g., Supabase keys, Stellar network).
+   - Pushes to `main` trigger auto-deploys. Set a custom domain in the Vercel project settings.
+
+2. **Mobile (Expo)**:
+   - Install Expo CLI if needed: `npm install -g @expo/cli`.
+   - From `app/mobile`: `expo publish` for over-the-air updates, or build via `expo build:ios` / `expo build:android`.
+   - Use Expo's dashboard to manage credentials and submissions to app stores.
+
+3. **Contracts (Soroban)**:
+   - Build and deploy via CI/CD (e.g., GitHub Actions in `app/contract`).
+   - For testnet: `cd app/contract && soroban contract deploy --network testnet`.
+   - For mainnet: Update network config and deploy similarly, ensuring WASM optimization.
+
+For production readiness, always verify `NEXT_PUBLIC_STELLAR_NETWORK=mainnet` and conduct thorough testing. See [DEPLOYMENT.md](DEPLOYMENT.md) for advanced configurations like CI/CD pipelines.
 
 ## Usage
-1. **Claim Username**: Connect wallet → pick name → done.
-2. **Generate Link**: In dashboard, enter amount/memo → copy link/QR.
-3. **Receive Payment**: Share link → payer scans/clicks → funds arrive instantly.
-4. **Privacy Mode**: Toggle for X-Ray shielded txs (Rust contract deploys on mainnet).
-
+1. **Claim Username**: Connect your wallet in the app, select a name, and confirm the on-chain transaction.
+2. **Generate Link**: In the dashboard, input amount, memo, and privacy options, then copy the generated link or QR code.
+3. **Receive Payment**: Share the link; the payer clicks or scans to send funds directly to your wallet.
+4. **Enable Privacy**: Toggle X-Ray mode to shield transactions (deploys Rust contract on mainnet).
 
 ## Contributing
-We welcome contributions! Fork the repo, create a feature branch (`git checkout -b feature/amazing`), commit changes, and open a PR. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome and encouraged to help evolve QuickEx! To get started:
 
-- Report bugs: Open an issue.
-- Add features: Discuss in issues first.
-- Monorepo tips: Use `pnpm turbo run lint` for cross-package checks.
+- **Report Issues**: Use GitHub Issues for bugs or feature requests. Include reproduction steps, environment details, and screenshots where possible.
+- **Propose Features**: Start a Discussion thread to align on ideas before coding.
+- **Submit Pull Requests**:
+  1. Fork the repository and create a feature branch: `git checkout -b feature/your-feature`.
+  2. Implement changes, ensuring they pass linting and tests.
+  3. Commit with clear messages (e.g., "feat: add multi-asset swap support").
+  4. Push and open a PR against `main`. Reference any related issues.
+- **Monorepo Best Practices**:
+  - Use `pnpm turbo run build` to validate changes across packages.
+  - Update shared packages (`packages/ui` or `packages/stellar-sdk`) only when needed, and bump versions.
+  - Run `pnpm turbo run lint --filter=...` for targeted checks (e.g., `--filter=app/frontend`).
+
+All contributors must adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) and sign off commits for DCO compliance. For more, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
-This project is MIT licensed. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support & Community
-- **Discord**: Join [QuickEx Community](https://discord.gg/wNQQEcSsq) for help/discussions.
+- Join the [QuickEx Discord](https://discord.gg/wNQQEcSsq) for real-time help, discussions, and updates.
+- Have questions? Open an issue or DM @pulsefy.
 
-
-Built with ❤️ by Pulsefy. Powered by Stellar. Questions? Let's chat! 🚀
+Built with ❤️ by Pulsefy. Powered by Stellar. 🚀
