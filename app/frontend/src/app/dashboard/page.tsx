@@ -7,11 +7,9 @@ export default function Dashboard() {
       <NetworkBadge />
       
       <div className="flex min-h-screen relative">
-        {/* Glowing background accents */}
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full" />
         <div className="fixed bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-purple-500/5 blur-[100px] rounded-full" />
 
-        {/* Premium Sidebar */}
         <aside className="w-72 h-screen border-r border-white/5 bg-black/20 backdrop-blur-3xl flex flex-col fixed left-0 top-0 z-20">
           <div className="p-8 pb-12">
             <Link href="/" className="flex items-center gap-3 group">
@@ -42,7 +40,6 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* Main Content Area */}
         <main className="flex-1 ml-72 p-12 relative z-10">
           <header className="mb-16 flex justify-between items-start">
             <div>
@@ -60,7 +57,6 @@ export default function Dashboard() {
             </button>
           </header>
 
-          {/* High-Fidelity Stats Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
             <div className="relative group overflow-hidden p-8 rounded-[2rem] bg-neutral-900/40 border border-white/5 backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-500">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -88,7 +84,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* New Transaction Feed */}
           <div className="rounded-[2.5rem] bg-black/40 border border-white/5 backdrop-blur-2xl overflow-hidden shadow-2xl">
             <div className="p-10 border-b border-white/5 flex justify-between items-center">
               <div>

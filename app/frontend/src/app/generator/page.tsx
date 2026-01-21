@@ -8,11 +8,9 @@ export default function Generator() {
       <NetworkBadge />
       
       <div className="flex min-h-screen relative">
-        {/* Background Accents */}
         <div className="fixed top-[-5%] right-[-5%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full" />
         <div className="fixed bottom-0 left-[10%] w-[30%] h-[30%] bg-white/5 blur-[100px] rounded-full" />
 
-        {/* Premium Sidebar */}
         <aside className="w-72 h-screen border-r border-white/5 bg-black/20 backdrop-blur-3xl flex flex-col fixed left-0 top-0 z-20">
           <div className="p-8 pb-12">
             <Link href="/" className="flex items-center gap-3 group">
@@ -35,7 +33,6 @@ export default function Generator() {
           </nav>
         </aside>
 
-        {/* Main Content Area */}
         <main className="flex-1 ml-72 p-12 relative z-10">
           <header className="mb-20 max-w-4xl px-4">
             <nav className="flex items-center gap-2 text-xs font-bold text-neutral-600 uppercase tracking-widest mb-6">
@@ -53,7 +50,6 @@ export default function Generator() {
           </header>
 
           <div className="grid xl:grid-cols-[1.2fr_0.8fr] gap-20 px-4 max-w-7xl">
-            {/* High-Fidelity Form Section */}
             <div className="space-y-12">
               <section className="space-y-6">
                 <div className="flex items-center justify-between px-2">
@@ -86,7 +82,6 @@ export default function Generator() {
                 </div>
               </section>
 
-              {/* Advanced Controls */}
               <section className="p-10 rounded-[3rem] bg-gradient-to-br from-indigo-500/10 to-transparent border border-indigo-500/20 shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-700">
                   <span className="text-7xl">🛡️</span>
@@ -113,10 +108,8 @@ export default function Generator() {
               </button>
             </div>
 
-            {/* Premium Preview Section */}
             <div className="space-y-12">
                <div className="relative">
-                  {/* Decorative element */}
                   <div className="absolute -top-10 -left-10 w-20 h-20 border-t-4 border-l-4 border-indigo-500/20 rounded-tl-[3rem]" />
                   <div className="absolute -bottom-10 -right-10 w-20 h-20 border-b-4 border-r-4 border-indigo-500/20 rounded-br-[3rem]" />
                   

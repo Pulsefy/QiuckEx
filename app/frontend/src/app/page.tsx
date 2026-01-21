@@ -6,7 +6,6 @@ export default function Home() {
     <div className="min-h-screen bg-neutral-950 text-white selection:bg-indigo-500/30">
       <NetworkBadge />
       
-      {/* Navigation */}
       <nav className="container mx-auto px-6 py-8 flex justify-between items-center border-b border-white/5">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold italic shadow-lg shadow-indigo-500/20">
@@ -20,7 +19,7 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      
       <main className="container mx-auto px-6 pt-24 pb-32">
         <div className="max-w-3xl">
           <h1 className="text-6xl md:text-7xl font-bold tracking-tighter mb-8 bg-gradient-to-br from-white to-neutral-500 bg-clip-text text-transparent leading-tight">
@@ -46,7 +45,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Feature Grid */}
         <div className="grid md:grid-cols-3 gap-8 mt-48">
           <div className="p-8 rounded-3xl bg-neutral-900/50 border border-white/5 hover:border-indigo-500/20 transition-colors group">
             <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-500/20 transition-colors">
@@ -72,7 +70,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="container mx-auto px-6 py-12 border-t border-white/5 text-neutral-500 text-sm">
         <div className="flex flex-col md:row justify-between items-center gap-8">
           <p>© 2026 QuickEx Platform. Built by Pulsefy.</p>
