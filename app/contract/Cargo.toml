@@ -1,0 +1,82 @@
+[workspace]
+resolver = "2"
+members = [
+  "contracts/*",
+]
+
+
+[workspace.dependencies]
+soroban-sdk = "23"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+# For more information about this profile see https://soroban.stellar.org/docs/basic-tutorials/logging#cargotoml-profile
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# [package]
+# name = "qiuck_ex_contract"
+# version = "0.1.0"
+# edition = "2021"
+# description = "X-Ray privacy Soroban contract for QuickEx"
+# license = "MIT OR Apache-2.0"
+# authors = ["QiuckEx Team"]
+# repository = "https://github.com/quickex/app"
+# readme = "README.md"
+
+# [lib]
+# crate-type = ["cdylib", "rlib"]
+
+# [dependencies]
+# soroban-sdk = "23"
+
+# [dev-dependencies]
+# soroban-sdk = { version = "23", features = ["testutils"] }
+
+# [profile.release]
+# opt-level = "z"  # Optimize for small binary size
+# lto = true
+# codegen-units = 1
+# strip = "symbols"
+
+# [profile.release-with-logs]
+# inherits = "release"
+# opt-level = 1
+
+# [profile.test]
+# opt-level = 0
+# debug = true
+
+
+
+
+
+
+
+
+
+
