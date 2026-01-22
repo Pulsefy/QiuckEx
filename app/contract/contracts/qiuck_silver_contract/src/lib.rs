@@ -9,8 +9,7 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map};
-
+use soroban_sdk::{Address, Env, Map, Symbol, Vec, contract, contractimpl};
 
 /// Main contract structure
 #[contract]
@@ -31,20 +30,26 @@ impl QuickSilverContract {
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
         // Store privacy settings
         let key = Symbol::new(&env, "privacy_level");
-        env.storage().persistent().set(&(key, account.clone()), &privacy_level);
-        
+        env.storage()
+            .persistent()
+            .set(&(key, account.clone()), &privacy_level);
+
         // Initialize privacy history
         let history_key = Symbol::new(&env, "privacy_history");
-        let mut history: Vec<u32> = env.storage().persistent()
+        let mut history: Vec<u32> = env
+            .storage()
+            .persistent()
             .get(&(history_key.clone(), account.clone()))
             .unwrap_or(Vec::new(&env));
-        
+
         history.push_front(privacy_level);
-        env.storage().persistent().set(&(history_key, account), &history);
-        
+        env.storage()
+            .persistent()
+            .set(&(history_key, account), &history);
+
         true
     }
-    
+
     /// Check the current privacy status of an account
     ///
     /// # Arguments
@@ -57,7 +62,7 @@ impl QuickSilverContract {
         let key = Symbol::new(&env, "privacy_level");
         env.storage().persistent().get(&(key, account))
     }
-    
+
     /// Get privacy history for an account
     ///
     /// # Arguments
@@ -68,11 +73,12 @@ impl QuickSilverContract {
     /// * `Vec<u32>` - History of privacy level changes
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
         let key = Symbol::new(&env, "privacy_history");
-        env.storage().persistent()
+        env.storage()
+            .persistent()
             .get(&(key, account))
             .unwrap_or(Vec::new(&env))
     }
-    
+
     /// Placeholder for future escrow functionality
     ///
     /// # Arguments
@@ -86,18 +92,20 @@ impl QuickSilverContract {
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
         // Generate unique escrow ID
         let escrow_id = env.ledger().timestamp() as u64;
-        
+
         // Store escrow details
         let escrow_key = Symbol::new(&env, "escrow");
         let mut escrow_details = Map::<Symbol, Address>::new(&env);
         escrow_details.set(Symbol::new(&env, "from"), from);
         escrow_details.set(Symbol::new(&env, "to"), to);
-        
-        env.storage().persistent().set(&(escrow_key, escrow_id), &escrow_details);
-        
+
+        env.storage()
+            .persistent()
+            .set(&(escrow_key, escrow_id), &escrow_details);
+
         escrow_id
     }
-    
+
     /// Simple health check function
     ///
     /// # Returns
@@ -106,7 +114,6 @@ impl QuickSilverContract {
         true
     }
 }
-
 
 #[cfg(test)]
 mod test;
