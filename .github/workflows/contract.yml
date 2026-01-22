@@ -1,0 +1,35 @@
+name: Contract CI
+
+on:
+  pull_request:
+    paths:
+      - 'app/contract/**'
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/contract
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "app/contract"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test
