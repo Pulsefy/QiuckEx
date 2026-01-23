@@ -16,6 +16,36 @@ fn setup<'a>() -> (Env, QuickSilverContractClient<'a>) {
     (env, client)
 }
 
+fn setup_with_auth_for_owner<'a>(owner: &Address) -> (Env, QuickSilverContractClient<'a>) {
+    let env = Env::default();
+    let contract_id = env.register(QuickSilverContract, ());
+
+    // Configure mock auths for all possible set_privacy calls with this owner
+    env.mock_auths(&[
+        MockAuth {
+            address: owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_privacy",
+                args: (owner, true).into_val(&env),
+                sub_invokes: &[],
+            },
+        },
+        MockAuth {
+            address: owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_privacy",
+                args: (owner, false).into_val(&env),
+                sub_invokes: &[],
+            },
+        },
+    ]);
+
+    let client = QuickSilverContractClient::new(&env, &contract_id);
+    (env, client)
+}
+
 #[test]
 fn test_enable_and_check_privacy() {
     let (env, client) = setup();
@@ -96,23 +126,8 @@ fn test_privacy_toggle_default_false() {
 
 #[test]
 fn test_privacy_toggle_owner_can_set() {
-    let env = Env::default();
-    let contract_id = env.register(QuickSilverContract, ());
-
-    let owner = Address::generate(&env);
-
-    // Mock authentication for the owner
-    env.mock_auths(&[MockAuth {
-        address: &owner,
-        invoke: &MockAuthInvoke {
-            contract: &contract_id,
-            fn_name: "set_privacy",
-            args: (&owner, true).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]);
-
-    let client = QuickSilverContractClient::new(&env, &contract_id);
+    let owner = Address::generate(&Env::default());
+    let (env, client) = setup_with_auth_for_owner(&owner);
 
     // Set privacy to true
     client.set_privacy(&owner, &true);
@@ -138,23 +153,8 @@ fn test_privacy_toggle_non_owner_unauthorized() {
 
 #[test]
 fn test_privacy_toggle_events() {
-    let env = Env::default();
-    let contract_id = env.register(QuickSilverContract, ());
-
-    let owner = Address::generate(&env);
-
-    // Mock authentication for enabling privacy
-    env.mock_auths(&[MockAuth {
-        address: &owner,
-        invoke: &MockAuthInvoke {
-            contract: &contract_id,
-            fn_name: "set_privacy",
-            args: (&owner, true).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]);
-
-    let client = QuickSilverContractClient::new(&env, &contract_id);
+    let owner = Address::generate(&Env::default());
+    let (env, client) = setup_with_auth_for_owner(&owner);
 
     // Test enabling privacy emits event
     client.set_privacy(&owner, &true);
