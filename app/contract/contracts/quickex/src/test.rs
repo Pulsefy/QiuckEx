@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{Address, Env, testutils::Address as _};
+use soroban_sdk::{Address, Bytes, Env, testutils::Address as _};
 
 use crate::{QuickexContract, QuickexContractClient};
 
@@ -77,6 +77,179 @@ fn test_storage_isolation() {
 
     assert_eq!(client.privacy_status(&account1), Some(1));
     assert_eq!(client.privacy_status(&account2), Some(2));
+}
+
+// ============================================================================
+// COMMITMENT TESTS
+// ============================================================================
+
+#[test]
+fn test_create_and_verify_commitment_success() {
+    let (env, client) = setup();
+    
+    let owner = Address::generate(&env);
+    let amount = 1_000_000i128;
+    let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    // Commitment should be 32 bytes (SHA256)
+    assert_eq!(commitment.len(), 32);
+
+    // Verification with same values should succeed
+    assert!(client.verify_amount_commitment(&commitment, &owner, &amount, &salt));
+}
+
+#[test]
+fn test_verify_commitment_with_tampered_amount() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 1_000_000i128;
+    let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    // Verification with different amount should fail
+    assert!(!client.verify_amount_commitment(&commitment, &owner, &(amount + 1), &salt));
+    assert!(!client.verify_amount_commitment(&commitment, &owner, &(amount - 1), &salt));
+}
+
+#[test]
+fn test_verify_commitment_with_tampered_salt() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 1_000_000i128;
+    let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    // Verification with different salt should fail
+    let tampered_salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 6]);
+    assert!(!client.verify_amount_commitment(&commitment, &owner, &amount, &tampered_salt));
+
+    let empty_salt = Bytes::new(&env);
+    assert!(!client.verify_amount_commitment(&commitment, &owner, &amount, &empty_salt));
+}
+
+#[test]
+fn test_verify_commitment_with_different_owner() {
+    let (env, client) = setup();
+
+    let owner1 = Address::generate(&env);
+    let owner2 = Address::generate(&env);
+    let amount = 1_000_000i128;
+    let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
+
+    let commitment = client.create_amount_commitment(&owner1, &amount, &salt);
+
+    // Verification with different owner should fail
+    assert!(!client.verify_amount_commitment(&commitment, &owner2, &amount, &salt));
+}
+
+#[test]
+fn test_commitment_zero_amount() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 0i128;
+    let salt = Bytes::from_slice(&env, &[42]);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    assert_eq!(commitment.len(), 32);
+    assert!(client.verify_amount_commitment(&commitment, &owner, &amount, &salt));
+}
+
+#[test]
+fn test_commitment_empty_salt() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 500i128;
+    let salt = Bytes::new(&env);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    assert_eq!(commitment.len(), 32);
+    assert!(client.verify_amount_commitment(&commitment, &owner, &amount, &salt));
+}
+
+#[test]
+fn test_commitment_large_amount() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = i128::MAX;
+    let salt = Bytes::from_slice(&env, &[99, 88, 77]);
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    assert_eq!(commitment.len(), 32);
+    assert!(client.verify_amount_commitment(&commitment, &owner, &amount, &salt));
+}
+
+#[test]
+fn test_commitment_deterministic_hashing() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 2_500_000i128;
+    let salt = Bytes::from_slice(&env, &[11, 22, 33, 44]);
+
+    let commitment1 = client.create_amount_commitment(&owner, &amount, &salt);
+    let commitment2 = client.create_amount_commitment(&owner, &amount, &salt);
+
+    // Same inputs should produce identical commitments
+    assert_eq!(commitment1, commitment2);
+}
+
+#[test]
+fn test_commitment_multiple_owners_different_hashes() {
+    let (env, client) = setup();
+
+    let owner1 = Address::generate(&env);
+    let owner2 = Address::generate(&env);
+    let amount = 1_000_000i128;
+    let salt = Bytes::from_slice(&env, &[5, 6, 7, 8]);
+
+    let commitment1 = client.create_amount_commitment(&owner1, &amount, &salt);
+    let commitment2 = client.create_amount_commitment(&owner2, &amount, &salt);
+
+    // Different owners should produce different commitments
+    assert_ne!(commitment1, commitment2);
+}
+
+#[test]
+fn test_commitment_different_amounts_different_hashes() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let salt = Bytes::from_slice(&env, &[3, 4, 5, 6]);
+
+    let commitment1 = client.create_amount_commitment(&owner, &1000i128, &salt);
+    let commitment2 = client.create_amount_commitment(&owner, &2000i128, &salt);
+
+    // Different amounts should produce different commitments
+    assert_ne!(commitment1, commitment2);
+}
+
+#[test]
+fn test_commitment_different_salts_different_hashes() {
+    let (env, client) = setup();
+
+    let owner = Address::generate(&env);
+    let amount = 1_000_000i128;
+
+    let salt1 = Bytes::from_slice(&env, &[1, 2, 3]);
+    let salt2 = Bytes::from_slice(&env, &[4, 5, 6]);
+
+    let commitment1 = client.create_amount_commitment(&owner, &amount, &salt1);
+    let commitment2 = client.create_amount_commitment(&owner, &amount, &salt2);
+
+    // Different salts should produce different commitments
+    assert_ne!(commitment1, commitment2);
 }
 
 // #![cfg(test)]

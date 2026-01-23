@@ -9,7 +9,9 @@
 
 #![no_std]
 
-use soroban_sdk::{Address, Env, Map, Symbol, Vec, contract, contractimpl};
+use soroban_sdk::{Address, Bytes, Env, Map, Symbol, Vec, contract, contractimpl};
+
+mod commitment;
 
 /// Main contract structure
 #[contract]
@@ -117,6 +119,58 @@ impl QuickexContract {
     /// * `bool` - Always returns true to indicate contract is operational
     pub fn health_check() -> bool {
         true
+    }
+
+    /// Create an amount commitment for X-Ray privacy.
+    ///
+    /// Generates a deterministic SHA256 hash of the owner address, amount, and salt.
+    /// This is a placeholder function without real zero-knowledge guarantees;
+    /// future implementation will use actual ZK proofs.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The owner's address (for domain separation)
+    /// * `amount` - The amount to commit to (must be non-negative)
+    /// * `salt` - Random salt bytes for uniqueness (max 256 bytes)
+    ///
+    /// # Returns
+    /// * `Bytes` - 32-byte SHA256 commitment hash
+    ///
+    /// # Panics
+    /// * If amount is negative
+    /// * If salt length exceeds 256 bytes
+    pub fn create_amount_commitment(
+        env: Env,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> Bytes {
+        commitment::create_amount_commitment(&env, owner, amount, salt)
+    }
+
+    /// Verify an amount commitment against claimed values.
+    ///
+    /// Recomputes the commitment from the provided amount and salt,
+    /// returning true only if the recomputed hash matches the given commitment.
+    /// Returns false for any tampering (modified amount, salt, or owner).
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - The commitment bytes to verify (should be 32 bytes)
+    /// * `owner` - The claimed owner address
+    /// * `amount` - The claimed amount value
+    /// * `salt` - The claimed salt bytes
+    ///
+    /// # Returns
+    /// * `bool` - True if commitment is valid; false if tampered or mismatched
+    pub fn verify_amount_commitment(
+        env: Env,
+        commitment: Bytes,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> bool {
+        commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 }
 
