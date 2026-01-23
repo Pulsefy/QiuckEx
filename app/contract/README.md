@@ -22,7 +22,7 @@ This contract provides the foundational privacy and escrow capabilities for the 
 # Navigate to the contract directory
 cd app/contract
 
-# Build the contract
+# Build the contract for release (optimized)
 cargo build --target wasm32-unknown-unknown --release
 
 # Build with optimized settings

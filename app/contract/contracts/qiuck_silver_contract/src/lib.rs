@@ -91,16 +91,22 @@ impl QuickSilverContractV0 {
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
         // Store privacy settings
         let key = Symbol::new(&env, "privacy_level");
-        env.storage().persistent().set(&(key, account.clone()), &privacy_level);
+        env.storage()
+            .persistent()
+            .set(&(key, account.clone()), &privacy_level);
 
         // Initialize privacy history
         let history_key = Symbol::new(&env, "privacy_history");
-        let mut history: Vec<u32> = env.storage().persistent()
+        let mut history: Vec<u32> = env
+            .storage()
+            .persistent()
             .get(&(history_key.clone(), account.clone()))
             .unwrap_or(Vec::new(&env));
 
         history.push_front(privacy_level);
-        env.storage().persistent().set(&(history_key, account), &history);
+        env.storage()
+            .persistent()
+            .set(&(history_key, account), &history);
 
         true
     }
@@ -129,7 +135,8 @@ impl QuickSilverContractV0 {
     /// * `Vec<u32>` - History of privacy level changes
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
         let key = Symbol::new(&env, "privacy_history");
-        env.storage().persistent()
+        env.storage()
+            .persistent()
             .get(&(key, account))
             .unwrap_or(Vec::new(&env))
     }
@@ -168,7 +175,6 @@ impl QuickSilverContractV0 {
         true
     }
 }
-
 
 #[cfg(test)]
 mod test;
