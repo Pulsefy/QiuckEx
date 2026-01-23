@@ -1,7 +1,12 @@
 name: Contract CI
 
 on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/contract/**'
   pull_request:
+    branches: [ main, develop ]
     paths:
       - 'app/contract/**'
 
