@@ -20,9 +20,6 @@ pub use errors::Error;
 pub use events::{EventPublisher, PrivacyToggled};
 pub use privacy::{PrivacyContract, PrivacyStorage};
 
-// Local imports for contract implementation
-use crate::events::PrivacyToggled;
-
 use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map, symbol_short};
 
 /// Main contract structure
