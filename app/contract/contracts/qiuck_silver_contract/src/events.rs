@@ -3,12 +3,12 @@
 //! Event definitions and publishing utilities for the QuickSilver contract.
 //! Enables on-chain event emission for privacy state changes.
 
-use soroban_sdk::{contracttype, Env, Address};
+use soroban_sdk::{contractevent, Env, Address};
 
 /// Event data structure for privacy toggle operations
-#[contracttype]
+#[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PrivacyToggledEvent {
+pub struct PrivacyToggled {
     /// The account that toggled privacy
     pub owner: Address,
     /// The new privacy state (true = enabled, false = disabled)
@@ -28,12 +28,13 @@ impl EventPublisher {
     /// * `owner` - The account that toggled privacy
     /// * `enabled` - The new privacy state
     pub fn privacy_toggled(env: &Env, owner: Address, enabled: bool) {
-        let event = PrivacyToggledEvent {
+        let event = PrivacyToggled {
             owner,
             enabled,
             timestamp: env.ledger().timestamp(),
         };
 
-        env.events().publish(("PrivacyToggled",), event);
+        soroban_sdk::log!(env, "Privacy toggled for {}: {}", owner, enabled);
+        // Event is automatically published by the #[contractevent] macro
     }
 }

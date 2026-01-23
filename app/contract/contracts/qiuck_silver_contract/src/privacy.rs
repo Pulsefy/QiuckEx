@@ -3,7 +3,7 @@
 //! Storage helpers and public methods for privacy toggle functionality.
 //! Provides owner-only access control and event emission for privacy state changes.
 
-use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, symbol_short};
+use soroban_sdk::{Env, Symbol, Address, symbol_short};
 use crate::errors::Error;
 use crate::events::EventPublisher;
 
@@ -42,10 +42,9 @@ impl PrivacyStorage {
     }
 }
 
-/// Public privacy methods
+/// Public privacy functions
 pub struct PrivacyContract;
 
-#[contractimpl]
 impl PrivacyContract {
     /// Set privacy mode for the calling owner
     ///

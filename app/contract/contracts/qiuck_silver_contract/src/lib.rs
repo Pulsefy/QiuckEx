@@ -17,7 +17,7 @@ mod privacy;
 
 // Re-exports for external usage
 pub use errors::Error;
-pub use events::{EventPublisher, PrivacyToggledEvent};
+pub use events::{EventPublisher, PrivacyToggled};
 pub use privacy::{PrivacyContract, PrivacyStorage};
 
 use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map};
