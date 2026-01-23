@@ -42,7 +42,19 @@ impl QuickSilverContract {
     /// # Security
     /// Requires authentication from the owner account
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), Error> {
-        PrivacyContract::set_privacy(env, owner, enabled)
+        // Require authentication from the owner
+        owner.require_auth();
+
+        // Store the new privacy state
+        let privacy_key = crate::privacy::PrivacyStorage::get_privacy_key();
+        env.storage()
+            .persistent()
+            .set(&(privacy_key, &owner), &enabled);
+
+        // Emit privacy toggled event
+        crate::events::EventPublisher::privacy_toggled(&env, owner, enabled);
+
+        Ok(())
     }
 
     /// Get the current privacy state for an account
@@ -54,7 +66,11 @@ impl QuickSilverContract {
     /// # Returns
     /// * `bool` - Current privacy state (false if not set)
     pub fn get_privacy(env: Env, owner: Address) -> bool {
-        PrivacyContract::get_privacy(env, owner)
+        let privacy_key = crate::privacy::PrivacyStorage::get_privacy_key();
+        env.storage()
+            .persistent()
+            .get(&(privacy_key, &owner))
+            .unwrap_or(false)
     }
 
     /// Legacy: Initialize privacy settings for an account

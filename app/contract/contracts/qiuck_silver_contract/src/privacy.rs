@@ -14,6 +14,11 @@ const PRIVACY_KEY: Symbol = symbol_short!("privacy");
 pub struct PrivacyStorage;
 
 impl PrivacyStorage {
+    /// Get the privacy storage key
+    pub fn get_privacy_key() -> Symbol {
+        PRIVACY_KEY
+    }
+
     /// Get the privacy state for an owner
     ///
     /// # Arguments
