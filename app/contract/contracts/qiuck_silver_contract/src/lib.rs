@@ -124,8 +124,9 @@ impl QuickSilverContract {
     /// # Returns
     /// * `u64` - Escrow ID
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
-        // Generate unique escrow ID
-        let escrow_id = env.ledger().timestamp() as u64;
+        // Generate unique escrow ID (ensure it's not zero)
+        let timestamp = env.ledger().timestamp();
+        let escrow_id = if timestamp == 0 { 1 } else { timestamp as u64 };
 
         // Store escrow details
         let escrow_key = Symbol::new(&env, "escrow");

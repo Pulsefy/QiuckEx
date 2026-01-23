@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use soroban_sdk::{
-    testutils::Address as _,
+    testutils::{Address as _, MockAuth, MockAuthInvoke},
     Address,
     Env,
 };
@@ -95,9 +95,23 @@ fn test_privacy_toggle_default_false() {
 
 #[test]
 fn test_privacy_toggle_owner_can_set() {
-    let (env, client) = setup();
+    let env = Env::default();
+    let contract_id = env.register(QuickSilverContract, ());
 
     let owner = Address::generate(&env);
+
+    // Mock authentication for the owner
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &owner,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy",
+            args: (&owner, true).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let client = QuickSilverContractClient::new(&env, &contract_id);
 
     // Set privacy to true
     client.set_privacy(&owner, &true);
@@ -123,9 +137,23 @@ fn test_privacy_toggle_non_owner_unauthorized() {
 
 #[test]
 fn test_privacy_toggle_events() {
-    let (env, client) = setup();
+    let env = Env::default();
+    let contract_id = env.register(QuickSilverContract, ());
 
     let owner = Address::generate(&env);
+
+    // Mock authentication for enabling privacy
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &owner,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy",
+            args: (&owner, true).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let client = QuickSilverContractClient::new(&env, &contract_id);
 
     // Test enabling privacy emits event
     client.set_privacy(&owner, &true);
@@ -136,22 +164,52 @@ fn test_privacy_toggle_events() {
 
 #[test]
 fn test_privacy_toggle_multiple_accounts() {
-    let (env, client) = setup();
+    let env = Env::default();
+    let contract_id = env.register(QuickSilverContract, ());
 
     let account1 = Address::generate(&env);
     let account2 = Address::generate(&env);
 
+    let client = QuickSilverContractClient::new(&env, &contract_id);
+
     // Enable privacy for account1
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &account1,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy",
+            args: (&account1, true).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
     client.set_privacy(&account1, &true);
     assert_eq!(client.get_privacy(&account1), true);
     assert_eq!(client.get_privacy(&account2), false);
 
     // Enable privacy for account2
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &account2,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy",
+            args: (&account2, true).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
     client.set_privacy(&account2, &true);
     assert_eq!(client.get_privacy(&account1), true);
     assert_eq!(client.get_privacy(&account2), true);
 
     // Disable privacy for account1
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &account1,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy",
+            args: (&account1, false).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
     client.set_privacy(&account1, &false);
     assert_eq!(client.get_privacy(&account1), false);
     assert_eq!(client.get_privacy(&account2), true);
