@@ -29,3 +29,37 @@ use soroban_sdk::{contract, contractimpl, Env};
 // 3. Module declarations
 mod test;
 ```
+
+### Authentication Patterns
+- Use `owner.require_auth()` for owner-only operations
+- Authentication must happen before any state changes
+- Document auth requirements in function docstrings
+
+### Event Emission
+- Emit events for all state-changing operations
+- Include relevant data in event payloads (owner, new_state, timestamp)
+- Use descriptive event names (e.g., `PrivacyToggled`)
+
+### Error Handling
+- Return typed errors from `errors.rs` module
+- Use appropriate error types (`Unauthorized`, `InvalidInput`, `StorageError`)
+- Handle errors gracefully in calling code
+
+## Contract Architecture
+
+### Module Structure
+```
+src/
+├── lib.rs           # Main contract and public API
+├── privacy.rs       # Privacy toggle logic and storage
+├── events.rs        # Event definitions and publishing
+├── errors.rs        # Typed error definitions
+└── test.rs          # Unit tests
+```
+
+### Privacy Toggle (v0) Implementation
+- **Storage**: Per-owner boolean flags in persistent storage
+- **Access Control**: Owner-only mutation via `require_auth()`
+- **Events**: `PrivacyToggled` event emission on state changes
+- **Errors**: Typed error returns for auth failures
+```
