@@ -24,11 +24,11 @@ use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map, symbol
 
 /// Main contract structure
 #[contract]
-pub struct QuickSilverContract;
+pub struct QuickSilverContractV0;
 
 /// Privacy toggle methods (new v0 implementation)
 #[contractimpl]
-impl QuickSilverContract {
+impl QuickSilverContractV0 {
     /// Set privacy mode for the calling owner
     ///
     /// # Arguments
