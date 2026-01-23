@@ -1,10 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{
-    testutils::Address as _,
-    Address,
-    Env,
-};
+use soroban_sdk::{Address, Env, testutils::Address as _};
 
 use crate::{QuickSilverContract, QuickSilverContractClient};
 
@@ -83,19 +79,6 @@ fn test_storage_isolation() {
     assert_eq!(client.privacy_status(&account2), Some(2));
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // #![cfg(test)]
 
 // use crate::{QuickSilverContract, QuickSilverContractClient};
@@ -106,22 +89,22 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContract);  // Fixed: use register() not register_contract()
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     // Create test accounts
 //     let account1 = Address::generate(&env);  // Fixed: use generate() not random()
 //     let account2 = Address::generate(&env);
-    
+
 //     // Test enabling privacy
 //     assert!(client.enable_privacy(&account1, &2));
 //     assert!(client.enable_privacy(&account2, &3));
-    
+
 //     // Test checking privacy status
 //     let status1 = client.privacy_status(&account1);
 //     let status2 = client.privacy_status(&account2);
-    
+
 //     assert_eq!(status1, Some(2));
 //     assert_eq!(status2, Some(3));
-    
+
 //     // Test non-existent account
 //     let account3 = Address::generate(&env);
 //     let status3 = client.privacy_status(&account3);
@@ -133,14 +116,14 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let account = Address::generate(&env);
-    
+
 //     // Enable privacy multiple times
 //     assert!(client.enable_privacy(&account, &1));
 //     assert!(client.enable_privacy(&account, &2));
 //     assert!(client.enable_privacy(&account, &3));
-    
+
 //     // Check history
 //     let history = client.privacy_history(&account);
 //     assert_eq!(history.len(), 3);
@@ -154,13 +137,13 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let from = Address::generate(&env);
 //     let to = Address::generate(&env);
 //     let amount = 1000;
-    
+
 //     let escrow_id = client.create_escrow(&from, &to, &amount);
-    
+
 //     // Verify escrow ID is generated (basic validation)
 //     assert!(escrow_id > 0);
 // }
@@ -170,7 +153,7 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     assert!(client.health_check());
 // }
 
@@ -179,32 +162,18 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let account1 = Address::generate(&env);
 //     let account2 = Address::generate(&env);
-    
+
 //     // Set different privacy levels
 //     client.enable_privacy(&account1, &1);
 //     client.enable_privacy(&account2, &2);
-    
+
 //     // Verify isolation
 //     assert_eq!(client.privacy_status(&account1), Some(1));
 //     assert_eq!(client.privacy_status(&account2), Some(2));
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // #![cfg(test)]
 
@@ -217,22 +186,22 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     // Create test accounts
 //     let account1 = Address::random(&env);
 //     let account2 = Address::random(&env);
-    
+
 //     // Test enabling privacy
 //     assert!(client.enable_privacy(&account1, &2));
 //     assert!(client.enable_privacy(&account2, &3));
-    
+
 //     // Test checking privacy status
 //     let status1 = client.privacy_status(&account1);
 //     let status2 = client.privacy_status(&account2);
-    
+
 //     assert_eq!(status1, Some(2));
 //     assert_eq!(status2, Some(3));
-    
+
 //     // Test non-existent account
 //     let account3 = Address::random(&env);
 //     let status3 = client.privacy_status(&account3);
@@ -244,14 +213,14 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let account = Address::random(&env);
-    
+
 //     // Enable privacy multiple times
 //     assert!(client.enable_privacy(&account, &1));
 //     assert!(client.enable_privacy(&account, &2));
 //     assert!(client.enable_privacy(&account, &3));
-    
+
 //     // Check history
 //     let history = client.privacy_history(&account);
 //     assert_eq!(history.len(), 3);
@@ -265,13 +234,13 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let from = Address::random(&env);
 //     let to = Address::random(&env);
 //     let amount = 1000;
-    
+
 //     let escrow_id = client.create_escrow(&from, &to, &amount);
-    
+
 //     // Verify escrow ID is generated (basic validation)
 //     assert!(escrow_id > 0);
 // }
@@ -281,7 +250,7 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     assert!(client.health_check());
 // }
 
@@ -290,14 +259,14 @@ fn test_storage_isolation() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContract);
 //     let client = QuickSilverContractClient::new(&env, &contract_id);
-    
+
 //     let account1 = Address::random(&env);
 //     let account2 = Address::random(&env);
-    
+
 //     // Set different privacy levels
 //     client.enable_privacy(&account1, &1);
 //     client.enable_privacy(&account2, &2);
-    
+
 //     // Verify isolation
 //     assert_eq!(client.privacy_status(&account1), Some(1));
 //     assert_eq!(client.privacy_status(&account2), Some(2));
