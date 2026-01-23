@@ -1,40 +1,120 @@
-//! # QuickEx Privacy Contract
-//!
-//! Soroban contract implementing X-Ray privacy features for QuickEx.
-//! Provides privacy controls and escrow functionality for on-chain operations.
-//!
-//! ## Overview
-//! This contract serves as the foundation for privacy-preserving operations
-//! in the QuickEx ecosystem, enabling selective visibility and secure escrow.
-
 #![no_std]
+use soroban_sdk::{
+    Address, Bytes, BytesN, Env, Map, Symbol, Vec, contract, contracterror, contractevent,
+    contractimpl, contracttype, token, xdr::ToXdr,
+};
 
-use soroban_sdk::{Address, Env, Map, Symbol, Vec, contract, contractimpl};
+// NOTE: These should already exist from previous tasks
+// Including here for completeness, but they may already be defined
+
+/// Escrow entry status
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EscrowStatus {
+    Pending,
+    Spent,
+}
+
+/// Escrow entry structure
+#[contracttype]
+#[derive(Clone)]
+pub struct EscrowEntry {
+    pub commitment: BytesN<32>,
+    pub token: Address,
+    pub amount: i128,
+    pub status: EscrowStatus,
+    pub depositor: Address,
+}
+
+#[contractevent]
+pub struct WithdrawEvent {
+    pub to: Address,
+    pub commitment: BytesN<32>,
+}
+
+/// Contract errors
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Error {
+    CommitmentNotFound = 1,
+    AlreadySpent = 2,
+    InvalidCommitment = 3,
+    InvalidAmount = 4,
+}
 
 /// Main contract structure
 #[contract]
 pub struct QuickexContract;
 
-/// Privacy-related methods
 #[contractimpl]
 impl QuickexContract {
-    /// Initialize privacy settings for an account
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account address to configure
-    /// * `privacy_level` - Desired privacy level (0-3)
-    ///
-    /// # Returns
-    /// * `bool` - True if privacy was successfully enabled
+    /// Withdraw funds by proving commitment ownership
+
+    pub fn withdraw(env: Env, to: Address, amount: i128, salt: Bytes) -> Result<bool, Error> {
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        to.require_auth();
+
+        let commitment = Self::compute_commitment_hash(&env, &to, amount, &salt);
+
+        let escrow_key = Symbol::new(&env, "escrow");
+        let entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&(escrow_key.clone(), commitment.clone()))
+            .ok_or(Error::CommitmentNotFound)?;
+
+        if entry.status != EscrowStatus::Pending {
+            return Err(Error::AlreadySpent);
+        }
+
+        if entry.amount != amount {
+            return Err(Error::InvalidCommitment);
+        }
+
+        let mut updated_entry = entry.clone();
+        updated_entry.status = EscrowStatus::Spent;
+        env.storage()
+            .persistent()
+            .set(&(escrow_key, commitment.clone()), &updated_entry);
+
+        let token_client = token::Client::new(&env, &entry.token);
+        token_client.transfer(&env.current_contract_address(), &to, &amount);
+
+        WithdrawEvent { to, commitment }.publish(&env);
+
+        Ok(true)
+    }
+
+    /// Compute commitment hash - internal helper for withdraw function
+    fn compute_commitment_hash(
+        env: &Env,
+        address: &Address,
+        amount: i128,
+        salt: &Bytes,
+    ) -> BytesN<32> {
+        let mut data = Bytes::new(env);
+
+        let address_bytes: Bytes = address.to_xdr(&env);
+
+        data.append(&address_bytes);
+
+        data.append(&Bytes::from_slice(env, &amount.to_be_bytes()));
+
+        data.append(salt);
+
+        env.crypto().sha256(&data).into()
+    }
+
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        // Store privacy settings
         let key = Symbol::new(&env, "privacy_level");
         env.storage()
             .persistent()
             .set(&(key, account.clone()), &privacy_level);
 
-        // Initialize privacy history
         let history_key = Symbol::new(&env, "privacy_history");
         let mut history: Vec<u32> = env
             .storage()
@@ -50,27 +130,11 @@ impl QuickexContract {
         true
     }
 
-    /// Check the current privacy status of an account
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account address to query
-    ///
-    /// # Returns
-    /// * `Option<u32>` - Current privacy level if set, None otherwise
     pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
         let key = Symbol::new(&env, "privacy_level");
         env.storage().persistent().get(&(key, account))
     }
 
-    /// Get privacy history for an account
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account address to query
-    ///
-    /// # Returns
-    /// * `Vec<u32>` - History of privacy level changes
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
         let key = Symbol::new(&env, "privacy_history");
         env.storage()
@@ -79,26 +143,13 @@ impl QuickexContract {
             .unwrap_or(Vec::new(&env))
     }
 
-    /// Placeholder for future escrow functionality
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `from` - Sender address
-    /// * `to` - Recipient address
-    /// * `amount` - Amount to escrow
-    ///
-    /// # Returns
-    /// * `u64` - Escrow ID
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
-        // Generate unique escrow ID using a counter
         let counter_key = Symbol::new(&env, "escrow_counter");
         let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
         count += 1;
         env.storage().persistent().set(&counter_key, &count);
-        
-        let escrow_id = count;
 
-        // Store escrow details
+        let escrow_id = count;
         let escrow_key = Symbol::new(&env, "escrow");
         let mut escrow_details = Map::<Symbol, Address>::new(&env);
         escrow_details.set(Symbol::new(&env, "from"), from);
@@ -111,10 +162,6 @@ impl QuickexContract {
         escrow_id
     }
 
-    /// Simple health check function
-    ///
-    /// # Returns
-    /// * `bool` - Always returns true to indicate contract is operational
     pub fn health_check() -> bool {
         true
     }
