@@ -130,7 +130,7 @@ fn test_privacy_toggle_multiple_accounts() {
     }]);
     client.set_privacy(&account1, &true);
     assert!(client.get_privacy(&account1));
-    assert_eq!(client.get_privacy(&account2), false);
+    assert!(!client.get_privacy(&account2));
 
     // Enable privacy for account2
     env.mock_auths(&[MockAuth {
@@ -157,7 +157,7 @@ fn test_privacy_toggle_multiple_accounts() {
         },
     }]);
     client.set_privacy(&account1, &false);
-    assert_eq!(client.get_privacy(&account1), false);
+    assert!(!client.get_privacy(&account1));
     assert!(client.get_privacy(&account2));
 }
 
