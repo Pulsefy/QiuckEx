@@ -28,13 +28,13 @@ impl EventPublisher {
     /// * `owner` - The account that toggled privacy
     /// * `enabled` - The new privacy state
     pub fn privacy_toggled(env: &Env, owner: Address, enabled: bool) {
-        let event = PrivacyToggled {
-            owner,
+        // Create and automatically publish the event via #[contractevent] macro
+        PrivacyToggled {
+            owner: owner.clone(),
             enabled,
             timestamp: env.ledger().timestamp(),
         };
 
         soroban_sdk::log!(env, "Privacy toggled for {}: {}", owner, enabled);
-        // Event is automatically published by the #[contractevent] macro
     }
 }
