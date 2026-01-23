@@ -3,9 +3,9 @@
 //! Storage helpers and public methods for privacy toggle functionality.
 //! Provides owner-only access control and event emission for privacy state changes.
 
-use soroban_sdk::{Env, Symbol, Address, symbol_short};
 use crate::errors::Error;
 use crate::events::EventPublisher;
+use soroban_sdk::{symbol_short, Address, Env, Symbol};
 
 /// Storage key for privacy state
 const PRIVACY_KEY: Symbol = symbol_short!("privacy");

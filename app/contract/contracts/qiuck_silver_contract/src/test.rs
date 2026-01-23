@@ -2,9 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address,
-    Env,
-    IntoVal,
+    Address, Env, IntoVal,
 };
 
 use crate::{QuickSilverContractV0, QuickSilverContractV0Client};
@@ -200,19 +198,6 @@ fn test_privacy_toggle_multiple_accounts() {
     assert_eq!(client.get_privacy(&account2), true);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // #![cfg(test)]
 
 // use crate::{QuickSilverContractV0, QuickSilverContractV0Client};
@@ -223,7 +208,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContractV0);  // Fixed: use register() not register_contract()
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     // Create test accounts
 //     let account1 = Address::generate(&env);  // Fixed: use generate() not random()
 //     let account2 = Address::generate(&env);
@@ -250,7 +235,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let account = Address::generate(&env);
 
 //     // Enable privacy multiple times
@@ -271,7 +256,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let from = Address::generate(&env);
 //     let to = Address::generate(&env);
 //     let amount = 1000;
@@ -287,7 +272,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     assert!(client.health_check());
 // }
 
@@ -296,7 +281,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register(QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let account1 = Address::generate(&env);
 //     let account2 = Address::generate(&env);
 
@@ -320,7 +305,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     // Create test accounts
 //     let account1 = Address::random(&env);
 //     let account2 = Address::random(&env);
@@ -347,7 +332,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let account = Address::random(&env);
 
 //     // Enable privacy multiple times
@@ -368,7 +353,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let from = Address::random(&env);
 //     let to = Address::random(&env);
 //     let amount = 1000;
@@ -384,7 +369,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     assert!(client.health_check());
 // }
 
@@ -393,7 +378,7 @@ fn test_privacy_toggle_multiple_accounts() {
 //     let env = Env::default();
 //     let contract_id = env.register_contract(None, QuickSilverContractV0);
 //     let client = QuickSilverContractV0Client::new(&env, &contract_id);
-    
+
 //     let account1 = Address::random(&env);
 //     let account2 = Address::random(&env);
 

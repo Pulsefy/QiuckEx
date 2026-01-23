@@ -20,7 +20,7 @@ pub use errors::Error;
 pub use events::{EventPublisher, PrivacyToggled};
 pub use privacy::{PrivacyContract, PrivacyStorage};
 
-use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map, symbol_short};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Map, Symbol, Vec};
 
 /// Main contract structure
 #[contract]
@@ -162,7 +162,9 @@ impl QuickSilverContractV0 {
         escrow_details.set(Symbol::new(&env, "from"), from);
         escrow_details.set(Symbol::new(&env, "to"), to);
 
-        env.storage().persistent().set(&(escrow_key, escrow_id), &escrow_details);
+        env.storage()
+            .persistent()
+            .set(&(escrow_key, escrow_id), &escrow_details);
 
         escrow_id
     }

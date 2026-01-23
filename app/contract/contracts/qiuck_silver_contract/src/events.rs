@@ -3,7 +3,7 @@
 //! Event definitions and publishing utilities for the QuickSilver contract.
 //! Enables on-chain event emission for privacy state changes.
 
-use soroban_sdk::{contractevent, Env, Address};
+use soroban_sdk::{contractevent, Address, Env};
 
 /// Event data structure for privacy toggle operations
 #[contractevent]
