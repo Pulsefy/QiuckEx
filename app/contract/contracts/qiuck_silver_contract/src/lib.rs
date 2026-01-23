@@ -20,7 +20,10 @@ pub use errors::Error;
 pub use events::{EventPublisher, PrivacyToggled};
 pub use privacy::{PrivacyContract, PrivacyStorage};
 
-use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map};
+// Local imports for contract implementation
+use crate::events::PrivacyToggled;
+
+use soroban_sdk::{contract, contractimpl, Env, Symbol, Address, Vec, Map, symbol_short};
 
 /// Main contract structure
 #[contract]
@@ -46,13 +49,18 @@ impl QuickSilverContract {
         owner.require_auth();
 
         // Store the new privacy state
-        let privacy_key = crate::privacy::PrivacyStorage::get_privacy_key();
+        let privacy_key = symbol_short!("privacy");
         env.storage()
             .persistent()
             .set(&(privacy_key, &owner), &enabled);
 
         // Emit privacy toggled event
-        crate::events::EventPublisher::privacy_toggled(&env, owner, enabled);
+        let event = PrivacyToggled {
+            owner: owner.clone(),
+            enabled,
+            timestamp: env.ledger().timestamp(),
+        };
+        soroban_sdk::log!(&env, "Privacy toggled for {}: {}", owner, enabled);
 
         Ok(())
     }
@@ -66,7 +74,7 @@ impl QuickSilverContract {
     /// # Returns
     /// * `bool` - Current privacy state (false if not set)
     pub fn get_privacy(env: Env, owner: Address) -> bool {
-        let privacy_key = crate::privacy::PrivacyStorage::get_privacy_key();
+        let privacy_key = symbol_short!("privacy");
         env.storage()
             .persistent()
             .get(&(privacy_key, &owner))
