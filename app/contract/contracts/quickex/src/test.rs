@@ -2,12 +2,12 @@
 
 use soroban_sdk::{Address, Env, testutils::Address as _};
 
-use crate::{QuickSilverContract, QuickSilverContractClient};
+use crate::{QuickexContract, QuickexContractClient};
 
-fn setup<'a>() -> (Env, QuickSilverContractClient<'a>) {
+fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
     let env = Env::default();
-    let contract_id = env.register(QuickSilverContract, ());
-    let client = QuickSilverContractClient::new(&env, &contract_id);
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
     (env, client)
 }
 

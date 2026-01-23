@@ -1,4 +1,4 @@
-# QuickSilver Privacy Contract
+# QuickEx Privacy Contract
 
 Soroban smart contract implementing X-Ray privacy features for QuickEx.
 
@@ -71,7 +71,7 @@ soroban dev
 
 # Deploy contract to local network
 soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/qiuck_silver_contract.wasm \
+  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
   --source default
 
 # Initialize contract (if needed)
@@ -87,7 +87,7 @@ soroban contract invoke \
 ```bash
 # Deploy to testnet
 soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/qiuck_silver_contract.wasm \
+  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
   --source test \
   --network testnet
 
@@ -105,7 +105,7 @@ soroban contract invoke \
 ```bash
 # Deploy to mainnet (use with caution!)
 soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/qiuck_silver_contract.wasm \
+  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
   --source main \
   --network mainnet
 ```

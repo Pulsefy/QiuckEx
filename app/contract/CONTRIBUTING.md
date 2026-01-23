@@ -1,6 +1,6 @@
-# Contributing to QuickSilver Privacy Contract
+# Contributing to QuickEx Privacy Contract
 
-Thank you for your interest in contributing to the QuickSilver privacy contract! This document outlines the development guidelines, code standards, and contribution workflow for this Soroban smart contract.
+Thank you for your interest in contributing to the QuickEx privacy contract! This document outlines the development guidelines, code standards, and contribution workflow for this Soroban smart contract.
 
 ## 📋 Development Guidelines
 
@@ -12,7 +12,7 @@ Thank you for your interest in contributing to the QuickSilver privacy contract!
 ### Code Style
 
 #### Naming Conventions
-- **Structs**: `PascalCase` (e.g., `QuickSilverContract`)
+- **Structs**: `PascalCase` (e.g., `QuickexContract`)
 - **Functions**: `snake_case` (e.g., `enable_privacy`)
 - **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `MAX_PRIVACY_LEVEL`)
 - **Variables**: `snake_case` (e.g., `account_address`)

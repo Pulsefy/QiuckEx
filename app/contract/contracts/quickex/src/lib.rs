@@ -1,4 +1,4 @@
-//! # QuickSilver Privacy Contract
+//! # QuickEx Privacy Contract
 //!
 //! Soroban contract implementing X-Ray privacy features for QuickEx.
 //! Provides privacy controls and escrow functionality for on-chain operations.
@@ -13,11 +13,11 @@ use soroban_sdk::{Address, Env, Map, Symbol, Vec, contract, contractimpl};
 
 /// Main contract structure
 #[contract]
-pub struct QuickSilverContract;
+pub struct QuickexContract;
 
 /// Privacy-related methods
 #[contractimpl]
-impl QuickSilverContract {
+impl QuickexContract {
     /// Initialize privacy settings for an account
     ///
     /// # Arguments
@@ -90,8 +90,13 @@ impl QuickSilverContract {
     /// # Returns
     /// * `u64` - Escrow ID
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
-        // Generate unique escrow ID
-        let escrow_id = env.ledger().timestamp() as u64;
+        // Generate unique escrow ID using a counter
+        let counter_key = Symbol::new(&env, "escrow_counter");
+        let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
+        count += 1;
+        env.storage().persistent().set(&counter_key, &count);
+        
+        let escrow_id = count;
 
         // Store escrow details
         let escrow_key = Symbol::new(&env, "escrow");
