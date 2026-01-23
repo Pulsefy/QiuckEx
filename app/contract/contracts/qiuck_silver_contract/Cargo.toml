@@ -1,7 +1,7 @@
 [package]
 name = "qiuck_silver_contract"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "X-Ray privacy Soroban contract for QuickEx"
 license = "MIT OR Apache-2.0"
 authors = ["QiuckEx Team"]
@@ -18,10 +18,14 @@ soroban-sdk = "23"
 soroban-sdk = { version = "23", features = ["testutils"] }
 
 [profile.release]
-opt-level = "z"  # Optimize for small binary size
-lto = true
-codegen-units = 1
+opt-level = "z"
+overflow-checks = true
+debug = 0
 strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
 
 [profile.release-with-logs]
 inherits = "release"
