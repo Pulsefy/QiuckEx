@@ -54,8 +54,8 @@ impl QuickSilverContract {
             .persistent()
             .set(&(privacy_key, &owner), &enabled);
 
-        // Emit privacy toggled event
-        let event = PrivacyToggled {
+        // Emit privacy toggled event (automatically published by #[contractevent] macro)
+        PrivacyToggled {
             owner: owner.clone(),
             enabled,
             timestamp: env.ledger().timestamp(),
