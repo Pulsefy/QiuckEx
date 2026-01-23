@@ -29,7 +29,7 @@ impl EventPublisher {
     /// * `enabled` - The new privacy state
     pub fn privacy_toggled(env: &Env, owner: Address, enabled: bool) {
         // Create and automatically publish the event via #[contractevent] macro
-        PrivacyToggled {
+        let _event = PrivacyToggled {
             owner: owner.clone(),
             enabled,
             timestamp: env.ledger().timestamp(),

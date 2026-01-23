@@ -52,7 +52,7 @@ impl QuickSilverContractV0 {
             .set(&(privacy_key, &owner), &enabled);
 
         // Emit privacy toggled event (automatically published by #[contractevent] macro)
-        PrivacyToggled {
+        let _event = PrivacyToggled {
             owner: owner.clone(),
             enabled,
             timestamp: env.ledger().timestamp(),
@@ -154,7 +154,7 @@ impl QuickSilverContractV0 {
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
         // Generate unique escrow ID (ensure it's not zero)
         let timestamp = env.ledger().timestamp();
-        let escrow_id = if timestamp == 0 { 1 } else { timestamp as u64 };
+        let escrow_id = if timestamp == 0 { 1 } else { timestamp };
 
         // Store escrow details
         let escrow_key = Symbol::new(&env, "escrow");
