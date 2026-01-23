@@ -4,6 +4,7 @@ use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
     Address,
     Env,
+    IntoVal,
 };
 
 use crate::{QuickSilverContract, QuickSilverContractClient};
@@ -101,9 +102,9 @@ fn test_privacy_toggle_owner_can_set() {
     let owner = Address::generate(&env);
 
     // Mock authentication for the owner
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+    env.mock_auths(&[MockAuth {
         address: &owner,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+        invoke: &MockAuthInvoke {
             contract: &contract_id,
             fn_name: "set_privacy",
             args: (&owner, true).into_val(&env),
@@ -143,9 +144,9 @@ fn test_privacy_toggle_events() {
     let owner = Address::generate(&env);
 
     // Mock authentication for enabling privacy
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+    env.mock_auths(&[MockAuth {
         address: &owner,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+        invoke: &MockAuthInvoke {
             contract: &contract_id,
             fn_name: "set_privacy",
             args: (&owner, true).into_val(&env),
@@ -173,9 +174,9 @@ fn test_privacy_toggle_multiple_accounts() {
     let client = QuickSilverContractClient::new(&env, &contract_id);
 
     // Enable privacy for account1
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+    env.mock_auths(&[MockAuth {
         address: &account1,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+        invoke: &MockAuthInvoke {
             contract: &contract_id,
             fn_name: "set_privacy",
             args: (&account1, true).into_val(&env),
@@ -187,9 +188,9 @@ fn test_privacy_toggle_multiple_accounts() {
     assert_eq!(client.get_privacy(&account2), false);
 
     // Enable privacy for account2
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+    env.mock_auths(&[MockAuth {
         address: &account2,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+        invoke: &MockAuthInvoke {
             contract: &contract_id,
             fn_name: "set_privacy",
             args: (&account2, true).into_val(&env),
@@ -201,9 +202,9 @@ fn test_privacy_toggle_multiple_accounts() {
     assert_eq!(client.get_privacy(&account2), true);
 
     // Disable privacy for account1
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+    env.mock_auths(&[MockAuth {
         address: &account1,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+        invoke: &MockAuthInvoke {
             contract: &contract_id,
             fn_name: "set_privacy",
             args: (&account1, false).into_val(&env),
