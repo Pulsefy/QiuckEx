@@ -11,7 +11,6 @@ fn setup<'a>() -> (Env, QuickSilverContractV0Client<'a>) {
     let client = QuickSilverContractV0Client::new(&env, &contract_id);
     (env, client)
 }
-
 #[test]
 fn test_enable_and_check_privacy() {
     let (env, client) = setup();
