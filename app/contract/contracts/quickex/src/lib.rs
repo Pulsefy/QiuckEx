@@ -131,5 +131,4 @@ impl QuickexContract {
     }
 }
 
-#[cfg(test)]
 mod test;

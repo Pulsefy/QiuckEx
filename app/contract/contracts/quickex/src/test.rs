@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use crate::{QuickexContract, QuickexContractClient};
 use soroban_sdk::{Address, Bytes, Env, testutils::Address as _};
 
