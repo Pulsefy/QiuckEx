@@ -1,47 +1,15 @@
 #![no_std]
-use soroban_sdk::{
-    Address, Bytes, BytesN, Env, Map, Symbol, Vec, contract, contracterror, contractevent,
-    contractimpl, contracttype, token, xdr::ToXdr,
-};
+use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, Vec, contract, contractimpl, token};
 
-// NOTE: These should already exist from previous tasks
-// Including here for completeness, but they may already be defined
+mod commitment;
+mod errors;
+mod events;
+mod privacy;
+mod types;
 
-/// Escrow entry status
-#[contracttype]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum EscrowStatus {
-    Pending,
-    Spent,
-}
-
-/// Escrow entry structure
-#[contracttype]
-#[derive(Clone)]
-pub struct EscrowEntry {
-    pub commitment: BytesN<32>,
-    pub token: Address,
-    pub amount: i128,
-    pub status: EscrowStatus,
-    pub depositor: Address,
-}
-
-#[contractevent]
-pub struct WithdrawEvent {
-    pub to: Address,
-    pub commitment: BytesN<32>,
-}
-
-/// Contract errors
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum Error {
-    CommitmentNotFound = 1,
-    AlreadySpent = 2,
-    InvalidCommitment = 3,
-    InvalidAmount = 4,
-}
+use errors::QuickexError;
+use events::publish_withdraw_toggled;
+use types::{EscrowEntry, EscrowStatus};
 
 /// Main contract structure
 #[contract]
@@ -50,29 +18,34 @@ pub struct QuickexContract;
 #[contractimpl]
 impl QuickexContract {
     /// Withdraw funds by proving commitment ownership
-
-    pub fn withdraw(env: Env, to: Address, amount: i128, salt: Bytes) -> Result<bool, Error> {
+    pub fn withdraw(
+        env: Env,
+        to: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> Result<bool, QuickexError> {
         if amount <= 0 {
-            return Err(Error::InvalidAmount);
+            return Err(QuickexError::InvalidAmount);
         }
 
         to.require_auth();
 
-        let commitment = Self::compute_commitment_hash(&env, &to, amount, &salt);
+        let commitment =
+            commitment::create_amount_commitment(&env, to.clone(), amount.clone(), salt);
 
         let escrow_key = Symbol::new(&env, "escrow");
         let entry: EscrowEntry = env
             .storage()
             .persistent()
             .get(&(escrow_key.clone(), commitment.clone()))
-            .ok_or(Error::CommitmentNotFound)?;
+            .ok_or(QuickexError::CommitmentNotFound)?;
 
         if entry.status != EscrowStatus::Pending {
-            return Err(Error::AlreadySpent);
+            return Err(QuickexError::AlreadySpent);
         }
 
         if entry.amount != amount {
-            return Err(Error::InvalidCommitment);
+            return Err(QuickexError::InvalidCommitment);
         }
 
         let mut updated_entry = entry.clone();
@@ -84,29 +57,9 @@ impl QuickexContract {
         let token_client = token::Client::new(&env, &entry.token);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-        WithdrawEvent { to, commitment }.publish(&env);
+        publish_withdraw_toggled(&env, to, commitment?);
 
         Ok(true)
-    }
-
-    /// Compute commitment hash - internal helper for withdraw function
-    fn compute_commitment_hash(
-        env: &Env,
-        address: &Address,
-        amount: i128,
-        salt: &Bytes,
-    ) -> BytesN<32> {
-        let mut data = Bytes::new(env);
-
-        let address_bytes: Bytes = address.to_xdr(&env);
-
-        data.append(&address_bytes);
-
-        data.append(&Bytes::from_slice(env, &amount.to_be_bytes()));
-
-        data.append(salt);
-
-        env.crypto().sha256(&data).into()
     }
 
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
@@ -141,6 +94,71 @@ impl QuickexContract {
             .persistent()
             .get(&(key, account))
             .unwrap_or(Vec::new(&env))
+    }
+
+    /// Enable or disable privacy for an account
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The account address to configure
+    /// * `enabled` - True to enable privacy, False to disable
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error otherwise
+    pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
+        privacy::set_privacy(&env, owner, enabled)
+    }
+
+    /// Check the current privacy status of an account
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The account address to query
+    ///
+    /// # Returns
+    /// * `bool` - Current privacy status (true = enabled)
+    pub fn get_privacy(env: Env, owner: Address) -> bool {
+        privacy::get_privacy(&env, owner)
+    }
+
+    /// Create a commitment for a hidden amount
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `owner` - The owner of the funds
+    /// * `amount` - The amount to commit
+    /// * `salt` - Random salt for privacy
+    ///
+    /// # Returns
+    /// * `Result<BytesN<32>, QuickexError>` - The commitment hash
+    pub fn create_amount_commitment(
+        env: Env,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> Result<BytesN<32>, QuickexError> {
+        commitment::create_amount_commitment(&env, owner, amount, salt)
+    }
+
+    /// Verify a commitment matches the provided values
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - The commitment hash to verify
+    /// * `owner` - The owner of the funds
+    /// * `amount` - The amount to verify
+    /// * `salt` - The salt used for the commitment
+    ///
+    /// # Returns
+    /// * `bool` - True if valid
+    pub fn verify_amount_commitment(
+        env: Env,
+        commitment: BytesN<32>,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> bool {
+        commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
