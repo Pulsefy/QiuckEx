@@ -161,6 +161,27 @@ impl QuickexContract {
         commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
+    /// Verify a commitment matches the provided values
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - The commitment hash to verify
+    /// * `owner` - The owner of the funds
+    /// * `amount` - The amount to verify
+    /// * `salt` - The salt used for the commitment
+    ///
+    /// # Returns
+    /// * `bool` - True if valid
+    pub fn verify_amount_commitment(
+        env: Env,
+        commitment: BytesN<32>,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> bool {
+        commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
+    }
+
     pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
         let counter_key = Symbol::new(&env, "escrow_counter");
         let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
