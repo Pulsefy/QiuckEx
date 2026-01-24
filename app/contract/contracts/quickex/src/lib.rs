@@ -31,7 +31,7 @@ impl QuickexContract {
         to.require_auth();
 
         let commitment =
-            commitment::create_amount_commitment(&env, to.clone(), amount.clone(), salt);
+            commitment::create_amount_commitment(&env, to.clone(), amount, salt);
 
         let escrow_key = Symbol::new(&env, "escrow");
         let entry: EscrowEntry = env
@@ -185,5 +185,4 @@ impl QuickexContract {
     }
 }
 
-#[cfg(test)]
 mod test;
