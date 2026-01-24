@@ -9,12 +9,12 @@
 
 #![no_std]
 
-use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, Vec, contract, contractimpl};
+use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, contract, contractimpl};
 
+mod commitment;
 mod errors;
 mod events;
 mod privacy;
-mod commitment;
 
 use errors::QuickexError;
 
@@ -61,10 +61,10 @@ impl QuickexContract {
     /// # Returns
     /// * `Result<BytesN<32>, QuickexError>` - The commitment hash
     pub fn create_amount_commitment(
-        env: Env, 
-        owner: Address, 
-        amount: i128, 
-        salt: Bytes
+        env: Env,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
     ) -> Result<BytesN<32>, QuickexError> {
         commitment::create_amount_commitment(&env, owner, amount, salt)
     }
@@ -81,11 +81,11 @@ impl QuickexContract {
     /// # Returns
     /// * `bool` - True if valid
     pub fn verify_amount_commitment(
-        env: Env, 
-        commitment: BytesN<32>, 
-        owner: Address, 
-        amount: i128, 
-        salt: Bytes
+        env: Env,
+        commitment: BytesN<32>,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
     ) -> bool {
         commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
@@ -106,7 +106,7 @@ impl QuickexContract {
         let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
         count += 1;
         env.storage().persistent().set(&counter_key, &count);
-        
+
         let escrow_id = count;
 
         // Store escrow details

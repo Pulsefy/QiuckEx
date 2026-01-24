@@ -1,7 +1,7 @@
 #![cfg(test)]
 
-use soroban_sdk::{Address, Bytes, Env, testutils::Address as _};
 use crate::{QuickexContract, QuickexContractClient};
+use soroban_sdk::{Address, Bytes, Env, testutils::Address as _};
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
     let env = Env::default();
@@ -44,13 +44,15 @@ fn test_commitment_cycle() {
     assert!(is_valid);
 
     // Verify incorrect amount
-    let is_valid_bad_amount = client.verify_amount_commitment(&commitment, &owner, &2_000_000i128, &salt);
+    let is_valid_bad_amount =
+        client.verify_amount_commitment(&commitment, &owner, &2_000_000i128, &salt);
     assert!(!is_valid_bad_amount);
 
     // Verify incorrect salt
     let mut bad_salt = Bytes::new(&env);
     bad_salt.append(&Bytes::from_slice(&env, b"wrong_salt"));
-    let is_valid_bad_salt = client.verify_amount_commitment(&commitment, &owner, &amount, &bad_salt);
+    let is_valid_bad_salt =
+        client.verify_amount_commitment(&commitment, &owner, &amount, &bad_salt);
     assert!(!is_valid_bad_salt);
 }
 
