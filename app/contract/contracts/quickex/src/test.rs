@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{QuickexContract, QuickexContractClient};
 use soroban_sdk::{Address, Bytes, Env, testutils::Address as _};
 
@@ -17,15 +15,15 @@ fn test_set_and_get_privacy() {
     let account = Address::generate(&env);
 
     // Default should be false
-    assert_eq!(client.get_privacy(&account), false);
+    assert!(!client.get_privacy(&account));
 
     // Enable privacy
     client.set_privacy(&account, &true);
-    assert_eq!(client.get_privacy(&account), true);
+    assert!(client.get_privacy(&account));
 
     // Disable privacy
     client.set_privacy(&account, &false);
-    assert_eq!(client.get_privacy(&account), false);
+    assert!(!client.get_privacy(&account));
 }
 
 #[test]
