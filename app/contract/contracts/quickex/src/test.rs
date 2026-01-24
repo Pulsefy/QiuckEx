@@ -86,7 +86,7 @@ fn test_storage_isolation() {
 #[test]
 fn test_create_and_verify_commitment_success() {
     let (env, client) = setup();
-    
+
     let owner = Address::generate(&env);
     let amount = 1_000_000i128;
     let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);

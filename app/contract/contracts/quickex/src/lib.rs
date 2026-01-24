@@ -97,7 +97,7 @@ impl QuickexContract {
         let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
         count += 1;
         env.storage().persistent().set(&counter_key, &count);
-        
+
         let escrow_id = count;
 
         // Store escrow details
@@ -139,12 +139,7 @@ impl QuickexContract {
     /// # Panics
     /// * If amount is negative
     /// * If salt length exceeds 256 bytes
-    pub fn create_amount_commitment(
-        env: Env,
-        owner: Address,
-        amount: i128,
-        salt: Bytes,
-    ) -> Bytes {
+    pub fn create_amount_commitment(env: Env, owner: Address, amount: i128, salt: Bytes) -> Bytes {
         commitment::create_amount_commitment(&env, owner, amount, salt)
     }
 

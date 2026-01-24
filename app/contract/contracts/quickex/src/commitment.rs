@@ -48,12 +48,7 @@ const MAX_SALT_LENGTH: u32 = 256;
 /// let salt = Bytes::from_slice(&env, &[1, 2, 3, 4]);
 /// let commitment = create_amount_commitment(&env, &owner, amount, &salt);
 /// ```
-pub fn create_amount_commitment(
-    env: &Env,
-    owner: Address,
-    amount: i128,
-    salt: Bytes,
-) -> Bytes {
+pub fn create_amount_commitment(env: &Env, owner: Address, amount: i128, salt: Bytes) -> Bytes {
     // Validation: amount must be non-negative
     if amount < 0 {
         panic!("Amount must be non-negative");
@@ -179,7 +174,13 @@ mod tests {
         assert_eq!(commitment.len(), 32);
 
         // Verification with same values should succeed
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, &salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            &salt
+        ));
     }
 
     #[test]
@@ -268,7 +269,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, &salt);
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, &salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            &salt
+        ));
     }
 
     #[test]
@@ -281,7 +288,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, &salt);
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, &salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            &salt
+        ));
     }
 
     #[test]
@@ -294,7 +307,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, &salt);
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, &salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            &salt
+        ));
     }
 
     #[test]
