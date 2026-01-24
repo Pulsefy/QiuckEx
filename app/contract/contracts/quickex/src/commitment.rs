@@ -17,7 +17,7 @@
 //!
 //! Future: Replace with actual ZK commitments (e.g., Pedersen, Poseidon hash).
 
-use soroban_sdk::{Address, Bytes, Env};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, Env};
 
 /// Maximum allowed salt length (256 bytes) as a safeguard
 const MAX_SALT_LENGTH: u32 = 256;
@@ -48,7 +48,7 @@ const MAX_SALT_LENGTH: u32 = 256;
 /// let salt = Bytes::from_slice(&env, &[1, 2, 3, 4]);
 /// let commitment = create_amount_commitment(&env, &owner, amount, &salt);
 /// ```
-pub fn create_amount_commitment(env: &Env, owner: Address, amount: i128, salt: Bytes) -> Bytes {
+pub fn create_amount_commitment(env: &Env, owner: &Address, amount: i128, salt: Bytes) -> Bytes {
     // Validation: amount must be non-negative
     if amount < 0 {
         panic!("Amount must be non-negative");
@@ -59,23 +59,43 @@ pub fn create_amount_commitment(env: &Env, owner: Address, amount: i128, salt: B
         panic!("Salt length exceeds maximum allowed");
     }
 
-    // Serialize components: owner address bytes + amount (big-endian) + salt
-    let mut data = Bytes::new(env);
-
     // Add owner address bytes
     let owner_bytes = owner.to_xdr(env);
-    data = concat_bytes(env, &data, &owner_bytes);
 
     // Add amount as big-endian i128 (16 bytes)
     let amount_bytes = amount.to_be_bytes();
-    let amount_bytes_ref = Bytes::from_slice(env, &amount_bytes);
-    data = concat_bytes(env, &data, &amount_bytes_ref);
 
-    // Add salt
-    data = concat_bytes(env, &data, &salt);
+    // Total: owner_bytes.len() + 16 (amount) + salt.len()
+    let total_len: usize = (owner_bytes.len() + 16 + salt.len()) as usize;
+    
+    // Allocate a temporary buffer using the stack for small sizes or inline approach
+    // Since we can't use std::vec, construct bytes manually
+    let mut buffer = [0u8; 2048]; // Maximum reasonable size
+    let mut offset = 0usize;
+
+    // Copy owner bytes
+    for i in 0..owner_bytes.len() {
+        buffer[offset] = owner_bytes.get(i).unwrap();
+        offset += 1;
+    }
+
+    // Copy amount bytes
+    for i in 0..16 {
+        buffer[offset] = amount_bytes[i];
+        offset += 1;
+    }
+
+    // Copy salt bytes
+    for i in 0..salt.len() {
+        buffer[offset] = salt.get(i).unwrap();
+        offset += 1;
+    }
+
+    // Create Bytes from the filled buffer
+    let data = Bytes::from_slice(env, &buffer[0..total_len]);
 
     // Compute and return SHA256 hash
-    env.crypto().sha256(&data)
+    env.crypto().sha256(&data).into()
 }
 
 /// Verify an amount commitment against claimed values.
@@ -108,8 +128,8 @@ pub fn create_amount_commitment(env: &Env, owner: Address, amount: i128, salt: B
 /// ```
 pub fn verify_amount_commitment(
     env: &Env,
-    commitment: Bytes,
-    owner: Address,
+    commitment: &Bytes,
+    owner: &Address,
     amount: i128,
     salt: Bytes,
 ) -> bool {
@@ -117,45 +137,38 @@ pub fn verify_amount_commitment(
     let recomputed = create_amount_commitment(env, owner, amount, salt);
 
     // Compare byte-for-byte
-    commitment == recomputed
+    commitment == &recomputed
 }
 
 /// Helper: Concatenate two Bytes objects.
 ///
 /// Soroban's Bytes type doesn't natively support concatenation, so we reconstruct
 /// by reading both sources and appending them sequentially.
-fn concat_bytes(env: &Env, a: &Bytes, b: &Bytes) -> Bytes {
-    let mut result = Bytes::new(env);
+#[deprecated = "No longer used; concat logic integrated into create_amount_commitment"]
+fn _concat_bytes(env: &Env, a: &Bytes, b: &Bytes) -> Bytes {
+    let total_len: usize = (a.len() + b.len()) as usize;
+    let mut buffer = [0u8; 2048];
+    let mut offset = 0usize;
 
-    // Append all bytes from `a`
+    // Copy bytes from `a`
     for i in 0..a.len() {
-        result = extend_bytes(env, &result, a.get(i).unwrap());
+        buffer[offset] = a.get(i).unwrap();
+        offset += 1;
     }
 
-    // Append all bytes from `b`
+    // Copy bytes from `b`
     for i in 0..b.len() {
-        result = extend_bytes(env, &result, b.get(i).unwrap());
+        buffer[offset] = b.get(i).unwrap();
+        offset += 1;
     }
 
-    result
-}
-
-/// Helper: Extend a Bytes object with a single byte.
-fn extend_bytes(env: &Env, bytes: &Bytes, byte: u8) -> Bytes {
-    let mut result = Bytes::new(env);
-
-    // Copy existing bytes
-    for i in 0..bytes.len() {
-        result = result.push(bytes.get(i).unwrap());
-    }
-
-    // Append new byte
-    result.push(byte)
+    Bytes::from_slice(env, &buffer[0..total_len])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use soroban_sdk::testutils::Address as _;
 
     fn setup() -> Env {
         Env::default()
@@ -168,19 +181,13 @@ mod tests {
         let amount = 1_000_000i128;
         let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         // Commitment should be 32 bytes (SHA256)
         assert_eq!(commitment.len(), 32);
 
         // Verification with same values should succeed
-        assert!(verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &salt
-        ));
+        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
     }
 
     #[test]
@@ -190,24 +197,12 @@ mod tests {
         let amount = 1_000_000i128;
         let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         // Verification with different amount should fail
-        assert!(!verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount + 1,
-            &salt
-        ));
+        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount + 1, salt.clone()));
 
-        assert!(!verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount - 1,
-            &salt
-        ));
+        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount - 1, salt));
     }
 
     #[test]
@@ -217,26 +212,14 @@ mod tests {
         let amount = 1_000_000i128;
         let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         // Verification with different salt should fail
         let tampered_salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 6]);
-        assert!(!verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &tampered_salt
-        ));
+        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount, tampered_salt));
 
         let empty_salt = Bytes::new(&env);
-        assert!(!verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &empty_salt
-        ));
+        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount, empty_salt));
     }
 
     #[test]
@@ -247,16 +230,10 @@ mod tests {
         let amount = 1_000_000i128;
         let salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 5]);
 
-        let commitment = create_amount_commitment(&env, &owner1, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner1, amount, salt.clone());
 
         // Verification with different owner should fail
-        assert!(!verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner2,
-            amount,
-            &salt
-        ));
+        assert!(!verify_amount_commitment(&env, &commitment, &owner2, amount, salt));
     }
 
     #[test]
@@ -266,16 +243,10 @@ mod tests {
         let amount = 0i128;
         let salt = Bytes::from_slice(&env, &[42]);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &salt
-        ));
+        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
     }
 
     #[test]
@@ -285,16 +256,10 @@ mod tests {
         let amount = 500i128;
         let salt = Bytes::new(&env);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &salt
-        ));
+        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
     }
 
     #[test]
@@ -304,16 +269,10 @@ mod tests {
         let amount = i128::MAX;
         let salt = Bytes::from_slice(&env, &[99, 88, 77]);
 
-        let commitment = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(
-            &env,
-            &commitment,
-            &owner,
-            amount,
-            &salt
-        ));
+        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
     }
 
     #[test]
@@ -323,8 +282,8 @@ mod tests {
         let amount = 2_500_000i128;
         let salt = Bytes::from_slice(&env, &[11, 22, 33, 44]);
 
-        let commitment1 = create_amount_commitment(&env, &owner, amount, &salt);
-        let commitment2 = create_amount_commitment(&env, &owner, amount, &salt);
+        let commitment1 = create_amount_commitment(&env, &owner, amount, salt.clone());
+        let commitment2 = create_amount_commitment(&env, &owner, amount, salt);
 
         // Same inputs should produce identical commitments
         assert_eq!(commitment1, commitment2);
@@ -339,7 +298,7 @@ mod tests {
         let oversized_salt = Bytes::from_slice(&env, &[42; 257]);
 
         // Should panic due to exceeding MAX_SALT_LENGTH
-        let _ = create_amount_commitment(&env, &owner, amount, &oversized_salt);
+        let _ = create_amount_commitment(&env, &owner, amount, oversized_salt);
     }
 
     #[test]
@@ -351,6 +310,6 @@ mod tests {
         let salt = Bytes::from_slice(&env, &[1, 2, 3]);
 
         // Should panic due to negative amount
-        let _ = create_amount_commitment(&env, &owner, amount, &salt);
+        let _ = create_amount_commitment(&env, &owner, amount, salt);
     }
 }

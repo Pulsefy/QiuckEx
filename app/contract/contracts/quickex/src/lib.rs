@@ -140,7 +140,7 @@ impl QuickexContract {
     /// * If amount is negative
     /// * If salt length exceeds 256 bytes
     pub fn create_amount_commitment(env: Env, owner: Address, amount: i128, salt: Bytes) -> Bytes {
-        commitment::create_amount_commitment(&env, owner, amount, salt)
+        commitment::create_amount_commitment(&env, &owner, amount, salt)
     }
 
     /// Verify an amount commitment against claimed values.
@@ -165,7 +165,7 @@ impl QuickexContract {
         amount: i128,
         salt: Bytes,
     ) -> bool {
-        commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
+        commitment::verify_amount_commitment(&env, &commitment, &owner, amount, salt)
     }
 }
 
