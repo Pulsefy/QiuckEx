@@ -9,9 +9,14 @@
 
 #![no_std]
 
-use soroban_sdk::{Address, Bytes, Env, Map, Symbol, Vec, contract, contractimpl};
+use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, contract, contractimpl};
 
 mod commitment;
+mod errors;
+mod events;
+mod privacy;
+
+use errors::QuickexError;
 
 /// Main contract structure
 #[contract]
@@ -20,65 +25,69 @@ pub struct QuickexContract;
 /// Privacy-related methods
 #[contractimpl]
 impl QuickexContract {
-    /// Initialize privacy settings for an account
+    /// Enable or disable privacy for an account
     ///
     /// # Arguments
     /// * `env` - The contract environment
-    /// * `account` - The account address to configure
-    /// * `privacy_level` - Desired privacy level (0-3)
+    /// * `owner` - The account address to configure
+    /// * `enabled` - True to enable privacy, False to disable
     ///
     /// # Returns
-    /// * `bool` - True if privacy was successfully enabled
-    pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        // Store privacy settings
-        let key = Symbol::new(&env, "privacy_level");
-        env.storage()
-            .persistent()
-            .set(&(key, account.clone()), &privacy_level);
-
-        // Initialize privacy history
-        let history_key = Symbol::new(&env, "privacy_history");
-        let mut history: Vec<u32> = env
-            .storage()
-            .persistent()
-            .get(&(history_key.clone(), account.clone()))
-            .unwrap_or(Vec::new(&env));
-
-        history.push_front(privacy_level);
-        env.storage()
-            .persistent()
-            .set(&(history_key, account), &history);
-
-        true
+    /// * `Result<(), QuickexError>` - Ok if successful, Error otherwise
+    pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
+        privacy::set_privacy(&env, owner, enabled)
     }
 
     /// Check the current privacy status of an account
     ///
     /// # Arguments
     /// * `env` - The contract environment
-    /// * `account` - The account address to query
+    /// * `owner` - The account address to query
     ///
     /// # Returns
-    /// * `Option<u32>` - Current privacy level if set, None otherwise
-    pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
-        let key = Symbol::new(&env, "privacy_level");
-        env.storage().persistent().get(&(key, account))
+    /// * `bool` - Current privacy status (true = enabled)
+    pub fn get_privacy(env: Env, owner: Address) -> bool {
+        privacy::get_privacy(&env, owner)
     }
 
-    /// Get privacy history for an account
+    /// Create a commitment for a hidden amount
     ///
     /// # Arguments
     /// * `env` - The contract environment
-    /// * `account` - The account address to query
+    /// * `owner` - The owner of the funds
+    /// * `amount` - The amount to commit
+    /// * `salt` - Random salt for privacy
     ///
     /// # Returns
-    /// * `Vec<u32>` - History of privacy level changes
-    pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
-        let key = Symbol::new(&env, "privacy_history");
-        env.storage()
-            .persistent()
-            .get(&(key, account))
-            .unwrap_or(Vec::new(&env))
+    /// * `Result<BytesN<32>, QuickexError>` - The commitment hash
+    pub fn create_amount_commitment(
+        env: Env,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> Result<BytesN<32>, QuickexError> {
+        commitment::create_amount_commitment(&env, owner, amount, salt)
+    }
+
+    /// Verify a commitment matches the provided values
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - The commitment hash to verify
+    /// * `owner` - The owner of the funds
+    /// * `amount` - The amount to verify
+    /// * `salt` - The salt used for the commitment
+    ///
+    /// # Returns
+    /// * `bool` - True if valid
+    pub fn verify_amount_commitment(
+        env: Env,
+        commitment: BytesN<32>,
+        owner: Address,
+        amount: i128,
+        salt: Bytes,
+    ) -> bool {
+        commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
     /// Placeholder for future escrow functionality
