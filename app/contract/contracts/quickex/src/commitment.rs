@@ -17,7 +17,7 @@
 //!
 //! Future: Replace with actual ZK commitments (e.g., Pedersen, Poseidon hash).
 
-use soroban_sdk::{xdr::ToXdr, Address, Bytes, Env};
+use soroban_sdk::{Address, Bytes, Env, xdr::ToXdr};
 
 /// Maximum allowed salt length (256 bytes) as a safeguard
 const MAX_SALT_LENGTH: u32 = 256;
@@ -67,7 +67,7 @@ pub fn create_amount_commitment(env: &Env, owner: &Address, amount: i128, salt: 
 
     // Total: owner_bytes.len() + 16 (amount) + salt.len()
     let total_len: usize = (owner_bytes.len() + 16 + salt.len()) as usize;
-    
+
     // Allocate a temporary buffer using the stack for small sizes or inline approach
     // Since we can't use std::vec, construct bytes manually
     let mut buffer = [0u8; 2048]; // Maximum reasonable size
@@ -187,7 +187,13 @@ mod tests {
         assert_eq!(commitment.len(), 32);
 
         // Verification with same values should succeed
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            salt
+        ));
     }
 
     #[test]
@@ -200,9 +206,21 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         // Verification with different amount should fail
-        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount + 1, salt.clone()));
+        assert!(!verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount + 1,
+            salt.clone()
+        ));
 
-        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount - 1, salt));
+        assert!(!verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount - 1,
+            salt
+        ));
     }
 
     #[test]
@@ -216,10 +234,22 @@ mod tests {
 
         // Verification with different salt should fail
         let tampered_salt = Bytes::from_slice(&env, &[1, 2, 3, 4, 6]);
-        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount, tampered_salt));
+        assert!(!verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            tampered_salt
+        ));
 
         let empty_salt = Bytes::new(&env);
-        assert!(!verify_amount_commitment(&env, &commitment, &owner, amount, empty_salt));
+        assert!(!verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            empty_salt
+        ));
     }
 
     #[test]
@@ -233,7 +263,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner1, amount, salt.clone());
 
         // Verification with different owner should fail
-        assert!(!verify_amount_commitment(&env, &commitment, &owner2, amount, salt));
+        assert!(!verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner2,
+            amount,
+            salt
+        ));
     }
 
     #[test]
@@ -246,7 +282,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            salt
+        ));
     }
 
     #[test]
@@ -259,7 +301,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            salt
+        ));
     }
 
     #[test]
@@ -272,7 +320,13 @@ mod tests {
         let commitment = create_amount_commitment(&env, &owner, amount, salt.clone());
 
         assert_eq!(commitment.len(), 32);
-        assert!(verify_amount_commitment(&env, &commitment, &owner, amount, salt));
+        assert!(verify_amount_commitment(
+            &env,
+            &commitment,
+            &owner,
+            amount,
+            salt
+        ));
     }
 
     #[test]
