@@ -19,4 +19,12 @@ export class CreateUsernameDto {
     message: 'Username must contain only lowercase letters, numbers, and underscores',
   })
   username!: string;
+
+  @ApiProperty({
+    description: "The user's Stellar public key",
+    example: 'GBXGQ...7YWR',
+  })
+  @IsString()
+  @IsNotEmpty()
+  publicKey!: string;
 }
