@@ -1,32 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+import { AppConfigService } from '../config';
 
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
-  private readonly client: SupabaseClient | null;
+  private readonly client: SupabaseClient;
 
-  constructor(private readonly configService: ConfigService) {
-    const url = this.configService.get<string>('SUPABASE_URL');
-    const anonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-
-    if (!url || !anonKey) {
-      this.logger.warn(
-        'Supabase env vars missing. Set SUPABASE_URL and SUPABASE_ANON_KEY to enable persistence.',
-      );
-      this.client = null;
-      return;
-    }
+  constructor(private readonly configService: AppConfigService) {
+    // Environment variables are validated at startup via Joi schema,
+    // so we can safely access them here without null checks
+    const url = this.configService.supabaseUrl;
+    const anonKey = this.configService.supabaseAnonKey;
 
     this.client = createClient(url, anonKey, {
       auth: {
         persistSession: false,
       },
     });
+
+    this.logger.log('Supabase client initialized successfully');
   }
 
-  getClient(): SupabaseClient | null {
+  getClient(): SupabaseClient {
     return this.client;
   }
 }
