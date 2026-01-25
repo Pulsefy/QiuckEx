@@ -61,7 +61,7 @@ The backend validates all environment variables at startup using a Joi schema. I
 
 ## Scripts
 
-Run from repo root:
+Run from repo root using TurboRepo filters:
 
 ```bash
 pnpm turbo run dev --filter=@quickex/backend      # Start development server
@@ -113,6 +113,8 @@ When the server is running, navigate to `/docs` to see:
 ## Local Development
 
 ### Start the development server
+
+To run the backend locally:
 
 ```bash
 pnpm turbo run dev --filter=@quickex/backend
