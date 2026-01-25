@@ -71,3 +71,115 @@ fn test_health_check() {
     let (_, client) = setup();
     assert!(client.health_check());
 }
+
+#[test]
+fn test_initialize_admin() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Verify admin is set
+    assert_eq!(client.get_admin(), Some(admin.clone()));
+
+    // Verify contract is not paused by default
+    assert!(!client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_initialize_twice_fails() {
+    let (env, client) = setup();
+    let admin1 = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin1);
+
+    // Try to initialize again - should fail
+    client.initialize(&admin2);
+}
+
+#[test]
+fn test_set_paused_by_admin() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Admin pauses the contract
+    client.set_paused(&admin, &true);
+    assert!(client.is_paused());
+
+    // Admin unpauses the contract
+    client.set_paused(&admin, &false);
+    assert!(!client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_set_paused_by_non_admin_fails() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Non-admin tries to pause - should fail
+    client.set_paused(&non_admin, &true);
+}
+
+#[test]
+fn test_set_admin() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Transfer admin rights
+    client.set_admin(&admin, &new_admin);
+
+    // Verify new admin is set
+    assert_eq!(client.get_admin(), Some(new_admin.clone()));
+
+    // Verify new admin can pause
+    client.set_paused(&new_admin, &true);
+    assert!(client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_set_admin_by_non_admin_fails() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Non-admin tries to transfer admin rights - should fail
+    client.set_admin(&non_admin, &new_admin);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_old_admin_cannot_pause_after_transfer() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Transfer admin rights
+    client.set_admin(&admin, &new_admin);
+
+    // Old admin tries to pause - should fail
+    client.set_paused(&admin, &true);
+}

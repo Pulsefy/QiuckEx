@@ -11,6 +11,7 @@
 
 use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, contract, contractimpl};
 
+mod admin;
 mod commitment;
 mod errors;
 mod events;
@@ -128,6 +129,66 @@ impl QuickexContract {
     /// * `bool` - Always returns true to indicate contract is operational
     pub fn health_check() -> bool {
         true
+    }
+
+    /// Initialize the contract with an admin address
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `admin` - The admin address to set
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error if already initialized
+    pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
+        admin::initialize(&env, admin)
+    }
+
+    /// Set the paused state of the contract (Admin only)
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The caller address (must be admin)
+    /// * `new_state` - True to pause, False to unpause
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error if unauthorized or other issue
+    pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
+        admin::set_paused(&env, caller, new_state)
+    }
+
+    /// Transfer admin rights to a new address (Admin only)
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The caller address (must be admin)
+    /// * `new_admin` - The new admin address
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error if unauthorized or other issue
+    pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
+        admin::set_admin(&env, caller, new_admin)
+    }
+
+    /// Check if the contract is currently paused
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    ///
+    /// # Returns
+    /// * `bool` - True if paused, False otherwise
+    pub fn is_paused(env: Env) -> bool {
+        admin::is_paused(&env)
+    }
+
+    /// Get the current admin address
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    ///
+    /// # Returns
+    /// * `Option<Address>` - The admin address if set, None otherwise
+    pub fn get_admin(env: Env) -> Option<Address> {
+        admin::get_admin(&env)
     }
 }
 
