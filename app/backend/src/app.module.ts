@@ -5,7 +5,9 @@ import { HealthModule } from './health/health.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
 
+import { TransactionsModule } from './transactions/transactions.module';
+
 @Module({
-  imports: [AppConfigModule, SupabaseModule, HealthModule, UsernamesModule],
+  imports: [AppConfigModule, SupabaseModule, HealthModule, UsernamesModule, TransactionsModule],
 })
-export class AppModule {}
+export class AppModule { }
