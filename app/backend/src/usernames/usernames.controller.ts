@@ -34,10 +34,10 @@ export class UsernamesController {
     // TODO: Implement actual username creation logic
     
     // Emit the "username_claimed" event as per Success Criteria
-    // This is non-blocking and will be handled by our stub in NotificationService
-    this.eventEmitter.emit('username_claimed', {
+    // This is non-blocking and will be handled by stub in NotificationService
+    this.eventEmitter.emit('username.claimed', {
       username: body.username,
-      publicKey: body.publicKey, // Assuming this is in your DTO
+      publicKey: body.publicKey,
       timestamp: new Date().toISOString(),
     });
 
