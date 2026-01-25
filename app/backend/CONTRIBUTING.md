@@ -26,7 +26,7 @@ This creates the route: `GET /v1/example`
 
 ## API standards
 
-- DTO validation is required for request bodie.
+- DTO validation is required for request bodies.
 - Use `class-validator` + `class-transformer`.
 - Prefer explicit status codes and predictable response shapes.
 - Do not log secrets (never print Supabase keys).
