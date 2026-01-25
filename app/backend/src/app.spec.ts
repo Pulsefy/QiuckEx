@@ -4,6 +4,8 @@ import * as request from 'supertest';
 
 import { AppModule } from './app.module';
 
+// Environment variables are set in jest.setup.ts
+
 describe('App endpoints', () => {
   let app: INestApplication;
 
