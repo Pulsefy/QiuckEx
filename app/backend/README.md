@@ -12,8 +12,56 @@ pnpm install
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+- `STELLAR_NETWORK` (optional, defaults to `testnet`)
 
 If these are missing, the backend will still start but will log a warning and Supabase will remain disabled.
+
+## Stellar configuration
+
+### Network
+
+- Env var: `STELLAR_NETWORK`
+- Allowed values: `testnet`, `mainnet`
+- Default: `testnet`
+- Invalid values fail fast with a startup error.
+
+Example `.env`:
+
+```bash
+STELLAR_NETWORK=testnet
+```
+
+### Supported assets
+
+Asset validation is driven by `SUPPORTED_ASSETS` in `src/config/stellar.config.ts`.
+
+Native asset shape:
+
+```ts
+{ type: 'native', code: 'XLM' }
+```
+
+Issued asset shape:
+
+```ts
+{ type: 'credit_alphanum4', code: 'USDC', issuer: 'G...ISSUER' }
+```
+
+How to add a new supported asset:
+
+1. Add a new entry to `SUPPORTED_ASSETS`.
+2. For issued assets, include the exact issuer (case-sensitive).
+3. Update tests and docs.
+
+Example issued asset:
+
+```ts
+{
+  type: 'credit_alphanum4',
+  code: 'EURT',
+  issuer: 'GEXAMPLEISSUERADDRESS'
+}
+```
 
 ## Scripts
 

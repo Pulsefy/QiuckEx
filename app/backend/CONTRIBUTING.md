@@ -12,6 +12,29 @@
 - Enforce `whitelist: true` and `forbidNonWhitelisted: true`.
 - Keep DTOs small and versionable.
 
+## Stellar assets and network
+
+- Supported assets live in `src/config/stellar.config.ts` under `SUPPORTED_ASSETS`.
+- Native assets use `{ type: 'native', code: 'XLM' }`.
+- Issued assets require an exact issuer (case-sensitive).
+
+Example issued asset entry:
+
+```ts
+{
+  type: 'credit_alphanum4',
+  code: 'EURT',
+  issuer: 'GEXAMPLEISSUERADDRESS'
+}
+```
+
+Network configuration:
+
+- Env var: `STELLAR_NETWORK`
+- Allowed: `testnet`, `mainnet`
+- Default: `testnet`
+- Invalid values throw `InvalidNetworkError` at startup.
+
 ## Testing
 
 Run tests from repo root:

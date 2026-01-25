@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { stellarConfig } from './config/stellar.config';
 import { HealthModule } from './health/health.module';
+import { StellarModule } from './stellar/stellar.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
 
@@ -9,9 +11,11 @@ import { UsernamesModule } from './usernames/usernames.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [stellarConfig],
     }),
     SupabaseModule,
     HealthModule,
+    StellarModule,
     UsernamesModule,
   ],
 })
