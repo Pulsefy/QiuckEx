@@ -17,22 +17,59 @@ If these are missing, the backend will still start but will log a warning and Su
 
 ## Scripts
 
-Run from repo root:
+Run from repo root using TurboRepo filters:
 
-```bash
-pnpm turbo run dev --filter=@quickex/backend
-pnpm turbo run test --filter=@quickex/backend
-pnpm turbo run type-check --filter=@quickex/backend
-pnpm turbo run lint --filter=@quickex/backend
-pnpm turbo run build --filter=@quickex/backend
-```
+- **Development**:
+  ```bash
+  pnpm turbo run dev --filter=@quickex/backend
+  ```
+- **Build**:
+  ```bash
+  pnpm turbo run build --filter=@quickex/backend
+  ```
+- **Test**:
+  ```bash
+  pnpm turbo run test --filter=@quickex/backend
+  ```
+- **Lint**:
+  ```bash
+  pnpm turbo run lint --filter=@quickex/backend
+  ```
+- **Type Check**:
+  ```bash
+  pnpm turbo run type-check --filter=@quickex/backend
+  ```
 
 ## Endpoints
 
-- `GET /health` -> `{ "status": "ok" }`
-- `POST /username` -> validates body and returns `{ "ok": true }` (stub; no DB writes)
+### Health Check
+- **GET** `/health`
+- **Response**:
+  ```json
+  { "status": "ok" }
+  ```
+
+### Usernames
+- **POST** `/username`
+- **Description**: Validates format and checks availability (stub).
+- **Body**:
+  ```json
+  {
+    "username": "example_user"
+  }
+  ```
+- **Validation Rules**:
+  - `IsString`, `IsNotEmpty`
+  - Length: 3–32 characters
+  - Pattern: `^[a-z0-9_]+$` (lowercase alphanumeric and underscores only)
+- **Response**:
+  ```json
+  { "ok": true }
+  ```
 
 ## Local run
+
+To run the backend locally:
 
 ```bash
 pnpm turbo run dev --filter=@quickex/backend
