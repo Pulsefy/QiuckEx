@@ -2,25 +2,20 @@ import 'reflect-metadata';
 
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
+import { AppConfigService } from './config';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
-  // Enable API versioning with URI strategy, default to v1
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
+  const configService = app.get(AppConfigService);
 
-  // Configure CORS with safe defaults
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'https://app.quickex.example.com', // Placeholder for production domain
-  ];
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
@@ -46,11 +41,31 @@ async function bootstrap() {
     }),
   );
 
-  const port = process.env.PORT ? Number(process.env.PORT) : 4000;
+  // Swagger/OpenAPI documentation setup
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('QuickEx Backend')
+    .setDescription(
+      'QuickEx API documentation - A Stellar-based exchange platform. ' +
+        `Currently connected to: ${configService.network}`,
+    )
+    .setVersion('v1')
+    .addTag('health', 'Health check endpoints')
+    .addTag('usernames', 'Username management endpoints')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
+
+  const port = configService.port;
   await app.listen(port);
 
-  const logger = new Logger('Bootstrap');
   logger.log(`Backend listening on http://localhost:${port}`);
+  logger.log(`Swagger docs available at http://localhost:${port}/docs`);
+  logger.log(`Network: ${configService.network}`);
 }
 
 void bootstrap();
