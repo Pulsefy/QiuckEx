@@ -11,11 +11,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
   IsStellarAmount,
-  IsStellarMemo,
-  IsStellarAsset,
   STELLAR_MEMO,
   STELLAR_AMOUNT,
-  AssetCode,
   MemoType,
 } from '../validators';
 
@@ -51,15 +48,14 @@ export class LinkMetadataRequestDto {
   amount!: number;
 
   @ApiPropertyOptional({
-    description: 'Optional memo text (max 28 characters)',
+    description: 'Optional memo text (max 28 characters after sanitization)',
     example: 'Payment for service',
     maxLength: STELLAR_MEMO.MAX_LENGTH,
   })
   @IsOptional()
   @IsString()
-  @IsStellarMemo({
-    message: `Memo must be at most ${STELLAR_MEMO.MAX_LENGTH} characters`,
-  })
+  // Note: Memo length validation happens in service after sanitization
+  // DTO validation only checks it's a string
   memo?: string;
 
   @ApiPropertyOptional({
@@ -78,10 +74,9 @@ export class LinkMetadataRequestDto {
   })
   @IsOptional()
   @IsString()
-  @IsStellarAsset({
-    message: 'Asset must be one of: XLM, USDC, AQUA, yXLM',
-  })
-  asset?: AssetCode;
+  // Note: Asset whitelist validation happens in service (business logic)
+  // DTO validation only checks it's a string
+  asset?: string;
 
   @ApiPropertyOptional({
     description: 'Privacy flag',
