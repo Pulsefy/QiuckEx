@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LinksService } from '../links.service';
-import { LinkValidationError, LinkErrorCode } from '../errors';
+import { LinkValidationError } from '../errors';
 
 describe('LinksService', () => {
   let service: LinksService;
