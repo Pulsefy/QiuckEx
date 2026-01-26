@@ -74,7 +74,8 @@ export class LinksService {
       };
     }
     
-    let sanitized = memo.replace(/[<>"']/g, '');
+    let sanitized = memo.trim();
+    sanitized = sanitized.replace(/[<>"']/g, '');
     
     if (sanitized.length > LinkConstraints.MEMO.MAX_LENGTH) {
       throw new Error(`Memo cannot exceed ${LinkConstraints.MEMO.MAX_LENGTH} characters`);
