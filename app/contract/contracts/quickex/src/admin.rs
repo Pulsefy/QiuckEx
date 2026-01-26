@@ -1,6 +1,6 @@
 use crate::errors::QuickexError;
 use crate::events::{publish_admin_changed, publish_contract_paused};
-use soroban_sdk::{symbol_short, Address, Env, Symbol};
+use soroban_sdk::{Address, Env, Symbol, symbol_short};
 
 const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
 const PAUSED_KEY: Symbol = symbol_short!("PAUSED");
@@ -64,10 +64,7 @@ pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), Qui
 
 /// Check if the contract is paused
 pub fn is_paused(env: &Env) -> bool {
-    env.storage()
-        .instance()
-        .get(&PAUSED_KEY)
-        .unwrap_or(false)
+    env.storage().instance().get(&PAUSED_KEY).unwrap_or(false)
 }
 
 /// Require that the contract is not paused

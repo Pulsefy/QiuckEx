@@ -58,6 +58,10 @@ pub(crate) fn publish_admin_changed(
         old_admin,
         new_admin,
         timestamp,
+    }
+    .publish(env);
+}
+
 pub(crate) fn publish_withdraw_toggled(env: &Env, to: Address, commitment: BytesN<32>) {
     WithdrawToggledEvent {
         to,
