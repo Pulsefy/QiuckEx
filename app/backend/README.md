@@ -110,6 +110,72 @@ When the server is running, navigate to `/docs` to see:
 - Lowercase letters, numbers, and underscores only
 - Pattern: `^[a-z0-9_]+$`
 
+### Payment Links
+
+| Method | Path                | Description                      | Request Body                | Response                  |
+| ------ | ------------------- | -------------------------------- | --------------------------- | ------------------------- |
+| POST   | `/links/metadata`   | Generate canonical link metadata | See below                   | See below                 |
+
+#### Generate Canonical Link Metadata
+
+**Endpoint:** `POST /links/metadata`
+
+Validates payment link parameters and generates canonical metadata for frontend consumption.
+
+**Request Body:**
+```json
+{
+  "amount": 50.5,
+  "memo": "Payment for service",
+  "memoType": "text",
+  "asset": "XLM",
+  "privacy": false,
+  "expirationDays": 30
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "amount": "50.5000000",
+    "memo": "Payment for service",
+    "memoType": "text",
+    "asset": "XLM",
+    "privacy": false,
+    "expiresAt": "2026-02-24T12:00:00.000Z",
+    "canonical": "amount=50.5000000&asset=XLM&memo=Payment%20for%20service",
+    "metadata": {
+      "normalized": false
+    }
+  }
+}
+```
+
+**Validation Rules:**
+- `amount`: Must be between 0.0000001 and 1,000,000
+- `memo`: Maximum 28 characters, sanitized for security
+- `asset`: Must be whitelisted (XLM, USDC, AQUA, yXLM)
+- `expirationDays`: Between 1 and 365 days
+
+**Error Codes:**
+- `INVALID_AMOUNT` - Amount is invalid or out of range
+- `MEMO_TOO_LONG` - Memo exceeds 28 characters
+- `ASSET_NOT_WHITELISTED` - Asset not supported
+- `INVALID_EXPIRATION` - Expiration days out of range
+
+**Example cURL:**
+```bash
+curl -X POST http://localhost:4000/links/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 100,
+    "memo": "Invoice #12345",
+    "asset": "XLM"
+  }'
+```
+
 ## Local Development
 
 ### Start the development server
