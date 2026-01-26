@@ -7,6 +7,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
 import { LinksModule } from './links/links.module';
 import { NotificationService } from './notifications/notification.service';
+import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
 
 @Module({
   imports: [
@@ -19,6 +20,8 @@ import { NotificationService } from './notifications/notification.service';
     HealthModule, 
     UsernamesModule,
     LinksModule,
+    ScamAlertsModule,
+    
   ],
   providers: [NotificationService],
 })
