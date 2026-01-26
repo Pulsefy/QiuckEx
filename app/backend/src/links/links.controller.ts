@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { LinksService } from './links.service';
-import { LinkMetadataRequestDto, LinkMetadataResponseDto } from './dto';
+import { LinkMetadataRequestDto, LinkMetadataResponseDto } from '../dto';
 import { LinkValidationError } from './errors';
 
 @ApiTags('links')

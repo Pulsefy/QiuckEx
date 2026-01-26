@@ -66,7 +66,7 @@ describe('LinksService', () => {
       await expect(
         service.generateMetadata({
           amount: 10,
-          asset: 'SCAM',
+          asset: 'SCAM' as any, // Intentionally invalid asset for testing
         })
       ).rejects.toThrow(LinkValidationError);
     });
