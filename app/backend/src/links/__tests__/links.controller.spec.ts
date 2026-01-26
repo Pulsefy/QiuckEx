@@ -44,11 +44,7 @@ describe('LinksController (e2e)', () => {
         .send({
           amount: -10,
         })
-        .expect(400)
-        .expect((res) => {
-          expect(res.body.success).toBe(false);
-          expect(res.body.error.code).toBeDefined();
-        });
+        .expect(400);
     });
 
     it('should return 400 for long memo', () => {

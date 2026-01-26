@@ -19,7 +19,7 @@ export class LinksService {
     const warnings: string[] = [];
     let normalized = false;
     
-    if (this.formatAmount(request.amount) !== amt) {
+    if (request.amount.toString() !== amt) {
       warnings.push('Amount was normalized to 7 decimal places');
       normalized = true;
     }
