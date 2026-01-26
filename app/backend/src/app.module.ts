@@ -5,9 +5,8 @@ import { AppConfigModule } from './config';
 import { HealthModule } from './health/health.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
-import { LinksModule } from './links/links.module';
 import { NotificationService } from './notifications/notification.service';
-import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -15,13 +14,11 @@ import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
       wildcard: true,
       delimiter: '.',
     }),
-    AppConfigModule, 
-    SupabaseModule, 
-    HealthModule, 
+    AppConfigModule,
+    SupabaseModule,
+    HealthModule,
     UsernamesModule,
-    LinksModule,
-    ScamAlertsModule,
-    
+    TransactionsModule,
   ],
   providers: [NotificationService],
 })

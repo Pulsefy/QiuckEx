@@ -87,7 +87,7 @@ The Swagger UI provides:
 
 When the server is running, navigate to `/docs` to see:
 - All available endpoints organized by tags
-- Request body schemas with validation rules
+- **Transactions Endpoint**: `GET /transactions` fetches recent payments with caching and pagination.
 - Response schemas and status codes
 - Example payloads
 
