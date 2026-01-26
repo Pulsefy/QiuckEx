@@ -11,5 +11,8 @@ pub enum QuickexError {
     InvalidAmount = 5,
     InvalidSalt = 6,
     CommitmentMismatch = 7,
-    ContractPaused = 8,
+    CommitmentNotFound = 8,
+    AlreadySpent = 9,
+    InvalidCommitment = 10,
+    ContractPaused = 11,
 }

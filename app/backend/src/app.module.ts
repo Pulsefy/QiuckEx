@@ -1,18 +1,25 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
+import { AppConfigModule } from './config';
 import { HealthModule } from './health/health.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
+import { LinksModule } from './links/links.module';
+import { NotificationService } from './notifications/notification.service';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
+    EventEmitterModule.forRoot({
+      wildcard: true,
+      delimiter: '.',
     }),
-    SupabaseModule,
-    HealthModule,
+    AppConfigModule, 
+    SupabaseModule, 
+    HealthModule, 
     UsernamesModule,
+    LinksModule,
   ],
+  providers: [NotificationService],
 })
 export class AppModule {}
