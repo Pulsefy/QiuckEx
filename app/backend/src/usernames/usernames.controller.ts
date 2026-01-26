@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { CreateUsernameDto } from './create-username.dto';
 import { CreateUsernameResponseDto } from './create-username-response.dto';
@@ -7,6 +8,8 @@ import { CreateUsernameResponseDto } from './create-username-response.dto';
 @ApiTags('usernames')
 @Controller('username')
 export class UsernamesController {
+  constructor(private eventEmitter: EventEmitter2) {}
+
   @Post()
   @ApiOperation({
     summary: 'Create a new username',
@@ -27,9 +30,17 @@ export class UsernamesController {
     status: 400,
     description: 'Invalid username format or validation failed',
   })
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   createUsername(@Body() body: CreateUsernameDto): CreateUsernameResponseDto {
     // TODO: Implement actual username creation logic
+    
+    // Emit the "username_claimed" event as per Success Criteria
+    // This is non-blocking and will be handled by stub in NotificationService
+    this.eventEmitter.emit('username.claimed', {
+      username: body.username,
+      publicKey: body.publicKey,
+      timestamp: new Date().toISOString(),
+    });
+
     return { ok: true };
   }
 }
