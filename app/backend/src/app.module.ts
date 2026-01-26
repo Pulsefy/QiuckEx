@@ -5,7 +5,6 @@ import { AppConfigModule } from './config';
 import { HealthModule } from './health/health.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
-import { LinksModule } from './links/links.module';
 import { NotificationService } from './notifications/notification.service';
 import { TransactionsModule } from './transactions/transactions.module';
 
