@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{Address, Bytes, BytesN, Env, Map, Symbol, Vec, contract, contractimpl, token};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
 
 mod admin;
 mod commitment;
