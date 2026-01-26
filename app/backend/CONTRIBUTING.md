@@ -170,6 +170,33 @@ fieldName: string;
 - Use descriptive validation messages
 - Add `@ApiProperty()` to all fields
 
+### Link Validation Rules
+
+When working with payment link features, follow these validation constraints:
+
+#### Amount Validation
+- Minimum: 0.0000001 XLM (Stellar minimum)
+- Maximum: 1,000,000 XLM
+- Precision: 7 decimal places (Stellar standard)
+- Normalized automatically to 7 decimals
+
+#### Memo Validation
+- Maximum length: 28 characters (Stellar limit)
+- Allowed types: 'text', 'id', 'hash', 'return'
+- Sanitization: Removes <, >, ", ' characters
+- Whitespace: Trimmed automatically
+
+#### Asset Validation
+- Whitelist enforcement: Only approved assets accepted
+- Current whitelist: XLM, USDC, AQUA, yXLM
+- Default: XLM if not specified
+
+#### Security Considerations
+- All memos are sanitized to prevent injection attacks
+- Input validation occurs before any processing
+- Clear error messages for debugging
+- No sensitive data in error responses
+
 ## Configuration
 
 ### Adding New Environment Variables
