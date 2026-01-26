@@ -58,6 +58,7 @@ async function bootstrap() {
     .setVersion('v1')
     .addTag('health', 'Health check endpoints')
     .addTag('usernames', 'Username management endpoints')
+    .addTag('links', 'Payment link validation and metadata endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
