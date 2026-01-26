@@ -1,5 +1,5 @@
 use crate::errors::QuickexError;
-use soroban_sdk::{Address, Bytes, BytesN, Env, xdr::ToXdr};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 pub fn create_amount_commitment(
     env: &Env,

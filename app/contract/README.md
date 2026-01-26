@@ -25,11 +25,8 @@ cd app/contract
 # Build the contract for release (optimized)
 cargo build --target wasm32-unknown-unknown --release
 
-# Build with debug logs enabled
+# Build with optimized settings
 cargo build --target wasm32-unknown-unknown --profile release-with-logs
-
-# Build for development/testing
-cargo build --target wasm32-unknown-unknown
 ```
 
 ## Testing
