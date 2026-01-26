@@ -280,6 +280,9 @@ fn test_deposit() {
         token_client.balance(&contract_id),
         500
     );
+}
+
+#[test]
 fn test_initialize_admin() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
