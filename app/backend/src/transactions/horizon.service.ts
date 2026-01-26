@@ -1,5 +1,5 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import { Horizon, Server } from 'stellar-sdk';
+import { Horizon } from 'stellar-sdk';
 import { LRUCache } from 'lru-cache';
 import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
@@ -7,7 +7,7 @@ import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dt
 @Injectable()
 export class HorizonService {
     private readonly logger = new Logger(HorizonService.name);
-    private readonly server: Server;
+    private readonly server: Horizon.Server;
     private readonly cache: LRUCache<string, TransactionResponseDto>;
 
     constructor(private readonly configService: AppConfigService) {
@@ -15,7 +15,7 @@ export class HorizonService {
             ? 'https://horizon.stellar.org'
             : 'https://horizon-testnet.stellar.org';
 
-        this.server = new Server(horizonUrl);
+        this.server = new Horizon.Server(horizonUrl);
 
         this.cache = new LRUCache({
             max: 500, // Maximum number of items in cache
@@ -62,7 +62,7 @@ export class HorizonService {
                 record.type === 'payment' ||
                 record.type === 'path_payment_strict_receive' ||
                 record.type === 'path_payment_strict_send'
-            ) as (Horizon.ServerApi.PaymentOperationRecord | Horizon.ServerApi.PathPaymentStrictReceiveOperationRecord | Horizon.ServerApi.PathPaymentStrictSendOperationRecord)[];
+            ) as (Horizon.ServerApi.PaymentOperationRecord | Horizon.ServerApi.PathPaymentOperationRecord | Horizon.ServerApi.PathPaymentStrictSendOperationRecord)[];
 
             const items: TransactionItemDto[] = await Promise.all(
                 payments.map(async (payment) => {
@@ -112,9 +112,10 @@ export class HorizonService {
         }
     }
 
-    private handleHorizonError(error: any): never {
-        if (error.response) {
-            const status = error.response.status;
+    private handleHorizonError(error: unknown): never {
+        const err = error as { response?: { status: number; data: unknown }; message?: string };
+        if (err.response) {
+            const status = err.response.status;
             if (status === 429) {
                 this.logger.error('Horizon rate limit exceeded');
                 throw new HttpException(
@@ -123,14 +124,14 @@ export class HorizonService {
                 );
             }
 
-            this.logger.error(`Horizon error: ${status} - ${JSON.stringify(error.response.data)}`);
+            this.logger.error(`Horizon error: ${status} - ${JSON.stringify(err.response.data)}`);
             throw new HttpException(
                 'Error fetching data from Horizon',
                 status >= 500 ? HttpStatus.BAD_GATEWAY : HttpStatus.BAD_REQUEST,
             );
         }
 
-        this.logger.error(`Unexpected error fetching from Horizon: ${error.message}`);
+        this.logger.error(`Unexpected error fetching from Horizon: ${err.message || String(error)}`);
         throw new HttpException(
             'Internal server error while fetching transactions',
             HttpStatus.INTERNAL_SERVER_ERROR,

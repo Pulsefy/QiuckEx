@@ -6,21 +6,22 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 // Mock stellar-sdk
 jest.mock('stellar-sdk', () => {
     return {
-        Server: jest.fn().mockImplementation(() => ({
-            operations: jest.fn().mockReturnThis(),
-            forAccount: jest.fn().mockReturnThis(),
-            order: jest.fn().mockReturnThis(),
-            limit: jest.fn().mockReturnThis(),
-            cursor: jest.fn().mockReturnThis(),
-            call: jest.fn(),
-        })),
+        Horizon: {
+            Server: jest.fn().mockImplementation(() => ({
+                operations: jest.fn().mockReturnThis(),
+                forAccount: jest.fn().mockReturnThis(),
+                order: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                cursor: jest.fn().mockReturnThis(),
+                call: jest.fn(),
+            })),
+        },
     };
 });
 
 describe('HorizonService', () => {
     let service: HorizonService;
-    let configService: AppConfigService;
-    let mockServer: any;
+    let mockServer: Record<string, jest.Mock>;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -36,10 +37,7 @@ describe('HorizonService', () => {
         }).compile();
 
         service = module.get<HorizonService>(HorizonService);
-        configService = module.get<AppConfigService>(AppConfigService);
-
-        // @ts-ignore - access private server for mocking
-        mockServer = service.server;
+        mockServer = service['server'] as unknown as typeof mockServer;
     });
 
     it('should be defined', () => {
