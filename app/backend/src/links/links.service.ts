@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LinkConstraints, AssetCode, MemoType } from './constants';
 import { LinkMetadataRequestDto, LinkMetadataResponseDto } from './dto';
+import { LinkValidationError, LinkErrorCode } from './errors';
 
 @Injectable()
 export class LinksService {
@@ -45,15 +46,27 @@ export class LinksService {
   
   private validateAmount(amount: number): string {
     if (typeof amount !== 'number' || isNaN(amount)) {
-      throw new Error('Amount must be a valid number');
+      throw new LinkValidationError(
+        LinkErrorCode.INVALID_AMOUNT,
+        'Amount must be a valid number',
+        'amount',
+      );
     }
     
     if (amount < LinkConstraints.AMOUNT.MIN) {
-      throw new Error(`Amount must be at least ${LinkConstraints.AMOUNT.MIN} XLM`);
+      throw new LinkValidationError(
+        LinkErrorCode.AMOUNT_TOO_LOW,
+        `Amount must be at least ${LinkConstraints.AMOUNT.MIN} XLM`,
+        'amount',
+      );
     }
     
     if (amount > LinkConstraints.AMOUNT.MAX) {
-      throw new Error(`Amount cannot exceed ${LinkConstraints.AMOUNT.MAX} XLM`);
+      throw new LinkValidationError(
+        LinkErrorCode.AMOUNT_TOO_HIGH,
+        `Amount cannot exceed ${LinkConstraints.AMOUNT.MAX} XLM`,
+        'amount',
+      );
     }
     
     return this.formatAmount(amount);
@@ -66,12 +79,20 @@ export class LinksService {
   private validateMemo(
     memo?: string,
     memoType?: string
-  ): { memo: string | null; memoType: MemoType } {
-    if (!memo) {
-      return {
-        memo: null,
-        memoType: LinkConstraints.MEMO.DEFAULT_TYPE,
-      };
+  ): { memo: strLinkValidationError(
+        LinkErrorCode.MEMO_TOO_LONG,
+        `Memo cannot exceed ${LinkConstraints.MEMO.MAX_LENGTH} characters`,
+        'memo',
+      );
+    }
+    
+    const validatedMemoType = (memoType || LinkConstraints.MEMO.DEFAULT_TYPE) as MemoType;
+    if (!LinkConstraints.MEMO.ALLOWED_TYPES.includes(validatedMemoType)) {
+      throw new LinkValidationError(
+        LinkErrorCode.INVALID_MEMO_TYPE,
+        'Memo type must be one of: text, id, hash, return',
+        'memoType',
+      
     }
     
     let sanitized = memo.trim();
@@ -88,7 +109,11 @@ export class LinksService {
     
     return {
       memo: sanitized || null,
-      memoType: validatedMemoType,
+      memoType: LinkValidationError(
+        LinkErrorCode.INVALID_EXPIRATION,
+        'Expiration must be between 1 and 365 days',
+        'expirationDays',
+      
     };
   }
   
@@ -104,8 +129,10 @@ export class LinksService {
     return expiration;
   }
   
-  private validateAsset(asset?: string): AssetCode {
-    const assetCode = (asset || LinkConstraints.ASSET.DEFAULT) as AssetCode;
+  private validaLinkValidationError(
+        LinkErrorCode.ASSET_NOT_WHITELISTED,
+        `Asset is not supported. Supported assets: ${LinkConstraints.ASSET.WHITELIST.join(', ')}`,
+        'asset',
     
     if (!LinkConstraints.ASSET.WHITELIST.includes(assetCode)) {
       throw new Error(
