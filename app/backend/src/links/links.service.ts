@@ -9,7 +9,7 @@ export class LinksService {
     
     const { memo, memoType } = this.validateMemo(request.memo, request.memoType);
     
-    const asset = request.asset || LinkConstraints.ASSET.DEFAULT;
+    const asset = this.validateAsset(request.asset);
     const privacy = request.privacy ?? false;
     const expiresAt = this.calculateExpiration(request.expirationDays);
     
@@ -101,6 +101,18 @@ export class LinksService {
     const expiration = new Date();
     expiration.setDate(expiration.getDate() + days);
     return expiration;
+  }
+  
+  private validateAsset(asset?: string): AssetCode {
+    const assetCode = (asset || LinkConstraints.ASSET.DEFAULT) as AssetCode;
+    
+    if (!LinkConstraints.ASSET.WHITELIST.includes(assetCode)) {
+      throw new Error(
+        `Asset is not supported. Supported assets: ${LinkConstraints.ASSET.WHITELIST.join(', ')}`
+      );
+    }
+    
+    return assetCode;
   }
   
   private generateCanonicalFormat(amount: string, asset: string, memo: string | null): string {
