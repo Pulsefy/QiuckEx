@@ -17,6 +17,12 @@ async function bootstrap() {
 
   const configService = app.get(AppConfigService);
 
+  // Define allowed origins for CORS
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://app.quickex.example.com', // Placeholder for production domain
+  ];
+
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
