@@ -79,7 +79,26 @@ export class LinksService {
   private validateMemo(
     memo?: string,
     memoType?: string
-  ): { memo: strLinkValidationError(
+  ): { memo: string | null; memoType: MemoType } {
+    if (!memo || memo.trim() === '') {
+      return {
+        memo: null,
+        memoType: LinkConstraints.MEMO.DEFAULT_TYPE,
+      };
+    }
+    
+    let sanitized = memo.trim();
+    sanitized = sanitized.replace(/[<>"']/g, '');
+    
+    if (sanitized.length === 0) {
+      return {
+        memo: null,
+        memoType: LinkConstraints.MEMO.DEFAULT_TYPE,
+      };
+    }
+    
+    if (sanitized.length > LinkConstraints.MEMO.MAX_LENGTH) {
+      throw new LinkValidationError(
         LinkErrorCode.MEMO_TOO_LONG,
         `Memo cannot exceed ${LinkConstraints.MEMO.MAX_LENGTH} characters`,
         'memo',
@@ -92,28 +111,12 @@ export class LinksService {
         LinkErrorCode.INVALID_MEMO_TYPE,
         'Memo type must be one of: text, id, hash, return',
         'memoType',
-      
-    }
-    
-    let sanitized = memo.trim();
-    sanitized = sanitized.replace(/[<>"']/g, '');
-    
-    if (sanitized.length > LinkConstraints.MEMO.MAX_LENGTH) {
-      throw new Error(`Memo cannot exceed ${LinkConstraints.MEMO.MAX_LENGTH} characters`);
-    }
-    
-    const validatedMemoType = (memoType || LinkConstraints.MEMO.DEFAULT_TYPE) as MemoType;
-    if (!LinkConstraints.MEMO.ALLOWED_TYPES.includes(validatedMemoType)) {
-      throw new Error('Memo type must be one of: text, id, hash, return');
+      );
     }
     
     return {
-      memo: sanitized || null,
-      memoType: LinkValidationError(
-        LinkErrorCode.INVALID_EXPIRATION,
-        'Expiration must be between 1 and 365 days',
-        'expirationDays',
-      
+      memo: sanitized,
+      memoType: validatedMemoType,
     };
   }
   
@@ -121,7 +124,11 @@ export class LinksService {
     if (!days) return null;
     
     if (days < 1 || days > LinkConstraints.LINK.MAX_EXPIRATION_DAYS) {
-      throw new Error('Expiration must be between 1 and 365 days');
+      throw new LinkValidationError(
+        LinkErrorCode.INVALID_EXPIRATION,
+        'Expiration must be between 1 and 365 days',
+        'expirationDays',
+      );
     }
     
     const expiration = new Date();
@@ -129,14 +136,14 @@ export class LinksService {
     return expiration;
   }
   
-  private validaLinkValidationError(
+  private validateAsset(asset?: string): AssetCode {
+    const assetCode = (asset || LinkConstraints.ASSET.DEFAULT) as AssetCode;
+    
+    if (!LinkConstraints.ASSET.WHITELIST.includes(assetCode)) {
+      throw new LinkValidationError(
         LinkErrorCode.ASSET_NOT_WHITELISTED,
         `Asset is not supported. Supported assets: ${LinkConstraints.ASSET.WHITELIST.join(', ')}`,
         'asset',
-    
-    if (!LinkConstraints.ASSET.WHITELIST.includes(assetCode)) {
-      throw new Error(
-        `Asset is not supported. Supported assets: ${LinkConstraints.ASSET.WHITELIST.join(', ')}`
       );
     }
     
