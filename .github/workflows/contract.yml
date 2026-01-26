@@ -1,7 +1,12 @@
 name: Contract CI
 
 on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/contract/**'
   pull_request:
+    branches: [ main, develop ]
     paths:
       - 'app/contract/**'
 
@@ -19,6 +24,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2

@@ -4,6 +4,8 @@ import * as request from 'supertest';
 
 import { AppModule } from './app.module';
 
+// Environment variables are set in jest.setup.ts
+
 describe('App endpoints', () => {
   let app: INestApplication;
 
@@ -38,7 +40,10 @@ describe('App endpoints', () => {
   it('POST /username returns ok for valid payload', async () => {
     await request(app.getHttpServer())
       .post('/username')
-      .send({ username: 'alice_123' })
+      .send({ 
+        username: 'alice_123',
+        publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR'
+       })
       .expect(201)
       .expect({ ok: true });
   });
