@@ -79,16 +79,11 @@ pub(crate) fn publish_withdraw_toggled(env: &Env, to: Address, commitment: Bytes
     .publish(env);
 }
 
-pub(crate) fn publish_deposit(
-    env: &Env,
-    commitment: BytesN<32>,
-    token: Address,
-    amount: i128,
-) {
+pub(crate) fn publish_deposit(env: &Env, commitment: BytesN<32>, token: Address, amount: i128) {
     DepositToggledEvent {
         commitment,
         token,
         amount,
-    }.publish(env);
-    
+    }
+    .publish(env);
 }
