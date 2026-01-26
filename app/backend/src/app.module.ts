@@ -6,22 +6,19 @@ import { HealthModule } from './health/health.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
 import { NotificationService } from './notifications/notification.service';
-
 import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
-  imports: [AppConfigModule, SupabaseModule, HealthModule, UsernamesModule, TransactionsModule],
-})
-export class AppModule { }
   imports: [
     EventEmitterModule.forRoot({
       wildcard: true,
       delimiter: '.',
     }),
-    AppConfigModule, 
-    SupabaseModule, 
-    HealthModule, 
-    UsernamesModule
+    AppConfigModule,
+    SupabaseModule,
+    HealthModule,
+    UsernamesModule,
+    TransactionsModule,
   ],
   providers: [NotificationService],
 })
