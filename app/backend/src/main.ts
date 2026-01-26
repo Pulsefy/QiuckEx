@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
