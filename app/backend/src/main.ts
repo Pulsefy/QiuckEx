@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 
-import { Logger, ValidationPipe } from '@nestjs/common';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -16,11 +17,29 @@ async function bootstrap() {
 
   const configService = app.get(AppConfigService);
 
+  // Define allowed origins for CORS
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://app.quickex.example.com', // Placeholder for production domain
+  ];
+
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // Global validation pipe with strict options
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
