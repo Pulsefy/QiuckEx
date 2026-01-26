@@ -3,7 +3,6 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -14,7 +13,7 @@ import {
 export class IsStellarPublicKeyConstraint
   implements ValidatorConstraintInterface
 {
-  validate(publicKey: string, args: ValidationArguments): boolean {
+  validate(publicKey: string): boolean {
     if (typeof publicKey !== 'string') {
       return false;
     }
@@ -22,7 +21,7 @@ export class IsStellarPublicKeyConstraint
     return /^G[A-Z0-9]{55}$/.test(publicKey);
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(): string {
     return 'Public key must be a valid Stellar public key (starts with G, 56 characters)';
   }
 }

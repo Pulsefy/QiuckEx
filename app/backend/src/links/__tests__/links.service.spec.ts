@@ -66,6 +66,7 @@ describe('LinksService', () => {
       await expect(
         service.generateMetadata({
           amount: 10,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           asset: 'SCAM' as any, // Intentionally invalid asset for testing
         })
       ).rejects.toThrow(LinkValidationError);

@@ -3,7 +3,6 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -26,14 +25,14 @@ export type AssetCode = typeof STELLAR_ASSETS[number];
 export class IsStellarAssetConstraint
   implements ValidatorConstraintInterface
 {
-  validate(asset: string, args: ValidationArguments): boolean {
+  validate(asset: string): boolean {
     if (typeof asset !== 'string') {
       return false;
     }
     return STELLAR_ASSETS.includes(asset as AssetCode);
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(): string {
     return `Asset must be one of: ${STELLAR_ASSETS.join(', ')}`;
   }
 }

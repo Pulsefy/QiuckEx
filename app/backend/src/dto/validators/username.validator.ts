@@ -3,7 +3,6 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -12,14 +11,14 @@ import {
  */
 @ValidatorConstraint({ async: false })
 export class IsUsernameConstraint implements ValidatorConstraintInterface {
-  validate(username: string, args: ValidationArguments): boolean {
+  validate(username: string): boolean {
     if (typeof username !== 'string') {
       return false;
     }
     return /^[a-z0-9_]+$/.test(username);
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(): string {
     return 'Username must contain only lowercase letters, numbers, and underscores';
   }
 }

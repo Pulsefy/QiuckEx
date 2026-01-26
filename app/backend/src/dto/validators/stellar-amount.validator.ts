@@ -3,7 +3,6 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -23,7 +22,7 @@ export const STELLAR_AMOUNT = {
 export class IsStellarAmountConstraint
   implements ValidatorConstraintInterface
 {
-  validate(amount: number, args: ValidationArguments): boolean {
+  validate(amount: number): boolean {
     if (typeof amount !== 'number' || isNaN(amount)) {
       return false;
     }
@@ -32,7 +31,7 @@ export class IsStellarAmountConstraint
     );
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(): string {
     return `Amount must be between ${STELLAR_AMOUNT.MIN} and ${STELLAR_AMOUNT.MAX}`;
   }
 }

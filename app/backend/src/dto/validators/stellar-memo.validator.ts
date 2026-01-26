@@ -3,7 +3,6 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -22,14 +21,14 @@ export type MemoType = typeof STELLAR_MEMO.ALLOWED_TYPES[number];
  */
 @ValidatorConstraint({ async: false })
 export class IsStellarMemoConstraint implements ValidatorConstraintInterface {
-  validate(memo: string, args: ValidationArguments): boolean {
+  validate(memo: string): boolean {
     if (typeof memo !== 'string') {
       return false;
     }
     return memo.length <= STELLAR_MEMO.MAX_LENGTH;
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(): string {
     return `Memo must be at most ${STELLAR_MEMO.MAX_LENGTH} characters`;
   }
 }
