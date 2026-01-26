@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { ScamAlertsService } from "./scam-alerts.service";
-import { ScanLinkDto } from "./dto/scan-link.dto";
+import { ScanLinkDto } from "../dto";
 import { ScanResultDto } from "./dto/scan-result.dto";
 
 @ApiTags("scam-alerts")

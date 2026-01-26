@@ -2,8 +2,10 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { CreateUsernameDto } from './create-username.dto';
-import { CreateUsernameResponseDto } from './create-username-response.dto';
+import {
+  CreateUsernameDto,
+  CreateUsernameResponseDto,
+} from '../dto';
 
 @ApiTags('usernames')
 @Controller('username')

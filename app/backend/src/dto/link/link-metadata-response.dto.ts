@@ -1,49 +1,68 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+/**
+ * Response DTO for link metadata
+ * 
+ * @example
+ * ```json
+ * {
+ *   "amount": "50.5000000",
+ *   "memo": "Payment for service",
+ *   "memoType": "text",
+ *   "asset": "XLM",
+ *   "privacy": false,
+ *   "expiresAt": "2026-02-24T12:00:00.000Z",
+ *   "canonical": "amount=50.5000000&asset=XLM&memo=Payment%20for%20service",
+ *   "metadata": {
+ *     "normalized": false
+ *   }
+ * }
+ * ```
+ */
 export class LinkMetadataResponseDto {
   @ApiProperty({
     description: 'Normalized amount with 7 decimal places',
     example: '50.5000000',
   })
-  amount: string;
+  amount!: string;
 
   @ApiProperty({
     description: 'Sanitized memo text',
     example: 'Payment for service',
     nullable: true,
   })
-  memo: string | null;
+  memo!: string | null;
 
   @ApiProperty({
     description: 'Memo type',
     example: 'text',
   })
-  memoType: string;
+  memoType!: string;
 
   @ApiProperty({
     description: 'Asset code',
     example: 'XLM',
   })
-  asset: string;
+  asset!: string;
 
   @ApiProperty({
     description: 'Privacy flag',
     example: false,
   })
-  privacy: boolean;
+  privacy!: boolean;
 
   @ApiProperty({
     description: 'Expiration date',
     example: '2026-02-24T12:00:00.000Z',
     nullable: true,
   })
-  expiresAt: Date | null;
+  expiresAt!: Date | null;
 
   @ApiProperty({
     description: 'Canonical link format',
     example: 'amount=50.5000000&asset=XLM&memo=Payment%20for%20service',
   })
-  canonical: string;
+  canonical!: string;
 
   @ApiProperty({
     description: 'Metadata information',
@@ -51,7 +70,7 @@ export class LinkMetadataResponseDto {
       normalized: false,
     },
   })
-  metadata: {
+  metadata!: {
     normalized: boolean;
     warnings?: string[];
   };
