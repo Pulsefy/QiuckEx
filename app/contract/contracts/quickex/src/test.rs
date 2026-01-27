@@ -251,6 +251,32 @@ fn test_health_check() {
 }
 
 #[test]
+fn test_deposit() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let user = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+
+    token_client.mint(&user, &1000);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let commitment = BytesN::from_array(&env, &[1; 32]);
+
+    client.deposit(&user, &token_id, &500, &commitment);
+
+    assert_eq!(token_client.balance(&user), 500);
+    assert_eq!(token_client.balance(&contract_id), 500);
+}
+
+#[test]
 fn test_initialize_admin() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
