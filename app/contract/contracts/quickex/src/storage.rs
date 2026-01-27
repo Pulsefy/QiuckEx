@@ -1,6 +1,6 @@
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, Env, Vec};
 
-use crate::types::{EscrowEntry, EscrowStatus};
+use crate::types::EscrowEntry;
 
 /// Storage keys for the contract
 #[contracttype]
@@ -27,12 +27,14 @@ pub fn get_escrow(env: &Env, commitment: &Bytes) -> Option<EscrowEntry> {
 }
 
 /// Check if an escrow entry exists in storage
+#[allow(dead_code)]
 pub fn has_escrow(env: &Env, commitment: &Bytes) -> bool {
     let key = DataKey::Escrow(commitment.clone());
     env.storage().persistent().has(&key)
 }
 
 /// Get the next escrow counter value
+#[allow(dead_code)]
 pub fn get_escrow_counter(env: &Env) -> u64 {
     let key = DataKey::EscrowCounter;
     env.storage().persistent().get(&key).unwrap_or(0)

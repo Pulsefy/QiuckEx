@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 mod commitment;
@@ -34,9 +34,9 @@ impl QuickexContract {
         to.require_auth();
 
         let commitment = commitment::create_amount_commitment(&env, to.clone(), amount, salt)?;
-        
-        let entry: EscrowEntry = get_escrow(&env, &commitment.clone().into())
-            .ok_or(QuickexError::CommitmentNotFound)?;
+
+        let entry: EscrowEntry =
+            get_escrow(&env, &commitment.clone().into()).ok_or(QuickexError::CommitmentNotFound)?;
 
         if entry.status != EscrowStatus::Pending {
             return Err(QuickexError::AlreadySpent);
@@ -122,7 +122,7 @@ impl QuickexContract {
         owner.require_auth();
 
         let commitment = commitment::create_amount_commitment(&env, owner.clone(), amount, salt)?;
-        
+
         let entry = EscrowEntry {
             token: token.clone(),
             amount,
@@ -134,7 +134,7 @@ impl QuickexContract {
         put_escrow(&env, &commitment.clone().into(), &entry);
 
         let token_client = token::Client::new(&env, &token);
-        token_client.transfer(&owner, &env.current_contract_address(), &amount);
+        token_client.transfer(&owner, env.current_contract_address(), &amount);
 
         Ok(commitment)
     }
@@ -179,7 +179,7 @@ impl QuickexContract {
         commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
-    pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
+    pub fn create_escrow(env: Env, _from: Address, _to: Address, _amount: u64) -> u64 {
         increment_escrow_counter(&env)
     }
 

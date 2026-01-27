@@ -2,10 +2,13 @@ use crate::errors::QuickexError;
 use crate::events::{publish_admin_changed, publish_contract_paused};
 use soroban_sdk::{symbol_short, Address, Env, Symbol};
 
+#[allow(dead_code)]
 const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
+#[allow(dead_code)]
 const PAUSED_KEY: Symbol = symbol_short!("PAUSED");
 
 /// Initialize the contract with an admin address
+#[allow(dead_code)]
 pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
     if has_admin(env) {
         return Err(QuickexError::AlreadyInitialized);
@@ -18,16 +21,19 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
 }
 
 /// Check if admin has been initialized
+#[allow(dead_code)]
 pub fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&ADMIN_KEY)
 }
 
 /// Get the current admin address
+#[allow(dead_code)]
 pub fn get_admin(env: &Env) -> Option<Address> {
     env.storage().instance().get(&ADMIN_KEY)
 }
 
 /// Require that the caller is the admin
+#[allow(dead_code)]
 pub fn require_admin(env: &Env, caller: &Address) -> Result<(), QuickexError> {
     caller.require_auth();
 
@@ -38,6 +44,7 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), QuickexError> {
 }
 
 /// Set a new admin address (Admin only)
+#[allow(dead_code)]
 pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 
@@ -51,6 +58,7 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 }
 
 /// Set the paused state (Admin only)
+#[allow(dead_code)]
 pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 

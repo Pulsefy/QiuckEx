@@ -1,5 +1,7 @@
 #![cfg(test)]
-use crate::{storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient};
+use crate::{
+    storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
+};
 use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -30,7 +32,7 @@ fn setup_escrow(
     env.as_contract(contract_id, || {
         // Use the new storage system to put the escrow entry
         let storage_commitment: Bytes = commitment.into();
-        put_escrow(&env, &storage_commitment, &entry);
+        put_escrow(env, &storage_commitment, &entry);
     });
 }
 

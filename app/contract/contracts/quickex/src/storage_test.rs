@@ -1,5 +1,5 @@
 #![cfg(test)]
-use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, IntoVal};
+use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
 
 use crate::{
     storage::*,
@@ -155,7 +155,10 @@ fn test_privacy_storage() {
         // Test updating privacy level
         let new_privacy_level = 10u32;
         set_privacy_level(&env, &account, new_privacy_level);
-        assert_eq!(get_privacy_level(&env, &account).unwrap(), new_privacy_level);
+        assert_eq!(
+            get_privacy_level(&env, &account).unwrap(),
+            new_privacy_level
+        );
 
         // Test privacy history
         add_privacy_history(&env, &account, 15u32);
