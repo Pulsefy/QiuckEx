@@ -270,7 +270,7 @@ fn test_deposit() {
 
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    client.deposit(&user, &token_id, &500, &commitment);
+    client.deposit_with_commitment(&user, &token_id, &500, &commitment);
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);

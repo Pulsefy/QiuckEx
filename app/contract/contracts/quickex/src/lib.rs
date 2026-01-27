@@ -187,7 +187,18 @@ impl QuickexContract {
         true
     }
 
-    pub fn deposit(
+    /// Deposit funds and create an escrow entry using a pre-generated commitment
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `from` - The address depositing the funds
+    /// * `token` - The token address
+    /// * `amount` - The amount to deposit
+    /// * `commitment` - The pre-generated commitment hash
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error otherwise
+    pub fn deposit_with_commitment(
         env: Env,
         from: Address,
         token: Address,
@@ -200,31 +211,22 @@ impl QuickexContract {
 
         from.require_auth();
 
-        let escrow_key = Symbol::new(&env, "escrow");
-
-        if env
-            .storage()
-            .persistent()
-            .has(&(escrow_key.clone(), commitment.clone()))
-        {
+        if has_escrow(&env, &commitment.clone().into()) {
             return Err(QuickexError::CommitmentAlreadyExists);
         }
 
         let token_client = token::Client::new(&env, &token);
-
         token_client.transfer(&from, env.current_contract_address(), &amount);
 
         let entry = EscrowEntry {
-            commitment: commitment.clone(),
             token: token.clone(),
             amount,
+            owner: from.clone(),
             status: EscrowStatus::Pending,
-            depositor: from.clone(),
+            created_at: env.ledger().timestamp(),
         };
 
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment.clone()), &entry);
+        put_escrow(&env, &commitment.clone().into(), &entry);
 
         events::publish_deposit(&env, commitment, token, amount);
 
