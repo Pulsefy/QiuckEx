@@ -1,5 +1,7 @@
 #![cfg(test)]
-use crate::{EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient};
+use crate::{
+    storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
+};
 use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -20,19 +22,17 @@ fn setup_escrow(
     let depositor = Address::generate(env);
 
     let entry = EscrowEntry {
-        commitment: commitment.clone(),
         token: token.clone(),
         amount,
+        owner: depositor,
         status: EscrowStatus::Pending,
-        depositor,
+        created_at: env.ledger().timestamp(),
     };
 
-    let escrow_key = soroban_sdk::Symbol::new(env, "escrow");
-
     env.as_contract(contract_id, || {
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment), &entry);
+        // Use the new storage system to put the escrow entry
+        let storage_commitment: Bytes = commitment.into();
+        put_escrow(env, &storage_commitment, &entry);
     });
 }
 
@@ -270,7 +270,7 @@ fn test_deposit() {
 
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    client.deposit(&user, &token_id, &500, &commitment);
+    client.deposit_with_commitment(&user, &token_id, &500, &commitment);
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);

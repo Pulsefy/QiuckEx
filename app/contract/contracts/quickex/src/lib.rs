@@ -1,15 +1,17 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 mod commitment;
 mod errors;
 mod events;
 mod privacy;
+mod storage;
 mod types;
 
 use errors::QuickexError;
 use events::publish_withdraw_toggled;
+use storage::*;
 use types::{EscrowEntry, EscrowStatus};
 
 /// Main contract structure
@@ -31,14 +33,10 @@ impl QuickexContract {
 
         to.require_auth();
 
-        let commitment = commitment::create_amount_commitment(&env, to.clone(), amount, salt);
+        let commitment = commitment::create_amount_commitment(&env, to.clone(), amount, salt)?;
 
-        let escrow_key = Symbol::new(&env, "escrow");
-        let entry: EscrowEntry = env
-            .storage()
-            .persistent()
-            .get(&(escrow_key.clone(), commitment.clone()))
-            .ok_or(QuickexError::CommitmentNotFound)?;
+        let entry: EscrowEntry =
+            get_escrow(&env, &commitment.clone().into()).ok_or(QuickexError::CommitmentNotFound)?;
 
         if entry.status != EscrowStatus::Pending {
             return Err(QuickexError::AlreadySpent);
@@ -50,50 +48,28 @@ impl QuickexContract {
 
         let mut updated_entry = entry.clone();
         updated_entry.status = EscrowStatus::Spent;
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment.clone()), &updated_entry);
+        put_escrow(&env, &commitment.clone().into(), &updated_entry);
 
         let token_client = token::Client::new(&env, &entry.token);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-        publish_withdraw_toggled(&env, to, commitment?);
+        publish_withdraw_toggled(&env, to, commitment);
 
         Ok(true)
     }
 
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        let key = Symbol::new(&env, "privacy_level");
-        env.storage()
-            .persistent()
-            .set(&(key, account.clone()), &privacy_level);
-
-        let history_key = Symbol::new(&env, "privacy_history");
-        let mut history: Vec<u32> = env
-            .storage()
-            .persistent()
-            .get(&(history_key.clone(), account.clone()))
-            .unwrap_or(Vec::new(&env));
-
-        history.push_front(privacy_level);
-        env.storage()
-            .persistent()
-            .set(&(history_key, account), &history);
-
+        set_privacy_level(&env, &account, privacy_level);
+        add_privacy_history(&env, &account, privacy_level);
         true
     }
 
     pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
-        let key = Symbol::new(&env, "privacy_level");
-        env.storage().persistent().get(&(key, account))
+        get_privacy_level(&env, &account)
     }
 
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
-        let key = Symbol::new(&env, "privacy_history");
-        env.storage()
-            .persistent()
-            .get(&(key, account))
-            .unwrap_or(Vec::new(&env))
+        get_privacy_history(&env, &account)
     }
 
     /// Enable or disable privacy for an account
@@ -119,6 +95,48 @@ impl QuickexContract {
     /// * `bool` - Current privacy status (true = enabled)
     pub fn get_privacy(env: Env, owner: Address) -> bool {
         privacy::get_privacy(&env, owner)
+    }
+
+    /// Deposit funds and create an escrow entry
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `token` - The token address
+    /// * `amount` - The amount to deposit
+    /// * `owner` - The owner of the funds
+    /// * `salt` - Random salt for privacy
+    ///
+    /// # Returns
+    /// * `Result<BytesN<32>, QuickexError>` - The commitment hash
+    pub fn deposit(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if amount <= 0 {
+            return Err(QuickexError::InvalidAmount);
+        }
+
+        owner.require_auth();
+
+        let commitment = commitment::create_amount_commitment(&env, owner.clone(), amount, salt)?;
+
+        let entry = EscrowEntry {
+            token: token.clone(),
+            amount,
+            owner: owner.clone(),
+            status: EscrowStatus::Pending,
+            created_at: env.ledger().timestamp(),
+        };
+
+        put_escrow(&env, &commitment.clone().into(), &entry);
+
+        let token_client = token::Client::new(&env, &token);
+        token_client.transfer(&owner, env.current_contract_address(), &amount);
+
+        Ok(commitment)
     }
 
     /// Create a commitment for a hidden amount
@@ -161,30 +179,26 @@ impl QuickexContract {
         commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
-    pub fn create_escrow(env: Env, from: Address, to: Address, _amount: u64) -> u64 {
-        let counter_key = Symbol::new(&env, "escrow_counter");
-        let mut count: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0);
-        count += 1;
-        env.storage().persistent().set(&counter_key, &count);
-
-        let escrow_id = count;
-        let escrow_key = Symbol::new(&env, "escrow");
-        let mut escrow_details = Map::<Symbol, Address>::new(&env);
-        escrow_details.set(Symbol::new(&env, "from"), from);
-        escrow_details.set(Symbol::new(&env, "to"), to);
-
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, escrow_id), &escrow_details);
-
-        escrow_id
+    pub fn create_escrow(env: Env, _from: Address, _to: Address, _amount: u64) -> u64 {
+        increment_escrow_counter(&env)
     }
 
     pub fn health_check() -> bool {
         true
     }
 
-    pub fn deposit(
+    /// Deposit funds and create an escrow entry using a pre-generated commitment
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `from` - The address depositing the funds
+    /// * `token` - The token address
+    /// * `amount` - The amount to deposit
+    /// * `commitment` - The pre-generated commitment hash
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error otherwise
+    pub fn deposit_with_commitment(
         env: Env,
         from: Address,
         token: Address,
@@ -197,31 +211,22 @@ impl QuickexContract {
 
         from.require_auth();
 
-        let escrow_key = Symbol::new(&env, "escrow");
-
-        if env
-            .storage()
-            .persistent()
-            .has(&(escrow_key.clone(), commitment.clone()))
-        {
+        if has_escrow(&env, &commitment.clone().into()) {
             return Err(QuickexError::CommitmentAlreadyExists);
         }
 
         let token_client = token::Client::new(&env, &token);
-
         token_client.transfer(&from, env.current_contract_address(), &amount);
 
         let entry = EscrowEntry {
-            commitment: commitment.clone(),
             token: token.clone(),
             amount,
+            owner: from.clone(),
             status: EscrowStatus::Pending,
-            depositor: from.clone(),
+            created_at: env.ledger().timestamp(),
         };
 
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment.clone()), &entry);
+        put_escrow(&env, &commitment.clone().into(), &entry);
 
         events::publish_deposit(&env, commitment, token, amount);
 
@@ -237,7 +242,11 @@ impl QuickexContract {
     /// # Returns
     /// * `Result<(), QuickexError>` - Ok if successful, Error if already initialized
     pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
-        admin::initialize(&env, admin)
+        if get_admin(&env).is_some() {
+            return Err(QuickexError::AlreadyInitialized);
+        }
+        set_admin(&env, &admin);
+        Ok(())
     }
 
     /// Set the paused state of the contract (Admin only)
@@ -250,7 +259,12 @@ impl QuickexContract {
     /// # Returns
     /// * `Result<(), QuickexError>` - Ok if successful, Error if unauthorized or other issue
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
-        admin::set_paused(&env, caller, new_state)
+        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        if caller != admin {
+            return Err(QuickexError::Unauthorized);
+        }
+        set_paused(&env, new_state);
+        Ok(())
     }
 
     /// Transfer admin rights to a new address (Admin only)
@@ -263,7 +277,12 @@ impl QuickexContract {
     /// # Returns
     /// * `Result<(), QuickexError>` - Ok if successful, Error if unauthorized or other issue
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
-        admin::set_admin(&env, caller, new_admin)
+        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        if caller != admin {
+            return Err(QuickexError::Unauthorized);
+        }
+        set_admin(&env, &new_admin);
+        Ok(())
     }
 
     /// Check if the contract is currently paused
@@ -274,7 +293,7 @@ impl QuickexContract {
     /// # Returns
     /// * `bool` - True if paused, False otherwise
     pub fn is_paused(env: Env) -> bool {
-        admin::is_paused(&env)
+        is_paused(&env)
     }
 
     /// Get the current admin address
@@ -285,8 +304,9 @@ impl QuickexContract {
     /// # Returns
     /// * `Option<Address>` - The admin address if set, None otherwise
     pub fn get_admin(env: Env) -> Option<Address> {
-        admin::get_admin(&env)
+        get_admin(&env)
     }
 }
 
+mod storage_test;
 mod test;

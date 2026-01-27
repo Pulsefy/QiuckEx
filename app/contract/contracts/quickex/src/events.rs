@@ -35,6 +35,7 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool, 
     .publish(env);
 }
 
+#[allow(dead_code)]
 #[contractevent(topics = ["ContractPaused"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractPausedEvent {
@@ -42,10 +43,12 @@ pub struct ContractPausedEvent {
     pub timestamp: u64,
 }
 
+#[allow(dead_code)]
 pub(crate) fn publish_contract_paused(env: &Env, paused: bool, timestamp: u64) {
     ContractPausedEvent { paused, timestamp }.publish(env);
 }
 
+#[allow(dead_code)]
 #[contractevent(topics = ["AdminChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminChangedEvent {
@@ -56,6 +59,7 @@ pub struct AdminChangedEvent {
     pub timestamp: u64,
 }
 
+#[allow(dead_code)]
 pub(crate) fn publish_admin_changed(
     env: &Env,
     old_admin: Address,

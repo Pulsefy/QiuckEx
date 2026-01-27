@@ -119,6 +119,29 @@ soroban contract deploy \
 
 The contract exposes the following functions:
 
+### Storage Layout
+
+The contract uses persistent storage with the following structure:
+
+- `DataKey::Escrow(Bytes)` - Maps commitment hash to `EscrowEntry` containing token address, amount, owner, status, and creation timestamp
+- `DataKey::EscrowCounter` - Tracks the number of escrows created
+- `DataKey::Admin` - Stores the admin address
+- `DataKey::Paused` - Stores the paused state of the contract
+- `DataKey::PrivacyLevel(Address)` - Stores privacy level for each account
+- `DataKey::PrivacyHistory(Address)` - Stores privacy history for each account
+
+The `EscrowEntry` struct contains:
+- `token: Address` - The token address
+- `amount: i128` - The escrowed amount
+- `owner: Address` - The owner of the escrow
+- `status: EscrowStatus` - The status (Pending, Spent, Expired)
+- `created_at: u64` - The ledger timestamp when created
+
+Helper functions:
+- `put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry)` - Store an escrow entry
+- `get_escrow(env: &Env, commitment: &Bytes)` - Retrieve an escrow entry
+- `has_escrow(env: &Env, commitment: &Bytes)` - Check if an escrow entry exists
+
 ### Privacy Management
 
 - `enable_privacy(account: Address, level: u32)` - Enable privacy for an account
@@ -127,6 +150,8 @@ The contract exposes the following functions:
 
 ### Escrow
 
+- `deposit(token: Address, amount: i128, owner: Address, salt: Bytes)` - Deposit funds and create an escrow entry
+- `withdraw(to: Address, amount: i128, salt: Bytes)` - Withdraw funds by proving commitment ownership
 - `create_escrow(from: Address, to: Address, amount: u64)` - Create escrow
 
 ### Amount Commitments (X-Ray Privacy Placeholder)
