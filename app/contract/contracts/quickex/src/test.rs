@@ -1,6 +1,6 @@
 #![cfg(test)]
 use crate::{EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient};
-use soroban_sdk::{Address, Bytes, BytesN, Env, testutils::Address as _, token, xdr::ToXdr};
+use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
     let env = Env::default();

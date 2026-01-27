@@ -145,30 +145,153 @@ export class FeatureResponseDto {
 - **Swagger UI:** `http://localhost:4000/docs`
 - **OpenAPI JSON:** `http://localhost:4000/docs-json`
 
-## DTO Rules
+## Shared DTO Library
+
+The backend uses a centralized DTO library located at `src/dto/` to ensure consistency across endpoints and avoid duplicate definitions.
+
+### Library Structure
+
+```
+src/dto/
+├── username/          # Username-related DTOs
+├── link/             # Payment link metadata DTOs
+├── transaction/      # Transaction query DTOs
+├── validators/       # Reusable validation decorators
+└── index.ts          # Barrel export
+```
+
+### Using Shared DTOs
+
+**Import DTOs from the shared library:**
+
+```typescript
+import {
+  CreateUsernameDto,
+  CreateUsernameResponseDto,
+  LinkMetadataRequestDto,
+  LinkMetadataResponseDto,
+  TransactionQueryDto,
+  ScanLinkDto,
+} from '../dto';
+```
+
+**Import validators:**
+
+```typescript
+import {
+  IsUsername,
+  IsStellarPublicKey,
+  IsStellarAmount,
+  IsStellarMemo,
+  IsStellarAsset,
+} from '../dto/validators';
+```
+
+### Example: Using Shared DTOs in Controllers
+
+```typescript
+import { Controller, Post, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CreateUsernameDto, CreateUsernameResponseDto } from '../dto';
+
+@ApiTags('usernames')
+@Controller('username')
+export class UsernamesController {
+  @Post()
+  @ApiOperation({ summary: 'Create a new username' })
+  @ApiResponse({ status: 201, type: CreateUsernameResponseDto })
+  createUsername(@Body() dto: CreateUsernameDto): CreateUsernameResponseDto {
+    // Implementation
+    return { ok: true };
+  }
+}
+```
+
+### Example: Creating Custom DTOs with Shared Validators
+
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty } from 'class-validator';
+import { IsUsername, IsStellarPublicKey } from '../dto/validators';
+
+export class CustomUserDto {
+  @ApiProperty({ example: 'alice_123' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUsername()
+  username!: string;
+
+  @ApiProperty({ example: 'GBXGQ...' })
+  @IsString()
+  @IsNotEmpty()
+  @IsStellarPublicKey()
+  publicKey!: string;
+}
+```
+
+### Available Validators
+
+| Validator | Description | Example |
+|-----------|-------------|---------|
+| `@IsUsername()` | Validates username format (3-32 chars, lowercase alphanumeric + underscore) | `alice_123` |
+| `@IsStellarPublicKey()` | Validates Stellar public key (G... 56 chars) | `GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR` |
+| `@IsStellarAmount()` | Validates amount within Stellar limits (0.0000001 - 1,000,000) | `100.5` |
+| `@IsStellarMemo()` | Validates memo length (max 28 chars) | `Payment for service` |
+| `@IsStellarAsset()` | Validates asset code against whitelist | `XLM`, `USDC`, `AQUA`, `yXLM` |
+
+### Available DTOs
+
+#### Username DTOs
+- `CreateUsernameDto` - Request DTO for username creation
+- `CreateUsernameResponseDto` - Response DTO for username creation
+
+#### Link DTOs
+- `LinkMetadataRequestDto` - Request DTO for link metadata generation
+- `LinkMetadataResponseDto` - Response DTO for link metadata
+- `ScanLinkDto` - Request DTO for scanning payment links
+
+#### Transaction DTOs
+- `TransactionQueryDto` - Query DTO for transaction filtering and pagination
+- `TransactionResponseDto` - Response DTO for transaction queries
+- `TransactionDto` - Individual transaction in response
+
+### DTO Rules
 
 ### Validation Requirements
 
 ```typescript
-// Good: All validation rules with descriptive messages
-@IsString()
-@IsNotEmpty()
-@Length(3, 32)
-@Matches(/^[a-z0-9_]+$/, {
-  message: 'Field must contain only lowercase letters, numbers, and underscores',
-})
-fieldName!: string;
+// Good: Using shared validators with descriptive messages
+import { IsUsername, IsStellarPublicKey } from '../dto/validators';
 
-// Bad: Missing validation
-fieldName: string;
+export class CreateUserDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsUsername({
+    message: 'Username must contain only lowercase letters, numbers, and underscores',
+  })
+  username!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsStellarPublicKey()
+  publicKey!: string;
+}
+
+// Bad: Missing validation or duplicate definitions
+export class BadDto {
+  username: string; // No validation
+}
 ```
 
 ### Guidelines
 
+- **Always use shared DTOs** from `src/dto/` instead of creating duplicates
+- **Use shared validators** for common validation patterns
 - Enforce `whitelist: true` and `forbidNonWhitelisted: true`
 - Keep DTOs small and focused
 - Use descriptive validation messages
 - Add `@ApiProperty()` to all fields
+- **Single source of truth**: All common DTOs should be in the shared library
 
 ### Link Validation Rules
 

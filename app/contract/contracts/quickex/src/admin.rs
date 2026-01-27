@@ -1,6 +1,6 @@
 use crate::errors::QuickexError;
 use crate::events::{publish_admin_changed, publish_contract_paused};
-use soroban_sdk::{Address, Env, Symbol, symbol_short};
+use soroban_sdk::{symbol_short, Address, Env, Symbol};
 
 const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
 const PAUSED_KEY: Symbol = symbol_short!("PAUSED");

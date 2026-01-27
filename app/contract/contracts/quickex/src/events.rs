@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, Env, contractevent};
+use soroban_sdk::{contractevent, Address, BytesN, Env};
 
 #[contractevent(topics = ["PrivacyToggled"])]
 #[derive(Clone, Debug, Eq, PartialEq)]

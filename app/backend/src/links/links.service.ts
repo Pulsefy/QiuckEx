@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LinkConstraints, AssetCode, MemoType } from './constants';
-import { LinkMetadataRequestDto, LinkMetadataResponseDto } from './dto';
+import { LinkMetadataRequestDto, LinkMetadataResponseDto } from '../dto';
 import { LinkValidationError, LinkErrorCode } from './errors';
 
 @Injectable()
