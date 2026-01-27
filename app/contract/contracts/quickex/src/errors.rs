@@ -15,5 +15,5 @@ pub enum QuickexError {
     AlreadySpent = 9,
     InvalidCommitment = 10,
     ContractPaused = 11,
-    CommitmentAlreadyExists = 11,
+    CommitmentAlreadyExists = 12,
 }
