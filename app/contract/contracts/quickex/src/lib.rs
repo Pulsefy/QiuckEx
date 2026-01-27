@@ -209,7 +209,7 @@ impl QuickexContract {
 
         let token_client = token::Client::new(&env, &token);
 
-        token_client.transfer(&from, &env.current_contract_address(), &amount);
+        token_client.transfer(&from, env.current_contract_address(), &amount);
 
         let entry = EscrowEntry {
             commitment: commitment.clone(),
