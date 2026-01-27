@@ -38,9 +38,14 @@ describe('App endpoints', () => {
   });
 
   it('POST /username returns ok for valid payload', async () => {
+    // Valid 56-character Stellar public key (G + 55 base32 chars)
+    const validKey = 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWRABCDEFGHIJKL';
     await request(app.getHttpServer())
       .post('/username')
-      .send({ username: 'alice_123' })
+      .send({ 
+        username: 'alice_123',
+        publicKey: validKey
+       })
       .expect(201)
       .expect({ ok: true });
   });

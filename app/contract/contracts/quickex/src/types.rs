@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, BytesN, contracttype};
+use soroban_sdk::{contracttype, Address, BytesN};
 
 /// Escrow entry status
 #[contracttype]
