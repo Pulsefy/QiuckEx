@@ -2,19 +2,20 @@ use soroban_sdk::{contracttype, Address, BytesN};
 
 /// Escrow entry status
 #[contracttype]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
     Pending,
     Spent,
+    Expired,
 }
 
 /// Escrow entry structure
 #[contracttype]
 #[derive(Clone)]
 pub struct EscrowEntry {
-    pub commitment: BytesN<32>,
     pub token: Address,
     pub amount: i128,
+    pub owner: Address,
     pub status: EscrowStatus,
-    pub depositor: Address,
+    pub created_at: u64,
 }
