@@ -18,6 +18,14 @@ pub struct WithdrawToggledEvent {
     pub timestamp: u64,
 }
 
+#[contractevent(topics = ["Deposit"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DepositToggledEvent {
+    pub commitment: BytesN<32>,
+    pub token: Address,
+    pub amount: i128,
+}
+
 pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool, timestamp: u64) {
     PrivacyToggledEvent {
         owner,
@@ -67,6 +75,15 @@ pub(crate) fn publish_withdraw_toggled(env: &Env, to: Address, commitment: Bytes
         to,
         commitment,
         timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_deposit(env: &Env, commitment: BytesN<32>, token: Address, amount: i128) {
+    DepositToggledEvent {
+        commitment,
+        token,
+        amount,
     }
     .publish(env);
 }

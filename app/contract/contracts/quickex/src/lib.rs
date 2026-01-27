@@ -184,6 +184,50 @@ impl QuickexContract {
         true
     }
 
+    pub fn deposit(
+        env: Env,
+        from: Address,
+        token: Address,
+        amount: i128,
+        commitment: BytesN<32>,
+    ) -> Result<(), QuickexError> {
+        if amount <= 0 {
+            return Err(QuickexError::InvalidAmount);
+        }
+
+        from.require_auth();
+
+        let escrow_key = Symbol::new(&env, "escrow");
+
+        if env
+            .storage()
+            .persistent()
+            .has(&(escrow_key.clone(), commitment.clone()))
+        {
+            return Err(QuickexError::CommitmentAlreadyExists);
+        }
+
+        let token_client = token::Client::new(&env, &token);
+
+        token_client.transfer(&from, env.current_contract_address(), &amount);
+
+        let entry = EscrowEntry {
+            commitment: commitment.clone(),
+            token: token.clone(),
+            amount,
+            status: EscrowStatus::Pending,
+            depositor: from.clone(),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&(escrow_key, commitment.clone()), &entry);
+
+        events::publish_deposit(&env, commitment, token, amount);
+
+        Ok(())
+    }
+
     /// Initialize the contract with an admin address
     ///
     /// # Arguments
