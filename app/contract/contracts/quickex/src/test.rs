@@ -387,3 +387,75 @@ fn test_old_admin_cannot_pause_after_transfer() {
     // Old admin tries to pause - should fail
     client.set_paused(&admin, &true);
 }
+
+// ============================================================================
+// Upgrade Tests
+// ============================================================================
+
+#[test]
+fn test_upgrade_by_admin() {
+    use crate::errors::QuickexError;
+
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Create a dummy WASM hash for testing
+    let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
+
+    // Admin calls upgrade - this tests the authorization logic
+    // Note: In test environment, update_current_contract_wasm may fail
+    // because the WASM hash doesn't exist, but the auth check should pass.
+    // We use try_upgrade to verify auth passes (not Unauthorized error)
+    let result = client.try_upgrade(&admin, &new_wasm_hash);
+
+    // The call should NOT fail with Unauthorized (Contract error #2)
+    // It may fail with a host error because the WASM doesn't exist in test env
+    match result {
+        Ok(_) => {} // Upgrade succeeded (unexpected in test env, but valid)
+        Err(Ok(contract_error)) => {
+            // This is a contract error - should NOT be Unauthorized
+            assert_ne!(
+                contract_error,
+                QuickexError::Unauthorized,
+                "Upgrade failed with Unauthorized error when admin called it"
+            );
+        }
+        Err(Err(_host_error)) => {
+            // Host error (e.g., WASM hash not found) - this is expected
+            // The important thing is the auth check passed
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_upgrade_by_non_admin_fails() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+
+    // Initialize admin
+    client.initialize(&admin);
+
+    // Create a dummy WASM hash
+    let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
+
+    // Non-admin tries to upgrade - should fail with Unauthorized
+    client.upgrade(&non_admin, &new_wasm_hash);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_upgrade_without_admin_initialized_fails() {
+    let (env, client) = setup();
+    let caller = Address::generate(&env);
+
+    // Do NOT initialize admin
+    let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
+
+    // Try to upgrade without admin set - should fail with Unauthorized
+    client.upgrade(&caller, &new_wasm_hash);
+}

@@ -306,6 +306,44 @@ impl QuickexContract {
     pub fn get_admin(env: Env) -> Option<Address> {
         get_admin(&env)
     }
+
+    /// Upgrade the contract to a new WASM implementation (Admin only)
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The caller address (must be admin)
+    /// * `new_wasm_hash` - The hash of the new WASM code to upgrade to
+    ///
+    /// # Returns
+    /// * `Result<(), QuickexError>` - Ok if successful, Error if unauthorized
+    ///
+    /// # Security
+    /// This function requires admin authorization and will update the contract's
+    /// executable code. The new WASM must be pre-uploaded to the network.
+    pub fn upgrade(
+        env: Env,
+        caller: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), QuickexError> {
+        // Verify caller is admin
+        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        if caller != admin {
+            return Err(QuickexError::Unauthorized);
+        }
+
+        // Require cryptographic authorization from the caller
+        caller.require_auth();
+
+        // Update the contract WASM to the new implementation
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+
+        // Emit upgrade event for audit trail
+        let timestamp = env.ledger().timestamp();
+        events::publish_contract_upgraded(&env, new_wasm_hash, &admin, timestamp);
+
+        Ok(())
+    }
 }
 
 mod storage_test;

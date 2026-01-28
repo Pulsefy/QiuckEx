@@ -74,6 +74,30 @@ pub(crate) fn publish_admin_changed(
     .publish(env);
 }
 
+#[contractevent(topics = ["ContractUpgraded"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractUpgradedEvent {
+    #[topic]
+    pub new_wasm_hash: BytesN<32>,
+    #[topic]
+    pub admin: Address,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_contract_upgraded(
+    env: &Env,
+    new_wasm_hash: BytesN<32>,
+    admin: &Address,
+    timestamp: u64,
+) {
+    ContractUpgradedEvent {
+        new_wasm_hash,
+        admin: admin.clone(),
+        timestamp,
+    }
+    .publish(env);
+}
+
 pub(crate) fn publish_withdraw_toggled(env: &Env, to: Address, commitment: BytesN<32>) {
     WithdrawToggledEvent {
         to,
