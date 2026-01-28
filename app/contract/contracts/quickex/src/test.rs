@@ -392,12 +392,12 @@ fn test_old_admin_cannot_pause_after_transfer() {
 fn test_get_commitment_state_pending() {
     let (env, client) = setup();
     let token = create_test_token(&env);
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"test_salt");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -413,12 +413,12 @@ fn test_get_commitment_state_pending() {
 fn test_get_commitment_state_spent() {
     let (env, client) = setup();
     let token = create_test_token(&env);
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"test_salt_spent");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -426,11 +426,11 @@ fn test_get_commitment_state_spent() {
 
     // Create entry with Spent status
     let entry = EscrowEntry {
-        commitment: commitment.clone(),
         token: token.clone(),
         amount,
+        owner: owner.clone(),
         status: EscrowStatus::Spent,
-        depositor,
+        created_at: env.ledger().timestamp(),
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
@@ -447,12 +447,12 @@ fn test_get_commitment_state_spent() {
 #[test]
 fn test_get_commitment_state_not_found() {
     let (env, client) = setup();
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"nonexistent_salt");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -554,6 +554,7 @@ fn test_verify_proof_view_wrong_owner() {
     let is_valid = client.verify_proof_view(&amount, &salt, &wrong_owner);
     assert!(!is_valid);
 }
+
 #[test]
 fn test_verify_proof_view_spent_commitment() {
     let (env, client) = setup();
@@ -571,11 +572,11 @@ fn test_verify_proof_view_spent_commitment() {
 
     // Create entry with Spent status
     let entry = EscrowEntry {
-        commitment: commitment.clone(),
         token: token.clone(),
         amount,
+        owner: owner.clone(),
         status: EscrowStatus::Spent,
-        depositor: owner.clone(),
+        created_at: env.ledger().timestamp(),
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
@@ -604,12 +605,12 @@ fn test_verify_proof_view_nonexistent_commitment() {
 fn test_get_escrow_details_found() {
     let (env, client) = setup();
     let token = create_test_token(&env);
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"details_test_salt");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -624,18 +625,17 @@ fn test_get_escrow_details_found() {
     assert_eq!(entry.amount, amount);
     assert_eq!(entry.token, token);
     assert_eq!(entry.status, EscrowStatus::Pending);
-    assert_eq!(entry.commitment, commitment);
 }
 
 #[test]
 fn test_get_escrow_details_not_found() {
     let (env, client) = setup();
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"not_found_salt");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -644,16 +644,17 @@ fn test_get_escrow_details_not_found() {
     let details = client.get_escrow_details(&commitment);
     assert!(details.is_none());
 }
+
 #[test]
 fn test_get_escrow_details_spent_status() {
     let (env, client) = setup();
     let token = create_test_token(&env);
-    let depositor = Address::generate(&env);
+    let owner = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"spent_details_salt");
 
     let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = depositor.clone().to_xdr(&env);
+    let address_bytes: Bytes = owner.clone().to_xdr(&env);
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
@@ -661,11 +662,11 @@ fn test_get_escrow_details_spent_status() {
 
     // Create entry with Spent status
     let entry = EscrowEntry {
-        commitment: commitment.clone(),
         token: token.clone(),
         amount,
+        owner: owner.clone(),
         status: EscrowStatus::Spent,
-        depositor: depositor.clone(),
+        created_at: env.ledger().timestamp(),
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
