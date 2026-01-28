@@ -238,6 +238,38 @@ assert!(!client.verify_amount_commitment(&commitment, &other_owner, &amount, &sa
 - **Deterministic only**: Same inputs always produce identical commits; useful for audits but no hiding.
 - **Not production-grade privacy**: Mark this feature as "experimental" in UX; full privacy requires ZK integration.
 
+## View Functions (Read-Only RPC Calls)
+
+### Check Commitment State
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --fn get_commitment_state \
+  -- \
+  --commitment <COMMITMENT_HASH>
+```
+
+### Verify Proof Before Withdrawal
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --fn verify_proof_view \
+  -- \
+  --amount 1000000 \
+  --salt <SALT_BYTES> \
+  --owner <ADDRESS>
+```
+
+### Get Full Escrow Details
+```bash
+soroban contract invoke \
+  --id <CONTRACT_ID> \
+  --fn get_escrow_details \
+  -- \
+  --commitment <COMMITMENT_HASH>
+```
+
+
 ### Roadmap
 
 1. **Current (v0.1)**: Deterministic SHA256 commitments
