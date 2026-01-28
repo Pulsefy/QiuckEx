@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
+import { ConfigModule } from '@nestjs/config';
 import { stellarConfig } from './config/stellar.config';
 import { HealthModule } from './health/health.module';
 import { StellarModule } from './stellar/stellar.module';
