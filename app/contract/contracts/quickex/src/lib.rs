@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Symbol, Vec};
 
 mod admin;
 mod commitment;
@@ -23,8 +23,11 @@ impl QuickexContract {
     /// Withdraw funds by proving commitment ownership
     pub fn withdraw(
         env: Env,
-        to: Address,
+        token: &Address,
         amount: i128,
+        commitment: BytesN<32>,
+        to: Address,
+
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
         if amount <= 0 {
@@ -305,6 +308,41 @@ impl QuickexContract {
     /// * `Option<Address>` - The admin address if set, None otherwise
     pub fn get_admin(env: Env) -> Option<Address> {
         get_admin(&env)
+    }
+
+    pub fn get_commitment_state(env: Env, commitment: BytesN<32>) -> Option<EscrowStatus> {
+        let escrow_key = Symbol::new(&env, "escrow");
+
+        let entry: Option<EscrowEntry> = env.storage().persistent().get(&(escrow_key, commitment));
+
+        entry.map(|e| e.status)
+    }
+
+    // Verify proof parameters without submitting a transaction
+    pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
+        let commitment_result =
+            commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
+
+        let commitment = match commitment_result {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        // Check if commitment exists in storage
+        let escrow_key = Symbol::new(&env, "escrow");
+        let entry: Option<EscrowEntry> = env.storage().persistent().get(&(escrow_key, commitment));
+
+        // Verify the entry exists, is pending, and amount matches
+        match entry {
+            Some(e) => e.status == EscrowStatus::Pending && e.amount == amount,
+            None => false,
+        }
+    }
+
+    // Get detailed escrow information for a commitment
+    pub fn get_escrow_details(env: Env, commitment: BytesN<32>) -> Option<EscrowEntry> {
+        let escrow_key = Symbol::new(&env, "escrow");
+        env.storage().persistent().get(&(escrow_key, commitment))
     }
 }
 
