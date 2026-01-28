@@ -87,8 +87,16 @@ Before getting started, ensure you have the following installed:
 3. Configure the Stellar network:
    - **Development**: Defaults to testnet; fund your wallet at [laboratory.stellar.org](https://laboratory.stellar.org).
    - **Production**: Set to `mainnet` in `.env.local` and ensure your wallet holds real assets.
-4. For contracts: Add environment variables to `app/contract/.env` (e.g., `STELLAR_NETWORK=testnet`).
-5. For mobile: After installation, navigate to `app/mobile` and run `npx pod-install` (iOS) or configure the Android SDK.
+4. Backend (NestJS): create `app/backend/.env` and set `STELLAR_NETWORK` (default `testnet`).
+   Example:
+   ```
+   STELLAR_NETWORK=testnet
+   ```
+   Allowed values: `testnet`, `mainnet` (default `testnet`).
+   Supported assets are defined in `app/backend/src/config/stellar.config.ts` under `SUPPORTED_ASSETS`.
+   To add a new asset, add a native or issued entry to `SUPPORTED_ASSETS`.
+5. For contracts: Add environment variables to `app/contract/.env` (e.g., `STELLAR_NETWORK=testnet`).
+6. For mobile: After installation, navigate to `app/mobile` and run `npx pod-install` (iOS) or configure the Android SDK.
 
 ### Running Locally
 1. Launch all services using TurboRepo:
