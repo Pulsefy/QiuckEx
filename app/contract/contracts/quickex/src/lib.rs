@@ -326,7 +326,7 @@ impl QuickexContract {
         };
 
         // Check if commitment exists in storage
-        let escrow_key = Symbol::new(&env, "escrow");
+        let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
         let entry: Option<EscrowEntry> = env.storage().persistent().get(&(escrow_key, commitment));
 
         // Verify the entry exists, is pending, and amount matches
@@ -338,7 +338,7 @@ impl QuickexContract {
 
     // Get detailed escrow information for a commitment
     pub fn get_escrow_details(env: Env, commitment: BytesN<32>) -> Option<EscrowEntry> {
-        let escrow_key = Symbol::new(&env, "escrow");
+        let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
         env.storage().persistent().get(&(escrow_key, commitment))
     }
 }
