@@ -335,7 +335,8 @@ impl QuickexContract {
         caller.require_auth();
 
         // Update the contract WASM to the new implementation
-        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
 
         // Emit upgrade event for audit trail
         let timestamp = env.ledger().timestamp();
