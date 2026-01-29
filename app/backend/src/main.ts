@@ -7,6 +7,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { AppConfigService } from './config';
+import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -47,6 +48,12 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  /**
+   * Global Throttler exception filter
+   * Ensures consistent 429 response format
+   */
+  app.useGlobalFilters(new ThrottlerExceptionFilter());
 
   // Swagger/OpenAPI documentation setup
   const swaggerConfig = new DocumentBuilder()

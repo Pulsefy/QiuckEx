@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerModule } from '@nestjs/throttler';
+
 import { AppConfigModule } from './config';
 import { HealthModule } from './health/health.module';
 import { StellarModule } from './stellar/stellar.module';
@@ -13,6 +15,12 @@ import { UsernamesModule } from './usernames/usernames.module';
       wildcard: true,
       delimiter: '.',
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000, 
+      limit: 20,
+    }]),
+
+    AppConfigModule,
     SupabaseModule,
     HealthModule,
     StellarModule,
