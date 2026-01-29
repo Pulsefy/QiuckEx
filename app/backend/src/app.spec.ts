@@ -27,8 +27,10 @@ describe('App endpoints', () => {
   });
 
   afterAll(async () => {
+  if (app) {
     await app.close();
-  });
+  }
+});
 
   it('GET /health returns ok', async () => {
     await request(app.getHttpServer())
