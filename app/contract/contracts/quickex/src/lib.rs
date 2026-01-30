@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 mod commitment;
@@ -23,9 +23,9 @@ impl QuickexContract {
     /// Withdraw funds by proving commitment ownership
     pub fn withdraw(
         env: Env,
-        token: &Address,
+        _token: &Address,
         amount: i128,
-        commitment: BytesN<32>,
+        _commitment: BytesN<32>,
         to: Address,
 
         salt: Bytes,
@@ -311,9 +311,8 @@ impl QuickexContract {
     }
 
     pub fn get_commitment_state(env: Env, commitment: BytesN<32>) -> Option<EscrowStatus> {
-        let escrow_key = Symbol::new(&env, "escrow");
-
-        let entry: Option<EscrowEntry> = env.storage().persistent().get(&(escrow_key, commitment));
+        let commitment_bytes: Bytes = commitment.into();
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
 
         entry.map(|e| e.status)
     }
@@ -329,8 +328,8 @@ impl QuickexContract {
         };
 
         // Check if commitment exists in storage
-        let escrow_key = Symbol::new(&env, "escrow");
-        let entry: Option<EscrowEntry> = env.storage().persistent().get(&(escrow_key, commitment));
+        let commitment_bytes: Bytes = commitment.into();
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
 
         // Verify the entry exists, is pending, and amount matches
         match entry {
@@ -341,8 +340,9 @@ impl QuickexContract {
 
     // Get detailed escrow information for a commitment
     pub fn get_escrow_details(env: Env, commitment: BytesN<32>) -> Option<EscrowEntry> {
-        let escrow_key = Symbol::new(&env, "escrow");
-        env.storage().persistent().get(&(escrow_key, commitment))
+        let commitment_bytes: Bytes = commitment.into();
+        get_escrow(&env, &commitment_bytes)
+    }
     /// Upgrade the contract to a new WASM implementation (Admin only)
     ///
     /// # Arguments

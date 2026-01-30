@@ -59,14 +59,14 @@ fn test_successful_withdrawal() {
 
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment);
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
 
     env.mock_all_auths();
 
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&client.address, &amount);
 
-    let _ = client.withdraw(&to, &amount, &salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
 }
 
 #[test]
@@ -92,10 +92,10 @@ fn test_double_withdrawal_fails() {
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&client.address, &(amount * 2));
 
-    let first_result = client.try_withdraw(&to, &amount, &salt);
+    let first_result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
     assert!(first_result.is_ok());
     assert_eq!(first_result.unwrap(), Ok(true));
-    let _ = client.withdraw(&to, &amount, &salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn test_invalid_salt_fails() {
     setup_escrow(&env, &client.address, &token, amount, commitment.clone());
 
     env.mock_all_auths();
-    let _ = client.withdraw(&to, &amount, &wrong_salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &wrong_salt);
 }
 
 #[test]
@@ -148,45 +148,69 @@ fn test_invalid_amount_fails() {
 
     env.mock_all_auths();
 
-    let _ = client.withdraw(&to, &wrong_amount, &salt);
+    let _ = client.withdraw(&token, &wrong_amount, &commitment, &to, &salt);
 }
 
 #[test]
 #[should_panic]
 fn test_zero_amount_fails() {
     let (env, client) = setup();
+    let token = create_test_token(&env);
     let to = Address::generate(&env);
     let amount: i128 = 0;
     let salt = Bytes::from_slice(&env, b"test_salt");
 
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
     env.mock_all_auths();
 
-    let _ = client.withdraw(&to, &amount, &salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
 }
 
 #[test]
 #[should_panic]
 fn test_negative_amount_fails() {
     let (env, client) = setup();
+    let token = create_test_token(&env);
     let to = Address::generate(&env);
     let amount: i128 = -100;
     let salt = Bytes::from_slice(&env, b"test_salt");
 
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
     env.mock_all_auths();
 
-    let _ = client.withdraw(&to, &amount, &salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
 }
 
 #[test]
 #[should_panic]
 fn test_nonexistent_commitment_fails() {
     let (env, client) = setup();
+    let token = create_test_token(&env);
     let to = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"nonexistent");
 
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
     env.mock_all_auths();
-    let _ = client.withdraw(&to, &amount, &salt);
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
 }
 
 #[test]
@@ -433,11 +457,9 @@ fn test_get_commitment_state_spent() {
         created_at: env.ledger().timestamp(),
     };
 
-    let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
     env.as_contract(&client.address, || {
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment.clone()), &entry);
+        let storage_commitment: Bytes = commitment.clone().into();
+        put_escrow(&env, &storage_commitment, &entry);
     });
 
     let state = client.get_commitment_state(&commitment);
@@ -669,11 +691,9 @@ fn test_get_escrow_details_spent_status() {
         created_at: env.ledger().timestamp(),
     };
 
-    let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
     env.as_contract(&client.address, || {
-        env.storage()
-            .persistent()
-            .set(&(escrow_key, commitment.clone()), &entry);
+        let storage_commitment: Bytes = commitment.clone().into();
+        put_escrow(&env, &storage_commitment, &entry);
     });
 
     let details = client.get_escrow_details(&commitment);
@@ -683,6 +703,7 @@ fn test_get_escrow_details_spent_status() {
     assert_eq!(retrieved_entry.status, EscrowStatus::Spent);
     assert_eq!(retrieved_entry.amount, amount);
     assert_eq!(retrieved_entry.token, token);
+}
 // ============================================================================
 // Upgrade Tests
 // ============================================================================
