@@ -1,61 +1,69 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
+import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import * as request from "supertest";
 
-import { AppModule } from './app.module';
+import { AppModule } from "./app.module";
 
 // Environment variables are set in jest.setup.ts
 
-describe('App endpoints', () => {
-  let app: INestApplication;
+describe("App endpoints", () => {
+	let app: INestApplication;
 
-  beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+	beforeAll(async () => {
+		const moduleRef = await Test.createTestingModule({
+			imports: [AppModule],
+		})
+			.overrideProvider("DATABASE_CONNECTION") // Mock database if needed
+			.useValue({})
+			.overrideProvider("HORIZON_SERVICE") // Mock Horizon service
+			.useValue({
+				checkRateLimit: jest.fn(),
+				// Add other methods as needed
+			})
+			.compile();
 
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+		app = moduleRef.createNestApplication();
+		app.useGlobalPipes(
+			new ValidationPipe({
+				whitelist: true,
+				forbidNonWhitelisted: true,
+				transform: true,
+			}),
+		);
 
-    await app.init();
-  });
+		await app.init();
+	});
 
-  afterAll(async () => {
-  if (app) {
-    await app.close();
-  }
-});
+	afterAll(async () => {
+		if (app) {
+			await app.close();
+		}
+	});
 
-  it('GET /health returns ok', async () => {
-    await request(app.getHttpServer())
-      .get('/health')
-      .expect(200)
-      .expect({ status: 'ok' });
-  });
+	it("GET /health returns ok", async () => {
+		await request(app.getHttpServer())
+			.get("/health")
+			.expect(200)
+			.expect({ status: "ok" });
+	});
 
-  it('POST /username returns ok for valid payload', async () => {
-    // Valid 56-character Stellar public key (G + 55 base32 chars)
-    const validKey = 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWRABCDEFGHIJKL';
-    await request(app.getHttpServer())
-      .post('/username')
-      .send({ 
-        username: 'alice_123',
-        publicKey: validKey
-       })
-      .expect(201)
-      .expect({ ok: true });
-  });
+	it("POST /username returns ok for valid payload", async () => {
+		// Valid 56-character Stellar public key (G + 55 base32 chars)
+		const validKey = "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWRABCDEFGHIJKL";
+		await request(app.getHttpServer())
+			.post("/username")
+			.send({
+				username: "alice_123",
+				publicKey: validKey,
+			})
+			.expect(201)
+			.expect({ ok: true });
+	});
 
-  it('POST /username returns 400 for invalid payload', async () => {
-    await request(app.getHttpServer())
-      .post('/username')
-      .send({ username: 'A' })
-      .expect(400);
-  });
+	it("POST /username returns 400 for invalid payload", async () => {
+		await request(app.getHttpServer())
+			.post("/username")
+			.send({ username: "A" })
+			.expect(400);
+	});
 });
