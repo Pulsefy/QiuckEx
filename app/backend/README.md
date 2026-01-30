@@ -59,6 +59,53 @@ The backend validates all environment variables at startup using a Joi schema. I
 
 **Note:** For security, actual secret values are never logged—only the key names.
 
+## Stellar configuration
+
+### Network
+
+- Env var: `STELLAR_NETWORK`
+- Allowed values: `testnet`, `mainnet`
+- Default: `testnet`
+- Invalid values fail fast with a startup error.
+
+Example `.env`:
+
+```bash
+STELLAR_NETWORK=testnet
+```
+
+### Supported assets
+
+Asset validation is driven by `SUPPORTED_ASSETS` in `src/config/stellar.config.ts`.
+
+Native asset shape:
+
+```ts
+{ type: 'native', code: 'XLM' }
+```
+
+Issued asset shape:
+
+```ts
+{ type: 'credit_alphanum4', code: 'USDC', issuer: 'G...ISSUER' }
+```
+
+How to add a new supported asset:
+
+1. Add a new entry to `SUPPORTED_ASSETS`.
+2. For issued assets, include the exact issuer (case-sensitive).
+3. Update tests and docs.
+
+Example issued asset:
+
+```ts
+{
+  type: 'credit_alphanum4',
+  code: 'EURT',
+  issuer: 'GEXAMPLEISSUERADDRESS'
+}
+```
+
 ## Scripts
 
 Run from repo root using TurboRepo filters:

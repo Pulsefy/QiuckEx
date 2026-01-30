@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppConfigService } from './app-config.service';
 import { envSchema } from './env.schema';
+import { stellarConfig } from './stellar.config';
 
 /**
  * Global configuration module.
@@ -14,6 +15,7 @@ import { envSchema } from './env.schema';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [stellarConfig],
       validationSchema: envSchema,
       validationOptions: {
         abortEarly: false, // Report all validation errors, not just the first
