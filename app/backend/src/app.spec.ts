@@ -13,13 +13,6 @@ describe("App endpoints", () => {
 		const moduleRef = await Test.createTestingModule({
 			imports: [AppModule],
 		})
-			.overrideProvider("DATABASE_CONNECTION") // Mock database if needed
-			.useValue({})
-			.overrideProvider("HORIZON_SERVICE") // Mock Horizon service
-			.useValue({
-				checkRateLimit: jest.fn(),
-				// Add other methods as needed
-			})
 			.compile();
 
 		app = moduleRef.createNestApplication();

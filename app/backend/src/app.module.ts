@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { stellarConfig } from './config/stellar.config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AppConfigModule } from './config';
 import { HealthModule } from './health/health.module';
 import { StellarModule } from './stellar/stellar.module';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -8,9 +8,10 @@ import { UsernamesModule } from './usernames/usernames.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [stellarConfig],
+    AppConfigModule,
+    EventEmitterModule.forRoot({
+      wildcard: true,
+      delimiter: '.',
     }),
     SupabaseModule,
     HealthModule,
