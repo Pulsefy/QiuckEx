@@ -23,8 +23,11 @@ impl QuickexContract {
     /// Withdraw funds by proving commitment ownership
     pub fn withdraw(
         env: Env,
-        to: Address,
+        _token: &Address,
         amount: i128,
+        _commitment: BytesN<32>,
+        to: Address,
+
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
         if amount <= 0 {
@@ -307,6 +310,39 @@ impl QuickexContract {
         get_admin(&env)
     }
 
+    pub fn get_commitment_state(env: Env, commitment: BytesN<32>) -> Option<EscrowStatus> {
+        let commitment_bytes: Bytes = commitment.into();
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
+
+        entry.map(|e| e.status)
+    }
+
+    // Verify proof parameters without submitting a transaction
+    pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
+        let commitment_result =
+            commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
+
+        let commitment = match commitment_result {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        // Check if commitment exists in storage
+        let commitment_bytes: Bytes = commitment.into();
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
+
+        // Verify the entry exists, is pending, and amount matches
+        match entry {
+            Some(e) => e.status == EscrowStatus::Pending && e.amount == amount,
+            None => false,
+        }
+    }
+
+    // Get detailed escrow information for a commitment
+    pub fn get_escrow_details(env: Env, commitment: BytesN<32>) -> Option<EscrowEntry> {
+        let commitment_bytes: Bytes = commitment.into();
+        get_escrow(&env, &commitment_bytes)
+    }
     /// Upgrade the contract to a new WASM implementation (Admin only)
     ///
     /// # Arguments
