@@ -1,18 +1,22 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { Injectable } from '@nestjs/common';
+import {
+  ThrottlerGuard,
+  ThrottlerRequest,
+} from '@nestjs/throttler';
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   protected async handleRequest(
-    context: ExecutionContext,
-    limit: number,
-    ttl: number,
+    requestProps: ThrottlerRequest,
   ): Promise<boolean> {
+    const { context, limit } = requestProps;
     const req = context.switchToHttp().getRequest();
 
-    // Dynamic rate limit per API key
     const dynamicLimit = req.apiKey?.rateLimit ?? limit;
 
-    return super.handleRequest(context, dynamicLimit, ttl);
+    return super.handleRequest({
+      ...requestProps,
+      limit: dynamicLimit,
+    });
   }
 }
