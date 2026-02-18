@@ -181,7 +181,7 @@ All contributors must adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) and si
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support & Community
-- Join the [QuickEx Discord](https://discord.gg/wNQQEcSsq) for real-time help, discussions, and updates.
+- Join the [QuickEx Discord](https://discord.gg/gBmApTNVV) for real-time help, discussions, and updates.
 - Have questions? Open an issue or DM @pulsefy.
 
 Built with ❤️ by Pulsefy. Powered by Stellar. 🚀
