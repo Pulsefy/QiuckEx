@@ -30,6 +30,16 @@ export const WHITELISTED_ASSETS = [
 ];
 
 /**
+ * Thresholds for "high value" transfers that should definitely have a memo
+ */
+export const HIGH_VALUE_THRESHOLDS = {
+	XLM: 5000,
+	USDC: 1000,
+	USDT: 1000,
+	DEFAULT: 5000,
+};
+
+/**
  * Maximum reasonable amounts for different asset types (in base units)
  */
 export const MAX_REASONABLE_AMOUNTS = {
@@ -39,6 +49,17 @@ export const MAX_REASONABLE_AMOUNTS = {
 	NGN: 50000000, // ₦50M
 	DEFAULT: 1000000,
 };
+
+/**
+ * Blacklisted domains, usernames, or addresses
+ */
+export const BLACKLISTED_RECIPIENTS = [
+	"scammer.com",
+	"phishing-site.net",
+	"fake-exchange",
+	"not-real-wallet",
+	"G123456789ABCDEF", // Example blacklisted address
+];
 
 /**
  * Suspicious memo patterns (regex)
@@ -75,6 +96,8 @@ export enum ScamAlertType {
 	SUSPICIOUS_MEMO = "suspicious_memo",
 	EXTERNAL_ADDRESS_IN_MEMO = "external_address_in_memo",
 	URGENCY_PATTERN = "urgency_pattern",
+	BLACKLISTED_RECIPIENT = "blacklisted_recipient",
+	HIGH_VALUE_MISSING_MEMO = "high_value_missing_memo",
 }
 
 /**
@@ -111,5 +134,16 @@ export const SCAM_RULES = {
 		severity: ScamSeverity.HIGH,
 		message: "Memo uses urgency tactics common in scam attempts",
 		recommendation: "Take your time. Legitimate requests are never urgent.",
+	},
+	[ScamAlertType.BLACKLISTED_RECIPIENT]: {
+		severity: ScamSeverity.CRITICAL,
+		message: "Recipient is on a known blacklist",
+		recommendation: "ABORT IMMEDIATELY. This recipient is known to be malicious.",
+	},
+	[ScamAlertType.HIGH_VALUE_MISSING_MEMO]: {
+		severity: ScamSeverity.HIGH,
+		message: "High value transfer missing a memo",
+		recommendation:
+			"Large transfers usually require a memo. Verify with the recipient.",
 	},
 };
