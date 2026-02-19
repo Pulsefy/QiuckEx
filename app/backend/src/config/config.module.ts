@@ -19,7 +19,7 @@ import { stellarConfig } from './stellar.config';
       validationSchema: envSchema,
       validationOptions: {
         abortEarly: false, // Report all validation errors, not just the first
-        allowUnknown: true, // Allow unknown environment variables
+        allowUnknown: true, 
       },
     }),
   ],

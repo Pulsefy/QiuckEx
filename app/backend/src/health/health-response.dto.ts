@@ -1,13 +1,17 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from "@nestjs/swagger";
 
-/**
- * Health check response DTO
- */
 export class HealthResponseDto {
+  @ApiProperty({ enum: ["ok", "degraded"] })
+  status!: "ok" | "degraded";
+
   @ApiProperty({
-    description: 'Health status of the service',
-    example: 'ok',
-    enum: ['ok'],
+    example: {
+      supabase: "up",
+      horizon: "up",
+    },
   })
-  status!: 'ok';
+  services!: {
+    supabase: "up" | "down";
+    horizon: "up" | "down";
+  };
 }
