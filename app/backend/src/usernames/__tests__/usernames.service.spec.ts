@@ -16,7 +16,7 @@ describe('UsernamesService', () => {
   let mockCountForWallet: number;
   let sharedClient: { from: jest.Mock };
 
-  const mockFrom = (table: string) => {
+  const mockFrom = (_table: string) => {
     const chain: Record<string, jest.Mock> = {
       insert: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
