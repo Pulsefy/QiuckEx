@@ -214,10 +214,58 @@ describe("ScamAlertsService", () => {
 			expect(result.highCount).toBeGreaterThan(0);
 			expect(
 				result.criticalCount +
-					result.highCount +
-					result.mediumCount +
-					result.lowCount,
+				result.highCount +
+				result.mediumCount +
+				result.lowCount,
 			).toBe(result.alerts.length);
+		});
+	});
+
+
+	describe("Blacklisted Recipient Detection", () => {
+		it("should flag blacklisted recipients", () => {
+			const result = service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				recipientAddress: "G123456789ABCDEF",
+				memo: "test",
+			});
+
+			const blacklistAlert = result.alerts.find(
+				(a) => a.type === ScamAlertType.BLACKLISTED_RECIPIENT,
+			);
+			expect(blacklistAlert).toBeDefined();
+			expect(blacklistAlert?.severity).toBe(ScamSeverity.CRITICAL);
+		});
+	});
+
+	describe("High Value Missing Memo Detection", () => {
+		it("should flag high value transfers without memo", () => {
+			// USDC threshold is 1000
+			const result = service.scanLink({
+				assetCode: "USDC",
+				amount: 2000,
+				// No memo
+			});
+
+			const highValueAlert = result.alerts.find(
+				(a) => a.type === ScamAlertType.HIGH_VALUE_MISSING_MEMO,
+			);
+			expect(highValueAlert).toBeDefined();
+			expect(highValueAlert?.severity).toBe(ScamSeverity.HIGH);
+		});
+
+		it("should not flag high value transfers with memo", () => {
+			const result = service.scanLink({
+				assetCode: "USDC",
+				amount: 2000,
+				memo: "Invoice",
+			});
+
+			const highValueAlert = result.alerts.find(
+				(a) => a.type === ScamAlertType.HIGH_VALUE_MISSING_MEMO,
+			);
+			expect(highValueAlert).toBeUndefined();
 		});
 	});
 });
