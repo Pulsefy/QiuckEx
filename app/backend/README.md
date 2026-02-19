@@ -31,6 +31,7 @@ cp .env.example .env
 | `NETWORK`          | **Yes**  | -             | Stellar network: `testnet` or `mainnet`               |
 | `SUPABASE_URL`     | **Yes**  | -             | Supabase project URL (e.g., `https://xxx.supabase.co`)|
 | `SUPABASE_ANON_KEY`| **Yes**  | -             | Supabase anonymous (public) API key                   |
+| `MAX_USERNAMES_PER_WALLET` | No | (no limit) | Max usernames per wallet; omit for no limit           |
 
 #### Getting Supabase credentials
 
@@ -146,16 +147,19 @@ When the server is running, navigate to `/docs` to see:
 | ------ | --------- | ------------------- | ------------------------- |
 | GET    | `/health` | Health check        | `{ "status": "ok" }`      |
 
-### Usernames
+### Usernames (quickex.to/yourname)
 
-| Method | Path        | Description           | Request Body                      | Response              |
-| ------ | ----------- | --------------------- | --------------------------------- | --------------------- |
-| POST   | `/username` | Create a new username | `{ "username": "alice_123" }`     | `{ "ok": true }`      |
+| Method | Path        | Description              | Request / Query                 | Response                    |
+| ------ | ----------- | ------------------------ | ------------------------------- | --------------------------- |
+| POST   | `/username` | Create a new username    | Body: `{ "username", "publicKey" }` | `{ "ok": true }` or 409/403 |
+| GET    | `/username` | List usernames for wallet| Query: `?publicKey=G...`         | `{ "usernames": [...] }`     |
 
-**Username validation rules:**
-- 3-32 characters
-- Lowercase letters, numbers, and underscores only
-- Pattern: `^[a-z0-9_]+$`
+**Username rules (enforced server-side):**
+- **Length:** 3–32 characters (inclusive).
+- **Characters:** Lowercase letters (`a-z`), digits (`0-9`), underscore (`_`) only. Pattern: `^[a-z0-9_]+$`.
+- **Uniqueness:** One username per value (normalized to lowercase). Duplicate creation returns **409 Conflict** with code `USERNAME_CONFLICT`.
+- **Per-wallet limit (optional):** Set `MAX_USERNAMES_PER_WALLET` to cap usernames per Stellar public key; exceeding returns **403 Forbidden** with code `USERNAME_LIMIT_EXCEEDED`.
+- **Race conditions:** Uniqueness is enforced by a database unique constraint so concurrent creates are safe.
 
 ### Payment Links
 
@@ -259,10 +263,11 @@ src/
 ├── health/                 # Health check module
 │   ├── health.controller.ts
 │   └── health-response.dto.ts
-├── usernames/              # Username management module
+├── usernames/              # Username management (quickex.to/yourname)
 │   ├── usernames.controller.ts
-│   ├── create-username.dto.ts
-│   └── create-username-response.dto.ts
+│   ├── usernames.service.ts
+│   ├── constants.ts        # Username rules (length, pattern, limits)
+│   └── errors/             # Conflict, limit-exceeded, validation errors
 └── supabase/               # Supabase integration
     ├── supabase.service.ts
     └── supabase.module.ts

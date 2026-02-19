@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import * as request from "supertest";
 
 import { AppModule } from "./app.module";
+import { UsernamesService } from "./usernames/usernames.service";
 
 // Environment variables are set in jest.setup.ts
 
@@ -13,6 +14,11 @@ describe("App endpoints", () => {
 		const moduleRef = await Test.createTestingModule({
 			imports: [AppModule],
 		})
+			.overrideProvider(UsernamesService)
+			.useValue({
+				create: jest.fn().mockResolvedValue({ ok: true }),
+				listByPublicKey: jest.fn().mockResolvedValue([]),
+			})
 			.compile();
 
 		app = moduleRef.createNestApplication();
