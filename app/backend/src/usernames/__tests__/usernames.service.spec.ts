@@ -33,7 +33,7 @@ describe('UsernamesService', () => {
   beforeEach(async () => {
     configMaxPerWallet = undefined;
     mockCountForWallet = 0;
-    const usernamesChain = mockFrom('usernames');
+    const usernamesChain = mockFrom();
     usernamesChain.insert.mockImplementation(() =>
       Promise.resolve({ data: null, error: null }),
     );
@@ -54,7 +54,7 @@ describe('UsernamesService', () => {
       Promise.resolve({ data: [], error: null }),
     );
     const from = jest.fn((table: string) =>
-      table === 'usernames' ? usernamesChain : mockFrom(table),
+      table === 'usernames' ? usernamesChain : mockFrom(),
     );
     sharedClient = { from };
     supabaseGetClient = jest.fn().mockReturnValue(sharedClient);
