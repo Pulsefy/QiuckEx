@@ -1,27 +1,27 @@
-import 'reflect-metadata';
+import "reflect-metadata";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger, ValidationPipe, VersioningType } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
-import { AppModule } from './app.module';
-import { AppConfigService } from './config';
-import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
+import { AppModule } from "./app.module";
+import { AppConfigService } from "./config";
+import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  const logger = new Logger("Bootstrap");
 
   const app = await NestFactory.create(AppModule, {
-    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+    logger: ["log", "error", "warn", "debug", "verbose"],
   });
 
   const configService = app.get(AppConfigService);
 
   // Define allowed origins for CORS
   const allowedOrigins = [
-    'http://localhost:3000',
-    'https://app.quickex.example.com', // Placeholder for production domain
+    "http://localhost:3000",
+    "https://app.quickex.example.com", // Placeholder for production domain
   ];
 
   app.enableCors({
@@ -33,11 +33,11 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
   // Global validation pipe with strict options
@@ -50,26 +50,26 @@ async function bootstrap() {
   );
 
   /**
-   * Global Throttler exception filter
-   * Ensures consistent 429 response format
+   * Global exception filter
+   * Ensures consistent format
    */
-  app.useGlobalFilters(new ThrottlerExceptionFilter());
+  app.useGlobalFilters(new GlobalHttpExceptionFilter(configService));
 
   // Swagger/OpenAPI documentation setup
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('QuickEx Backend')
+    .setTitle("QuickEx Backend")
     .setDescription(
-      'QuickEx API documentation - A Stellar-based exchange platform. ' +
+      "QuickEx API documentation - A Stellar-based exchange platform. " +
         `Currently connected to: ${configService.network}`,
     )
-    .setVersion('v1')
-    .addTag('health', 'Health check endpoints')
-    .addTag('usernames', 'Username management endpoints')
-    .addTag('links', 'Payment link validation and metadata endpoints')
+    .setVersion("v1")
+    .addTag("health", "Health check endpoints")
+    .addTag("usernames", "Username management endpoints")
+    .addTag("links", "Payment link validation and metadata endpoints")
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document, {
+  SwaggerModule.setup("docs", app, document, {
     swaggerOptions: {
       persistAuthorization: true,
     },
