@@ -28,6 +28,13 @@ export const envSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development')
     .description('Node environment'),
+
+  // Username reservation limit (optional). Max usernames per wallet; omit for no limit.
+  MAX_USERNAMES_PER_WALLET: Joi.number()
+    .integer()
+    .min(0)
+    .optional()
+    .description('Max usernames per wallet (optional; omit for no limit)'),
 });
 
 /**
@@ -39,4 +46,5 @@ export interface EnvConfig {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   NODE_ENV: 'development' | 'production' | 'test';
+  MAX_USERNAMES_PER_WALLET?: number;
 }

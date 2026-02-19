@@ -73,4 +73,11 @@ export class AppConfigService {
   get isMainnet(): boolean {
     return this.network === 'mainnet';
   }
+
+  /**
+   * Max usernames per wallet (optional). When not set, returns undefined (no limit).
+   */
+  get maxUsernamesPerWallet(): number | undefined {
+    return this.configService.get('MAX_USERNAMES_PER_WALLET', { infer: true });
+  }
 }
