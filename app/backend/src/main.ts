@@ -4,6 +4,7 @@ import "reflect-metadata";
 import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import helmet from "helmet";
 
 import { AppModule } from "./app.module";
 import { AppConfigService } from "./config";
@@ -25,6 +26,8 @@ async function bootstrap() {
     "https://app.quickex.example.com", // Placeholder for production domain
   ];
 
+  // Use Helmet for security headers
+  app.use(helmet());
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
@@ -34,13 +37,15 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        logger.warn(`CORS blocked request from origin: ${origin}`);
+        callback(new Error(`Origin not allowed by CORS: ${origin}`));
       }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
-
+  
   // Global validation pipe with strict options
   app.useGlobalPipes(
     new ValidationPipe({
@@ -91,6 +96,7 @@ async function bootstrap() {
   logger.log(`Backend listening on http://localhost:${port}`);
   logger.log(`Swagger docs available at http://localhost:${port}/docs`);
   logger.log(`Network: ${configService.network}`);
+  logger.log(`Allowed origins: ${allowedOrigins.join(", ")}`);
 }
 
 void bootstrap();
