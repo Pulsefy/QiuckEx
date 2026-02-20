@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { StellarModule } from './stellar/stellar.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsernamesModule } from './usernames/usernames.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UsernamesModule } from './usernames/usernames.module';
     HealthModule,
     StellarModule,
     UsernamesModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}
