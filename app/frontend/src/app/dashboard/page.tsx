@@ -14,16 +14,9 @@ export default function Dashboard() {
 
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-72 h-screen fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col z-20">
-        <div className="p-8 pb-12">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center font-bold italic shadow-[0_0_20px_rgba(99,102,241,0.4)] group-hover:scale-110 transition">
-              Q
-            </div>
-            <span className="text-2xl font-black tracking-tighter">QuickEx</span>
-          </Link>
-        </div>
         
-        <nav className="flex-1 px-4 space-y-2">
+        
+        <nav className="flex-1 px-4 py-30 space-y-2 ">
           <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold">
             <span className="text-indigo-400">📊</span> Dashboard
           </Link>

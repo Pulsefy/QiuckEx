@@ -7,31 +7,16 @@ export default function Generator() {
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
       <NetworkBadge />
 
-      {/* MOBILE NAV */}
-      <div className="md:hidden sticky top-0 w-full z-40 bg-neutral-950/80 border-b border-white/5 px-4 py-4 flex justify-between items-center backdrop-blur-xl">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold italic">Q</div>
-          <span className="text-lg font-bold tracking-tight">QuickEx</span>
-        </Link>
+     <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px] rounded-full" />
+      <div className="fixed bottom-[-20%] right-[-30%] w-[50%] h-[50%] bg-purple-500/5 blur-[100px] rounded-full" />
 
-        <div className="flex gap-4 text-sm">
-          <Link href="/dashboard" className="opacity-70 hover:opacity-100">📊</Link>
-          <Link href="/generator" className="opacity-100">⚡</Link>
-        </div>
-      </div>
+     
 
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-72 h-screen border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col fixed left-0 top-0 z-20">
-        <div className="p-8 pb-12">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center font-bold italic shadow-[0_0_20px_rgba(99,102,241,0.4)]">
-              Q
-            </div>
-            <span className="text-2xl font-black tracking-tighter">QuickEx</span>
-          </Link>
-        </div>
+       
 
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 py-30 space-y-2">
           <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
             <span>📊</span> Dashboard
           </Link>
