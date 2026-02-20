@@ -21,29 +21,21 @@ export class HealthService {
   async checkSupabase(): Promise<{ status: "up" | "down"; latency?: number }> {
     const start = Date.now();
     try {
-      const client = this.supabase.getClient();
-
-      // Lightweight ping: just select 1 unit.
       // We wrap it in a Promise.race to handle timeouts.
-      const timeout = new Promise((_, reject) =>
+      const timeout = new Promise<boolean>((_, reject) =>
         setTimeout(() => reject(new Error("Timeout")), 3000),
       );
 
-      const ping = client.from("usernames").select("id").limit(1);
-
-      const result = await Promise.race([ping, timeout]);
-      const { error } = result as { error: { message: string } | null };
-
+      const isHealthy = await Promise.race([this.supabase.checkHealth(), timeout]);
       const latency = Date.now() - start;
 
-      if (error) {
-        this.logger.warn(`Supabase health check failed: ${error.message}`);
+      if (!isHealthy) {
         return { status: "down" };
       }
 
       return { status: "up", latency };
     } catch (err) {
-      this.logger.warn(`Supabase health check failed or timed out: ${err.message}`);
+      this.logger.warn(`Supabase health check failed or timed out: ${(err as Error).message}`);
       return { status: "down" };
     }
   }
