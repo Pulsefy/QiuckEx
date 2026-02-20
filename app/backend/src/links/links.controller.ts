@@ -1,29 +1,37 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { LinksService } from './links.service';
-import { LinkMetadataRequestDto, LinkMetadataResponseDto } from '../dto';
-import { LinkValidationError } from './errors';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+} from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from "@nestjs/swagger";
+import { LinksService } from "./links.service";
+import { LinkMetadataRequestDto, LinkMetadataResponseDto } from "../dto";
+import { LinkValidationError } from "./errors";
 
-@ApiTags('links')
-@Controller('links')
+@ApiTags("links")
+@Controller("links")
 export class LinksController {
   constructor(private readonly linksService: LinksService) {}
 
-  @Post('metadata')
+  @Post("metadata")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Generate canonical link metadata',
-    description: 'Validates payment link parameters and generates canonical metadata for frontend consumption',
+    summary: "Generate canonical link metadata",
+    description:
+      "Validates payment link parameters and generates canonical metadata for frontend consumption",
   })
   @ApiBody({ type: LinkMetadataRequestDto })
   @ApiResponse({
     status: 200,
-    description: 'Metadata generated successfully',
+    description: "Metadata generated successfully",
     type: LinkMetadataResponseDto,
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation failed',
+    description: "Validation failed",
   })
   async generateMetadata(
     @Body() request: LinkMetadataRequestDto,
@@ -36,17 +44,11 @@ export class LinksController {
       };
     } catch (error) {
       if (error instanceof LinkValidationError) {
-        throw new HttpException(
-          {
-            success: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              field: error.field,
-            },
-          },
-          HttpStatus.BAD_REQUEST,
-        );
+        throw new BadRequestException({
+          code: error.code,
+          message: error.message,
+          field: error.field,
+        });
       }
       throw error;
     }

@@ -1,9 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
-import { LinksModule } from '../links.module';
+import { Test, TestingModule } from "@nestjs/testing";
+import {
+  BadRequestException,
+  INestApplication,
+  ValidationPipe,
+} from "@nestjs/common";
+import * as request from "supertest";
+import { LinksModule } from "../links.module";
+import { mapValidationErrors } from "../../common/utils/validation-error.mapper";
+import { AppConfigService } from "../../config";
+import { GlobalHttpExceptionFilter } from "../../common/filters/global-http-exception.filter";
 
-describe('LinksController (e2e)', () => {
+describe("LinksController (e2e)", () => {
   let app: INestApplication;
 
   beforeEach(async () => {
@@ -12,7 +19,28 @@ describe('LinksController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        exceptionFactory: (errors) => {
+          const mapped = mapValidationErrors(errors);
+
+          return new BadRequestException({
+            code: "VALIDATION_ERROR",
+            message: mapped.message,
+            fields: mapped.fields,
+          });
+        },
+      }),
+    );
+
+    app.useGlobalFilters(
+      new GlobalHttpExceptionFilter({
+        isProduction: false,
+      } as AppConfigService),
+    );
     await app.init();
   });
 
@@ -20,39 +48,39 @@ describe('LinksController (e2e)', () => {
     await app.close();
   });
 
-  describe('POST /links/metadata', () => {
-    it('should return 200 with valid metadata', () => {
+  describe("POST /links/metadata", () => {
+    it("should return 200 with valid metadata", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: 100,
-          memo: 'Test',
-          asset: 'XLM',
+          memo: "Test",
+          asset: "XLM",
         })
         .expect(200)
         .expect((res) => {
           expect(res.body.success).toBe(true);
-          expect(res.body.data).toHaveProperty('amount');
-          expect(res.body.data).toHaveProperty('canonical');
-          expect(res.body.data.amount).toBe('100.0000000');
+          expect(res.body.data).toHaveProperty("amount");
+          expect(res.body.data).toHaveProperty("canonical");
+          expect(res.body.data.amount).toBe("100.0000000");
         });
     });
 
-    it('should return 400 for invalid amount', () => {
+    it("should return 400 for invalid amount", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: -10,
         })
         .expect(400);
     });
 
-    it('should return 400 for long memo', () => {
+    it("should return 400 for long memo", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: 10,
-          memo: 'This is definitely way too long for a Stellar memo',
+          memo: "This is definitely way too long for a Stellar memo",
         })
         .expect(400)
         .expect((res) => {
@@ -60,23 +88,23 @@ describe('LinksController (e2e)', () => {
         });
     });
 
-    it('should return 400 for non-whitelisted asset', () => {
+    it("should return 400 for non-whitelisted asset", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: 10,
-          asset: 'SCAM',
+          asset: "SCAM",
         })
         .expect(400)
         .expect((res) => {
           expect(res.body.success).toBe(false);
-          expect(res.body.error.code).toBe('ASSET_NOT_WHITELISTED');
+          expect(res.body.error.code).toBe("ASSET_NOT_WHITELISTED");
         });
     });
 
-    it('should handle privacy flag', () => {
+    it("should handle privacy flag", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: 50,
           privacy: true,
@@ -87,9 +115,9 @@ describe('LinksController (e2e)', () => {
         });
     });
 
-    it('should calculate expiration date', () => {
+    it("should calculate expiration date", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
           amount: 50,
           expirationDays: 30,
@@ -100,11 +128,11 @@ describe('LinksController (e2e)', () => {
         });
     });
 
-    it('should reject invalid DTO validation', () => {
+    it("should reject invalid DTO validation", () => {
       return request(app.getHttpServer())
-        .post('/links/metadata')
+        .post("/links/metadata")
         .send({
-          amount: 'not a number',
+          amount: "not a number",
         })
         .expect(400);
     });
