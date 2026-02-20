@@ -1,4 +1,8 @@
-import { INestApplication, ValidationPipe } from "@nestjs/common";
+import {
+  BadRequestException,
+  INestApplication,
+  ValidationPipe,
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import * as request from "supertest";
 
@@ -8,6 +12,7 @@ import { AppConfigService } from "./config";
 import { AppModule } from "./app.module";
 import { UsernamesService } from "./usernames/usernames.service";
 import { HealthService } from "./health/health.service";
+import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 
 describe("App endpoints", () => {
   let app: INestApplication;
@@ -41,6 +46,15 @@ describe("App endpoints", () => {
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
+        exceptionFactory: (errors) => {
+          const mapped = mapValidationErrors(errors);
+
+          return new BadRequestException({
+            code: "VALIDATION_ERROR",
+            message: mapped.message,
+            fields: mapped.fields,
+          });
+        },
       }),
     );
 

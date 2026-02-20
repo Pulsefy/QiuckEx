@@ -1,13 +1,14 @@
 import "reflect-metadata";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Logger, ValidationPipe, VersioningType } from "@nestjs/common";
+import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 import { AppModule } from "./app.module";
 import { AppConfigService } from "./config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
+import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -46,6 +47,15 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) => {
+        const mapped = mapValidationErrors(errors);
+
+        return new BadRequestException({
+          code: "VALIDATION_ERROR",
+          message: mapped.message,
+          fields: mapped.fields,
+        });
+      },
     }),
   );
 

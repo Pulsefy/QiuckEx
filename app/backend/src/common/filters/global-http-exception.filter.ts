@@ -7,25 +7,34 @@ import {
 } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
 import { Response } from "express";
-
 import { AppConfigService } from "../../config";
 
 interface ErrorResponseBody {
   success: false;
   error: {
     code: string;
-    message: string;
+    message: string | string[];
+    fields?: unknown;
     details?: unknown;
   };
 }
 
+type ValidationExceptionPayload = {
+  code: "VALIDATION_ERROR";
+  message?: string;
+  fields: unknown;
+};
+
+type BusinessExceptionPayload = {
+  message?: string | string[];
+  code?: string;
+  field?: string;
+};
+
 type HttpExceptionResponse =
   | string
-  | {
-      message?: string | string[];
-      code?: string;
-      field?: string;
-    };
+  | ValidationExceptionPayload
+  | BusinessExceptionPayload;
 
 @Catch()
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
@@ -34,12 +43,11 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-
     const isProduction = this.config.isProduction;
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = "INTERNAL_SERVER_ERROR";
-    let message = "An unexpected error occurred";
+    let message: string | string[] = "An unexpected error occurred";
     let details: unknown = undefined;
 
     if (exception instanceof ThrottlerException) {
@@ -53,18 +61,28 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       if (typeof res === "string") {
         message = res;
       } else if (typeof res === "object" && res !== null) {
-        if (Array.isArray(res.message)) {
-          // ValidationPipe error
-          code = "VALIDATION_ERROR";
-          message = "Validation failed";
-          details = res.message;
-        } else {
-          code = res.code ?? exception.name;
-          message = res.message ?? exception.message;
+        // ✅ VALIDATION ERRORS
+        if ("fields" in res) {
+          const validation = res as ValidationExceptionPayload;
 
-          if (res.field) {
-            details = { field: res.field };
-          }
+          return response.status(status).json({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: validation.message ?? "Validation failed",
+              fields: validation.fields ?? [],
+            },
+          });
+        }
+
+        // ✅ BUSINESS ERRORS
+        const business = res as BusinessExceptionPayload;
+
+        code = business.code ?? exception.name;
+        message = business.message ?? exception.message;
+
+        if (business.field) {
+          details = { field: business.field };
         }
       }
     } else if (exception instanceof Error) {
