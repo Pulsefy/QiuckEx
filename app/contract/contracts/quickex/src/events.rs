@@ -115,3 +115,23 @@ pub(crate) fn publish_deposit(env: &Env, commitment: BytesN<32>, token: Address,
     }
     .publish(env);
 }
+
+#[contractevent(topics = ["Refunded"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefundedEvent {
+    #[topic]
+    pub owner: Address,
+    pub commitment: BytesN<32>,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_refunded(env: &Env, owner: Address, commitment: BytesN<32>, amount: i128) {
+    RefundedEvent {
+        owner,
+        commitment,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
