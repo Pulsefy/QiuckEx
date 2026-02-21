@@ -141,11 +141,22 @@ When the server is running, navigate to `/docs` to see:
 
 ## Endpoints
 
-### Health
+### Health and Readiness (Ops Visibility)
 
-| Method | Path      | Description         | Response                  |
-| ------ | --------- | ------------------- | ------------------------- |
-| GET    | `/health` | Health check        | `{ "status": "ok" }`      |
+The API provides two endpoints for monitoring, following standard probe semantics:
+
+| Method | Path      | Name      | Description                                      | Response                                      |
+| ------ | --------- | --------- | ------------------------------------------------ | --------------------------------------------- |
+| GET    | `/health` | Liveness  | Shallow check: is the server up?                 | `{ "status": "ok", "version", "uptime" }`     |
+| GET    | `/ready`  | Readiness | Deep check: are dependencies (Supabase) healthy? | `{ "ready": true, "checks": [...] }`          |
+
+#### Probe Semantics
+
+- **`/health` (Liveness)**: Use this for Kubernetes liveness probes. It returns `200 OK` as long as the process is running. It includes application version and uptime for better visibility.
+- **`/ready` (Readiness)**: Use this for Kubernetes readiness probes or load balancer health checks. It performs dependency checks:
+  - **Supabase Connectivity**: Pings the database to ensure it's reachable.
+  - **Environment Validation**: Ensures all critical environment variables are loaded.
+  - Returns `503 Service Unavailable` if any check fails.
 
 ### Usernames (quickex.to/yourname)
 
@@ -242,8 +253,13 @@ The server will start on the configured port (default: `4000`).
 ### Verify the server is running
 
 ```bash
+# Liveness check
 curl http://localhost:4000/health
-# Response: {"status":"ok"}
+# Response: {"status":"ok","version":"0.1.0","uptime":123}
+
+# Readiness check
+curl http://localhost:4000/ready
+# Response: {"ready":true,"checks":[{"name":"supabase","status":"up","latency":"12ms"},...]}
 ```
 
 ### View API documentation

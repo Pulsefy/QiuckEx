@@ -31,10 +31,15 @@ describe("App endpoints", () => {
       .useValue({
         getHealthStatus: jest.fn().mockResolvedValue({
           status: "ok",
-          services: {
-            supabase: "up",
-            horizon: "up",
-          },
+          version: "0.1.0",
+          uptime: 100,
+        }),
+        getReadinessStatus: jest.fn().mockResolvedValue({
+          ready: true,
+          checks: [
+            { name: "supabase", status: "up", latency: "10ms", details: undefined },
+            { name: "environment", status: "up", details: ["All critical env variables loaded"], latency: undefined },
+          ],
         }),
       })
       .compile();
@@ -82,31 +87,42 @@ describe("App endpoints", () => {
       .expect(200)
       .expect({
         status: "ok",
-        services: {
-          supabase: "up",
-          horizon: "up",
-        },
+        version: "0.1.0",
+        uptime: 100,
       });
   });
 
-  it("GET /health returns 503 when degraded", async () => {
-    healthService.getHealthStatus.mockResolvedValueOnce({
-      status: "degraded",
-      services: {
-        supabase: "down",
-        horizon: "up",
-      },
+  it("GET /ready returns ok when healthy", async () => {
+    await request(app.getHttpServer())
+      .get("/ready")
+      .expect(200)
+      .expect({
+        ready: true,
+        checks: [
+          { name: "supabase", status: "up", latency: "10ms" },
+          { name: "environment", status: "up", details: ["All critical env variables loaded"] },
+        ],
+      });
+  });
+
+  it("GET /ready returns 503 when unhealthy", async () => {
+    healthService.getReadinessStatus.mockResolvedValueOnce({
+      ready: false,
+      checks: [
+        { name: "supabase", status: "down", latency: undefined, details: undefined },
+        { name: "environment", status: "up", details: ["All critical env variables loaded"], latency: undefined },
+      ],
     });
 
     await request(app.getHttpServer())
-      .get("/health")
+      .get("/ready")
       .expect(503)
       .expect({
-        status: "degraded",
-        services: {
-          supabase: "down",
-          horizon: "up",
-        },
+        ready: false,
+        checks: [
+          { name: "supabase", status: "down" },
+          { name: "environment", status: "up", details: ["All critical env variables loaded"] },
+        ],
       });
   });
 
