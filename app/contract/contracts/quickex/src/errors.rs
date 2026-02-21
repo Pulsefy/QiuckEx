@@ -28,6 +28,12 @@ pub enum QuickexError {
     AlreadySpent = 304,
     InvalidCommitment = 305,
     CommitmentMismatch = 306,
+    /// Escrow has passed its expiry; withdrawal is no longer possible.
+    EscrowExpired = 307,
+    /// Escrow has not yet expired; refund is not yet available.
+    EscrowNotExpired = 308,
+    /// Caller is not the original owner of the escrow.
+    InvalidOwner = 309,
 
     // Internal/unexpected conditions (900-999)
     InternalError = 900,

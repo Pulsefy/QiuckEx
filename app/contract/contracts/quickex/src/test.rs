@@ -307,6 +307,9 @@ fn test_canonical_error_code_ranges() {
     assert_eq!(QuickexError::AlreadySpent as u32, 304);
     assert_eq!(QuickexError::InvalidCommitment as u32, 305);
     assert_eq!(QuickexError::CommitmentMismatch as u32, 306);
+    assert_eq!(QuickexError::EscrowExpired as u32, 307);
+    assert_eq!(QuickexError::EscrowNotExpired as u32, 308);
+    assert_eq!(QuickexError::InvalidOwner as u32, 309);
 
     // Internal/unexpected conditions (900-999)
     assert_eq!(QuickexError::InternalError as u32, 900);
