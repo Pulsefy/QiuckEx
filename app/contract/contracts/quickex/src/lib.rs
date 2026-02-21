@@ -1,16 +1,23 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 mod commitment;
 mod errors;
+mod escrow;
 mod events;
 mod privacy;
 mod storage;
 mod types;
 
+#[cfg(test)]
+mod commitment_test;
+#[cfg(test)]
+mod storage_test;
+#[cfg(test)]
+mod test;
+
 use errors::QuickexError;
-use events::publish_withdraw_toggled;
 use storage::*;
 use types::{EscrowEntry, EscrowStatus};
 
@@ -18,6 +25,14 @@ use types::{EscrowEntry, EscrowStatus};
 ///
 /// Soroban smart contract providing escrow, privacy controls, and X-Ray-style amount
 /// commitments for the QuickEx platform. See the contract README for main flows.
+///
+/// ## Escrow State Machine
+///
+/// ```text
+/// [*] --> Pending  : deposit() / deposit_with_commitment()
+/// Pending --> Spent    : withdraw(proof)  [now < expires_at, or no expiry]
+/// Pending --> Refunded : refund(owner)    [now >= expires_at]
+/// ```
 #[contract]
 pub struct QuickexContract;
 
@@ -39,7 +54,8 @@ impl QuickexContract {
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
     /// * `CommitmentNotFound` - No escrow exists for the computed commitment
-    /// * `AlreadySpent` - Escrow has already been withdrawn or marked spent
+    /// * `EscrowExpired` - Escrow has passed its expiry timestamp
+    /// * `AlreadySpent` - Escrow has already been withdrawn or refunded
     /// * `InvalidCommitment` - Escrow amount does not match the requested amount
     pub fn withdraw(
         env: Env,
@@ -47,38 +63,9 @@ impl QuickexContract {
         amount: i128,
         _commitment: BytesN<32>,
         to: Address,
-
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if amount <= 0 {
-            return Err(QuickexError::InvalidAmount);
-        }
-
-        to.require_auth();
-
-        let commitment = commitment::create_amount_commitment(&env, to.clone(), amount, salt)?;
-
-        let entry: EscrowEntry =
-            get_escrow(&env, &commitment.clone().into()).ok_or(QuickexError::CommitmentNotFound)?;
-
-        if entry.status != EscrowStatus::Pending {
-            return Err(QuickexError::AlreadySpent);
-        }
-
-        if entry.amount != amount {
-            return Err(QuickexError::InvalidCommitment);
-        }
-
-        let mut updated_entry = entry.clone();
-        updated_entry.status = EscrowStatus::Spent;
-        put_escrow(&env, &commitment.clone().into(), &updated_entry);
-
-        let token_client = token::Client::new(&env, &entry.token);
-        token_client.transfer(&env.current_contract_address(), &to, &amount);
-
-        publish_withdraw_toggled(&env, to, commitment);
-
-        Ok(true)
+        escrow::withdraw(&env, amount, to, salt)
     }
 
     /// Set a numeric privacy level for an account (legacy/level-based API).
@@ -144,17 +131,17 @@ impl QuickexContract {
         privacy::get_privacy(&env, owner)
     }
 
-    /// Deposit funds and create an escrow entry keyed by a commitment hash.
+    /// Deposit funds and create an escrow entry keyed by `SHA256(owner || amount || salt)`.
     ///
-    /// Transfers `amount` from `owner` to the contract and stores an escrow keyed by
-    /// `SHA256(owner || amount || salt)`. The owner must authorize the transfer.
+    /// Transfers `amount` from `owner` to the contract and stores an escrow entry.
     ///
     /// # Arguments
     /// * `env` - The contract environment
     /// * `token` - The token contract address
     /// * `amount` - Amount to deposit; must be positive
     /// * `owner` - Owner of the funds (must authorize)
-    /// * `salt` - Random salt (0–1024 bytes) for uniqueness; same inputs = same commitment
+    /// * `salt` - Random salt (0–1024 bytes) for uniqueness
+    /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -165,29 +152,9 @@ impl QuickexContract {
         amount: i128,
         owner: Address,
         salt: Bytes,
+        timeout_secs: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        if amount <= 0 {
-            return Err(QuickexError::InvalidAmount);
-        }
-
-        owner.require_auth();
-
-        let commitment = commitment::create_amount_commitment(&env, owner.clone(), amount, salt)?;
-
-        let entry = EscrowEntry {
-            token: token.clone(),
-            amount,
-            owner: owner.clone(),
-            status: EscrowStatus::Pending,
-            created_at: env.ledger().timestamp(),
-        };
-
-        put_escrow(&env, &commitment.clone().into(), &entry);
-
-        let token_client = token::Client::new(&env, &token);
-        token_client.transfer(&owner, env.current_contract_address(), &amount);
-
-        Ok(commitment)
+        escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
     }
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
@@ -266,6 +233,7 @@ impl QuickexContract {
     /// * `token` - Token contract address
     /// * `amount` - Amount to deposit; must be positive
     /// * `commitment` - 32-byte commitment hash (must be unique)
+    /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -276,33 +244,28 @@ impl QuickexContract {
         token: Address,
         amount: i128,
         commitment: BytesN<32>,
+        timeout_secs: u64,
     ) -> Result<(), QuickexError> {
-        if amount <= 0 {
-            return Err(QuickexError::InvalidAmount);
-        }
+        escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
+    }
 
-        from.require_auth();
-
-        if has_escrow(&env, &commitment.clone().into()) {
-            return Err(QuickexError::CommitmentAlreadyExists);
-        }
-
-        let token_client = token::Client::new(&env, &token);
-        token_client.transfer(&from, env.current_contract_address(), &amount);
-
-        let entry = EscrowEntry {
-            token: token.clone(),
-            amount,
-            owner: from.clone(),
-            status: EscrowStatus::Pending,
-            created_at: env.ledger().timestamp(),
-        };
-
-        put_escrow(&env, &commitment.clone().into(), &entry);
-
-        events::publish_deposit(&env, commitment, token, amount);
-
-        Ok(())
+    /// Refund an expired escrow back to its original owner.
+    ///
+    /// Can only be called after `expires_at` is reached. The caller must be the
+    /// original depositor. The escrow must still be `Pending`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `caller` - Must equal the original depositor (must authorize)
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `AlreadySpent` - Escrow is already in a terminal state
+    /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
+    /// * `InvalidOwner` - Caller is not the original owner
+    pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
+        escrow::refund(&env, commitment, caller)
     }
 
     /// Initialize the contract with an admin address (one-time only).
@@ -379,7 +342,7 @@ impl QuickexContract {
 
     /// Get the status of an escrow by its commitment hash (read-only).
     ///
-    /// Returns `Pending`, `Spent`, or `Expired` if an escrow exists; `None` otherwise.
+    /// Returns `Pending`, `Spent`, `Expired`, or `Refunded` if an escrow exists; `None` otherwise.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -387,14 +350,13 @@ impl QuickexContract {
     pub fn get_commitment_state(env: Env, commitment: BytesN<32>) -> Option<EscrowStatus> {
         let commitment_bytes: Bytes = commitment.into();
         let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
-
         entry.map(|e| e.status)
     }
 
     /// Verify withdrawal parameters without submitting a transaction (read-only).
     ///
     /// Recomputes the commitment from `amount`, `salt`, and `owner`, then checks that an
-    /// escrow exists with status `Pending` and matching amount. Use before calling `withdraw`.
+    /// escrow exists with status `Pending`, matching amount, and not yet expired.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -410,20 +372,27 @@ impl QuickexContract {
             Err(_) => return false,
         };
 
-        // Check if commitment exists in storage
         let commitment_bytes: Bytes = commitment.into();
         let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
 
-        // Verify the entry exists, is pending, and amount matches
         match entry {
-            Some(e) => e.status == EscrowStatus::Pending && e.amount == amount,
+            Some(e) => {
+                if e.status != EscrowStatus::Pending {
+                    return false;
+                }
+                // Also mark as invalid if expired
+                if e.expires_at > 0 && env.ledger().timestamp() >= e.expires_at {
+                    return false;
+                }
+                e.amount == amount
+            }
             None => false,
         }
     }
 
     /// Get full escrow details for a commitment hash (read-only).
     ///
-    /// Returns the full `EscrowEntry` (token, amount, owner, status, created_at) if it exists.
+    /// Returns the full `EscrowEntry` (token, amount, owner, status, created_at, expires_at) if it exists.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -432,6 +401,7 @@ impl QuickexContract {
         let commitment_bytes: Bytes = commitment.into();
         get_escrow(&env, &commitment_bytes)
     }
+
     /// Upgrade the contract to a new WASM implementation (**Admin only**).
     ///
     /// Caller must equal admin and authorize. The new WASM must be pre-uploaded to the network.
@@ -452,20 +422,16 @@ impl QuickexContract {
         caller: Address,
         new_wasm_hash: BytesN<32>,
     ) -> Result<(), QuickexError> {
-        // Verify caller is admin
         let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
         if caller != admin {
             return Err(QuickexError::Unauthorized);
         }
 
-        // Require cryptographic authorization from the caller
         caller.require_auth();
 
-        // Update the contract WASM to the new implementation
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
 
-        // Emit upgrade event for audit trail
         let timestamp = env.ledger().timestamp();
         events::publish_contract_upgraded(&env, new_wasm_hash, &admin, timestamp);
 
