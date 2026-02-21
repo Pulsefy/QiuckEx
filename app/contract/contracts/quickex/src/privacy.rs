@@ -1,11 +1,12 @@
 use crate::errors::QuickexError;
 use crate::events::publish_privacy_toggled;
+use crate::storage::PRIVACY_ENABLED_KEY;
 use soroban_sdk::{Address, Env, Symbol};
 
 pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
     owner.require_auth();
 
-    let key = Symbol::new(env, "privacy_enabled");
+    let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
     env.storage()
         .persistent()
         .set(&(key, owner.clone()), &enabled);
@@ -17,7 +18,7 @@ pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), Quick
 }
 
 pub fn get_privacy(env: &Env, owner: Address) -> bool {
-    let key = Symbol::new(env, "privacy_enabled");
+    let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
     env.storage()
         .persistent()
         .get(&(key, owner))
