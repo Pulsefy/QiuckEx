@@ -1,8 +1,12 @@
-#![cfg(test)]
 use crate::{
     storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
-use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    token,
+    xdr::ToXdr,
+    Address, Bytes, BytesN, Env,
+};
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
     let env = Env::default();
@@ -18,6 +22,7 @@ fn setup_escrow(
     token: &Address,
     amount: i128,
     commitment: BytesN<32>,
+    expires_at: u64,
 ) {
     let depositor = Address::generate(env);
 
@@ -27,6 +32,7 @@ fn setup_escrow(
         owner: depositor,
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),
+        expires_at,
     };
 
     env.as_contract(contract_id, || {
@@ -59,7 +65,7 @@ fn test_successful_withdrawal() {
 
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     env.mock_all_auths();
 
@@ -85,7 +91,7 @@ fn test_double_withdrawal_fails() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     env.mock_all_auths();
 
@@ -115,7 +121,7 @@ fn test_invalid_salt_fails() {
     data.append(&correct_salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     env.mock_all_auths();
     let _ = client.withdraw(&token, &amount, &commitment, &to, &wrong_salt);
@@ -144,6 +150,7 @@ fn test_invalid_amount_fails() {
         &token,
         correct_amount,
         commitment.clone(),
+        0,
     );
 
     env.mock_all_auths();
@@ -294,7 +301,7 @@ fn test_deposit() {
 
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    client.deposit_with_commitment(&user, &token_id, &500, &commitment);
+    client.deposit_with_commitment(&user, &token_id, &500, &commitment, &0);
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);
@@ -427,7 +434,7 @@ fn test_get_commitment_state_pending() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     let state = client.get_commitment_state(&commitment);
     assert_eq!(state, Some(EscrowStatus::Pending));
@@ -455,6 +462,7 @@ fn test_get_commitment_state_spent() {
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
+        expires_at: 0,
     };
 
     env.as_contract(&client.address, || {
@@ -499,7 +507,7 @@ fn test_verify_proof_view_valid() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     let is_valid = client.verify_proof_view(&amount, &salt, &owner);
     assert!(is_valid);
@@ -527,6 +535,7 @@ fn test_verify_proof_view_wrong_amount() {
         &token,
         correct_amount,
         commitment.clone(),
+        0,
     );
 
     let is_valid = client.verify_proof_view(&wrong_amount, &salt, &owner);
@@ -549,7 +558,7 @@ fn test_verify_proof_view_wrong_salt() {
     data.append(&correct_salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     let is_valid = client.verify_proof_view(&amount, &wrong_salt, &owner);
     assert!(!is_valid);
@@ -571,7 +580,7 @@ fn test_verify_proof_view_wrong_owner() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     let is_valid = client.verify_proof_view(&amount, &salt, &wrong_owner);
     assert!(!is_valid);
@@ -599,6 +608,7 @@ fn test_verify_proof_view_spent_commitment() {
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
+        expires_at: 0,
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
@@ -638,7 +648,7 @@ fn test_get_escrow_details_found() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     let details = client.get_escrow_details(&commitment);
     assert!(details.is_some());
@@ -689,6 +699,7 @@ fn test_get_escrow_details_spent_status() {
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
+        expires_at: 0,
     };
 
     env.as_contract(&client.address, || {
@@ -774,4 +785,149 @@ fn test_upgrade_without_admin_initialized_fails() {
 
     // Try to upgrade without admin set - should fail with Unauthorized
     client.upgrade(&caller, &new_wasm_hash);
+}
+
+// ============================================================================
+// Timeout & Refund Tests
+// ============================================================================
+
+#[test]
+fn test_withdrawal_fails_after_expiry() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"expiry_salt");
+
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    // Set expiry to 100 seconds from now
+    let now = env.ledger().timestamp();
+    let expires_at = now + 100;
+    setup_escrow(
+        &env,
+        &client.address,
+        &token,
+        amount,
+        commitment.clone(),
+        expires_at,
+    );
+
+    // Mint tokens to contract so it CAN pay if it were valid
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&client.address, &amount);
+
+    // 1. Withdrawal before expiry should work
+    env.ledger().set_timestamp(now + 50);
+    let res = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert!(res.is_ok());
+
+    // Setup another one for the expiry test
+    let salt2 = Bytes::from_slice(&env, b"expiry_salt_2");
+    let mut data2 = Bytes::new(&env);
+    data2.append(&to.clone().to_xdr(&env));
+    data2.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data2.append(&salt2);
+    let commitment2: BytesN<32> = env.crypto().sha256(&data2).into();
+    setup_escrow(
+        &env,
+        &client.address,
+        &token,
+        amount,
+        commitment2.clone(),
+        expires_at,
+    );
+    token_client.mint(&client.address, &amount);
+
+    // 2. Advance time past expiry
+    env.ledger().set_timestamp(expires_at + 1);
+
+    // Withdrawal should fail with EscrowExpired (error #13)
+    let res = client.try_withdraw(&token, &amount, &commitment2, &to, &salt2);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::EscrowExpired)));
+}
+
+#[test]
+fn test_refund_successful() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"refund_salt");
+
+    // Use contract deposit to get owner correctly stored
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let timeout = 100;
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+
+    let start_time = env.ledger().timestamp();
+    let expires_at = start_time + timeout;
+
+    // Try refund early - should fail with EscrowNotExpired (error #14)
+    env.ledger().set_timestamp(expires_at - 1);
+    let res = client.try_refund(&commitment, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::EscrowNotExpired)));
+
+    // Advance past expiry
+    env.ledger().set_timestamp(expires_at);
+
+    // Refund should work
+    client.refund(&commitment, &owner);
+
+    // Verify balance returned to owner
+    let token_utils = token::Client::new(&env, &token);
+    assert_eq!(token_utils.balance(&owner), amount);
+
+    // Status should be Refunded
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Refunded)
+    );
+}
+
+#[test]
+fn test_refund_unauthorized_fails() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let thief = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"thief_salt");
+
+    token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &100);
+
+    // Advance past expiry
+    env.ledger().set_timestamp(env.ledger().timestamp() + 101);
+
+    // Thief tries to refund - should fail with InvalidOwner (error #15)
+    let res = client.try_refund(&commitment, &thief);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidOwner)));
+}
+
+#[test]
+fn test_double_refund_fails() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"double_refund");
+
+    token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &100);
+
+    env.ledger().set_timestamp(env.ledger().timestamp() + 101);
+
+    client.refund(&commitment, &owner);
+
+    // Second refund attempt - should fail with AlreadySpent (error #9)
+    let res = client.try_refund(&commitment, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::AlreadySpent)));
 }

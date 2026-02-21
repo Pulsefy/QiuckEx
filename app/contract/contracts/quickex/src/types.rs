@@ -7,15 +7,25 @@ use soroban_sdk::{contracttype, Address};
 /// Escrow entry status.
 ///
 /// Tracks the lifecycle of a deposited commitment:
-/// - `Pending`: Funds are escrowed, awaiting withdrawal.
-/// - `Spent`: Withdrawal completed; entry kept for audit/state queries.
-/// - `Expired`: No longer withdrawable (reserved for future expiration logic).
+///
+/// ```text
+/// [*] --> Pending  : deposit()
+/// Pending --> Spent    : withdraw(proof)  [current_time < expires_at]
+/// Pending --> Refunded : refund(owner)    [current_time >= expires_at]
+/// ```
+///
+/// - `Pending`:  Funds are escrowed, awaiting withdrawal or refund.
+/// - `Spent`:    Withdrawal completed successfully. Terminal state.
+/// - `Refunded`: Owner reclaimed funds after timeout. Terminal state.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
     Pending,
     Spent,
+    /// Kept for backwards-compat with any existing on-chain data; semantically
+    /// equivalent to an escrow that has passed expiry but not yet been refunded.
     Expired,
+    Refunded,
 }
 
 /// Escrow entry structure.
@@ -30,10 +40,13 @@ pub struct EscrowEntry {
     pub token: Address,
     /// Amount in token base units.
     pub amount: i128,
-    /// Owner who can withdraw via proof of ownership (salt + amount).
+    /// Owner who deposited and may refund after expiry.
     pub owner: Address,
-    /// Current status (Pending, Spent, Expired).
+    /// Current status (Pending, Spent, Refunded, Expired).
     pub status: EscrowStatus,
     /// Ledger timestamp when the escrow was created.
     pub created_at: u64,
+    /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
+    /// A value of `0` means the escrow never expires (no timeout).
+    pub expires_at: u64,
 }

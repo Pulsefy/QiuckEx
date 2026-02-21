@@ -1,4 +1,3 @@
-#![cfg(test)]
 //! Commitment Scheme Invariant Tests
 //!
 //! This module provides comprehensive property-based testing for the commitment scheme.

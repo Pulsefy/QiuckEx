@@ -1,4 +1,3 @@
-#![cfg(test)]
 use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
 
 use crate::{
@@ -24,6 +23,7 @@ fn test_escrow_storage() {
             owner: owner.clone(),
             status: EscrowStatus::Pending,
             created_at,
+            expires_at: 0,
         };
 
         // Test put_escrow
@@ -64,6 +64,7 @@ fn test_escrow_status_update() {
             owner: owner.clone(),
             status: EscrowStatus::Pending,
             created_at,
+            expires_at: 0,
         };
 
         put_escrow(&env, &commitment, &entry);
