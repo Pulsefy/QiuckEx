@@ -1,7 +1,30 @@
+"use client";
+
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { useApi } from "@/hooks/useApi";
+import { mockFetch } from "@/hooks/mockApi";
+import { useEffect } from "react";
 
 export default function Dashboard() {
+
+    const { data, error, loading, callApi } = useApi() as { data: { items: any[] } | null; error: string | null; loading: boolean; callApi: any };
+
+  useEffect(() => {
+    callApi(() =>
+      mockFetch({
+        items: [],
+      })
+    );
+  }, []);
+
+  if (loading) return <p>Loading dashboard...</p>;
+  if (error) return <p>{error}</p>;
+   if (!data || !data.items || data.items.length === 0) {
+    return <p>No transactions yet. Create your first payment link!</p>;
+  }
+
+
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
       <NetworkBadge />
