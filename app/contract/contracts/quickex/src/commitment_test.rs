@@ -294,7 +294,11 @@ fn test_commitment_property_uniqueness_batch() {
     let mut commitments = std::vec::Vec::new();
     for (amount, salt_bytes) in &test_cases {
         let salt = Bytes::from_slice(&env, salt_bytes);
-        commitments.push((*amount, salt_bytes, client.create_amount_commitment(&owner, amount, &salt)));
+        commitments.push((
+            *amount,
+            salt_bytes,
+            client.create_amount_commitment(&owner, amount, &salt),
+        ));
     }
 
     // Verify that only identical (amount, salt) pairs produce identical commitments
@@ -306,7 +310,10 @@ fn test_commitment_property_uniqueness_batch() {
             if amt_i == amt_j && salt_i == salt_j {
                 assert_eq!(comm_i, comm_j, "Same inputs must produce same commitment");
             } else {
-                assert_ne!(comm_i, comm_j, "Different inputs must produce different commitments");
+                assert_ne!(
+                    comm_i, comm_j,
+                    "Different inputs must produce different commitments"
+                );
             }
         }
     }
