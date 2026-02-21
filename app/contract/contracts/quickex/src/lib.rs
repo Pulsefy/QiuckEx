@@ -62,10 +62,13 @@ impl QuickexContract {
         env: Env,
         _token: &Address,
         amount: i128,
-        commitment: BytesN<32>,
+        _commitment: BytesN<32>,
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::withdraw(&env, amount, to, salt)
     }
 
@@ -160,6 +163,9 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
     ) -> Result<BytesN<32>, QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
     }
 
@@ -253,6 +259,9 @@ impl QuickexContract {
         commitment: BytesN<32>,
         timeout_secs: u64,
     ) -> Result<(), QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
     }
 

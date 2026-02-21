@@ -3,14 +3,10 @@ use crate::{
     QuickexContractClient,
 };
 use soroban_sdk::{
-    testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, ConversionError, Env,
-    InvokeError,
-};
-use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token,
     xdr::ToXdr,
-    Address, Bytes, BytesN, Env,
+    Address, Bytes, BytesN, ConversionError, Env, InvokeError,
 };
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -105,7 +101,7 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
 
-    // Stranger queries — sensitive fields must be hidden
+    // Stranger queries â€” sensitive fields must be hidden
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
@@ -141,7 +137,7 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
 
-    // Owner queries their own escrow — must see full details
+    // Owner queries their own escrow â€” must see full details
     let view = client.get_escrow_details(&commitment, &owner).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
@@ -151,7 +147,7 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
 
 #[test]
 fn test_get_escrow_details_privacy_disabled_shows_full_details() {
-    // Privacy off (default) — any caller gets the full view.
+    // Privacy off (default) â€” any caller gets the full view.
     let (env, client) = setup();
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
@@ -175,7 +171,7 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
         0,
     );
 
-    // Privacy is off (never set) — stranger still gets full data
+    // Privacy is off (never set) â€” stranger still gets full data
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
     assert_eq!(view.amount, Some(amount));
     assert_eq!(view.owner, Some(owner));
@@ -183,22 +179,22 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
 fn test_set_privacy_already_set_fails() {
-    // Setting privacy to a value it already has must return PrivacyAlreadySet (#3).
+    // Setting privacy to a value it already has must return PrivacyAlreadySet.
     let (env, client) = setup();
     let account = Address::generate(&env);
 
-    // Default is false — enabling once is fine
+    // Default is false; enabling once is fine.
     client.set_privacy(&account, &true);
 
-    // Enabling again without disabling first must panic with error #3
-    client.set_privacy(&account, &true);
+    // Enabling again without disabling first must fail.
+    let result = client.try_set_privacy(&account, &true);
+    assert_contract_error(result, QuickexError::PrivacyAlreadySet);
 }
 
 #[test]
 fn test_set_privacy_toggle_cycle_succeeds() {
-    // false → true → false → true must all succeed without error.
+    // false â†’ true â†’ false â†’ true must all succeed without error.
     let (env, client) = setup();
     let account = Address::generate(&env);
 
@@ -304,7 +300,7 @@ fn test_invalid_salt_fails() {
 
     env.mock_all_auths();
     let result = client.try_withdraw(&token, &amount, &commitment, &to, &wrong_salt);
-    assert_contract_error(result, QuickexError::CommitmentMismatch);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
 #[test]
@@ -335,7 +331,7 @@ fn test_invalid_amount_fails() {
     env.mock_all_auths();
 
     let result = client.try_withdraw(&token, &wrong_amount, &commitment, &to, &salt);
-    assert_contract_error(result, QuickexError::CommitmentMismatch);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
 #[test]
@@ -567,7 +563,7 @@ fn test_deposit_with_commitment_fails_when_paused() {
     client.initialize(&admin);
     client.set_paused(&admin, &true);
 
-    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment);
+    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0);
     assert_contract_error(result, QuickexError::ContractPaused);
 }
 
@@ -587,7 +583,7 @@ fn test_withdraw_fails_when_paused() {
     data.append(&salt);
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone());
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
     client.initialize(&admin);
     client.set_paused(&admin, &true);
 
@@ -909,7 +905,7 @@ fn test_get_escrow_details_found() {
 
     setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
-    // Privacy is off by default — any caller gets full data
+    // Privacy is off by default â€” any caller gets full data
     let caller = Address::generate(&env);
     let details = client.get_escrow_details(&commitment, &caller);
     assert!(details.is_some());
@@ -968,7 +964,7 @@ fn test_get_escrow_details_spent_status() {
         put_escrow(&env, &storage_commitment, &entry);
     });
 
-    // Privacy off — caller is a stranger, still gets full data
+    // Privacy off â€” caller is a stranger, still gets full data
     let caller = Address::generate(&env);
     let details = client.get_escrow_details(&commitment, &caller);
     assert!(details.is_some());
