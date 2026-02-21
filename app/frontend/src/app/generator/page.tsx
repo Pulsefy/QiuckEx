@@ -4,8 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { mockFetch } from "@/hooks/mockApi";
+import { useApi } from "@/hooks/useApi";
 
 export default function Generator() {
+const { data, error, loading, callApi } = useApi();
+  
   const [form, setForm] = useState({
     amount: "",
     asset: "USDC",
@@ -30,6 +34,7 @@ export default function Generator() {
   };
 
   const handleSubmit = () => {
+      callApi(() => mockFetch({ link: "https://quickex/pay/123" }));
     const validation = validate();
     setErrors(validation);
 
@@ -159,10 +164,13 @@ export default function Generator() {
             </section>
 
             <button
-              onClick={handleSubmit}
+              onClick={handleSubmit} disabled={loading}
               className="w-full py-6 bg-white text-black text-3xl font-black rounded-3xl hover:bg-neutral-200 active:scale-95 transition"
             >
-              Generate Payment Link
+              {loading ? "Generating..." : "Generate Payment Link"}
+              {error && <p className="text-red-500">{error}</p>}
+
+            
             </button>
           </div>
 
