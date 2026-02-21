@@ -45,7 +45,7 @@ async function bootstrap() {
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   });
-  
+
   // Global validation pipe with strict options
   app.useGlobalPipes(
     new ValidationPipe({
@@ -81,6 +81,9 @@ async function bootstrap() {
     .addTag("health", "Health check endpoints")
     .addTag("usernames", "Username management endpoints")
     .addTag("links", "Payment link validation and metadata endpoints")
+    .addTag("transactions", "Stellar transaction and payment history")
+    .addTag("scam-alerts", "Fraud detection and link scanning")
+    .addTag("metrics", "Application performance and health metrics")
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
