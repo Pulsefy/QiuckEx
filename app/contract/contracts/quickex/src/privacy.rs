@@ -13,20 +13,16 @@ pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), Quick
 
     let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
     let storage_key = (key.clone(), owner.clone());
-    if env.storage().persistent().get::<_, bool>(&storage_key) == Some(enabled) {
     let current: bool = env
         .storage()
         .persistent()
-        .get(&(key.clone(), owner.clone()))
+        .get(&storage_key)
         .unwrap_or(false);
-
     if current == enabled {
         return Err(QuickexError::PrivacyAlreadySet);
     }
 
-    env.storage()
-        .persistent()
-        .set(&storage_key, &enabled);
+    env.storage().persistent().set(&storage_key, &enabled);
 
     let timestamp = env.ledger().timestamp();
     publish_privacy_toggled(env, owner, enabled, timestamp);
