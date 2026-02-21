@@ -16,4 +16,10 @@ pub enum QuickexError {
     InvalidCommitment = 10,
     ContractPaused = 11,
     CommitmentAlreadyExists = 12,
+    /// Escrow has passed its expiry; withdrawal is no longer possible.
+    EscrowExpired = 13,
+    /// Escrow has not yet expired; refund is not yet available.
+    EscrowNotExpired = 14,
+    /// Caller is not the original owner of the escrow.
+    InvalidOwner = 15,
 }

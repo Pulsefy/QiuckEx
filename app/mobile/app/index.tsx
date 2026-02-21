@@ -30,6 +30,12 @@ export default function HomeScreen() {
                         <Text style={styles.buttonSecondaryText}>Connect Wallet</Text>
                     </TouchableOpacity>
                 </Link>
+
+                <Link href="/transactions" asChild>
+                    <TouchableOpacity style={styles.secondaryButton}>
+                        <Text style={styles.secondaryButtonText}>Transaction History</Text>
+                    </TouchableOpacity>
+                </Link>
             </View>
         </SafeAreaView>
     );
@@ -103,5 +109,20 @@ const styles = StyleSheet.create({
         color: '#000',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    secondaryButton: {
+        marginTop: 12,
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 8,
+        width: '100%',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#000',
+    },
+    secondaryButtonText: {
+        color: '#000',
+        fontSize: 18,
+        fontWeight: '600',
     },
 });

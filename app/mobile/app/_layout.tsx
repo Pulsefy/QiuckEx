@@ -50,6 +50,7 @@ export default function RootLayout() {
         <Stack.Screen name="wallet-connect" />
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
+        <Stack.Screen name="transactions" />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

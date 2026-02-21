@@ -115,6 +115,33 @@ soroban contract deploy \
 4. Build and test deployment locally: `soroban dev`
 5. Create PR with changes
 
+## Main Flows
+
+### 1. Deployment & initialisation
+1. Deploy the contract WASM.
+2. Call `initialize(admin)` once to set the admin (required for pause, upgrade, admin transfer).
+
+### 2. Deposit → Withdraw (escrow)
+1. **Deposit**: Call `deposit(token, amount, owner, salt)` or `deposit_with_commitment(from, token, amount, commitment)`. The owner/from must authorize the token transfer.
+2. Store the returned commitment (or the one you provided) securely; it is required to withdraw.
+3. **Withdraw**: Call `withdraw(_token, amount, _commitment, to, salt)` with `to` as the recipient. The commitment is recomputed from `to`, `amount`, and `salt`; it must match an existing pending escrow. `to` must authorize.
+
+### 3. Privacy
+- **Boolean**: `set_privacy(owner, enabled)` and `get_privacy(owner)` for on/off privacy.
+- **Level-based**: `enable_privacy(account, level)`, `privacy_status(account)`, `privacy_history(account)` for numeric levels.
+
+### 4. Admin
+- `set_paused(caller, new_state)` – pause/unpause (caller must be admin).
+- `set_admin(caller, new_admin)` – transfer admin.
+- `upgrade(caller, new_wasm_hash)` – upgrade contract (caller must authorize).
+
+### 5. Read-only queries
+- `get_commitment_state(commitment)` – escrow status (Pending/Spent/Expired).
+- `verify_proof_view(amount, salt, owner)` – verify withdrawal params without submitting a tx.
+- `get_escrow_details(commitment)` – full escrow entry.
+
+---
+
 ## Contract Interface
 
 The contract exposes the following functions:
