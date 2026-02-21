@@ -7,9 +7,14 @@ pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), Quick
     owner.require_auth();
 
     let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
+    let storage_key = (key.clone(), owner.clone());
+    if env.storage().persistent().get::<_, bool>(&storage_key) == Some(enabled) {
+        return Err(QuickexError::PrivacyAlreadySet);
+    }
+
     env.storage()
         .persistent()
-        .set(&(key, owner.clone()), &enabled);
+        .set(&storage_key, &enabled);
 
     let timestamp = env.ledger().timestamp();
     publish_privacy_toggled(env, owner, enabled, timestamp);

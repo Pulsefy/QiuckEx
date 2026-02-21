@@ -3,10 +3,16 @@ use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Ve
 
 mod admin;
 mod commitment;
+#[cfg(test)]
+mod commitment_test;
 mod errors;
 mod events;
 mod privacy;
 mod storage;
+#[cfg(test)]
+mod storage_test;
+#[cfg(test)]
+mod test;
 mod types;
 
 use errors::QuickexError;
@@ -32,20 +38,22 @@ impl QuickexContract {
     /// * `env` - The contract environment
     /// * `_token` - Reserved; token is stored in the escrow entry
     /// * `amount` - Amount to withdraw; must be positive and match the escrow amount
-    /// * `_commitment` - Reserved; commitment is derived from `to`, `amount`, `salt`
+    /// * `commitment` - Commitment hash for the escrow being withdrawn
     /// * `to` - Recipient address (must authorize the call)
     /// * `salt` - Salt used when creating the original deposit commitment
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
-    /// * `CommitmentNotFound` - No escrow exists for the computed commitment
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentMismatch` - Provided commitment does not match (`to`, `amount`, `salt`)
+    /// * `CommitmentNotFound` - No escrow exists for the provided commitment
     /// * `AlreadySpent` - Escrow has already been withdrawn or marked spent
     /// * `InvalidCommitment` - Escrow amount does not match the requested amount
     pub fn withdraw(
         env: Env,
         _token: &Address,
         amount: i128,
-        _commitment: BytesN<32>,
+        commitment: BytesN<32>,
         to: Address,
 
         salt: Bytes,
@@ -54,9 +62,17 @@ impl QuickexContract {
             return Err(QuickexError::InvalidAmount);
         }
 
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+
         to.require_auth();
 
-        let commitment = commitment::create_amount_commitment(&env, to.clone(), amount, salt)?;
+        let expected_commitment =
+            commitment::create_amount_commitment(&env, to.clone(), amount, salt)?;
+        if expected_commitment != commitment {
+            return Err(QuickexError::CommitmentMismatch);
+        }
 
         let entry: EscrowEntry =
             get_escrow(&env, &commitment.clone().into()).ok_or(QuickexError::CommitmentNotFound)?;
@@ -126,9 +142,12 @@ impl QuickexContract {
     /// * `enabled` - `true` to enable privacy, `false` to disable
     ///
     /// # Errors
+    /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
-    /// * `InvalidPrivacyLevel` - Invalid internal state (e.g. invalid level transition)
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         privacy::set_privacy(&env, owner, enabled)
     }
 
@@ -159,6 +178,8 @@ impl QuickexContract {
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
     /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentAlreadyExists` - An escrow for this commitment already exists
     pub fn deposit(
         env: Env,
         token: Address,
@@ -170,9 +191,16 @@ impl QuickexContract {
             return Err(QuickexError::InvalidAmount);
         }
 
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+
         owner.require_auth();
 
         let commitment = commitment::create_amount_commitment(&env, owner.clone(), amount, salt)?;
+        if has_escrow(&env, &commitment.clone().into()) {
+            return Err(QuickexError::CommitmentAlreadyExists);
+        }
 
         let entry = EscrowEntry {
             token: token.clone(),
@@ -269,6 +297,7 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
+    /// * `ContractPaused` - Contract is currently paused
     /// * `CommitmentAlreadyExists` - An escrow for this commitment already exists
     pub fn deposit_with_commitment(
         env: Env,
@@ -279,6 +308,10 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         if amount <= 0 {
             return Err(QuickexError::InvalidAmount);
+        }
+
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
         }
 
         from.require_auth();
