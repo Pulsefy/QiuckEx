@@ -31,6 +31,8 @@ describe('HorizonService', () => {
                     provide: AppConfigService,
                     useValue: {
                         network: 'testnet',
+                        cacheMaxItems: 500,
+                        cacheTtlMs: 60000,
                     },
                 },
             ],
@@ -100,13 +102,22 @@ describe('HorizonService', () => {
             };
             mockServer.call.mockRejectedValue(error);
 
+            // First call should fail with rate limit error
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
                     'Horizon service rate limit exceeded. Please try again later.',
                     HttpStatus.SERVICE_UNAVAILABLE,
                 ),
             );
-        });
+
+            // Second call should be blocked by backoff
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
+                new HttpException(
+                    expect.stringContaining('Service temporarily unavailable'),
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+            );
+        }, 10000); // Increase timeout for backoff
 
         it('should filter by asset if provided', async () => {
             const complexRecords = [
