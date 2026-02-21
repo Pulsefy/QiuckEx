@@ -80,4 +80,18 @@ export class AppConfigService {
   get maxUsernamesPerWallet(): number | undefined {
     return this.configService.get('MAX_USERNAMES_PER_WALLET', { infer: true });
   }
+
+  /**
+   * Maximum number of items to cache for transactions
+   */
+  get cacheMaxItems(): number {
+    return this.configService.get('CACHE_MAX_ITEMS', { infer: true });
+  }
+
+  /**
+   * Cache TTL in milliseconds for transaction responses
+   */
+  get cacheTtlMs(): number {
+    return this.configService.get('CACHE_TTL_MS', { infer: true });
+  }
 }

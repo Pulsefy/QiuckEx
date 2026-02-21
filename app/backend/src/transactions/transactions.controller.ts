@@ -25,8 +25,9 @@ export class TransactionsController {
   @ApiOperation({
     summary: "Fetch recent Stellar transactions (payments)",
     description:
-      "Fetches recent payment operations for a given account. " +
-      "Results are cached for 60 seconds and support pagination via cursor. " +
+      "Fetches recent payment operations for a given account with caching and resilience. " +
+      "Results are cached with configurable TTL (default 60 seconds) and support pagination via cursor. " +
+      "Implements exponential backoff for Horizon API resilience and graceful degradation on failures. " +
       "This endpoint is rate-limited; API keys receive higher limits.",
   })
   @ApiResponse({
@@ -44,7 +45,11 @@ export class TransactionsController {
   })
   @ApiResponse({
     status: 503,
-    description: "Horizon service rate limit exceeded or unavailable",
+    description: "Horizon service rate limit exceeded, unavailable, or backoff in effect",
+  })
+  @ApiResponse({
+    status: 502,
+    description: "Bad gateway when Horizon returns server errors",
   })
   async getTransactions(
     @Query() query: GetTransactionsQueryDto,
