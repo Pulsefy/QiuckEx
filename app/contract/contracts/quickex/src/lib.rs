@@ -19,7 +19,7 @@ mod test;
 
 use errors::QuickexError;
 use storage::*;
-use types::{EscrowEntry, EscrowStatus};
+use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView};
 
 /// QuickEx Privacy Contract
 ///
@@ -390,18 +390,53 @@ impl QuickexContract {
         }
     }
 
-    /// Get full escrow details for a commitment hash (read-only).
-    ///
-    /// Returns the full `EscrowEntry` (token, amount, owner, status, created_at, expires_at) if it exists.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `commitment` - 32-byte commitment hash
-    pub fn get_escrow_details(env: Env, commitment: BytesN<32>) -> Option<EscrowEntry> {
-        let commitment_bytes: Bytes = commitment.into();
-        get_escrow(&env, &commitment_bytes)
-    }
+	/// Get a privacy-aware view of escrow details for a commitment hash (read-only).
+	///
+	/// Returns a [`PrivacyAwareEscrowView`] if an escrow exists for the commitment,
+	/// or `None` otherwise.
+	///
+	/// ## Privacy behaviour
+	/// - If the escrow owner **has privacy enabled** and `caller` is **not** the owner,
+	///   the `amount` and `owner` fields are returned as `None`.
+	/// - If privacy is **disabled**, or `caller` equals the escrow owner,
+	///   all fields are returned in full.
+	///
+	/// # Arguments
+	/// * `env` - The contract environment
+	/// * `commitment` - 32-byte commitment hash identifying the escrow
+	/// * `caller` - Address of the caller; used to determine whether full details
+	///   are returned when privacy is enabled
+		pub fn get_escrow_details(
+			env: Env,
+			commitment: BytesN<32>,
+			caller: Address,
+		) -> Option<PrivacyAwareEscrowView> {
+			let commitment_bytes: Bytes = commitment.into();
+			let entry = get_escrow(&env, &commitment_bytes)?;
 
+			let privacy_on = privacy::get_privacy(&env, entry.owner.clone());
+			let is_owner = caller == entry.owner;
+
+			if privacy_on && !is_owner {
+				Some(PrivacyAwareEscrowView {
+						token: entry.token,
+						amount: None,
+						owner: None,
+						status: entry.status,
+						created_at: entry.created_at,
+						expires_at: entry.expires_at,
+				})
+			} else {
+				Some(PrivacyAwareEscrowView {
+						token: entry.token,
+						amount: Some(entry.amount),
+						owner: Some(entry.owner),
+						status: entry.status,
+						created_at: entry.created_at,
+						expires_at: entry.expires_at,
+				})
+			}
+		}
     /// Upgrade the contract to a new WASM implementation (**Admin only**).
     ///
     /// Caller must equal admin and authorize. The new WASM must be pre-uploaded to the network.

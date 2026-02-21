@@ -42,6 +42,147 @@ fn setup_escrow(
     });
 }
 
+// ============================================================================
+// Privacy Enforcement Tests
+// ============================================================================
+
+/// Helper: create an escrow entry in storage with a known owner address.
+fn setup_escrow_with_owner(
+    env: &Env,
+    contract_id: &Address,
+    token: &Address,
+    owner: &Address,
+    amount: i128,
+    commitment: BytesN<32>,
+    expires_at: u64,
+) {
+    let entry = EscrowEntry {
+        token: token.clone(),
+        amount,
+        owner: owner.clone(),
+        status: EscrowStatus::Pending,
+        created_at: env.ledger().timestamp(),
+        expires_at,
+    };
+    env.as_contract(contract_id, || {
+        let storage_commitment: Bytes = commitment.into();
+        put_escrow(env, &storage_commitment, &entry);
+    });
+}
+
+#[test]
+fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
+    // When the owner has privacy on, a stranger should see token/status/timestamps
+    // but NOT amount or owner.
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let stranger = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"priv_hide_salt");
+
+    let mut data = Bytes::new(&env);
+    data.append(&owner.clone().to_xdr(&env));
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow_with_owner(&env, &client.address, &token, &owner, amount, commitment.clone(), 0);
+
+    // Enable privacy for the owner
+    client.set_privacy(&owner, &true);
+
+    // Stranger queries — sensitive fields must be hidden
+    let view = client.get_escrow_details(&commitment, &stranger).unwrap();
+    assert_eq!(view.token, token);
+    assert_eq!(view.status, EscrowStatus::Pending);
+    assert_eq!(view.amount, None);
+    assert_eq!(view.owner, None);
+}
+
+#[test]
+fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
+    // When the owner has privacy on and IS the caller, they must see everything.
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"priv_owner_salt");
+
+    let mut data = Bytes::new(&env);
+    data.append(&owner.clone().to_xdr(&env));
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow_with_owner(&env, &client.address, &token, &owner, amount, commitment.clone(), 0);
+
+    // Enable privacy for the owner
+    client.set_privacy(&owner, &true);
+
+    // Owner queries their own escrow — must see full details
+    let view = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(view.token, token);
+    assert_eq!(view.status, EscrowStatus::Pending);
+    assert_eq!(view.amount, Some(amount));
+    assert_eq!(view.owner, Some(owner.clone()));
+}
+
+#[test]
+fn test_get_escrow_details_privacy_disabled_shows_full_details() {
+    // Privacy off (default) — any caller gets the full view.
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let stranger = Address::generate(&env);
+    let amount: i128 = 2500;
+    let salt = Bytes::from_slice(&env, b"priv_off_salt");
+
+    let mut data = Bytes::new(&env);
+    data.append(&owner.clone().to_xdr(&env));
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow_with_owner(&env, &client.address, &token, &owner, amount, commitment.clone(), 0);
+
+    // Privacy is off (never set) — stranger still gets full data
+    let view = client.get_escrow_details(&commitment, &stranger).unwrap();
+    assert_eq!(view.amount, Some(amount));
+    assert_eq!(view.owner, Some(owner));
+    assert_eq!(view.status, EscrowStatus::Pending);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_set_privacy_already_set_fails() {
+    // Setting privacy to a value it already has must return PrivacyAlreadySet (#3).
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+
+    // Default is false — enabling once is fine
+    client.set_privacy(&account, &true);
+
+    // Enabling again without disabling first must panic with error #3
+    client.set_privacy(&account, &true);
+}
+
+#[test]
+fn test_set_privacy_toggle_cycle_succeeds() {
+    // false → true → false → true must all succeed without error.
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+
+    client.set_privacy(&account, &true);
+    assert!(client.get_privacy(&account));
+
+    client.set_privacy(&account, &false);
+    assert!(!client.get_privacy(&account));
+
+    client.set_privacy(&account, &true);
+    assert!(client.get_privacy(&account));
+}
+
 fn create_test_token(env: &Env) -> Address {
     env.register_stellar_asset_contract_v2(Address::generate(env))
         .address()
@@ -633,88 +774,92 @@ fn test_verify_proof_view_nonexistent_commitment() {
     assert!(!is_valid);
 }
 
-#[test]
-fn test_get_escrow_details_found() {
-    let (env, client) = setup();
-    let token = create_test_token(&env);
-    let owner = Address::generate(&env);
-    let amount: i128 = 1000;
-    let salt = Bytes::from_slice(&env, b"details_test_salt");
+	#[test]
+	fn test_get_escrow_details_found() {
+		let (env, client) = setup();
+		let token = create_test_token(&env);
+		let owner = Address::generate(&env);
+		let amount: i128 = 1000;
+		let salt = Bytes::from_slice(&env, b"details_test_salt");
 
-    let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = owner.clone().to_xdr(&env);
-    data.append(&address_bytes);
-    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
-    data.append(&salt);
-    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+		let mut data = Bytes::new(&env);
+		let address_bytes: Bytes = owner.clone().to_xdr(&env);
+		data.append(&address_bytes);
+		data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+		data.append(&salt);
+		let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
+		setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
-    let details = client.get_escrow_details(&commitment);
-    assert!(details.is_some());
+		// Privacy is off by default — any caller gets full data
+		let caller = Address::generate(&env);
+		let details = client.get_escrow_details(&commitment, &caller);
+		assert!(details.is_some());
 
-    let entry = details.unwrap();
-    assert_eq!(entry.amount, amount);
-    assert_eq!(entry.token, token);
-    assert_eq!(entry.status, EscrowStatus::Pending);
-}
+		let entry = details.unwrap();
+		assert_eq!(entry.amount, Some(amount));
+		assert_eq!(entry.token, token);
+		assert_eq!(entry.status, EscrowStatus::Pending);
+	}
 
-#[test]
-fn test_get_escrow_details_not_found() {
-    let (env, client) = setup();
-    let owner = Address::generate(&env);
-    let amount: i128 = 1000;
-    let salt = Bytes::from_slice(&env, b"not_found_salt");
+	#[test]
+	fn test_get_escrow_details_not_found() {
+		let (env, client) = setup();
+		let owner = Address::generate(&env);
+		let amount: i128 = 1000;
+		let salt = Bytes::from_slice(&env, b"not_found_salt");
 
-    let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = owner.clone().to_xdr(&env);
-    data.append(&address_bytes);
-    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
-    data.append(&salt);
-    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+		let mut data = Bytes::new(&env);
+		let address_bytes: Bytes = owner.clone().to_xdr(&env);
+		data.append(&address_bytes);
+		data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+		data.append(&salt);
+		let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    let details = client.get_escrow_details(&commitment);
-    assert!(details.is_none());
-}
+		let caller = Address::generate(&env);
+		let details = client.get_escrow_details(&commitment, &caller);
+		assert!(details.is_none());
+	}
 
-#[test]
-fn test_get_escrow_details_spent_status() {
-    let (env, client) = setup();
-    let token = create_test_token(&env);
-    let owner = Address::generate(&env);
-    let amount: i128 = 1000;
-    let salt = Bytes::from_slice(&env, b"spent_details_salt");
+	#[test]
+	fn test_get_escrow_details_spent_status() {
+		let (env, client) = setup();
+		let token = create_test_token(&env);
+		let owner = Address::generate(&env);
+		let amount: i128 = 1000;
+		let salt = Bytes::from_slice(&env, b"spent_details_salt");
 
-    let mut data = Bytes::new(&env);
-    let address_bytes: Bytes = owner.clone().to_xdr(&env);
-    data.append(&address_bytes);
-    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
-    data.append(&salt);
-    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+		let mut data = Bytes::new(&env);
+		let address_bytes: Bytes = owner.clone().to_xdr(&env);
+		data.append(&address_bytes);
+		data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+		data.append(&salt);
+		let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
-    // Create entry with Spent status
-    let entry = EscrowEntry {
-        token: token.clone(),
-        amount,
-        owner: owner.clone(),
-        status: EscrowStatus::Spent,
-        created_at: env.ledger().timestamp(),
-        expires_at: 0,
-    };
+		let entry = EscrowEntry {
+			token: token.clone(),
+			amount,
+			owner: owner.clone(),
+			status: EscrowStatus::Spent,
+			created_at: env.ledger().timestamp(),
+			expires_at: 0,
+		};
 
-    env.as_contract(&client.address, || {
-        let storage_commitment: Bytes = commitment.clone().into();
-        put_escrow(&env, &storage_commitment, &entry);
-    });
+		env.as_contract(&client.address, || {
+			let storage_commitment: Bytes = commitment.clone().into();
+			put_escrow(&env, &storage_commitment, &entry);
+		});
 
-    let details = client.get_escrow_details(&commitment);
-    assert!(details.is_some());
+		// Privacy off — caller is a stranger, still gets full data
+		let caller = Address::generate(&env);
+		let details = client.get_escrow_details(&commitment, &caller);
+		assert!(details.is_some());
 
-    let retrieved_entry = details.unwrap();
-    assert_eq!(retrieved_entry.status, EscrowStatus::Spent);
-    assert_eq!(retrieved_entry.amount, amount);
-    assert_eq!(retrieved_entry.token, token);
-}
+		let retrieved = details.unwrap();
+		assert_eq!(retrieved.status, EscrowStatus::Spent);
+		assert_eq!(retrieved.amount, Some(amount));
+		assert_eq!(retrieved.token, token);
+	}
 // ============================================================================
 // Upgrade Tests
 // ============================================================================
