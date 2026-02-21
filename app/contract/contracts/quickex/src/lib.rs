@@ -14,6 +14,13 @@ use events::publish_withdraw_toggled;
 use storage::*;
 use types::{EscrowEntry, EscrowStatus};
 
+#[cfg(test)]
+mod commitment_test;
+#[cfg(test)]
+mod storage_test;
+#[cfg(test)]
+mod test;
+
 /// Main contract structure
 #[contract]
 pub struct QuickexContract;
@@ -381,6 +388,3 @@ impl QuickexContract {
         Ok(())
     }
 }
-
-mod storage_test;
-mod test;
