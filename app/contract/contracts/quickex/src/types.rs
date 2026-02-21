@@ -50,3 +50,36 @@ pub struct EscrowEntry {
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
 }
+
+/// Privacy-aware view of an escrow entry.
+///
+/// Returned by [`QuickexContract::get_escrow_details`] instead of the raw
+/// [`EscrowEntry`]. Sensitive fields (`amount`, `owner`) are set to `None`
+/// when the escrow owner has privacy enabled and the caller is not the owner.
+///
+/// ## Field visibility
+///
+/// | Field        | Privacy off | Privacy on + caller is owner | Privacy on + caller is stranger |
+/// |--------------|-------------|------------------------------|---------------------------------|
+/// | `token`      | ✓           | ✓                            | ✓                               |
+/// | `status`     | ✓           | ✓                            | ✓                               |
+/// | `created_at` | ✓           | ✓                            | ✓                               |
+/// | `expires_at` | ✓           | ✓                            | ✓                               |
+/// | `amount`     | ✓           | ✓                            | `None`                          |
+/// | `owner`      | ✓           | ✓                            | `None`                          |
+#[contracttype]
+#[derive(Clone)]
+pub struct PrivacyAwareEscrowView {
+    /// Token contract address (always visible).
+    pub token: Address,
+    /// Escrowed amount. `None` when privacy is enabled and caller is not the owner.
+    pub amount: Option<i128>,
+    /// Owner address. `None` when privacy is enabled and caller is not the owner.
+    pub owner: Option<Address>,
+    /// Current lifecycle status (always visible).
+    pub status: EscrowStatus,
+    /// Creation timestamp (always visible).
+    pub created_at: u64,
+    /// Expiry timestamp; `0` means no expiry (always visible).
+    pub expires_at: u64,
+}
