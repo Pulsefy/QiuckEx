@@ -19,9 +19,15 @@ export default function HomeScreen() {
                     </Text>
                 </View>
 
-                <Link href="/wallet-connect" asChild>
+                <Link href="/scan-to-pay" asChild>
                     <TouchableOpacity style={styles.button}>
-                        <Text style={styles.buttonText}>Connect Wallet</Text>
+                        <Text style={styles.buttonText}>Scan to Pay</Text>
+                    </TouchableOpacity>
+                </Link>
+
+                <Link href="/wallet-connect" asChild>
+                    <TouchableOpacity style={styles.buttonSecondary}>
+                        <Text style={styles.buttonSecondaryText}>Connect Wallet</Text>
                     </TouchableOpacity>
                 </Link>
             </View>
@@ -80,6 +86,21 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    buttonSecondary: {
+        borderWidth: 1,
+        borderColor: '#000',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 8,
+        width: '100%',
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    buttonSecondaryText: {
+        color: '#000',
         fontSize: 18,
         fontWeight: 'bold',
     },
