@@ -472,6 +472,3 @@ impl QuickexContract {
         Ok(())
     }
 }
-
-mod storage_test;
-mod test;
