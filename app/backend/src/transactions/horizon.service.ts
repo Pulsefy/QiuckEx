@@ -95,7 +95,8 @@ export class HorizonService {
         asset: string | undefined,
         limit: number,
         cursor: string | undefined,
-        cacheKey: string
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        _cacheKey: string
     ): Promise<TransactionResponseDto> {
         let lastError: unknown;
         

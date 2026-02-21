@@ -113,7 +113,7 @@ describe('HorizonService', () => {
             // Second call should be blocked by backoff
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
-                    expect.stringContaining('Service temporarily unavailable'),
+                    expect.stringContaining('Service temporarily unavailable due to rate limiting'),
                     HttpStatus.SERVICE_UNAVAILABLE,
                 ),
             );
