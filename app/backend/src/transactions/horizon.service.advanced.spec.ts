@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HorizonService } from './horizon.service';
 import { AppConfigService } from '../config/app-config.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { TransactionResponseDto } from './dto/transaction.dto';
+
 
 // Mock stellar-sdk
 jest.mock('stellar-sdk', () => {
@@ -112,7 +112,8 @@ describe('HorizonService - Advanced Features', () => {
             const entry = cache.get(cacheKey);
             if (entry) {
                 // Force expiration by setting created time to past
-                (cache as unknown as { set: (key: string, value: TransactionResponseDto, options?: { ttl: number }) => void }).set(cacheKey, entry, { ttl: 1 }); // 1ms TTL
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (cache as any).set(cacheKey, entry, { ttl: 1 }); // 1ms TTL
             }
             
             // Wait a bit to ensure expiration
