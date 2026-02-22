@@ -1,6 +1,6 @@
 use soroban_sdk::{contractevent, Address, BytesN, Env};
 
-#[contractevent(topics = ["PrivacyToggled"])]
+#[contractevent(topics = ["PrivacyToggled"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrivacyToggledEvent {
     #[topic]
@@ -10,18 +10,24 @@ pub struct PrivacyToggledEvent {
     pub timestamp: u64,
 }
 
-#[contractevent(topics = ["WithdrawToggled"])]
+#[contractevent(topics = ["EscrowWithdrawn"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WithdrawToggledEvent {
-    pub to: Address,
+pub struct EscrowWithdrawnEvent {
+    #[topic]
     pub commitment: BytesN<32>,
+
+    #[topic]
+    pub to: Address,
+
     pub timestamp: u64,
 }
 
-#[contractevent(topics = ["Deposit"])]
+#[contractevent(topics = ["EscrowDeposited"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DepositToggledEvent {
+pub struct EscrowDepositedEvent {
+    #[topic]
     pub commitment: BytesN<32>,
+
     pub token: Address,
     pub amount: i128,
 }
@@ -36,26 +42,36 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool, 
 }
 
 #[allow(dead_code)]
-#[contractevent(topics = ["ContractPaused"])]
+#[contractevent(topics = ["ContractPaused"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractPausedEvent {
+    #[topic]
+    pub admin: Address,
+
     pub paused: bool,
     pub timestamp: u64,
 }
 
 #[allow(dead_code)]
-pub(crate) fn publish_contract_paused(env: &Env, paused: bool, timestamp: u64) {
-    ContractPausedEvent { paused, timestamp }.publish(env);
+pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, timestamp: u64) {
+    ContractPausedEvent {
+        admin,
+        paused,
+        timestamp,
+    }
+    .publish(env);
 }
 
 #[allow(dead_code)]
-#[contractevent(topics = ["AdminChanged"])]
+#[contractevent(topics = ["AdminChanged"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminChangedEvent {
     #[topic]
     pub old_admin: Address,
+
     #[topic]
     pub new_admin: Address,
+
     pub timestamp: u64,
 }
 
@@ -74,13 +90,15 @@ pub(crate) fn publish_admin_changed(
     .publish(env);
 }
 
-#[contractevent(topics = ["ContractUpgraded"])]
+#[contractevent(topics = ["ContractUpgraded"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractUpgradedEvent {
     #[topic]
     pub new_wasm_hash: BytesN<32>,
+
     #[topic]
     pub admin: Address,
+
     pub timestamp: u64,
 }
 
@@ -98,17 +116,22 @@ pub(crate) fn publish_contract_upgraded(
     .publish(env);
 }
 
-pub(crate) fn publish_withdraw_toggled(env: &Env, to: Address, commitment: BytesN<32>) {
-    WithdrawToggledEvent {
-        to,
+pub(crate) fn publish_escrow_withdrawn(env: &Env, to: Address, commitment: BytesN<32>) {
+    EscrowWithdrawnEvent {
         commitment,
+        to,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
 }
 
-pub(crate) fn publish_deposit(env: &Env, commitment: BytesN<32>, token: Address, amount: i128) {
-    DepositToggledEvent {
+pub(crate) fn publish_escrow_deposited(
+    env: &Env,
+    commitment: BytesN<32>,
+    token: Address,
+    amount: i128,
+) {
+    EscrowDepositedEvent {
         commitment,
         token,
         amount,
@@ -116,18 +139,26 @@ pub(crate) fn publish_deposit(env: &Env, commitment: BytesN<32>, token: Address,
     .publish(env);
 }
 
-#[contractevent(topics = ["Refunded"])]
+#[contractevent(topics = ["EscrowRefunded"]) ]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RefundedEvent {
+pub struct EscrowRefundedEvent {
     #[topic]
     pub owner: Address,
+
+    #[topic]
     pub commitment: BytesN<32>,
+
     pub amount: i128,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_refunded(env: &Env, owner: Address, commitment: BytesN<32>, amount: i128) {
-    RefundedEvent {
+pub(crate) fn publish_escrow_refunded(
+    env: &Env,
+    owner: Address,
+    commitment: BytesN<32>,
+    amount: i128,
+) {
+    EscrowRefundedEvent {
         owner,
         commitment,
         amount,

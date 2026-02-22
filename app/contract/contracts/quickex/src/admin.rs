@@ -65,7 +65,7 @@ pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), Qui
     env.storage().instance().set(&PAUSED_KEY, &new_state);
 
     let timestamp = env.ledger().timestamp();
-    publish_contract_paused(env, new_state, timestamp);
+    publish_contract_paused(env, caller, new_state, timestamp);
 
     Ok(())
 }

@@ -414,6 +414,14 @@ fn test_set_and_get_privacy() {
 }
 
 #[test]
+fn test_event_snapshot_privacy_toggled_schema() {
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+
+    client.set_privacy(&account, &true);
+}
+
+#[test]
 fn test_commitment_cycle() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
@@ -508,6 +516,27 @@ fn test_deposit() {
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);
+}
+
+#[test]
+fn test_event_snapshot_escrow_deposited_schema() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let user = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&user, &1000);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let commitment = BytesN::from_array(&env, &[7; 32]);
+    client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0);
 }
 
 #[test]
@@ -640,6 +669,16 @@ fn test_set_admin() {
     // Verify new admin can pause
     client.set_paused(&new_admin, &true);
     assert!(client.is_paused());
+}
+
+#[test]
+fn test_event_snapshot_admin_changed_schema() {
+    let (env, client) = setup();
+    let old_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    client.initialize(&old_admin);
+    client.set_admin(&old_admin, &new_admin);
 }
 
 #[test]
