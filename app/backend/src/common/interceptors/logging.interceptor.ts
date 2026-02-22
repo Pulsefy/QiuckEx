@@ -10,54 +10,33 @@ import { tap } from 'rxjs/operators';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  
-  private readonly logger = new Logger('HTTP');
+  private readonly logger = new Logger(LoggingInterceptor.name);
 
-  private readonly sensitiveFields = [
-    'apiKey',
-    'password',
-    'token',
-    'secret',
-    'privateKey',
-  ];
-
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
     const { method, url, body } = request;
-    const requestId = request['correlationId'];
     const now = Date.now();
 
+    // Sanitizamos el body para no loguear passwords
+    const sanitizedBody = { ...body };
+    delete sanitizedBody.password;
+    delete sanitizedBody.token;
+
     return next.handle().pipe(
-      tap(() => {
-        const response = context.switchToHttp().getResponse();
-        const delay = Date.now() - now;
-        const statusCode = response.statusCode;
-
-        
-        const sanitizedBody = this.sanitize(body);
-
-        
-        const message = `${method} ${url} ${statusCode} - ${delay}ms`;
-
-        
-        this.logger.log({
-          message,
-          requestId,
-          body: sanitizedBody,
-        });
+      tap({
+        next: () => {
+          const delay = Date.now() - now;
+          this.logger.log(
+            `${method} ${url} ${delay}ms - Body: ${JSON.stringify(sanitizedBody)}`,
+          );
+        },
+        error: (error: Error) => {
+          const delay = Date.now() - now;
+          this.logger.error(
+            `${method} ${url} ${delay}ms - Error: ${error.message}`,
+          );
+        },
       }),
     );
-  }
-
-  private sanitize(data: any) {
-    if (!data || typeof data !== 'object') return data;
-    const cleanData = { ...data };
-
-    this.sensitiveFields.forEach((field) => {
-      if (field in cleanData) {
-        cleanData[field] = '[REDACTED]';
-      }
-    });
-    return cleanData;
   }
 }
