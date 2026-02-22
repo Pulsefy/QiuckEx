@@ -3,7 +3,7 @@
 //! This module provides comprehensive property-based testing for the commitment scheme.
 //! Tests validate the core invariants documented in commitment.rs.
 
-use crate::{QuickexContract, QuickexContractClient};
+use crate::{errors::QuickexError, QuickexContract, QuickexContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
 
 extern crate std;
@@ -234,14 +234,14 @@ fn test_commitment_zero_amount() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #5)")]
 fn test_commitment_negative_amount_rejected() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
     let amount = -1i128;
     let salt = Bytes::from_slice(&env, b"negative_test");
 
-    let _ = client.create_amount_commitment(&owner, &amount, &salt);
+    let result = client.try_create_amount_commitment(&owner, &amount, &salt);
+    assert_eq!(result, Err(Ok(QuickexError::InvalidAmount)));
 }
 
 #[test]
@@ -256,7 +256,6 @@ fn test_commitment_large_amount() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #6)")]
 fn test_commitment_oversized_salt_rejected() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
@@ -267,7 +266,8 @@ fn test_commitment_oversized_salt_rejected() {
         large_salt.push_back(0xFF);
     }
 
-    let _ = client.create_amount_commitment(&owner, &amount, &large_salt);
+    let result = client.try_create_amount_commitment(&owner, &amount, &large_salt);
+    assert_eq!(result, Err(Ok(QuickexError::InvalidSalt)));
 }
 
 // ============================================================================

@@ -3,19 +3,18 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 mod commitment;
+#[cfg(test)]
+mod commitment_test;
 mod errors;
 mod escrow;
 mod events;
 mod privacy;
 mod storage;
-mod types;
-
-#[cfg(test)]
-mod commitment_test;
 #[cfg(test)]
 mod storage_test;
 #[cfg(test)]
 mod test;
+mod types;
 
 use errors::QuickexError;
 use storage::*;
@@ -47,13 +46,15 @@ impl QuickexContract {
     /// * `env` - The contract environment
     /// * `_token` - Reserved; token is stored in the escrow entry
     /// * `amount` - Amount to withdraw; must be positive and match the escrow amount
-    /// * `_commitment` - Reserved; commitment is derived from `to`, `amount`, `salt`
+    /// * `commitment` - Commitment hash for the escrow being withdrawn
     /// * `to` - Recipient address (must authorize the call)
     /// * `salt` - Salt used when creating the original deposit commitment
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
-    /// * `CommitmentNotFound` - No escrow exists for the computed commitment
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentMismatch` - Provided commitment does not match (`to`, `amount`, `salt`)
+    /// * `CommitmentNotFound` - No escrow exists for the provided commitment
     /// * `EscrowExpired` - Escrow has passed its expiry timestamp
     /// * `AlreadySpent` - Escrow has already been withdrawn or refunded
     /// * `InvalidCommitment` - Escrow amount does not match the requested amount
@@ -65,6 +66,9 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::withdraw(&env, amount, to, salt)
     }
 
@@ -113,9 +117,12 @@ impl QuickexContract {
     /// * `enabled` - `true` to enable privacy, `false` to disable
     ///
     /// # Errors
+    /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
-    /// * `InvalidPrivacyLevel` - Invalid internal state (e.g. invalid level transition)
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         privacy::set_privacy(&env, owner, enabled)
     }
 
@@ -146,6 +153,8 @@ impl QuickexContract {
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
     /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentAlreadyExists` - An escrow for this commitment already exists
     pub fn deposit(
         env: Env,
         token: Address,
@@ -154,6 +163,9 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
     ) -> Result<BytesN<32>, QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
     }
 
@@ -237,6 +249,7 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
+    /// * `ContractPaused` - Contract is currently paused
     /// * `CommitmentAlreadyExists` - An escrow for this commitment already exists
     pub fn deposit_with_commitment(
         env: Env,
@@ -246,6 +259,9 @@ impl QuickexContract {
         commitment: BytesN<32>,
         timeout_secs: u64,
     ) -> Result<(), QuickexError> {
+        if is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
     }
 
@@ -380,7 +396,6 @@ impl QuickexContract {
                 if e.status != EscrowStatus::Pending {
                     return false;
                 }
-                // Also mark as invalid if expired
                 if e.expires_at > 0 && env.ledger().timestamp() >= e.expires_at {
                     return false;
                 }
