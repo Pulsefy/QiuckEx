@@ -2,9 +2,12 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNetworkStatus } from '../hooks/use-network-status';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function WalletConnectScreen() {
     const router = useRouter();
+    const { isConnected } = useNetworkStatus();
 
     return (
         <SafeAreaView style={styles.container}>
@@ -14,16 +17,31 @@ export default function WalletConnectScreen() {
                     Securely connect your Stellar wallet to manage your payments.
                 </Text>
 
+                {isConnected === false && (
+                    <View style={styles.offlineAdvice}>
+                        <Ionicons name="information-circle-outline" size={18} color="#991B1B" />
+                        <Text style={styles.offlineAdviceText}>
+                            Connection required to link a new wallet.
+                        </Text>
+                    </View>
+                )}
+
                 <View style={styles.placeholder}>
                     <Text style={styles.placeholderText}>
                         [ WalletConnect Placeholder ]
                     </Text>
-                    <View style={styles.mockButton}>
+                    <TouchableOpacity
+                        style={[styles.mockButton, isConnected === false && styles.disabledButton]}
+                        disabled={isConnected === false}
+                    >
                         <Text style={styles.mockButtonText}>Scan QR Code</Text>
-                    </View>
-                    <View style={[styles.mockButton, styles.secondaryButton]}>
-                        <Text style={styles.secondaryButtonText}>Select Wallet</Text>
-                    </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.mockButton, styles.secondaryButton, isConnected === false && styles.disabledSecondaryButton]}
+                        disabled={isConnected === false}
+                    >
+                        <Text style={[styles.secondaryButtonText, isConnected === false && styles.disabledText]}>Select Wallet</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity
@@ -107,5 +125,31 @@ const styles = StyleSheet.create({
     backButtonText: {
         color: '#666',
         fontSize: 16,
+    },
+    offlineAdvice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FEF2F2',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        marginBottom: 20,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#FECACA',
+    },
+    offlineAdviceText: {
+        color: '#991B1B',
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    disabledButton: {
+        backgroundColor: '#E5E7EB',
+    },
+    disabledSecondaryButton: {
+        borderColor: '#E5E7EB',
+    },
+    disabledText: {
+        color: '#9CA3AF',
     },
 });
