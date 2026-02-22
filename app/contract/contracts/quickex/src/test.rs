@@ -1,3 +1,26 @@
+//! QuickEx contract integration tests.
+//!
+//! ## Upgrade / regression suite
+//!
+//! A minimal set of **golden path** tests is maintained for upgrade safety: after contract or
+//! SDK upgrades, re-run these to ensure existing escrows and commitments still behave correctly.
+//!
+//! **Golden path tests (regression suite):**
+//! - **Escrows & commitments:** `test_deposit`, `test_successful_withdrawal`, `test_commitment_cycle`
+//! - **Privacy toggle:** `test_set_privacy_toggle_cycle_succeeds`, `test_set_and_get_privacy`
+//! - **Refunds:** `test_refund_successful`
+//! - **Single full-flow smoke test:** `regression_golden_path_full_flow`
+//!
+//! How to re-run only the regression suite:
+//!
+//! ```sh
+//! cargo test regression_
+//! cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle
+//! ```
+//!
+//! Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
+//! contract directory for how to extend the suite when adding new features.
+
 use crate::{
     errors::QuickexError, storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract,
     QuickexContractClient,
@@ -192,6 +215,7 @@ fn test_set_privacy_already_set_fails() {
     assert_contract_error(result, QuickexError::PrivacyAlreadySet);
 }
 
+/// Regression suite: privacy toggle — ensures upgrades do not break set_privacy/get_privacy.
 #[test]
 fn test_set_privacy_toggle_cycle_succeeds() {
     // false â†’ true â†’ false â†’ true must all succeed without error.
@@ -223,6 +247,7 @@ fn assert_contract_error<T>(
     }
 }
 
+/// Regression suite: golden path withdrawal — deposit then withdraw by proof.
 #[test]
 fn test_successful_withdrawal() {
     let (env, client) = setup();
@@ -396,6 +421,7 @@ fn test_nonexistent_commitment_fails() {
     assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
+/// Regression suite: privacy get/set — default off, enable, disable.
 #[test]
 fn test_set_and_get_privacy() {
     let (env, client) = setup();
@@ -413,6 +439,7 @@ fn test_set_and_get_privacy() {
     assert!(!client.get_privacy(&account));
 }
 
+/// Regression suite: create and verify amount commitment — core commitment flow.
 #[test]
 fn test_commitment_cycle() {
     let (env, client) = setup();
@@ -484,6 +511,7 @@ fn test_canonical_error_code_ranges() {
     assert_eq!(QuickexError::InternalError as u32, 900);
 }
 
+/// Regression suite: deposit with commitment — create escrow (golden path).
 #[test]
 fn test_deposit() {
     let env = Env::default();
@@ -1109,6 +1137,7 @@ fn test_withdrawal_fails_after_expiry() {
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::EscrowExpired)));
 }
 
+/// Regression suite: refund after expiry — golden path refund flow.
 #[test]
 fn test_refund_successful() {
     let (env, client) = setup();
@@ -1187,4 +1216,47 @@ fn test_double_refund_fails() {
     // Second refund attempt - should fail with AlreadySpent (error #9)
     let res = client.try_refund(&commitment, &owner);
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::AlreadySpent)));
+}
+
+// ============================================================================
+// Regression suite: single full-flow golden path (run after upgrades)
+// ============================================================================
+
+/// Regression suite: one test that runs the minimal golden path — create commitment,
+/// deposit, toggle privacy, withdraw. Re-run with `cargo test regression_golden_path_full_flow`
+/// after contract or SDK upgrades to ensure core flows still work.
+#[test]
+fn regression_golden_path_full_flow() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"regression_golden_salt");
+
+    // 1. Create and verify commitment
+    let commitment = client.create_amount_commitment(&to, &amount, &salt);
+    assert!(client.verify_amount_commitment(&commitment, &to, &amount, &salt));
+
+    // 2. Deposit: mint to `to` (owner) and deposit into escrow
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&to, &amount);
+    let committed = client.deposit(&token, &amount, &to, &salt, &0);
+    assert_eq!(committed, commitment);
+    assert_eq!(token_client.balance(&client.address), amount);
+
+    // 3. Toggle privacy (must not break escrow or withdrawal)
+    client.set_privacy(&to, &true);
+    assert!(client.get_privacy(&to));
+    client.set_privacy(&to, &false);
+    assert!(!client.get_privacy(&to));
+
+    // 4. Withdraw
+    let ok = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    assert!(ok);
+    assert_eq!(token_client.balance(&to), amount);
+    assert_eq!(token_client.balance(&client.address), 0);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Spent)
+    );
 }

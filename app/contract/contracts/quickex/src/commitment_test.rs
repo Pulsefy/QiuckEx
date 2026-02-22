@@ -2,6 +2,9 @@
 //!
 //! This module provides comprehensive property-based testing for the commitment scheme.
 //! Tests validate the core invariants documented in commitment.rs.
+//!
+//! **Upgrade/regression suite:** `test_create_and_verify_commitment_success` is part of the
+//! golden path regression suite. See `REGRESSION_TESTS.md` and `src/test.rs` module doc.
 
 use crate::{errors::QuickexError, QuickexContract, QuickexContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
@@ -163,6 +166,7 @@ fn test_commitment_empty_salt() {
 // Invariant 4: Binding Property - Verification enforces correctness
 // ============================================================================
 
+/// Regression suite: create and verify commitment — golden path for commitment flow.
 #[test]
 fn test_create_and_verify_commitment_success() {
     let (env, client) = setup();
