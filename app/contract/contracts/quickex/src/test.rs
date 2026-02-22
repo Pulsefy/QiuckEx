@@ -1,11 +1,35 @@
+//! QuickEx contract integration tests.
+//!
+//! ## Upgrade / regression suite
+//!
+//! A minimal set of **golden path** tests is maintained for upgrade safety: after contract or
+//! SDK upgrades, re-run these to ensure existing escrows and commitments still behave correctly.
+//!
+//! **Golden path tests (regression suite):**
+//! - **Escrows & commitments:** `test_deposit`, `test_successful_withdrawal`, `test_commitment_cycle`
+//! - **Privacy toggle:** `test_set_privacy_toggle_cycle_succeeds`, `test_set_and_get_privacy`
+//! - **Refunds:** `test_refund_successful`
+//! - **Single full-flow smoke test:** `regression_golden_path_full_flow`
+//!
+//! How to re-run only the regression suite:
+//!
+//! ```sh
+//! cargo test regression_
+//! cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle
+//! ```
+//!
+//! Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
+//! contract directory for how to extend the suite when adding new features.
+
 use crate::{
-    storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
+    errors::QuickexError, storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract,
+    QuickexContractClient,
 };
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token,
     xdr::ToXdr,
-    Address, Bytes, BytesN, Env,
+    Address, Bytes, BytesN, ConversionError, Env, InvokeError,
 };
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -100,7 +124,7 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
 
-    // Stranger queries — sensitive fields must be hidden
+    // Stranger queries â€” sensitive fields must be hidden
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
@@ -136,7 +160,7 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
 
-    // Owner queries their own escrow — must see full details
+    // Owner queries their own escrow â€” must see full details
     let view = client.get_escrow_details(&commitment, &owner).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
@@ -146,7 +170,7 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
 
 #[test]
 fn test_get_escrow_details_privacy_disabled_shows_full_details() {
-    // Privacy off (default) — any caller gets the full view.
+    // Privacy off (default) â€” any caller gets the full view.
     let (env, client) = setup();
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
@@ -170,7 +194,7 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
         0,
     );
 
-    // Privacy is off (never set) — stranger still gets full data
+    // Privacy is off (never set) â€” stranger still gets full data
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
     assert_eq!(view.amount, Some(amount));
     assert_eq!(view.owner, Some(owner));
@@ -178,22 +202,23 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
 fn test_set_privacy_already_set_fails() {
-    // Setting privacy to a value it already has must return PrivacyAlreadySet (#3).
+    // Setting privacy to a value it already has must return PrivacyAlreadySet.
     let (env, client) = setup();
     let account = Address::generate(&env);
 
-    // Default is false — enabling once is fine
+    // Default is false; enabling once is fine.
     client.set_privacy(&account, &true);
 
-    // Enabling again without disabling first must panic with error #3
-    client.set_privacy(&account, &true);
+    // Enabling again without disabling first must fail.
+    let result = client.try_set_privacy(&account, &true);
+    assert_contract_error(result, QuickexError::PrivacyAlreadySet);
 }
 
+/// Regression suite: privacy toggle — ensures upgrades do not break set_privacy/get_privacy.
 #[test]
 fn test_set_privacy_toggle_cycle_succeeds() {
-    // false → true → false → true must all succeed without error.
+    // false â†’ true â†’ false â†’ true must all succeed without error.
     let (env, client) = setup();
     let account = Address::generate(&env);
 
@@ -212,6 +237,17 @@ fn create_test_token(env: &Env) -> Address {
         .address()
 }
 
+fn assert_contract_error<T>(
+    result: Result<Result<T, ConversionError>, Result<QuickexError, InvokeError>>,
+    expected: QuickexError,
+) {
+    match result {
+        Err(Ok(actual)) => assert_eq!(actual, expected),
+        _ => panic!("expected contract error"),
+    }
+}
+
+/// Regression suite: golden path withdrawal — deposit then withdraw by proof.
 #[test]
 fn test_successful_withdrawal() {
     let (env, client) = setup();
@@ -241,7 +277,6 @@ fn test_successful_withdrawal() {
 }
 
 #[test]
-#[should_panic]
 fn test_double_withdrawal_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -266,11 +301,11 @@ fn test_double_withdrawal_fails() {
     let first_result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
     assert!(first_result.is_ok());
     assert_eq!(first_result.unwrap(), Ok(true));
-    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    let second_result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert_contract_error(second_result, QuickexError::AlreadySpent);
 }
 
 #[test]
-#[should_panic]
 fn test_invalid_salt_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -289,11 +324,11 @@ fn test_invalid_salt_fails() {
     setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     env.mock_all_auths();
-    let _ = client.withdraw(&token, &amount, &commitment, &to, &wrong_salt);
+    let result = client.try_withdraw(&token, &amount, &commitment, &to, &wrong_salt);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
 #[test]
-#[should_panic]
 fn test_invalid_amount_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -320,11 +355,11 @@ fn test_invalid_amount_fails() {
 
     env.mock_all_auths();
 
-    let _ = client.withdraw(&token, &wrong_amount, &commitment, &to, &salt);
+    let result = client.try_withdraw(&token, &wrong_amount, &commitment, &to, &salt);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
 #[test]
-#[should_panic]
 fn test_zero_amount_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -341,11 +376,11 @@ fn test_zero_amount_fails() {
 
     env.mock_all_auths();
 
-    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert_contract_error(result, QuickexError::InvalidAmount);
 }
 
 #[test]
-#[should_panic]
 fn test_negative_amount_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -362,11 +397,11 @@ fn test_negative_amount_fails() {
 
     env.mock_all_auths();
 
-    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert_contract_error(result, QuickexError::InvalidAmount);
 }
 
 #[test]
-#[should_panic]
 fn test_nonexistent_commitment_fails() {
     let (env, client) = setup();
     let token = create_test_token(&env);
@@ -382,9 +417,11 @@ fn test_nonexistent_commitment_fails() {
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
     env.mock_all_auths();
-    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
+/// Regression suite: privacy get/set — default off, enable, disable.
 #[test]
 fn test_set_and_get_privacy() {
     let (env, client) = setup();
@@ -402,6 +439,7 @@ fn test_set_and_get_privacy() {
     assert!(!client.get_privacy(&account));
 }
 
+/// Regression suite: create and verify amount commitment — core commitment flow.
 #[test]
 fn test_commitment_cycle() {
     let (env, client) = setup();
@@ -447,6 +485,34 @@ fn test_health_check() {
 }
 
 #[test]
+fn test_canonical_error_code_ranges() {
+    // Validation failures (100-199)
+    assert_eq!(QuickexError::InvalidAmount as u32, 100);
+    assert_eq!(QuickexError::InvalidSalt as u32, 101);
+    assert_eq!(QuickexError::InvalidPrivacyLevel as u32, 102);
+
+    // Auth/admin failures (200-299)
+    assert_eq!(QuickexError::Unauthorized as u32, 200);
+    assert_eq!(QuickexError::AlreadyInitialized as u32, 201);
+
+    // State/escrow/commitment violations (300-399)
+    assert_eq!(QuickexError::ContractPaused as u32, 300);
+    assert_eq!(QuickexError::PrivacyAlreadySet as u32, 301);
+    assert_eq!(QuickexError::CommitmentNotFound as u32, 302);
+    assert_eq!(QuickexError::CommitmentAlreadyExists as u32, 303);
+    assert_eq!(QuickexError::AlreadySpent as u32, 304);
+    assert_eq!(QuickexError::InvalidCommitment as u32, 305);
+    assert_eq!(QuickexError::CommitmentMismatch as u32, 306);
+    assert_eq!(QuickexError::EscrowExpired as u32, 307);
+    assert_eq!(QuickexError::EscrowNotExpired as u32, 308);
+    assert_eq!(QuickexError::InvalidOwner as u32, 309);
+
+    // Internal/unexpected conditions (900-999)
+    assert_eq!(QuickexError::InternalError as u32, 900);
+}
+
+/// Regression suite: deposit with commitment — create escrow (golden path).
+#[test]
 fn test_deposit() {
     let env = Env::default();
     env.mock_all_auths();
@@ -488,7 +554,6 @@ fn test_initialize_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
 fn test_initialize_twice_fails() {
     let (env, client) = setup();
     let admin1 = Address::generate(&env);
@@ -498,7 +563,60 @@ fn test_initialize_twice_fails() {
     client.initialize(&admin1);
 
     // Try to initialize again - should fail
-    client.initialize(&admin2);
+    let result = client.try_initialize(&admin2);
+    assert_contract_error(result, QuickexError::AlreadyInitialized);
+}
+
+#[test]
+fn test_set_privacy_same_value_fails() {
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+
+    let first = client.try_set_privacy(&account, &true);
+    assert_eq!(first, Ok(Ok(())));
+
+    let second = client.try_set_privacy(&account, &true);
+    assert_contract_error(second, QuickexError::PrivacyAlreadySet);
+}
+
+#[test]
+fn test_deposit_with_commitment_fails_when_paused() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = create_test_token(&env);
+    let amount: i128 = 500;
+    let commitment = BytesN::from_array(&env, &[9u8; 32]);
+
+    client.initialize(&admin);
+    client.set_paused(&admin, &true);
+
+    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0);
+    assert_contract_error(result, QuickexError::ContractPaused);
+}
+
+#[test]
+fn test_withdraw_fails_when_paused() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let admin = Address::generate(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"paused_salt");
+
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
+    client.initialize(&admin);
+    client.set_paused(&admin, &true);
+
+    let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
+    assert_contract_error(result, QuickexError::ContractPaused);
 }
 
 #[test]
@@ -519,7 +637,6 @@ fn test_set_paused_by_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
 fn test_set_paused_by_non_admin_fails() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
@@ -529,7 +646,8 @@ fn test_set_paused_by_non_admin_fails() {
     client.initialize(&admin);
 
     // Non-admin tries to pause - should fail
-    client.set_paused(&non_admin, &true);
+    let result = client.try_set_paused(&non_admin, &true);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 #[test]
@@ -553,7 +671,6 @@ fn test_set_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
 fn test_set_admin_by_non_admin_fails() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
@@ -564,11 +681,11 @@ fn test_set_admin_by_non_admin_fails() {
     client.initialize(&admin);
 
     // Non-admin tries to transfer admin rights - should fail
-    client.set_admin(&non_admin, &new_admin);
+    let result = client.try_set_admin(&non_admin, &new_admin);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
 fn test_old_admin_cannot_pause_after_transfer() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
@@ -581,7 +698,8 @@ fn test_old_admin_cannot_pause_after_transfer() {
     client.set_admin(&admin, &new_admin);
 
     // Old admin tries to pause - should fail
-    client.set_paused(&admin, &true);
+    let result = client.try_set_paused(&admin, &true);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 #[test]
@@ -815,7 +933,7 @@ fn test_get_escrow_details_found() {
 
     setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
-    // Privacy is off by default — any caller gets full data
+    // Privacy is off by default â€” any caller gets full data
     let caller = Address::generate(&env);
     let details = client.get_escrow_details(&commitment, &caller);
     assert!(details.is_some());
@@ -874,7 +992,7 @@ fn test_get_escrow_details_spent_status() {
         put_escrow(&env, &storage_commitment, &entry);
     });
 
-    // Privacy off — caller is a stranger, still gets full data
+    // Privacy off â€” caller is a stranger, still gets full data
     let caller = Address::generate(&env);
     let details = client.get_escrow_details(&commitment, &caller);
     assert!(details.is_some());
@@ -890,8 +1008,6 @@ fn test_get_escrow_details_spent_status() {
 
 #[test]
 fn test_upgrade_by_admin() {
-    use crate::errors::QuickexError;
-
     let (env, client) = setup();
     let admin = Address::generate(&env);
 
@@ -927,7 +1043,6 @@ fn test_upgrade_by_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
 fn test_upgrade_by_non_admin_fails() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
@@ -940,11 +1055,11 @@ fn test_upgrade_by_non_admin_fails() {
     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
 
     // Non-admin tries to upgrade - should fail with Unauthorized
-    client.upgrade(&non_admin, &new_wasm_hash);
+    let result = client.try_upgrade(&non_admin, &new_wasm_hash);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
 fn test_upgrade_without_admin_initialized_fails() {
     let (env, client) = setup();
     let caller = Address::generate(&env);
@@ -953,7 +1068,8 @@ fn test_upgrade_without_admin_initialized_fails() {
     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
 
     // Try to upgrade without admin set - should fail with Unauthorized
-    client.upgrade(&caller, &new_wasm_hash);
+    let result = client.try_upgrade(&caller, &new_wasm_hash);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 // ============================================================================
@@ -1021,6 +1137,7 @@ fn test_withdrawal_fails_after_expiry() {
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::EscrowExpired)));
 }
 
+/// Regression suite: refund after expiry — golden path refund flow.
 #[test]
 fn test_refund_successful() {
     let (env, client) = setup();
@@ -1099,4 +1216,47 @@ fn test_double_refund_fails() {
     // Second refund attempt - should fail with AlreadySpent (error #9)
     let res = client.try_refund(&commitment, &owner);
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::AlreadySpent)));
+}
+
+// ============================================================================
+// Regression suite: single full-flow golden path (run after upgrades)
+// ============================================================================
+
+/// Regression suite: one test that runs the minimal golden path — create commitment,
+/// deposit, toggle privacy, withdraw. Re-run with `cargo test regression_golden_path_full_flow`
+/// after contract or SDK upgrades to ensure core flows still work.
+#[test]
+fn regression_golden_path_full_flow() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"regression_golden_salt");
+
+    // 1. Create and verify commitment
+    let commitment = client.create_amount_commitment(&to, &amount, &salt);
+    assert!(client.verify_amount_commitment(&commitment, &to, &amount, &salt));
+
+    // 2. Deposit: mint to `to` (owner) and deposit into escrow
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&to, &amount);
+    let committed = client.deposit(&token, &amount, &to, &salt, &0);
+    assert_eq!(committed, commitment);
+    assert_eq!(token_client.balance(&client.address), amount);
+
+    // 3. Toggle privacy (must not break escrow or withdrawal)
+    client.set_privacy(&to, &true);
+    assert!(client.get_privacy(&to));
+    client.set_privacy(&to, &false);
+    assert!(!client.get_privacy(&to));
+
+    // 4. Withdraw
+    let ok = client.withdraw(&token, &amount, &commitment, &to, &salt);
+    assert!(ok);
+    assert_eq!(token_client.balance(&to), amount);
+    assert_eq!(token_client.balance(&client.address), 0);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Spent)
+    );
 }

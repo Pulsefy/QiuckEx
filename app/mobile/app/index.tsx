@@ -8,6 +8,7 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
                 <Text style={styles.title}>QuickEx</Text>
+
                 <Text style={styles.subtitle}>
                     Fast, privacy-focused payment link platform built on Stellar.
                 </Text>
@@ -20,20 +21,32 @@ export default function HomeScreen() {
                 </View>
 
                 <Link href="/scan-to-pay" asChild>
-                    <TouchableOpacity style={styles.button}>
-                        <Text style={styles.buttonText}>Scan to Pay</Text>
+                    <TouchableOpacity style={styles.primaryButton}>
+                        <Text style={styles.primaryButtonText}>Scan to Pay</Text>
                     </TouchableOpacity>
                 </Link>
 
                 <Link href="/wallet-connect" asChild>
-                    <TouchableOpacity style={styles.buttonSecondary}>
-                        <Text style={styles.buttonSecondaryText}>Connect Wallet</Text>
+                    <TouchableOpacity style={styles.primaryButton}>
+                        <Text style={styles.primaryButtonText}>Connect Wallet</Text>
                     </TouchableOpacity>
                 </Link>
 
+                {/* Quick Receive */}
+                <Link href="/quick-receive" asChild>
+                    <TouchableOpacity style={styles.quickReceiveButton}>
+                        <Text style={styles.quickReceiveButtonText}>
+                            Quick Receive
+                        </Text>
+                    </TouchableOpacity>
+                </Link>
+
+                {/* Transaction History */}
                 <Link href="/transactions" asChild>
                     <TouchableOpacity style={styles.secondaryButton}>
-                        <Text style={styles.secondaryButtonText}>Transaction History</Text>
+                        <Text style={styles.secondaryButtonText}>
+                            Transaction History
+                        </Text>
                     </TouchableOpacity>
                 </Link>
             </View>
@@ -44,7 +57,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
     },
     content: {
         flex: 1,
@@ -82,36 +95,40 @@ const styles = StyleSheet.create({
         color: '#555',
         lineHeight: 22,
     },
-    button: {
+
+    /* Primary Button */
+    primaryButton: {
         backgroundColor: '#000',
         paddingVertical: 16,
         paddingHorizontal: 32,
         borderRadius: 8,
         width: '100%',
         alignItems: 'center',
+        marginBottom: 12,
     },
-    buttonText: {
+    primaryButtonText: {
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
     },
-    buttonSecondary: {
-        borderWidth: 1,
-        borderColor: '#000',
+    /* Quick Receive Button */
+    quickReceiveButton: {
+        backgroundColor: '#10B981',
         paddingVertical: 16,
         paddingHorizontal: 32,
         borderRadius: 8,
         width: '100%',
         alignItems: 'center',
-        marginTop: 12,
+        marginBottom: 12,
     },
-    buttonSecondaryText: {
-        color: '#000',
+    quickReceiveButtonText: {
+        color: '#fff',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '600',
     },
+
+    /* Secondary Button */
     secondaryButton: {
-        marginTop: 12,
         paddingVertical: 16,
         paddingHorizontal: 32,
         borderRadius: 8,
