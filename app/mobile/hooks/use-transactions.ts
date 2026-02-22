@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import type { TransactionItem } from '../types/transaction';
 import { fetchTransactions } from '../services/transactions';
 
@@ -36,6 +37,19 @@ export function useTransactions(accountId: string): UseTransactionsReturn {
             const { reset = false, isRefreshing = false } = opts;
 
             if (isFetchingRef.current) return;
+
+            // Fast check for connectivity
+            const netInfo = await NetInfo.fetch();
+            if (!netInfo.isConnected) {
+                setState((prev) => ({
+                    ...prev,
+                    loading: false,
+                    refreshing: false,
+                    error: 'You are currently offline. Please check your connection and try again.',
+                }));
+                return;
+            }
+
             isFetchingRef.current = true;
 
             if (reset) {
@@ -79,13 +93,10 @@ export function useTransactions(accountId: string): UseTransactionsReturn {
         [accountId],
     );
 
-    // Trigger initial load once on mount (accountId change also re-triggers)
-    const initialLoadDone = useRef(false);
-    if (!initialLoadDone.current) {
-        initialLoadDone.current = true;
-        // Call without awaiting — state updates will trigger re-renders
+    // Initial load
+    useEffect(() => {
         void load({ reset: true });
-    }
+    }, [load]);
 
     const refresh = useCallback(() => {
         void load({ reset: true, isRefreshing: true });
