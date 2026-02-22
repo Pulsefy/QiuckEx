@@ -15,11 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import TransactionItem from '../components/transaction-item';
 import { useTransactions } from '../hooks/use-transactions';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
+import { ErrorState } from '../components/resilience/error-state';
+import { EmptyState } from '../components/resilience/empty-state';
 
 /**
  * Placeholder account used when no accountId is passed via route params.
- * Replace this with the real wallet address once the wallet-connect flow
- * persists the key.
  */
 const DEMO_ACCOUNT_ID =
     'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
@@ -91,14 +91,17 @@ export default function TransactionsScreen() {
                 <SkeletonRow key={i} />
             ))}
         </View>
+    ) : error ? (
+        <ErrorState
+            message={error}
+            onRetry={refresh}
+        />
     ) : (
-        <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyTitle}>No transactions yet</Text>
-            <Text style={styles.emptySubtitle}>
-                Payments sent or received to this account will appear here.
-            </Text>
-        </View>
+        <EmptyState
+            title="No transactions yet"
+            message="Payments sent or received to this account will appear here."
+            icon="receipt-outline"
+        />
     );
 
     const ListFooter = hasMore ? (
@@ -122,18 +125,6 @@ export default function TransactionsScreen() {
                 <View style={styles.backBtn} />
             </View>
 
-            {/* ── Error Banner ── */}
-            {error ? (
-                <View style={styles.errorBanner}>
-                    <Text style={styles.errorText} numberOfLines={2}>
-                        {error}
-                    </Text>
-                    <TouchableOpacity onPress={refresh} style={styles.retryBtn}>
-                        <Text style={styles.retryText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : null}
-
             {/* ── Transaction List ── */}
             <FlatList<TransactionItemType>
                 data={transactions}
@@ -152,7 +143,7 @@ export default function TransactionsScreen() {
                 onEndReached={loadMore}
                 onEndReachedThreshold={0.8}
                 contentContainerStyle={
-                    transactions.length === 0 && !loading
+                    (transactions.length === 0 || error) && !loading
                         ? styles.emptyFill
                         : undefined
                 }
