@@ -12,7 +12,7 @@ export class HorizonService {
     private readonly backoffCache: LRUCache<string, { attempts: number; lastAttempt: number }>;
     private readonly maxRetries = 3;
     private readonly baseDelay = 1000; // 1 second
-    private readonly maxDelay = 30000; // 30 seconds
+    private readonly maxDelay = 30000; // 30 secondss
 
     constructor(private readonly configService: AppConfigService) {
         const horizonUrl = this.configService.network === 'mainnet'
