@@ -7,64 +7,28 @@ import {
   UsernameLimitExceededError,
   UsernameValidationError,
 } from '../errors';
+import { SupabaseUniqueConstraintError } from '../../supabase/supabase.errors';
 
 describe('UsernamesService', () => {
   let service: UsernamesService;
-  let supabaseGetClient: jest.Mock;
   let configMaxPerWallet: number | undefined;
-  /** When set, countByPublicKey returns this count (for limit-exceeded test). */
-  let mockCountForWallet: number;
-  let sharedClient: { from: jest.Mock };
 
-  const mockFrom = () => {
-    const chain: Record<string, jest.Mock> = {
-      insert: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-    };
-    chain.insert.mockImplementation(() => Promise.resolve({ data: null, error: null }));
-    chain.select.mockImplementation(() => chain);
-    chain.eq.mockImplementation(() => chain);
-    chain.order.mockImplementation(() => chain);
-    return chain;
+  const mockSupabaseService = {
+    insertUsername: jest.fn(),
+    countUsernamesByPublicKey: jest.fn(),
+    listUsernamesByPublicKey: jest.fn(),
   };
 
   beforeEach(async () => {
     configMaxPerWallet = undefined;
-    mockCountForWallet = 0;
-    const usernamesChain = mockFrom();
-    usernamesChain.insert.mockImplementation(() =>
-      Promise.resolve({ data: null, error: null }),
-    );
-    let selectHeadMode = false;
-    usernamesChain.select.mockImplementation((_args: string, opts?: { count?: string; head?: boolean }) => {
-      selectHeadMode = opts?.head ?? false;
-      return usernamesChain;
-    });
-    usernamesChain.eq.mockImplementation(() =>
-      selectHeadMode
-        ? Promise.resolve({
-            count: mockCountForWallet,
-            error: null,
-          })
-        : usernamesChain,
-    );
-    usernamesChain.order.mockImplementation(() =>
-      Promise.resolve({ data: [], error: null }),
-    );
-    const from = jest.fn((table: string) =>
-      table === 'usernames' ? usernamesChain : mockFrom(),
-    );
-    sharedClient = { from };
-    supabaseGetClient = jest.fn().mockReturnValue(sharedClient);
+    jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsernamesService,
         {
           provide: SupabaseService,
-          useValue: { getClient: supabaseGetClient },
+          useValue: mockSupabaseService,
         },
         {
           provide: AppConfigService,
@@ -117,30 +81,28 @@ describe('UsernamesService', () => {
 
   describe('create', () => {
     it('creates username and returns ok', async () => {
+      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
       const result = await service.create('alice_123', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
       expect(result).toEqual({ ok: true });
-      const chain = sharedClient.from('usernames');
-      expect(sharedClient.from).toHaveBeenCalledWith('usernames');
-      expect(chain.insert).toHaveBeenCalledWith({
-        username: 'alice_123',
-        public_key: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
-      });
-    });
-
-    it('normalizes username to lowercase before insert', async () => {
-      await service.create('Alice_99', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
-      const chain = sharedClient.from('usernames');
-      expect(chain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ username: 'alice_99' }),
+      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+        'alice_123',
+        'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
       );
     });
 
-    it('throws UsernameConflictError on unique violation (23505)', async () => {
-      const chain = sharedClient.from('usernames');
-      chain.insert.mockResolvedValueOnce({
-        data: null,
-        error: { code: '23505', message: 'duplicate key' },
-      });
+    it('normalizes username to lowercase before insert', async () => {
+      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
+      await service.create('Alice_99', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
+      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+        'alice_99',
+        expect.any(String),
+      );
+    });
+
+    it('throws UsernameConflictError on unique violation (SupabaseUniqueConstraintError)', async () => {
+      mockSupabaseService.insertUsername.mockRejectedValueOnce(
+        new SupabaseUniqueConstraintError('duplicate key')
+      );
 
       await expect(
         service.create('taken', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR'),
@@ -148,11 +110,9 @@ describe('UsernamesService', () => {
     });
 
     it('conflict error message mentions username is already taken', async () => {
-      const chain = sharedClient.from('usernames');
-      chain.insert.mockResolvedValueOnce({
-        data: null,
-        error: { code: '23505', message: 'duplicate key' },
-      });
+      mockSupabaseService.insertUsername.mockRejectedValueOnce(
+        new SupabaseUniqueConstraintError('duplicate key')
+      );
       try {
         await service.create('taken', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
       } catch (e) {
@@ -170,7 +130,7 @@ describe('UsernamesService', () => {
 
     it('throws UsernameLimitExceededError when wallet at limit', async () => {
       configMaxPerWallet = 2;
-      mockCountForWallet = 2;
+      mockSupabaseService.countUsernamesByPublicKey.mockResolvedValueOnce(2);
 
       await expect(
         service.create('newuser', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR'),
@@ -188,8 +148,7 @@ describe('UsernamesService', () => {
           created_at: '2025-01-01T00:00:00Z',
         },
       ];
-      const chain = sharedClient.from('usernames');
-      chain.order.mockResolvedValueOnce({ data: rows, error: null });
+      mockSupabaseService.listUsernamesByPublicKey.mockResolvedValueOnce(rows);
 
       const result = await service.listByPublicKey(
         'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',

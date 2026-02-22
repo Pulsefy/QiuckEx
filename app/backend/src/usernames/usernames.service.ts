@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 import { AppConfigService } from '../config';
 import {
   USERNAME_MIN_LENGTH,
@@ -13,9 +14,6 @@ import {
   UsernameErrorCode,
 } from './errors';
 
-const TABLE = 'usernames';
-const PG_UNIQUE_VIOLATION = '23505';
-
 export interface UsernameRow {
   id: string;
   username: string;
@@ -28,7 +26,7 @@ export class UsernamesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly config: AppConfigService,
-  ) {}
+  ) { }
 
   /**
    * Normalize username for storage (lowercase). Validation (length, pattern) is done by DTO.
@@ -58,10 +56,6 @@ export class UsernamesService {
     }
   }
 
-  /**
-   * Create a username. Enforces uniqueness (with race-condition safety via DB constraint)
-   * and optional per-wallet limit.
-   */
   async create(username: string, publicKey: string): Promise<{ ok: true }> {
     const normalized = this.normalizeUsername(username);
     this.validateFormat(username);
@@ -74,14 +68,10 @@ export class UsernamesService {
       }
     }
 
-    const client = this.supabase.getClient();
-    const { error } = await client.from(TABLE).insert({
-      username: normalized,
-      public_key: publicKey,
-    });
-
-    if (error) {
-      if (error.code === PG_UNIQUE_VIOLATION) {
+    try {
+      await this.supabase.insertUsername(normalized, publicKey);
+    } catch (error) {
+      if (error instanceof SupabaseUniqueConstraintError) {
         throw new UsernameConflictError(normalized);
       }
       throw error;
@@ -94,28 +84,13 @@ export class UsernamesService {
    * Count usernames registered for a wallet (for limit enforcement).
    */
   async countByPublicKey(publicKey: string): Promise<number> {
-    const client = this.supabase.getClient();
-    const { count, error } = await client
-      .from(TABLE)
-      .select('*', { count: 'exact', head: true })
-      .eq('public_key', publicKey);
-
-    if (error) throw error;
-    return count ?? 0;
+    return this.supabase.countUsernamesByPublicKey(publicKey);
   }
 
   /**
    * List usernames for a wallet.
    */
   async listByPublicKey(publicKey: string): Promise<UsernameRow[]> {
-    const client = this.supabase.getClient();
-    const { data, error } = await client
-      .from(TABLE)
-      .select('id, username, public_key, created_at')
-      .eq('public_key', publicKey)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return (data as UsernameRow[]) ?? [];
+    return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<UsernameRow[]>;
   }
 }

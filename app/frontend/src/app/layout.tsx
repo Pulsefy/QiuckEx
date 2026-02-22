@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { NetworkBadge } from "@/components/NetworkBadge";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-white`}>
+         
         
         <header className="border-b border-white/5 bg-neutral-950/60 backdrop-blur-xl sticky top-0 z-50">
           <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
@@ -23,8 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Q
               </div>
               <span className="text-xl font-bold tracking-tight">QuickEx</span>
+            
             </Link>
-
+  <NetworkBadge />
             <div className="hidden md:flex gap-8 text-sm text-neutral-400 font-medium">
               <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
               <Link href="/generator" className="hover:text-white transition">Generator</Link>
