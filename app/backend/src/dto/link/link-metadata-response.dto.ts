@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Response DTO for link metadata
@@ -64,14 +64,39 @@ export class LinkMetadataResponseDto {
   })
   canonical!: string;
 
+  @ApiPropertyOptional({
+    description: 'Username associated with the payment link',
+    example: 'john_doe123',
+    nullable: true,
+  })
+  username?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Destination Stellar account public key',
+    example: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890',
+    nullable: true,
+  })
+  destination?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Custom reference ID for tracking',
+    example: 'INV-12345',
+    nullable: true,
+  })
+  referenceId?: string | null;
+
   @ApiProperty({
     description: 'Metadata information',
     example: {
       normalized: false,
+      assetType: 'native',
+      linkType: 'standard',
+      securityLevel: 'medium',
     },
   })
   metadata!: {
     normalized: boolean;
     warnings?: string[];
+    [key: string]: unknown;
   };
 }

@@ -35,6 +35,11 @@ export default function Generator() {
     return newErrors;
   };
 
+  const linkData =
+  form.amount && form.asset && form.destination
+    ? JSON.stringify(form)
+    : "";
+
   const handleSubmit = () => {
       callApi(() => mockFetch({ link: "https://quickex/pay/123" }));
     const validation = validate();
@@ -180,7 +185,7 @@ export default function Generator() {
           <div className="space-y-12">
 
             <div className="w-full max-w-sm mx-auto">
-              <QRPreview />
+              <QRPreview value={linkData} />
             </div>
 
             {/* Share Panel */}

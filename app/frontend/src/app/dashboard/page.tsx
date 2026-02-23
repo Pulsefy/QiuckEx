@@ -19,7 +19,7 @@ export default function Dashboard() {
         items: [],
       })
     );
-  }, []);
+  }, [callApi]);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;

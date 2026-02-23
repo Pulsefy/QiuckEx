@@ -35,6 +35,19 @@ export const envSchema = Joi.object({
     .min(0)
     .optional()
     .description('Max usernames per wallet (optional; omit for no limit)'),
+
+  // Cache configuration for transactions
+  CACHE_MAX_ITEMS: Joi.number()
+    .integer()
+    .min(1)
+    .default(500)
+    .description('Maximum number of items to cache for transactions'),
+  
+  CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description('Cache TTL in milliseconds for transaction responses'),
 });
 
 /**
@@ -47,4 +60,6 @@ export interface EnvConfig {
   SUPABASE_ANON_KEY: string;
   NODE_ENV: 'development' | 'production' | 'test';
   MAX_USERNAMES_PER_WALLET?: number;
+  CACHE_MAX_ITEMS: number;
+  CACHE_TTL_MS: number;
 }
