@@ -4,7 +4,13 @@ import HomeScreen from '../app/index';
 
 describe('<HomeScreen />', () => {
     it('renders correctly', () => {
-        const tree = render.create(<HomeScreen />).toJSON();
-        expect(tree).toBeDefined();
+        let tree: ReturnType<typeof render.create>;
+        render.act(() => {
+            tree = render.create(<HomeScreen />);
+        });
+
+        // @ts-expect-error tree is assigned inside act
+        const json = tree.toJSON();
+        expect(json).toBeDefined();
     });
 });
