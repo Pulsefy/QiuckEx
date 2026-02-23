@@ -97,6 +97,6 @@ export class LinkMetadataResponseDto {
   metadata!: {
     normalized: boolean;
     warnings?: string[];
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }

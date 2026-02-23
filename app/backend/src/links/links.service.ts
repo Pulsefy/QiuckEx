@@ -280,8 +280,8 @@ export class LinksService {
     return trimmed;
   }
   
-  private deriveAdditionalMetadata(request: LinkMetadataRequestDto, asset: string): Record<string, any> {
-    const metadata: Record<string, any> = {};
+  private deriveAdditionalMetadata(request: LinkMetadataRequestDto, asset: string): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {};
     
     // Asset-specific metadata
     if (asset === 'XLM') {
@@ -290,7 +290,7 @@ export class LinksService {
     } else {
       metadata.assetType = 'credit_alphanum4';
       // In a real implementation, you'd fetch the actual issuer
-      metadata.assetIssuer = this.getAssetIssuer(asset);
+        metadata.assetIssuer = this.getAssetIssuer(asset);
     }
     
     // Link type classification
@@ -304,7 +304,7 @@ export class LinksService {
     
     // Expiration metadata
     if (request.expirationDays) {
-      metadata.expiresInDays = request.expirationDays;
+        metadata.expiresInDays = request.expirationDays;
       metadata.isExpiring = true;
     } else {
       metadata.isExpiring = false;

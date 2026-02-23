@@ -111,7 +111,7 @@ describe('HorizonService - Advanced Features', () => {
             const entry = cache.get(cacheKey);
             if (entry) {
                 // Force expiration by setting created time to past
-                (cache as any).set(cacheKey, entry, { ttl: 1 }); // 1ms TTL
+                (cache as unknown as { set(key: string, value: unknown, options?: { ttl: number }): void }).set(cacheKey, entry, { ttl: 1 }); // 1ms TTL
             }
             
             // Wait a bit to ensure expiration
@@ -167,7 +167,7 @@ describe('HorizonService - Advanced Features', () => {
             const error429 = { response: { status: 429 } };
             mockServer.call.mockRejectedValue(error429);
 
-            // First failure - should create backoff entry
+            // First failure - should create backoff entryyy
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
                     'Horizon service rate limit exceeded. Please try again later.',
