@@ -31,6 +31,8 @@ describe('HorizonService', () => {
                     provide: AppConfigService,
                     useValue: {
                         network: 'testnet',
+                        cacheMaxItems: 500,
+                        cacheTtlMs: 60000,
                     },
                 },
             ],
@@ -93,6 +95,9 @@ describe('HorizonService', () => {
         });
 
         it('should handle 429 rate limit error', async () => {
+            // Clear cache to ensure clean state
+            service.clearCache();
+            
             const error = {
                 response: {
                     status: 429,
@@ -100,13 +105,30 @@ describe('HorizonService', () => {
             };
             mockServer.call.mockRejectedValue(error);
 
+            // First call should fail with rate limit error and create backoff entry
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
                     'Horizon service rate limit exceeded. Please try again later.',
                     HttpStatus.SERVICE_UNAVAILABLE,
                 ),
             );
-        });
+
+            // Second call should be blocked by backoff with timing information
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(HttpException);
+            
+            // Extract the error to check specific properties
+            let thrownError;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (error) {
+                thrownError = error;
+            }
+            
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            expect(thrownError.message).toContain('Service temporarily unavailable due to rate limiting');
+            expect(thrownError.status).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+        }, 10000); // Increase timeout for backoff
 
         it('should filter by asset if provided', async () => {
             const complexRecords = [
