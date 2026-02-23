@@ -568,6 +568,57 @@ fn test_event_snapshot_escrow_deposited_schema() {
 }
 
 #[test]
+fn test_event_snapshot_escrow_withdrawn_schema() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_withdraw_salt");
+
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&client.address, &amount);
+
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+}
+
+#[test]
+fn test_event_snapshot_escrow_refunded_schema() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_refund_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let timeout = 100;
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + timeout);
+
+    client.refund(&commitment, &owner);
+}
+
+#[test]
+fn test_event_snapshot_contract_paused_schema() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.set_paused(&admin, &true);
+}
+
+#[test]
 fn test_initialize_admin() {
     let (env, client) = setup();
     let admin = Address::generate(&env);

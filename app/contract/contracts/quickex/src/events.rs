@@ -17,8 +17,10 @@ pub struct EscrowWithdrawnEvent {
     pub commitment: BytesN<32>,
 
     #[topic]
-    pub to: Address,
+    pub owner: Address,
 
+    pub token: Address,
+    pub amount: i128,
     pub timestamp: u64,
 }
 
@@ -28,8 +30,13 @@ pub struct EscrowDepositedEvent {
     #[topic]
     pub commitment: BytesN<32>,
 
+    #[topic]
+    pub owner: Address,
+
     pub token: Address,
     pub amount: i128,
+    pub expires_at: u64,
+    pub timestamp: u64,
 }
 
 pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool, timestamp: u64) {
@@ -116,10 +123,18 @@ pub(crate) fn publish_contract_upgraded(
     .publish(env);
 }
 
-pub(crate) fn publish_escrow_withdrawn(env: &Env, to: Address, commitment: BytesN<32>) {
+pub(crate) fn publish_escrow_withdrawn(
+    env: &Env,
+    commitment: BytesN<32>,
+    owner: Address,
+    token: Address,
+    amount: i128,
+) {
     EscrowWithdrawnEvent {
         commitment,
-        to,
+        owner,
+        token,
+        amount,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -128,13 +143,18 @@ pub(crate) fn publish_escrow_withdrawn(env: &Env, to: Address, commitment: Bytes
 pub(crate) fn publish_escrow_deposited(
     env: &Env,
     commitment: BytesN<32>,
+    owner: Address,
     token: Address,
     amount: i128,
+    expires_at: u64,
 ) {
     EscrowDepositedEvent {
         commitment,
+        owner,
         token,
         amount,
+        expires_at,
+        timestamp: env.ledger().timestamp(),
     }
     .publish(env);
 }
@@ -148,6 +168,7 @@ pub struct EscrowRefundedEvent {
     #[topic]
     pub commitment: BytesN<32>,
 
+    pub token: Address,
     pub amount: i128,
     pub timestamp: u64,
 }
@@ -156,11 +177,13 @@ pub(crate) fn publish_escrow_refunded(
     env: &Env,
     owner: Address,
     commitment: BytesN<32>,
+    token: Address,
     amount: i128,
 ) {
     EscrowRefundedEvent {
         owner,
         commitment,
+        token,
         amount,
         timestamp: env.ledger().timestamp(),
     }
