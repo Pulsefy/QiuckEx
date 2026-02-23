@@ -95,6 +95,9 @@ describe('HorizonService', () => {
         });
 
         it('should handle 429 rate limit error', async () => {
+            // Clear cache to ensure clean state
+            service.clearCache();
+
             const error = {
                 response: {
                     status: 429,
@@ -102,7 +105,7 @@ describe('HorizonService', () => {
             };
             mockServer.call.mockRejectedValue(error);
 
-            // First call should fail with rate limit error
+            // First call should fail with rate limit error and create backoff entry
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
                     'Horizon service rate limit exceeded. Please try again later.',
@@ -110,13 +113,21 @@ describe('HorizonService', () => {
                 ),
             );
 
-            // Second call should be blocked by backoff
-            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
-                new HttpException(
-                    expect.stringContaining('Service temporarily unavailable'),
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                ),
-            );
+            // Second call should be blocked by backoff with timing information
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(HttpException);
+
+            // Extract the error to check specific properties
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
+
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            expect(thrownError!.message).toContain('Service temporarily unavailable due to rate limiting');
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
         }, 10000); // Increase timeout for backoff
 
         it('should filter by asset if provided', async () => {

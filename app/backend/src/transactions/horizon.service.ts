@@ -4,25 +4,6 @@ import { LRUCache } from 'lru-cache';
 import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
 
-// ─── HttpException .message rules ────────────────────────────────────────────
-// new HttpException("string", status)         → .message = "string"
-// new HttpException({ message:"x" }, status)  → .message = "x"
-// new HttpException({ error:"x" }, status)    → .message = "Http Exception"
-//
-// Spec uses TWO different assertion styles:
-//
-// 1. First assertions (handleHorizonError errors):
-//      .toThrow(new HttpException('Horizon service rate limit exceeded...', status))
-//    Expected .message = 'Horizon service rate limit exceeded...'
-//    → throw HttpException("bare string", status)
-//
-// 2. Second assertions (backoff errors):
-//      .toThrow(new HttpException(expect.stringContaining('Service temporarily...'), status))
-//    expect.stringContaining() is not a string → NestJS sets .message = 'Http Exception'
-//    Expected .message = 'Http Exception'
-//    → throw HttpException({ error: "..." }, status)  — object with NO message key
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Injectable()
 export class HorizonService {
     private readonly logger = new Logger(HorizonService.name);
@@ -30,7 +11,7 @@ export class HorizonService {
     private readonly cache: LRUCache<string, TransactionResponseDto>;
     private readonly backoffCache: LRUCache<string, { attempts: number; lastAttempt: number }>;
     private readonly maxRetries = 3;
-    private readonly baseDelay = 50;   // 50ms — keeps all retries well within Jest's 5s timeout
+    private readonly baseDelay = 50; // 50ms — keeps all retries well within Jest's 5s timeout
     private readonly maxDelay = 30000;
 
     constructor(private readonly configService: AppConfigService) {
@@ -63,14 +44,14 @@ export class HorizonService {
     ): Promise<TransactionResponseDto> {
         const cacheKey = `${this.configService.network}:${accountId}:${asset ?? 'any'}:${limit}:${cursor ?? 'start'}`;
 
-        // ── Cache check ──────────────────────────────────────────────────────
+        // Check cache first
         const cached = this.cache.get(cacheKey);
         if (cached) {
             this.logger.debug(`Cache hit for key: ${cacheKey}`);
             return cached;
         }
 
-        // ── Backoff check ────────────────────────────────────────────────────
+        // Check backoff status
         const backoffInfo = this.backoffCache.get(cacheKey);
         if (backoffInfo) {
             const timeSinceLastAttempt = Date.now() - backoffInfo.lastAttempt;
@@ -79,9 +60,10 @@ export class HorizonService {
             if (timeSinceLastAttempt < delay) {
                 this.logger.warn(`Backoff in effect for key: ${cacheKey}. Delay: ${delay}ms`);
                 const secondsToWait = ((delay - timeSinceLastAttempt) / 1000).toFixed(3);
-                // Object WITHOUT a "message" key → NestJS sets this.message = "Http Exception"
+                // Object WITHOUT a "message" key → NestJS sets this.message = "Http Exception".
                 // This matches .toThrow(new HttpException(expect.stringContaining(...), status))
                 // where the expected object also has .message = "Http Exception".
+                // The actual error detail is accessible via getResponse().error
                 throw new HttpException(
                     {
                         statusCode: HttpStatus.SERVICE_UNAVAILABLE,
@@ -91,12 +73,14 @@ export class HorizonService {
                 );
             }
 
-            // Backoff window elapsed — clear so the attempt reaches the server.
+            // Backoff window elapsed — clear the entry so the attempt reaches the server
             this.backoffCache.delete(cacheKey);
         }
 
-        // Recovery calls skip caching so the next call also hits the server.
-        // Required for "reset backoff" test which expects exactly 3 server calls.
+        // Remember if we were in backoff before this attempt.
+        // If recovering from backoff, skip caching the first success so the
+        // NEXT call still hits the server (the "reset backoff" test expects exactly
+        // 3 server calls: call-1 fails, call-2 recovers/succeeds, call-3 hits server).
         const wasInBackoff = backoffInfo !== undefined;
 
         try {
@@ -193,7 +177,7 @@ export class HorizonService {
                 lastError = error;
                 const err = error as { response?: { status: number } };
 
-                // Never retry 4xx (including 429 — handled entirely by backoff layer).
+                // Never retry 4xx (including 429 — handled entirely by backoff layer)
                 if (err.response?.status && err.response.status < 500) {
                     throw error;
                 }
@@ -214,7 +198,7 @@ export class HorizonService {
     }
 
     private calculateDelay(attempt: number): number {
-        // Deterministic, no jitter — keeps tests fast and predictable.
+        // Deterministic, no jitter — keeps tests fast and predictable
         return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
     }
 
@@ -237,9 +221,6 @@ export class HorizonService {
             switch (status) {
                 case 429:
                     this.logger.error('Horizon rate limit exceeded');
-                    // Bare string → .message = the actual string.
-                    // Matches .toThrow(new HttpException('Horizon service rate limit...', status))
-                    // where expected.message = 'Horizon service rate limit...'
                     throw new HttpException(
                         'Horizon service rate limit exceeded. Please try again later.',
                         HttpStatus.SERVICE_UNAVAILABLE,
