@@ -15,6 +15,9 @@ import { TransactionsModule } from "./transactions/transactions.module";
 import { MetricsMiddleware } from "./metrics/metrics.middleware";
 import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 
+
+import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+
 @Module({
   imports: [
     AppConfigModule,
@@ -46,6 +49,9 @@ import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(MetricsMiddleware).forRoutes("*");
+    
+    consumer
+      .apply(MetricsMiddleware, CorrelationIdMiddleware)
+      .forRoutes("*");
   }
 }
