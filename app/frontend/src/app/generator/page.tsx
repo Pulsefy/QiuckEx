@@ -9,6 +9,8 @@ import { useApi } from "@/hooks/useApi";
 
 export default function Generator() {
 const { data, error, loading, callApi } = useApi();
+
+
   
   const [form, setForm] = useState({
     amount: "",
@@ -32,6 +34,11 @@ const { data, error, loading, callApi } = useApi();
 
     return newErrors;
   };
+
+  const linkData =
+  form.amount && form.asset && form.destination
+    ? JSON.stringify(form)
+    : "";
 
   const handleSubmit = () => {
       callApi(() => mockFetch({ link: "https://quickex/pay/123" }));
@@ -178,7 +185,7 @@ const { data, error, loading, callApi } = useApi();
           <div className="space-y-12">
 
             <div className="w-full max-w-sm mx-auto">
-              <QRPreview />
+              <QRPreview value={linkData} />
             </div>
 
             {/* Share Panel */}

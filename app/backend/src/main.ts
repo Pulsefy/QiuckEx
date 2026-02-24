@@ -2,9 +2,15 @@ import "reflect-metadata";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
-import { NestFactory } from "@nestjs/core";
+import { NestFactory } from "@nestjs/core"; //installed
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
+
+
+import { WinstonModule } from "nest-winston";
+import { winstonConfig } from "./common/logging/winston.config";
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+// ----------------------------------------
 
 import { AppModule } from "./app.module";
 import { AppConfigService } from "./config";
@@ -12,25 +18,26 @@ import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exceptio
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 
 async function bootstrap() {
+  
   const logger = new Logger("Bootstrap");
 
   const app = await NestFactory.create(AppModule, {
-    logger: ["log", "error", "warn", "debug", "verbose"],
+    
+    logger: WinstonModule.createLogger(winstonConfig),
   });
 
   const configService = app.get(AppConfigService);
 
-  // Define allowed origins for CORS
+  
   const allowedOrigins = [
     "http://localhost:3000",
-    "https://app.quickex.example.com", // Placeholder for production domain
+    "https://app.quickex.example.com", 
   ];
 
   // Use Helmet for security headers
   app.use(helmet());
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) {
         return callback(null, true);
       }
@@ -43,10 +50,10 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-correlation-id"], 
   });
 
-  // Global validation pipe with strict options
+  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -54,7 +61,6 @@ async function bootstrap() {
       transform: true,
       exceptionFactory: (errors) => {
         const mapped = mapValidationErrors(errors);
-
         return new BadRequestException({
           code: "VALIDATION_ERROR",
           message: mapped.message,
@@ -64,13 +70,13 @@ async function bootstrap() {
     }),
   );
 
-  /**
-   * Global exception filter
-   * Ensures consistent format
-   */
+  
+  app.useGlobalInterceptors(new LoggingInterceptor());
+  
+
   app.useGlobalFilters(new GlobalHttpExceptionFilter(configService));
 
-  // Swagger/OpenAPI documentation setup
+  // Swagger setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle("QuickEx Backend")
     .setDescription(
@@ -98,8 +104,6 @@ async function bootstrap() {
 
   logger.log(`Backend listening on http://localhost:${port}`);
   logger.log(`Swagger docs available at http://localhost:${port}/docs`);
-  logger.log(`Network: ${configService.network}`);
-  logger.log(`Allowed origins: ${allowedOrigins.join(", ")}`);
 }
 
 void bootstrap();

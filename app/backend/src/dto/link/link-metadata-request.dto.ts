@@ -5,6 +5,9 @@ import {
   IsOptional,
   Min,
   Max,
+  Matches,
+  Validate,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -14,6 +17,8 @@ import {
   STELLAR_MEMO,
   STELLAR_AMOUNT,
   MemoType,
+  IsStellarAsset,
+  STELLAR_ASSETS,
 } from '../validators';
 
 /**
@@ -68,14 +73,15 @@ export class LinkMetadataRequestDto {
   memoType?: MemoType;
 
   @ApiPropertyOptional({
-    description: 'Asset code',
+    description: 'Asset code (must be whitelisted: XLM, USDC, AQUA, yXLM)',
     example: 'XLM',
     enum: ['XLM', 'USDC', 'AQUA', 'yXLM'],
   })
   @IsOptional()
   @IsString()
-  // Note: Asset whitelist validation happens in service (business logic)
-  // DTO validation only checks it's a string
+  @Validate(IsStellarAsset, {
+    message: `Asset must be one of: ${STELLAR_ASSETS.join(', ')}`,
+  })
   asset?: string;
 
   @ApiPropertyOptional({
@@ -88,7 +94,7 @@ export class LinkMetadataRequestDto {
   privacy?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Expiration in days',
+    description: 'Expiration in days (1-365)',
     example: 30,
     minimum: 1,
     maximum: 365,
@@ -99,4 +105,40 @@ export class LinkMetadataRequestDto {
   @Max(365)
   @Type(() => Number)
   expirationDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'Username for the payment link (must follow username pattern)',
+    example: 'john_doe123',
+    pattern: '^[a-z0-9][a-z0-9_-]{2,30}[a-z0-9]$|^[a-z0-9]{1,32}$',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9][a-z0-9_-]{2,30}[a-z0-9]$|^[a-z0-9]{1,32}$/, {
+    message: 'Username must be 1-32 lowercase alphanumeric characters, may include hyphens and underscores, but cannot start or end with special characters',
+  })
+  username?: string;
+
+  @ApiPropertyOptional({
+    description: 'Destination Stellar account public key',
+    example: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890',
+  })
+  @IsOptional()
+  @IsString()
+  @ValidateIf((object: LinkMetadataRequestDto) => object.destination !== undefined)
+  @Matches(/^G[ABCDEFGHIJKLMNOPQRSTUVWXYZ234567]{55}$/, {
+    message: 'Destination must be a valid Stellar public key (starts with G, 56 characters)',
+  })
+  destination?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom reference ID for tracking',
+    example: 'INV-12345',
+    maxLength: 64,
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-zA-Z0-9_-]{1,64}$/, {
+    message: 'Reference ID must be 1-64 alphanumeric characters, hyphens, or underscores',
+  })
+  referenceId?: string;
 }

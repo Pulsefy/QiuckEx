@@ -1,43 +1,55 @@
+// Mock stellar-sdk BEFORE importing HorizonService
+jest.mock('stellar-sdk', () => {
+    const mockServer = {
+        operations: jest.fn().mockReturnThis(),
+        forAccount: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        cursor: jest.fn().mockReturnThis(),
+        call: jest.fn(),
+    };
+    
+    return {
+        Horizon: {
+            Server: jest.fn(() => mockServer),
+        },
+    };
+});
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { HorizonService } from './horizon.service';
 import { AppConfigService } from '../config/app-config.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
-
-// Mock stellar-sdk
-jest.mock('stellar-sdk', () => {
-    return {
-        Horizon: {
-            Server: jest.fn().mockImplementation(() => ({
-                operations: jest.fn().mockReturnThis(),
-                forAccount: jest.fn().mockReturnThis(),
-                order: jest.fn().mockReturnThis(),
-                limit: jest.fn().mockReturnThis(),
-                cursor: jest.fn().mockReturnThis(),
-                call: jest.fn(),
-            })),
-        },
-    };
-});
 
 describe('HorizonService', () => {
     let service: HorizonService;
     let mockServer: Record<string, jest.Mock>;
 
     beforeEach(async () => {
+        const mockAppConfigService = {
+            network: 'testnet',
+            cacheMaxItems: 500,
+            cacheTtlMs: 60000,
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 HorizonService,
                 {
                     provide: AppConfigService,
-                    useValue: {
-                        network: 'testnet',
-                    },
+                    useValue: mockAppConfigService,
                 },
             ],
         }).compile();
 
         service = module.get<HorizonService>(HorizonService);
-        mockServer = service['server'] as unknown as typeof mockServer;
+        
+        // Get the actual mock server instance that was created
+        mockServer = service['server'] as unknown as Record<string, jest.Mock>;
+        
+        // Clear cache and reset mocks between tests
+        service.clearCache();
+        jest.clearAllMocks();
     });
 
     it('should be defined', () => {
@@ -93,6 +105,9 @@ describe('HorizonService', () => {
         });
 
         it('should handle 429 rate limit error', async () => {
+            // Clear cache to ensure clean state
+            service.clearCache();
+
             const error = {
                 response: {
                     status: 429,
@@ -100,13 +115,34 @@ describe('HorizonService', () => {
             };
             mockServer.call.mockRejectedValue(error);
 
+            // First call should fail with rate limit error and create backoff entry
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException(
                     'Horizon service rate limit exceeded. Please try again later.',
                     HttpStatus.SERVICE_UNAVAILABLE,
                 ),
             );
-        });
+
+            // Second call should be blocked by backoff with timing information
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(HttpException);
+
+            // Extract the error to check specific properties
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
+
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            // Check the response body for the expected message instead of the exception message
+            const response = thrownError!.getResponse();
+            const responseWithError = (typeof response === 'object' && response !== null) ?
+                             (response as Record<string,unknown>).error : response;
+            expect(responseWithError).toContain('Service temporarily unavailable due to rate limiting');
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+        }, 10000); // Increase timeout for backoff
 
         it('should filter by asset if provided', async () => {
             const complexRecords = [

@@ -20,7 +20,12 @@ export default function HomeScreen() {
                     </Text>
                 </View>
 
-                {/* Connect Wallet */}
+                <Link href="/scan-to-pay" asChild>
+                    <TouchableOpacity style={styles.primaryButton}>
+                        <Text style={styles.primaryButtonText}>Scan to Pay</Text>
+                    </TouchableOpacity>
+                </Link>
+
                 <Link href="/wallet-connect" asChild>
                     <TouchableOpacity style={styles.primaryButton}>
                         <Text style={styles.primaryButtonText}>Connect Wallet</Text>
@@ -106,7 +111,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
-
     /* Quick Receive Button */
     quickReceiveButton: {
         backgroundColor: '#10B981',
