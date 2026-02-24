@@ -6,13 +6,13 @@ import {
 import { Test } from "@nestjs/testing";
 import * as request from "supertest";
 
-import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
-import { AppConfigService } from "./config";
+import { GlobalHttpExceptionFilter } from "../src/common/filters/global-http-exception.filter";
+import { AppConfigService } from "../src/config";
 
-import { AppModule } from "./app.module";
-import { UsernamesService } from "./usernames/usernames.service";
-import { HealthService } from "./health/health.service";
-import { mapValidationErrors } from "./common/utils/validation-error.mapper";
+import { AppModule } from "../src/app.module";
+import { UsernamesService } from "../src/usernames/usernames.service";
+import { HealthService } from "../src/health/health.service";
+import { mapValidationErrors } from "../src/common/utils/validation-error.mapper";
 
 describe("App endpoints", () => {
   let app: INestApplication;
@@ -37,8 +37,18 @@ describe("App endpoints", () => {
         getReadinessStatus: jest.fn().mockResolvedValue({
           ready: true,
           checks: [
-            { name: "supabase", status: "up", latency: "10ms", details: undefined },
-            { name: "environment", status: "up", details: ["All critical env variables loaded"], latency: undefined },
+            {
+              name: "supabase",
+              status: "up",
+              latency: "10ms",
+              details: undefined,
+            },
+            {
+              name: "environment",
+              status: "up",
+              details: ["All critical env variables loaded"],
+              latency: undefined,
+            },
           ],
         }),
       })
@@ -82,14 +92,11 @@ describe("App endpoints", () => {
   // -----------------------------
 
   it("GET /health returns ok", async () => {
-    await request(app.getHttpServer())
-      .get("/health")
-      .expect(200)
-      .expect({
-        status: "ok",
-        version: "0.1.0",
-        uptime: 100,
-      });
+    await request(app.getHttpServer()).get("/health").expect(200).expect({
+      status: "ok",
+      version: "0.1.0",
+      uptime: 100,
+    });
   });
 
   it("GET /ready returns ok when healthy", async () => {
@@ -100,7 +107,11 @@ describe("App endpoints", () => {
         ready: true,
         checks: [
           { name: "supabase", status: "up", latency: "10ms" },
-          { name: "environment", status: "up", details: ["All critical env variables loaded"] },
+          {
+            name: "environment",
+            status: "up",
+            details: ["All critical env variables loaded"],
+          },
         ],
       });
   });
@@ -109,8 +120,18 @@ describe("App endpoints", () => {
     healthService.getReadinessStatus.mockResolvedValueOnce({
       ready: false,
       checks: [
-        { name: "supabase", status: "down", latency: undefined, details: undefined },
-        { name: "environment", status: "up", details: ["All critical env variables loaded"], latency: undefined },
+        {
+          name: "supabase",
+          status: "down",
+          latency: undefined,
+          details: undefined,
+        },
+        {
+          name: "environment",
+          status: "up",
+          details: ["All critical env variables loaded"],
+          latency: undefined,
+        },
       ],
     });
 
@@ -121,7 +142,11 @@ describe("App endpoints", () => {
         ready: false,
         checks: [
           { name: "supabase", status: "down" },
-          { name: "environment", status: "up", details: ["All critical env variables loaded"] },
+          {
+            name: "environment",
+            status: "up",
+            details: ["All critical env variables loaded"],
+          },
         ],
       });
   });

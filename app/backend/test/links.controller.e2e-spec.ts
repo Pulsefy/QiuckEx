@@ -5,10 +5,10 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import * as request from "supertest";
-import { LinksModule } from "../links.module";
-import { mapValidationErrors } from "../../common/utils/validation-error.mapper";
-import { AppConfigService } from "../../config";
-import { GlobalHttpExceptionFilter } from "../../common/filters/global-http-exception.filter";
+import { LinksModule } from "../src/links/links.module";
+import { mapValidationErrors } from "../src/common/utils/validation-error.mapper";
+import { AppConfigService } from "../src/config";
+import { GlobalHttpExceptionFilter } from "../src/common/filters/global-http-exception.filter";
 
 describe("LinksController (e2e)", () => {
   let app: INestApplication;

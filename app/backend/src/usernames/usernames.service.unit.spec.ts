@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UsernamesService } from '../usernames.service';
-import { SupabaseService } from '../../supabase/supabase.service';
-import { AppConfigService } from '../../config';
+import { UsernamesService } from './usernames.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { AppConfigService } from '../config';
 import {
   UsernameConflictError,
   UsernameLimitExceededError,
   UsernameValidationError,
-} from '../errors';
-import { SupabaseUniqueConstraintError } from '../../supabase/supabase.errors';
+} from './errors';
+import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 
 describe('UsernamesService', () => {
   let service: UsernamesService;
