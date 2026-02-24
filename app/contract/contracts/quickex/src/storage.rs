@@ -130,24 +130,28 @@ pub fn increment_escrow_counter(env: &Env) -> u64 {
 // -----------------------------------------------------------------------------
 
 /// Set admin address.
+#[allow(dead_code)]
 pub fn set_admin(env: &Env, admin: &Address) {
     let key = DataKey::Admin;
     env.storage().persistent().set(&key, admin);
 }
 
 /// Get admin address.
+#[allow(dead_code)]
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
 }
 
 /// Set paused state.
+#[allow(dead_code)]
 pub fn set_paused(env: &Env, paused: bool) {
     let key = DataKey::Paused;
     env.storage().persistent().set(&key, &paused);
 }
 
 /// Get paused state.
+#[allow(dead_code)]
 pub fn is_paused(env: &Env) -> bool {
     let key = DataKey::Paused;
     env.storage().persistent().get(&key).unwrap_or(false)

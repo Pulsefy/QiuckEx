@@ -7,10 +7,10 @@ import { NetworkBadge } from "@/components/NetworkBadge";
 import { mockFetch } from "@/hooks/mockApi";
 import { useApi } from "@/hooks/useApi";
 
+type ValidationErrors = Partial<Record<"amount" | "asset" | "destination", string>>;
+
 export default function Generator() {
-const { data, error, loading, callApi } = useApi();
-
-
+  const { error, loading, callApi } = useApi<{ link: string }>();
   
   const [form, setForm] = useState({
     amount: "",
@@ -19,11 +19,11 @@ const { data, error, loading, callApi } = useApi();
     memo: "",
   });
 
-  const [errors, setErrors] = useState<any>({});
+  const [errors, setErrors] = useState<ValidationErrors>({});
 
   // Validation logic
   const validate = () => {
-    const newErrors: any = {};
+    const newErrors: ValidationErrors = {};
 
     if (!form.amount) newErrors.amount = "Amount is required.";
     else if (isNaN(Number(form.amount))) newErrors.amount = "Enter a valid number.";

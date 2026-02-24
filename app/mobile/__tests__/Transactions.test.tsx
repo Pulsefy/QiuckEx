@@ -90,7 +90,7 @@ describe('<TransactionsScreen />', () => {
         // @ts-expect-error tree is assigned inside act
         const texts = collectText(tree.toJSON());
         expect(texts).toContain('Network request failed.');
-        expect(texts).toContain('Retry');
+        expect(texts).toContain('Try Again');
     });
 
     it('renders formatted transaction amounts when data is available', () => {

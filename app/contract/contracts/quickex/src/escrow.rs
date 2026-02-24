@@ -85,7 +85,7 @@ pub fn deposit(
     let token_client = token::Client::new(env, &token);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
 
-    events::publish_deposit(env, commitment.clone(), token, amount);
+    events::publish_escrow_deposited(env, commitment.clone(), owner, token, amount, expires_at);
 
     Ok(commitment)
 }
@@ -140,7 +140,7 @@ pub fn deposit_with_commitment(
     };
 
     put_escrow(env, &commitment.clone().into(), &entry);
-    events::publish_deposit(env, commitment, token, amount);
+    events::publish_escrow_deposited(env, commitment, from, token, amount, expires_at);
 
     Ok(())
 }
@@ -193,7 +193,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     let token_client = token::Client::new(env, &entry.token);
     token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-    events::publish_withdraw_toggled(env, to, commitment);
+    events::publish_escrow_withdrawn(env, commitment, to, entry.token, amount);
 
     Ok(true)
 }
@@ -239,7 +239,7 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let token_client = token::Client::new(env, &entry.token);
     token_client.transfer(&env.current_contract_address(), &entry.owner, &entry.amount);
 
-    events::publish_refunded(env, entry.owner, commitment, entry.amount);
+    events::publish_escrow_refunded(env, entry.owner, commitment, entry.token, entry.amount);
 
     Ok(())
 }

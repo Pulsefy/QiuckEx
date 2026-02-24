@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 
 export function QRPreview({ value }: { value?: string }) {
   const isValid = Boolean(value);
-
   return (
     <div className="relative group">
       <div className="absolute -inset-10 bg-indigo-500/10 blur-[60px] rounded-full opacity-50 group-hover:opacity-80 transition-opacity" />

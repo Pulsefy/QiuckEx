@@ -59,8 +59,7 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
     let old_admin = storage::get_admin(env).unwrap();
     storage::set_admin(env, &new_admin);
 
-    let timestamp = env.ledger().timestamp();
-    publish_admin_changed(env, old_admin, new_admin, timestamp);
+    publish_admin_changed(env, old_admin, new_admin);
 
     Ok(())
 }
@@ -74,8 +73,7 @@ pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), Qui
 
     storage::set_paused(env, new_state);
 
-    let timestamp = env.ledger().timestamp();
-    publish_contract_paused(env, new_state, timestamp);
+    publish_contract_paused(env, caller, new_state);
 
     Ok(())
 }
