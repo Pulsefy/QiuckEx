@@ -468,8 +468,7 @@ impl QuickexContract {
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
 
-        let timestamp = env.ledger().timestamp();
-        events::publish_contract_upgraded(&env, new_wasm_hash, &admin, timestamp);
+        events::publish_contract_upgraded(&env, new_wasm_hash, &admin);
 
         Ok(())
     }

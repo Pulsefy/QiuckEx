@@ -24,8 +24,7 @@ pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), Quick
 
     env.storage().persistent().set(&storage_key, &enabled);
 
-    let timestamp = env.ledger().timestamp();
-    publish_privacy_toggled(env, owner, enabled, timestamp);
+    publish_privacy_toggled(env, owner, enabled);
     Ok(())
 }
 
