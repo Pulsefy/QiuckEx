@@ -1,49 +1,55 @@
+// Mock stellar-sdk BEFORE importing HorizonService
+jest.mock('stellar-sdk', () => {
+    const mockServer = {
+        operations: jest.fn().mockReturnThis(),
+        forAccount: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        cursor: jest.fn().mockReturnThis(),
+        call: jest.fn(),
+    };
+    
+    return {
+        Horizon: {
+            Server: jest.fn(() => mockServer),
+        },
+    };
+});
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { HorizonService } from './horizon.service';
 import { AppConfigService } from '../config/app-config.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
-
-
-// Mock stellar-sdk
-jest.mock('stellar-sdk', () => {
-    return {
-        Horizon: {
-            Server: jest.fn().mockImplementation(() => ({
-                operations: jest.fn().mockReturnThis(),
-                forAccount: jest.fn().mockReturnThis(),
-                order: jest.fn().mockReturnThis(),
-                limit: jest.fn().mockReturnThis(),
-                cursor: jest.fn().mockReturnThis(),
-                call: jest.fn(),
-            })),
-        },
-    };
-});
 
 describe('HorizonService - Advanced Features', () => {
     let service: HorizonService;
     let mockServer: Record<string, jest.Mock>;
 
     beforeEach(async () => {
+        const mockAppConfigService = {
+            network: 'testnet',
+            cacheMaxItems: 100,
+            cacheTtlMs: 5000,
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 HorizonService,
                 {
                     provide: AppConfigService,
-                    useValue: {
-                        network: 'testnet',
-                        cacheMaxItems: 100,
-                        cacheTtlMs: 5000, // 5 seconds for testing
-                    },
+                    useValue: mockAppConfigService,
                 },
             ],
         }).compile();
 
         service = module.get<HorizonService>(HorizonService);
-        mockServer = service['server'] as unknown as typeof mockServer;
         
-        // Clear cache between tests
+        // Get the actual mock server instance that was created
+        mockServer = service['server'] as unknown as Record<string, jest.Mock>;
+
+        // Clear cache and reset mocks between tests
         service.clearCache();
+        jest.clearAllMocks();
     });
 
     it('should be defined', () => {
@@ -67,10 +73,12 @@ describe('HorizonService - Advanced Features', () => {
         it('should cache results and serve from cache on subsequent calls', async () => {
             mockServer.call.mockResolvedValue({ records: mockRecords });
 
+            // First call - should hit Horizon
             const result1 = await service.getPayments(mockAccountId);
             expect(mockServer.call).toHaveBeenCalledTimes(1);
             expect(result1.items).toHaveLength(1);
 
+            // Second call with same parameters - should be cached
             const result2 = await service.getPayments(mockAccountId);
             expect(mockServer.call).toHaveBeenCalledTimes(1); // No additional call
             expect(result2).toEqual(result1);
@@ -84,11 +92,12 @@ describe('HorizonService - Advanced Features', () => {
                 transaction_hash: 'hash2',
                 paging_token: 'token2',
             }];
-            
+
             mockServer.call
                 .mockResolvedValueOnce({ records: records1 })
                 .mockResolvedValueOnce({ records: records2 });
 
+            // Different limit parameters
             const result1 = await service.getPayments(mockAccountId, undefined, 10);
             const result2 = await service.getPayments(mockAccountId, undefined, 20);
 
@@ -100,18 +109,22 @@ describe('HorizonService - Advanced Features', () => {
         it('should respect cache TTL and fetch fresh data after expiration', async () => {
             mockServer.call.mockResolvedValue({ records: mockRecords });
 
+            // First call
             await service.getPayments(mockAccountId);
-            
+
+            // Manipulate cache to expire (simulate time passing)
             const cache = service['cache'];
             const cacheKey = `testnet:${mockAccountId}:any:20:start`;
             const entry = cache.get(cacheKey);
             if (entry) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (cache as any).set(cacheKey, entry, { ttl: 1 });
+                // Force expiration by setting created time to past
+                (cache as unknown as { set(key: string, value: unknown, options?: { ttl: number }): void }).set(cacheKey, entry, { ttl: 1 });
             }
-            
+
+            // Wait a bit to ensure expiration
             await new Promise(resolve => setTimeout(resolve, 10));
-            
+
+            // Second call should hit Horizon again
             await service.getPayments(mockAccountId);
             expect(mockServer.call).toHaveBeenCalledTimes(2);
         });
@@ -126,7 +139,7 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token1',
                 transaction: jest.fn().mockResolvedValue({ memo: 'native' }),
             }];
-            
+
             const usdcRecords = [{
                 type: 'payment',
                 amount: '20.0',
@@ -138,14 +151,18 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token2',
                 transaction: jest.fn().mockResolvedValue({ memo: 'usdc' }),
             }];
-            
+
             mockServer.call
                 .mockResolvedValueOnce({ records: nativeRecords })
                 .mockResolvedValueOnce({ records: usdcRecords });
 
+            // Cache native asset results
             await service.getPayments(mockAccountId, 'XLM');
+
+            // Cache USDC asset results
             await service.getPayments(mockAccountId, 'USDC:GUSDC');
-            
+
+            // Should make two separate calls
             expect(mockServer.call).toHaveBeenCalledTimes(2);
         });
     });
@@ -157,17 +174,32 @@ describe('HorizonService - Advanced Features', () => {
             const error429 = { response: { status: 429 } };
             mockServer.call.mockRejectedValue(error429);
 
-            // First call fails — sets backoff
+            // First failure - should create backoff entry
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 'Horizon service rate limit exceeded. Please try again later.',
             );
 
-            // Second call blocked by backoff — check message directly
-            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
-                'Service temporarily unavailable due to rate limiting',
-            );
+            // Second call should be blocked by backoff with specific message
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(HttpException);
+            
+            // Extract the error to check specific properties
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
 
-            // No additional Horizon calls during backoff
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            // Check the response body for the expected message instead of the exception message
+            const response = thrownError!.getResponse();
+            const responseWithError = (typeof response === 'object' && response !== null) ?
+                (response as Record<string, unknown>).error : response;
+            expect(responseWithError).toContain('Service temporarily unavailable due to rate limiting');
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+
+            // Should not make additional Horizon calls during backoff
             expect(mockServer.call).toHaveBeenCalledTimes(1);
         }, 10000);
 
@@ -175,15 +207,29 @@ describe('HorizonService - Advanced Features', () => {
             const error500 = { response: { status: 500 } };
             mockServer.call.mockRejectedValue(error500);
 
-            // First call fails (3 retries exhausted) — sets backoff
+            // First failure - should create backoff entry
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 'Horizon service encountered an internal error.',
             );
 
-            // Backoff now in effect
-            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
-                'Service temporarily unavailable due to rate limiting',
-            );
+            // Backoff should be in effect with specific message
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
+
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            // Check the response body for the expected message instead of the exception message
+            const response = thrownError!.getResponse();
+            if (typeof response === 'object' && response !== null) {
+                expect((response as Record<string, unknown>).error).toContain('Service temporarily unavailable due to rate limiting');
+            } else {
+                expect(response).toContain('Service temporarily unavailable due to rate limiting');
+            }
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
         }, 10000);
 
         it('should reset backoff after successful request', async () => {
@@ -197,18 +243,18 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token1',
                 transaction: jest.fn().mockResolvedValue({ memo: 'test' }),
             }];
-            
+
             // Call 1: fail with 429 → sets backoff
             mockServer.call.mockRejectedValueOnce(error429);
             await expect(service.getPayments(mockAccountId)).rejects.toThrow();
-            
+
             // Wait for backoff to expire (baseDelay for attempt=1 is 50ms)
             await new Promise(resolve => setTimeout(resolve, 100));
-            
+
             // Call 2: backoff expired → reaches server → succeeds
             mockServer.call.mockResolvedValueOnce({ records: successRecords });
             await service.getPayments(mockAccountId);
-            
+
             // Call 3: backoff cleared → must hit server again (not cache, since
             // recovery calls skip caching)
             mockServer.call.mockResolvedValueOnce({ records: successRecords });
@@ -225,10 +271,12 @@ describe('HorizonService - Advanced Features', () => {
                 new HttpException('Invalid request to Horizon service', HttpStatus.BAD_REQUEST),
             );
 
+            // Should still allow immediate retry (no backoff)
             await expect(service.getPayments(mockAccountId)).rejects.toThrow(
                 new HttpException('Invalid request to Horizon service', HttpStatus.BAD_REQUEST),
             );
 
+            // Should make 2 calls since no backoff for 4xx
             expect(mockServer.call).toHaveBeenCalledTimes(2);
         }, 10000);
     });
@@ -247,14 +295,14 @@ describe('HorizonService - Advanced Features', () => {
 
         it('should retry on 5xx errors with exponential backoff', async () => {
             const error500 = { response: { status: 500 } };
-            
+
             mockServer.call
-                .mockRejectedValueOnce(error500)
-                .mockRejectedValueOnce(error500)
-                .mockResolvedValueOnce({ records: mockRecords });
+                .mockRejectedValueOnce(error500)  // Attempt 1 - fail
+                .mockRejectedValueOnce(error500)  // Attempt 2 - fail
+                .mockResolvedValueOnce({ records: mockRecords }); // Attempt 3 - succeed
 
             const result = await service.getPayments(mockAccountId);
-            
+
             expect(result.items).toHaveLength(1);
             expect(mockServer.call).toHaveBeenCalledTimes(3);
         });
@@ -272,14 +320,14 @@ describe('HorizonService - Advanced Features', () => {
             mockServer.call.mockRejectedValue(error500);
 
             await expect(service.getPayments(mockAccountId)).rejects.toThrow();
-            expect(mockServer.call).toHaveBeenCalledTimes(3);
+            expect(mockServer.call).toHaveBeenCalledTimes(3); // Max retries
         });
     });
 
     describe('Cache Statistics', () => {
         it('should provide cache statistics', () => {
             const stats = service.getCacheStats();
-            
+
             expect(stats).toHaveProperty('entries');
             expect(stats).toHaveProperty('maxEntries');
             expect(stats).toHaveProperty('ttl');
@@ -298,16 +346,19 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token1',
                 transaction: jest.fn().mockResolvedValue({ memo: 'test' }),
             }];
-            
+
             mockServer.call.mockResolvedValue({ records: mockRecords });
-            
+
+            // Initial state
             let stats = service.getCacheStats();
             expect(stats.entries).toBe(0);
-            
+
+            // After caching
             await service.getPayments('account1');
             stats = service.getCacheStats();
             expect(stats.entries).toBe(1);
-            
+
+            // Clear cache
             service.clearCache();
             stats = service.getCacheStats();
             expect(stats.entries).toBe(0);
@@ -317,7 +368,7 @@ describe('HorizonService - Advanced Features', () => {
     describe('Edge Cases', () => {
         it('should handle empty transaction results', async () => {
             mockServer.call.mockResolvedValue({ records: [] });
-            
+
             const result = await service.getPayments('emptyAccount');
             expect(result.items).toHaveLength(0);
             expect(result.nextCursor).toBeUndefined();
@@ -333,15 +384,16 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token1',
                 transaction: jest.fn().mockRejectedValue(new Error('No memo')),
             }];
-            
+
             mockServer.call.mockResolvedValue({ records });
-            
+
             const result = await service.getPayments('account1');
             expect(result.items[0].memo).toBeUndefined();
             expect(result.items[0].amount).toBe('10.0');
         });
 
         it('should handle network-specific caching', async () => {
+            // Test that the service works with different cache keys
             const records = [{
                 type: 'payment',
                 amount: '10.0',
@@ -351,12 +403,14 @@ describe('HorizonService - Advanced Features', () => {
                 paging_token: 'token1',
                 transaction: jest.fn().mockResolvedValue({ memo: 'test' }),
             }];
-            
+
             mockServer.call.mockResolvedValue({ records });
-            
+
+            // Test with different parameters to ensure unique cache keys
             await service.getPayments('account1', 'XLM', 10);
             await service.getPayments('account2', 'USDC:GUSDC', 20, 'cursor123');
-            
+
+            // Both should succeed and create different cache entries
             expect(mockServer.call).toHaveBeenCalledTimes(2);
         }, 10000);
     });
