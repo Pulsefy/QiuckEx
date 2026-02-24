@@ -23,27 +23,14 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 describe('HorizonService - Advanced Features', () => {
     let service: HorizonService;
-    let mockServer: any;
+    let mockServer: Record<string, jest.Mock>;
 
     beforeEach(async () => {
-        // Create a mock server instance before creating the service
-        const mockServerInstance = {
-            operations: jest.fn().mockReturnThis(),
-            forAccount: jest.fn().mockReturnThis(),
-            order: jest.fn().mockReturnThis(),
-            limit: jest.fn().mockReturnThis(),
-            cursor: jest.fn().mockReturnThis(),
-            call: jest.fn(),
-        };
-        
         const mockAppConfigService = {
             network: 'testnet',
             cacheMaxItems: 100,
             cacheTtlMs: 5000,
         };
-        
-        // Mock the Horizon.Server constructor to return our mock instance
-        (require('stellar-sdk').Horizon.Server as jest.MockedFunction<any>).mockReturnValue(mockServerInstance);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -58,10 +45,11 @@ describe('HorizonService - Advanced Features', () => {
         service = module.get<HorizonService>(HorizonService);
         
         // Get the actual mock server instance that was created
-        mockServer = (service as any)['server'];
+        mockServer = service['server'] as unknown as Record<string, jest.Mock>;
 
-        // Clear cache between tests
+        // Clear cache and reset mocks between tests
         service.clearCache();
+        jest.clearAllMocks();
     });
 
     it('should be defined', () => {
@@ -206,11 +194,9 @@ describe('HorizonService - Advanced Features', () => {
             expect(thrownError).toBeInstanceOf(HttpException);
             // Check the response body for the expected message instead of the exception message
             const response = thrownError!.getResponse();
-            if (typeof response === 'object' && response !== null) {
-                expect((response as any).error).toContain('Service temporarily unavailable due to rate limiting');
-            } else {
-                expect(response).toContain('Service temporarily unavailable due to rate limiting');
-            }
+            const responseWithError = (typeof response === 'object' && response !== null) ?
+                (response as Record<string, unknown>).error : response;
+            expect(responseWithError).toContain('Service temporarily unavailable due to rate limiting');
             expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
 
             // Should not make additional Horizon calls during backoff
@@ -239,7 +225,7 @@ describe('HorizonService - Advanced Features', () => {
             // Check the response body for the expected message instead of the exception message
             const response = thrownError!.getResponse();
             if (typeof response === 'object' && response !== null) {
-                expect((response as any).error).toContain('Service temporarily unavailable due to rate limiting');
+                expect((response as Record<string, unknown>).error).toContain('Service temporarily unavailable due to rate limiting');
             } else {
                 expect(response).toContain('Service temporarily unavailable due to rate limiting');
             }
