@@ -1,45 +1,64 @@
+// Mock stellar-sdk BEFORE importing HorizonService
+jest.mock('stellar-sdk', () => {
+    const mockServer = {
+        operations: jest.fn().mockReturnThis(),
+        forAccount: jest.fn().mockReturnThis(),
+        order: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        cursor: jest.fn().mockReturnThis(),
+        call: jest.fn(),
+    };
+    
+    return {
+        Horizon: {
+            Server: jest.fn(() => mockServer),
+        },
+    };
+});
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { HorizonService } from './horizon.service';
 import { AppConfigService } from '../config/app-config.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-// Mock stellar-sdk
-jest.mock('stellar-sdk', () => {
-    return {
-        Horizon: {
-            Server: jest.fn().mockImplementation(() => ({
-                operations: jest.fn().mockReturnThis(),
-                forAccount: jest.fn().mockReturnThis(),
-                order: jest.fn().mockReturnThis(),
-                limit: jest.fn().mockReturnThis(),
-                cursor: jest.fn().mockReturnThis(),
-                call: jest.fn(),
-            })),
-        },
-    };
-});
-
 describe('HorizonService - Advanced Features', () => {
     let service: HorizonService;
-    let mockServer: Record<string, jest.Mock>;
+    let mockServer: any;
 
     beforeEach(async () => {
+        // Create a mock server instance before creating the service
+        const mockServerInstance = {
+            operations: jest.fn().mockReturnThis(),
+            forAccount: jest.fn().mockReturnThis(),
+            order: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            cursor: jest.fn().mockReturnThis(),
+            call: jest.fn(),
+        };
+        
+        const mockAppConfigService = {
+            network: 'testnet',
+            cacheMaxItems: 100,
+            cacheTtlMs: 5000,
+        };
+        
+        // Mock the Horizon.Server constructor to return our mock instance
+        (require('stellar-sdk').Horizon.Server as jest.MockedFunction<any>).mockReturnValue(mockServerInstance);
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 HorizonService,
                 {
                     provide: AppConfigService,
-                    useValue: {
-                        network: 'testnet',
-                        cacheMaxItems: 100,
-                        cacheTtlMs: 5000,
-                    },
+                    useValue: mockAppConfigService,
                 },
             ],
         }).compile();
 
         service = module.get<HorizonService>(HorizonService);
-        mockServer = service['server'] as unknown as typeof mockServer;
+        
+        // Get the actual mock server instance that was created
+        mockServer = (service as any)['server'];
 
         // Clear cache between tests
         service.clearCache();
@@ -173,9 +192,26 @@ describe('HorizonService - Advanced Features', () => {
             );
 
             // Second call should be blocked by backoff with specific message
-            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
-                'Service temporarily unavailable due to rate limiting',
-            );
+            await expect(service.getPayments(mockAccountId)).rejects.toThrow(HttpException);
+            
+            // Extract the error to check specific properties
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
+
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            // Check the response body for the expected message instead of the exception message
+            const response = thrownError!.getResponse();
+            if (typeof response === 'object' && response !== null) {
+                expect((response as any).error).toContain('Service temporarily unavailable due to rate limiting');
+            } else {
+                expect(response).toContain('Service temporarily unavailable due to rate limiting');
+            }
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
 
             // Should not make additional Horizon calls during backoff
             expect(mockServer.call).toHaveBeenCalledTimes(1);
@@ -191,9 +227,23 @@ describe('HorizonService - Advanced Features', () => {
             );
 
             // Backoff should be in effect with specific message
-            await expect(service.getPayments(mockAccountId)).rejects.toThrow(
-                'Service temporarily unavailable due to rate limiting',
-            );
+            let thrownError: HttpException | undefined;
+            try {
+                await service.getPayments(mockAccountId);
+            } catch (err) {
+                thrownError = err as HttpException;
+            }
+
+            expect(thrownError).toBeDefined();
+            expect(thrownError).toBeInstanceOf(HttpException);
+            // Check the response body for the expected message instead of the exception message
+            const response = thrownError!.getResponse();
+            if (typeof response === 'object' && response !== null) {
+                expect((response as any).error).toContain('Service temporarily unavailable due to rate limiting');
+            } else {
+                expect(response).toContain('Service temporarily unavailable due to rate limiting');
+            }
+            expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
         }, 10000);
 
         it('should reset backoff after successful request', async () => {
