@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { LinksService } from '../links.service';
-import { LinkMetadataRequestDto } from '../../dto';
-import { LinkValidationError } from '../errors';
+import { LinksService } from './links.service';
+import { LinkMetadataRequestDto } from '../dto';
+import { LinkValidationError } from './errors';
 
 describe('LinksService - Enhanced Features', () => {
   let service: LinksService;

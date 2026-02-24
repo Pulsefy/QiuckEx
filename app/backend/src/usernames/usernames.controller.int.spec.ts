@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { UsernamesController } from '../usernames.controller';
-import { UsernamesService } from '../usernames.service';
+import { UsernamesController } from './usernames.controller';
+import { UsernamesService } from './usernames.service';
 import {
   UsernameConflictError,
   UsernameLimitExceededError,
-} from '../errors';
+} from './errors';
 
 describe('UsernamesController', () => {
   let controller: UsernamesController;
