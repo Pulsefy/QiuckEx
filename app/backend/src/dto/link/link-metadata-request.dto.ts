@@ -94,7 +94,7 @@ export class LinkMetadataRequestDto {
   privacy?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Expiration in days',
+    description: 'Expiration in days (1-365)',
     example: 30,
     minimum: 1,
     maximum: 365,

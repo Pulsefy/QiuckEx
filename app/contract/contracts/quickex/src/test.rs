@@ -441,6 +441,14 @@ fn test_set_and_get_privacy() {
 
 /// Regression suite: create and verify amount commitment — core commitment flow.
 #[test]
+fn test_event_snapshot_privacy_toggled_schema() {
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+
+    client.set_privacy(&account, &true);
+}
+
+#[test]
 fn test_commitment_cycle() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
@@ -536,6 +544,78 @@ fn test_deposit() {
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);
+}
+
+#[test]
+fn test_event_snapshot_escrow_deposited_schema() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let user = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&user, &1000);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let commitment = BytesN::from_array(&env, &[7; 32]);
+    client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0);
+}
+
+#[test]
+fn test_event_snapshot_escrow_withdrawn_schema() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let to = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_withdraw_salt");
+
+    let mut data = Bytes::new(&env);
+    let address_bytes: Bytes = to.clone().to_xdr(&env);
+    data.append(&address_bytes);
+    data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    data.append(&salt);
+    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+
+    setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&client.address, &amount);
+
+    let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+}
+
+#[test]
+fn test_event_snapshot_escrow_refunded_schema() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_refund_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let timeout = 100;
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + timeout);
+
+    client.refund(&commitment, &owner);
+}
+
+#[test]
+fn test_event_snapshot_contract_paused_schema() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.set_paused(&admin, &true);
 }
 
 #[test]
@@ -668,6 +748,16 @@ fn test_set_admin() {
     // Verify new admin can pause
     client.set_paused(&new_admin, &true);
     assert!(client.is_paused());
+}
+
+#[test]
+fn test_event_snapshot_admin_changed_schema() {
+    let (env, client) = setup();
+    let old_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    client.initialize(&old_admin);
+    client.set_admin(&old_admin, &new_admin);
 }
 
 #[test]

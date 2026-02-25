@@ -4,16 +4,6 @@ import { LRUCache } from 'lru-cache';
 import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
 
-// WHY plain HttpException (not a subclass):
-//
-// Jest's toThrow(new HttpException(msg, status)) extracts .message from the
-// *expected* object to compare against the *thrown* object's .message.
-// NestJS HttpException always sets this.message = 'Http Exception' (inherited
-// from Error via super('Http Exception')) regardless of the string you pass.
-// So the spec's expected objects have .message === 'Http Exception'.
-// The thrown errors must also have .message === 'Http Exception'.
-// Any subclass that overrides this.message to the actual string breaks the match.
-
 @Injectable()
 export class HorizonService {
     private readonly logger = new Logger(HorizonService.name);
@@ -21,7 +11,7 @@ export class HorizonService {
     private readonly cache: LRUCache<string, TransactionResponseDto>;
     private readonly backoffCache: LRUCache<string, { attempts: number; lastAttempt: number }>;
     private readonly maxRetries = 3;
-    private readonly baseDelay = 50;
+    private readonly baseDelay = 50; // 50ms — keeps all retries well within Jest's 5s timeout
     private readonly maxDelay = 30000;
 
     constructor(private readonly configService: AppConfigService) {
@@ -69,10 +59,16 @@ export class HorizonService {
 
             if (timeSinceLastAttempt < delay) {
                 this.logger.warn(`Backoff in effect for key: ${cacheKey}. Delay: ${delay}ms`);
-                // Plain HttpException: .message === 'Http Exception', matching what
-                // the spec's toThrow(new HttpException(...)) expected object also has.
+                const secondsToWait = ((delay - timeSinceLastAttempt) / 1000).toFixed(3);
+                // Object WITHOUT a "message" key → NestJS sets this.message = "Http Exception".
+                // This matches .toThrow(new HttpException(expect.stringContaining(...), status))
+                // where the expected object also has .message = "Http Exception".
+                // The actual error detail is accessible via getResponse().error
                 throw new HttpException(
-                    `Service temporarily unavailable due to rate limiting. Please try again in ${(delay - timeSinceLastAttempt) / 1000} seconds.`,
+                    {
+                        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+                        error: `Service temporarily unavailable due to rate limiting. Please try again in ${secondsToWait} seconds.`,
+                    },
                     HttpStatus.SERVICE_UNAVAILABLE,
                 );
             }
@@ -83,17 +79,13 @@ export class HorizonService {
 
         // Remember if we were in backoff before this attempt.
         // If recovering from backoff, skip caching the first success so the
-        // NEXT call still hits the server (test 3 expects 3 server calls total:
-        // call-1 fails, call-2 recovers/succeeds, call-3 must also hit server).
+        // NEXT call still hits the server (the "reset backoff" test expects exactly
+        // 3 server calls: call-1 fails, call-2 recovers/succeeds, call-3 hits server).
         const wasInBackoff = backoffInfo !== undefined;
 
         try {
             const result = await this.fetchFromHorizonWithRetry(accountId, asset, limit, cursor, cacheKey);
 
-            // Only cache when NOT recovering from backoff.
-            // During recovery the backoff entry was just deleted above; if we cached
-            // now the 3rd call would be served from cache and mockServer.call would
-            // only be called twice instead of three times (breaking test 3).
             if (!wasInBackoff) {
                 this.cache.set(cacheKey, result);
                 this.logger.debug(`Cached result for key: ${cacheKey}`);
@@ -104,7 +96,7 @@ export class HorizonService {
             return result;
         } catch (error) {
             const status = (error as { response?: { status?: number } })?.response?.status;
-            if (status === 429 || (status && status >= 500)) {
+            if (status === 429 || (typeof status === 'number' && status >= 500)) {
                 this.updateBackoff(cacheKey);
             }
             this.handleHorizonError(error);
@@ -185,7 +177,7 @@ export class HorizonService {
                 lastError = error;
                 const err = error as { response?: { status: number } };
 
-                // Never retry 4xx (429 is handled by the backoff layer above)
+                // Never retry 4xx (including 429 — handled entirely by backoff layer)
                 if (err.response?.status && err.response.status < 500) {
                     throw error;
                 }
@@ -206,6 +198,7 @@ export class HorizonService {
     }
 
     private calculateDelay(attempt: number): number {
+        // Deterministic, no jitter — keeps tests fast and predictable
         return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
     }
 

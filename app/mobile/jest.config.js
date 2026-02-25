@@ -1,5 +1,6 @@
 module.exports = {
     preset: 'jest-expo',
+    setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
     moduleNameMapper: {
         // Stub out native modules that crash in the Jest/jsdom environment
         'react-native-safe-area-context': require.resolve(

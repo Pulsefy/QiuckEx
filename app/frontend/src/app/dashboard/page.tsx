@@ -6,9 +6,12 @@ import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
 import { useEffect } from "react";
 
-export default function Dashboard() {
+type DashboardResponse = {
+  items: Array<Record<string, unknown>>;
+};
 
-    const { data, error, loading, callApi } = useApi() as { data: { items: any[] } | null; error: string | null; loading: boolean; callApi: any };
+export default function Dashboard() {
+  const { data, error, loading, callApi } = useApi<DashboardResponse>();
 
   useEffect(() => {
     callApi(() =>
@@ -16,7 +19,7 @@ export default function Dashboard() {
         items: [],
       })
     );
-  }, []);
+  }, [callApi]);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;

@@ -1,13 +1,34 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNetworkStatus } from '../hooks/use-network-status';
 import { Ionicons } from '@expo/vector-icons';
 
+type Network = "testnet" | "mainnet";
+
 export default function WalletConnectScreen() {
     const router = useRouter();
     const { isConnected } = useNetworkStatus();
+
+    const [connected, setConnected] = useState(false);
+    const [network, setNetwork] = useState<Network>("testnet");
+    const [publicKey, setPublicKey] = useState<string | null>(null);
+
+    const handleConnect = () => {
+        // Mock connection (replace later with real wallet integration)
+        setConnected(true);
+        setPublicKey("GABCD1234MOCKPUBLICKEY5678XYZ");
+    };
+
+    const handleDisconnect = () => {
+        setConnected(false);
+        setPublicKey(null);
+    };
+
+    const toggleNetwork = () => {
+        setNetwork(prev => prev === "testnet" ? "mainnet" : "testnet");
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -16,6 +37,32 @@ export default function WalletConnectScreen() {
                 <Text style={styles.subtitle}>
                     Securely connect your Stellar wallet to manage your payments.
                 </Text>
+
+
+                {/* Network Indicator */}
+                <View style={styles.row}>
+                    <Text style={styles.label}>Network:</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.networkBadge,
+                            network === "mainnet"
+                                ? styles.mainnet
+                                : styles.testnet
+                        ]}
+                        onPress={toggleNetwork}
+                    >
+                        <Text style={styles.networkText}>
+                            {network.toUpperCase()}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Connection Status */}
+                <View style={styles.row}>
+                    <Text style={styles.label}>Status:</Text>
+                    <Text style={connected ? styles.connected : styles.disconnected}>
+                        {connected ? "Connected" : "Not Connected"}
+                    </Text>
 
                 {isConnected === false && (
                     <View style={styles.offlineAdvice}>
@@ -42,7 +89,32 @@ export default function WalletConnectScreen() {
                     >
                         <Text style={[styles.secondaryButtonText, isConnected === false && styles.disabledText]}>Select Wallet</Text>
                     </TouchableOpacity>
+
                 </View>
+
+                {/* Public Key */}
+                {connected && publicKey && (
+                    <Text style={styles.address}>
+                        {publicKey}
+                    </Text>
+                )}
+
+                {/* Connect / Disconnect Button */}
+                {!connected ? (
+                    <TouchableOpacity
+                        style={styles.connectButton}
+                        onPress={handleConnect}
+                    >
+                        <Text style={styles.buttonText}>Connect Wallet</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.disconnectButton}
+                        onPress={handleDisconnect}
+                    >
+                        <Text style={styles.buttonText}>Disconnect</Text>
+                    </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                     style={styles.backButton}
@@ -63,67 +135,80 @@ const styles = StyleSheet.create({
     content: {
         flex: 1,
         padding: 24,
-        alignItems: 'center',
     },
     title: {
         fontSize: 32,
         fontWeight: 'bold',
-        color: '#000',
         marginTop: 40,
         marginBottom: 12,
     },
     subtitle: {
         fontSize: 16,
         color: '#666',
-        textAlign: 'center',
-        marginBottom: 60,
-    },
-    placeholder: {
-        width: '100%',
-        padding: 40,
-        borderWidth: 2,
-        borderColor: '#eee',
-        borderStyle: 'dashed',
-        borderRadius: 16,
-        alignItems: 'center',
         marginBottom: 40,
     },
-    placeholderText: {
-        fontSize: 18,
-        color: '#999',
-        fontWeight: '500',
-        marginBottom: 30,
+    row: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
     },
-    mockButton: {
-        backgroundColor: '#007AFF',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
+    label: {
+        fontSize: 16,
+        fontWeight: "600",
+    },
+    networkBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 8,
-        width: '100%',
-        alignItems: 'center',
+    },
+    mainnet: {
+        backgroundColor: "#10B981",
+    },
+    testnet: {
+        backgroundColor: "#F59E0B",
+    },
+    networkText: {
+        color: "#fff",
+        fontWeight: "600",
+    },
+    connected: {
+        color: "#10B981",
+        fontWeight: "600",
+    },
+    disconnected: {
+        color: "#EF4444",
+        fontWeight: "600",
+    },
+    address: {
+        fontSize: 12,
+        marginBottom: 20,
+    },
+    connectButton: {
+        backgroundColor: "#000",
+        padding: 16,
+        borderRadius: 8,
+        alignItems: "center",
         marginBottom: 12,
     },
-    mockButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+    disconnectButton: {
+        backgroundColor: "#EF4444",
+        padding: 16,
+        borderRadius: 8,
+        alignItems: "center",
+        marginBottom: 12,
     },
-    secondaryButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: '#007AFF',
-    },
-    secondaryButtonText: {
-        color: '#007AFF',
+    buttonText: {
+        color: "#fff",
+        fontWeight: "600",
         fontSize: 16,
-        fontWeight: '600',
     },
     backButton: {
-        marginTop: 'auto',
-        padding: 16,
+        marginTop: 30,
+        alignItems: "center",
     },
     backButtonText: {
-        color: '#666',
+        color: "#666",
         fontSize: 16,
     },
     offlineAdvice: {

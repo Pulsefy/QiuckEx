@@ -68,7 +68,7 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if is_paused(&env) {
+        if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         escrow::withdraw(&env, amount, to, salt)
@@ -122,7 +122,7 @@ impl QuickexContract {
     /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
-        if is_paused(&env) {
+        if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         privacy::set_privacy(&env, owner, enabled)
@@ -165,7 +165,7 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        if is_paused(&env) {
+        if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
@@ -261,7 +261,7 @@ impl QuickexContract {
         commitment: BytesN<32>,
         timeout_secs: u64,
     ) -> Result<(), QuickexError> {
-        if is_paused(&env) {
+        if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
@@ -297,11 +297,7 @@ impl QuickexContract {
     /// # Errors
     /// * `AlreadyInitialized` - Contract has already been initialized
     pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
-        if get_admin(&env).is_some() {
-            return Err(QuickexError::AlreadyInitialized);
-        }
-        set_admin(&env, &admin);
-        Ok(())
+        admin::initialize(&env, admin)
     }
 
     /// Pause or unpause the contract (**Admin only**).
@@ -316,12 +312,7 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
-        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
-        if caller != admin {
-            return Err(QuickexError::Unauthorized);
-        }
-        set_paused(&env, new_state);
-        Ok(())
+        admin::set_paused(&env, caller, new_state)
     }
 
     /// Transfer admin rights to a new address (**Admin only**).
@@ -336,26 +327,21 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
-        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
-        if caller != admin {
-            return Err(QuickexError::Unauthorized);
-        }
-        set_admin(&env, &new_admin);
-        Ok(())
+        admin::set_admin(&env, caller, new_admin)
     }
 
     /// Check if the contract is currently paused.
     ///
     /// Returns `true` if paused, `false` otherwise.
     pub fn is_paused(env: Env) -> bool {
-        is_paused(&env)
+        admin::is_paused(&env)
     }
 
     /// Get the current admin address.
     ///
     /// Returns `None` if the contract has not been initialized.
     pub fn get_admin(env: Env) -> Option<Address> {
-        get_admin(&env)
+        admin::get_admin(&env)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).
@@ -478,7 +464,7 @@ impl QuickexContract {
         caller: Address,
         new_wasm_hash: BytesN<32>,
     ) -> Result<(), QuickexError> {
-        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        let admin = admin::get_admin(&env).ok_or(QuickexError::Unauthorized)?;
         if caller != admin {
             return Err(QuickexError::Unauthorized);
         }
@@ -488,8 +474,7 @@ impl QuickexContract {
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
 
-        let timestamp = env.ledger().timestamp();
-        events::publish_contract_upgraded(&env, new_wasm_hash, &admin, timestamp);
+        events::publish_contract_upgraded(&env, new_wasm_hash, &admin);
 
         Ok(())
     }
