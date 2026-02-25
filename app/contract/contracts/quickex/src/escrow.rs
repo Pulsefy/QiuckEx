@@ -101,7 +101,14 @@ pub fn deposit(
     put_escrow(env, &commitment_bytes, &entry);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
 
-    events::publish_escrow_deposited(env, commitment.clone(), owner, token, amount, expires_at);
+    events::publish_escrow_deposited(
+        env,
+        commitment.clone(),
+        owner,
+        token_client.address,
+        amount,
+        expires_at,
+    );
 
     Ok(commitment)
 }
@@ -165,6 +172,7 @@ pub fn deposit_with_commitment(
         0
     };
 
+    let from_ref = from.clone();
     let entry = EscrowEntry {
         token, // moved
         amount,
@@ -175,7 +183,14 @@ pub fn deposit_with_commitment(
     };
 
     put_escrow(env, &commitment_bytes, &entry);
-    events::publish_escrow_deposited(env, commitment, from, token, amount, expires_at);
+    events::publish_escrow_deposited(
+        env,
+        commitment,
+        token_client.address,
+        from_ref,
+        amount,
+        expires_at,
+    );
 
     Ok(())
 }
@@ -238,7 +253,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     let token_client = token::Client::new(env, &token_ref);
     token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-    events::publish_escrow_withdrawn(env, commitment, to, entry.token, amount);
+    events::publish_escrow_withdrawn(env, commitment, to, token_ref, amount);
 
     Ok(true)
 }
