@@ -94,4 +94,11 @@ export class AppConfigService {
   get cacheTtlMs(): number {
     return this.configService.get('CACHE_TTL_MS', { infer: true });
   }
+
+  /**
+   * Max records processed per entity type per reconciliation run
+   */
+  get reconciliationBatchSize(): number {
+    return this.configService.get('RECONCILIATION_BATCH_SIZE', { infer: true });
+  }
 }

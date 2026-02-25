@@ -48,6 +48,14 @@ export const envSchema = Joi.object({
     .min(1000)
     .default(60000)
     .description('Cache TTL in milliseconds for transaction responses'),
+
+  // Reconciliation worker configuration
+  RECONCILIATION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(500)
+    .default(50)
+    .description('Max records per entity type processed per reconciliation run'),
 });
 
 /**
@@ -62,4 +70,5 @@ export interface EnvConfig {
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
+  RECONCILIATION_BATCH_SIZE: number;
 }
