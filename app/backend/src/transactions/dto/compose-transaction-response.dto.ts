@@ -1,4 +1,3 @@
-// src/transactions/dto/compose-transaction-response.dto.ts
 export interface ResourceEstimate {
   cpuInstructions: number;
   memoryBytes: number;
@@ -28,5 +27,5 @@ export interface ComposeTransactionError {
   success: false;
   error: string;
   userMessage: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }

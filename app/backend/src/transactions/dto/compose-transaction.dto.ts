@@ -1,8 +1,6 @@
-// src/transactions/dto/compose-transaction.dto.ts
 import {
   IsString,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsArray,
   ValidateNested,
@@ -12,9 +10,9 @@ import { Type } from "class-transformer";
 export class ContractParamDto {
   @IsString()
   @IsNotEmpty()
-  type: string; // 'address' | 'i128' | 'u128' | 'bool' | 'bytes' | 'string' | 'symbol' | 'vec' | 'map'
+  type: string;
 
-  value: any;
+  value: unknown;
 }
 
 export class ComposeTransactionDto {

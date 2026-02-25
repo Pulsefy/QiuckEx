@@ -1,10 +1,8 @@
-// src/transactions/errors/simulation-error.mapper.ts
 export interface MappedSimulationError {
   userMessage: string;
   technicalError: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
-
 const KNOWN_ERROR_PATTERNS: Array<{
   pattern: RegExp;
   message: string;
@@ -75,7 +73,7 @@ export function mapSimulationError(rawError: string): MappedSimulationError {
       details: {
         errorType: hostErrorMatch[1],
         errorCode: hostErrorMatch[2],
-      },
+      } as Record<string, unknown>,
     };
   }
 
