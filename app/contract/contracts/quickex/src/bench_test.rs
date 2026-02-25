@@ -18,13 +18,10 @@
 
 extern crate std;
 
-use crate::{storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient};
-use soroban_sdk::{
-    testutils::Address as _,
-    token,
-    xdr::ToXdr,
-    Address, Bytes, BytesN, Env,
+use crate::{
+    storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
+use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -137,7 +134,7 @@ fn bench_deposit_with_commitment() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    let _ = client.deposit_with_commitment(&from, &token, &amount, &commitment, &0u64);
+    client.deposit_with_commitment(&from, &token, &amount, &commitment, &0u64);
     print_budget(&env, "deposit_with_commitment");
 }
 
@@ -153,13 +150,20 @@ fn bench_withdraw() {
 
     // Setup: seed escrow + mint tokens to contract — excluded from measurement
     let commitment = make_commitment(&env, &owner, amount, &salt);
-    seed_escrow(&env, &client.address, &token, &owner, amount, commitment.clone());
+    seed_escrow(
+        &env,
+        &client.address,
+        &token,
+        &owner,
+        amount,
+        commitment.clone(),
+    );
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&client.address, &amount);
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    let _ = client.withdraw(&token, &amount, &commitment, &owner, &salt);
+    client.withdraw(&token, &amount, &commitment, &owner, &salt);
     print_budget(&env, "withdraw");
 }
 
@@ -172,7 +176,7 @@ fn bench_set_privacy() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    let _ = client.set_privacy(&owner, &true);
+    client.set_privacy(&owner, &true);
     print_budget(&env, "set_privacy");
 }
 

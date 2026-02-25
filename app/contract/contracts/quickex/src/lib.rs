@@ -2,9 +2,9 @@
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
-mod commitment;
 #[cfg(test)]
 mod bench_test;
+mod commitment;
 #[cfg(test)]
 mod commitment_test;
 mod errors;
