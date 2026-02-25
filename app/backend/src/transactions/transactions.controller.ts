@@ -1,4 +1,15 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiHeader } from "@nestjs/swagger";
 
 import {
@@ -9,6 +20,8 @@ import { HorizonService } from "./horizon.service";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
+import { ComposeTransactionDto } from "./dto/compose-transaction.dto";
+import { TransactionsService } from "./transaction.service";
 
 @ApiTags("transactions")
 @ApiHeader({
@@ -19,7 +32,10 @@ import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 @UseGuards(ApiKeyGuard, CustomThrottlerGuard)
 @Controller("transactions")
 export class TransactionsController {
-  constructor(private readonly horizonService: HorizonService) {}
+  constructor(
+    private readonly horizonService: HorizonService,
+    private readonly transactionService: TransactionsService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -45,7 +61,8 @@ export class TransactionsController {
   })
   @ApiResponse({
     status: 503,
-    description: "Horizon service rate limit exceeded, unavailable, or backoff in effect",
+    description:
+      "Horizon service rate limit exceeded, unavailable, or backoff in effect",
   })
   @ApiResponse({
     status: 502,
@@ -57,5 +74,11 @@ export class TransactionsController {
     const { accountId, asset, limit, cursor } = query;
 
     return this.horizonService.getPayments(accountId, asset, limit, cursor);
+  }
+  @Post("compose")
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async compose(@Body() dto: ComposeTransactionDto) {
+    return this.transactionService.composeTransaction(dto);
   }
 }
