@@ -71,8 +71,26 @@ pub fn deposit(
         0
     };
 
+    // non-optimized: token.clone() into entry + token used again for client
+    // let entry = EscrowEntry {
+    //     token: token.clone(),
+    //     amount,
+    //     owner: owner.clone(),
+    //     status: EscrowStatus::Pending,
+    //     created_at: now,
+    //     expires_at,
+    // };
+    // put_escrow(env, &commitment.clone().into(), &entry);
+    // let token_client = token::Client::new(env, &token);
+    // token_client.transfer(&owner, env.current_contract_address(), &amount);
+    // events::publish_deposit(env, commitment.clone(), token, amount);
+
+    // optimized: build client first (borrows token), then move token into entry
+    // commitment converted to Bytes once, reused
+    let token_client = token::Client::new(env, &token);
+    let commitment_bytes: Bytes = commitment.clone().into();
     let entry = EscrowEntry {
-        token: token.clone(),
+        token, // moved
         amount,
         owner: owner.clone(),
         status: EscrowStatus::Pending,
@@ -80,12 +98,9 @@ pub fn deposit(
         expires_at,
     };
 
-    put_escrow(env, &commitment.clone().into(), &entry);
-
-    let token_client = token::Client::new(env, &token);
+    put_escrow(env, &commitment_bytes, &entry);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
-
-    events::publish_deposit(env, commitment.clone(), token, amount);
+    events::publish_deposit(env, commitment.clone(), token_client.address, amount);
 
     Ok(commitment)
 }
@@ -116,7 +131,26 @@ pub fn deposit_with_commitment(
 
     from.require_auth();
 
-    if has_escrow(env, &commitment.clone().into()) {
+    // non-optimized: .clone().into() done twice, from.clone() + token.clone() unnecessarily
+    // if has_escrow(env, &commitment.clone().into()) {
+    //     return Err(QuickexError::CommitmentAlreadyExists);
+    // }
+    // let token_client = token::Client::new(env, &token);
+    // token_client.transfer(&from, env.current_contract_address(), &amount);
+    // let entry = EscrowEntry {
+    //     token: token.clone(),
+    //     amount,
+    //     owner: from.clone(),
+    //     status: EscrowStatus::Pending,
+    //     created_at: now,
+    //     expires_at,
+    // };
+    // put_escrow(env, &commitment.clone().into(), &entry);
+    // events::publish_deposit(env, commitment, token, amount);
+
+    // optimized: convert commitment once, move args into entry
+    let commitment_bytes: Bytes = commitment.clone().into();
+    if has_escrow(env, &commitment_bytes) {
         return Err(QuickexError::CommitmentAlreadyExists);
     }
 
@@ -131,16 +165,16 @@ pub fn deposit_with_commitment(
     };
 
     let entry = EscrowEntry {
-        token: token.clone(),
+        token, // moved
         amount,
-        owner: from.clone(),
+        owner: from, // moved
         status: EscrowStatus::Pending,
         created_at: now,
         expires_at,
     };
 
-    put_escrow(env, &commitment.clone().into(), &entry);
-    events::publish_deposit(env, commitment, token, amount);
+    put_escrow(env, &commitment_bytes, &entry);
+    events::publish_deposit(env, commitment, token_client.address, amount);
 
     Ok(())
 }
@@ -186,11 +220,21 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         return Err(QuickexError::InvalidCommitment);
     }
 
-    let mut updated = entry.clone();
+    // non-optimized: full EscrowEntry clone
+    // let mut updated = entry.clone();
+    // updated.status = EscrowStatus::Spent;
+    // put_escrow(env, &commitment_bytes, &updated);
+    // let token_client = token::Client::new(env, &entry.token);
+    // token_client.transfer(&env.current_contract_address(), &to, &amount);
+    // events::publish_withdraw_toggled(env, to, commitment);
+
+    // optimized: destructure what we need, move entry instead of cloning
+    let token_ref = entry.token.clone();
+    let mut updated = entry;
     updated.status = EscrowStatus::Spent;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let token_client = token::Client::new(env, &entry.token);
+    let token_client = token::Client::new(env, &token_ref);
     token_client.transfer(&env.current_contract_address(), &to, &amount);
 
     events::publish_withdraw_toggled(env, to, commitment);

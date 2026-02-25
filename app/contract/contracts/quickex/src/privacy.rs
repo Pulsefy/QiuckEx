@@ -11,8 +11,13 @@ use soroban_sdk::{Address, Env, Symbol};
 pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
     owner.require_auth();
 
+    // non-optimized: key.clone() — Symbol cloned unnecessarily
+    // let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
+    // let storage_key = (key.clone(), owner.clone());
+
+    // optimized: move key into tuple — no clone
     let key = Symbol::new(env, PRIVACY_ENABLED_KEY);
-    let storage_key = (key.clone(), owner.clone());
+    let storage_key = (key, owner.clone());
     let current: bool = env
         .storage()
         .persistent()
