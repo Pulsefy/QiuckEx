@@ -1,6 +1,7 @@
 import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { ScheduleModule } from "@nestjs/schedule";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 
 import { AppConfigModule } from "./config";
@@ -15,13 +16,15 @@ import { TransactionsModule } from "./transactions/transactions.module";
 import { ReconciliationModule } from "./reconciliation/reconciliation.module";
 import { MetricsMiddleware } from "./metrics/metrics.middleware";
 import { MetricsInterceptor } from "./metrics/metrics.interceptor";
-
-
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { IngestionModule } from "./ingestion/ingestion.module";
 
 @Module({
   imports: [
     AppConfigModule,
+    // ScheduleModule registered once here — shared by NotificationsModule and ReconciliationModule
+    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot({
       wildcard: true,
       delimiter: ".",
@@ -40,7 +43,9 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     LinksModule,
     ScamAlertsModule,
     TransactionsModule,
+    NotificationsModule,
     ReconciliationModule,
+    IngestionModule,
   ],
   providers: [
     {
@@ -51,9 +56,6 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    
-    consumer
-      .apply(MetricsMiddleware, CorrelationIdMiddleware)
-      .forRoutes("*");
+    consumer.apply(MetricsMiddleware, CorrelationIdMiddleware).forRoutes("*");
   }
 }

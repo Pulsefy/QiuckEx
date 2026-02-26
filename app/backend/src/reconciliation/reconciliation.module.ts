@@ -1,18 +1,16 @@
-import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
+import { Module } from "@nestjs/common";
 
-import { AppConfigModule } from '../config';
-import { SupabaseModule } from '../supabase/supabase.module';
-import { ReconciliationService } from './reconciliation.service';
-import { ReconciliationWorkerService } from './reconciliation-worker.service';
-import { ReconciliationController } from './reconciliation.controller';
+import { AppConfigModule } from "../config";
+import { SupabaseModule } from "../supabase/supabase.module";
+import { ReconciliationService } from "./reconciliation.service";
+import { ReconciliationWorkerService } from "./reconciliation-worker.service";
+import { ReconciliationController } from "./reconciliation.controller";
 
+/**
+ * ScheduleModule is registered once at AppModule level.
+ */
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    AppConfigModule,
-    SupabaseModule,
-  ],
+  imports: [AppConfigModule, SupabaseModule],
   providers: [ReconciliationService, ReconciliationWorkerService],
   controllers: [ReconciliationController],
   exports: [ReconciliationWorkerService],
