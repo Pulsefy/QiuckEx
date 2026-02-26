@@ -144,7 +144,7 @@ describe("NotificationService", () => {
 
   it("calls dispatch when stellar.EscrowDeposited is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(service, "dispatch")
+      .spyOn(NotificationService.prototype, "dispatch")
       .mockResolvedValue(undefined);
     const event = makeEscrowDepositedEvent();
 
@@ -156,11 +156,12 @@ describe("NotificationService", () => {
         recipientPublicKey: PUBLIC_KEY,
       }),
     );
+    dispatchSpy.mockRestore();
   });
 
   it("calls dispatch when payment.received is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(service, "dispatch")
+      .spyOn(NotificationService.prototype, "dispatch")
       .mockResolvedValue(undefined);
 
     await eventEmitter.emitAsync("payment.received", {
@@ -173,11 +174,12 @@ describe("NotificationService", () => {
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "payment.received" }),
     );
+    dispatchSpy.mockRestore();
   });
 
   it("calls dispatch when username.claimed is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(service, "dispatch")
+      .spyOn(NotificationService.prototype, "dispatch")
       .mockResolvedValue(undefined);
 
     await eventEmitter.emitAsync("username.claimed", {
@@ -188,6 +190,7 @@ describe("NotificationService", () => {
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "username.claimed" }),
     );
+    dispatchSpy.mockRestore();
   });
 
   // -------------------------------------------------------------------------
