@@ -66,7 +66,7 @@ describe("NotificationService (Event Hook Verification)", () => {
 
     const payload = {
       username: "test_user",
-      publicKey: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      publicKey: "GD5DJQDZBZJK5JOGKFYRZP66KJ62GON5QMLSLVWSH2VYJ5P2HYHUQRI5",
     };
 
     await eventEmitter.emitAsync("username.claimed", payload);
@@ -87,7 +87,7 @@ describe("NotificationService (Event Hook Verification)", () => {
       amount: "100000000",
       sender: "GSENDER",
       recipientPublicKey:
-        "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+        "GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2",
     };
 
     await eventEmitter.emitAsync("payment.received", payload);

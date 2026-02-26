@@ -1,4 +1,5 @@
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 
 import { AppConfigService } from "../../config";
@@ -100,13 +101,18 @@ describe("StellarIngestionService", () => {
     mockStop.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        EventEmitterModule.forRoot({
+          wildcard: true,
+          delimiter: ".",
+        }),
+      ],
       providers: [
         StellarIngestionService,
         { provide: AppConfigService, useValue: mockConfig() },
         { provide: CursorRepository, useValue: cursorRepo },
         { provide: EscrowEventRepository, useValue: escrowRepo },
         { provide: SorobanEventParser, useValue: parser },
-        EventEmitter2,
       ],
     }).compile();
 
@@ -115,18 +121,19 @@ describe("StellarIngestionService", () => {
 
     // Stub the Horizon.Server used internally so we never touch the network
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (service as any).server = {
+    const mockServer = {
       contractEvents: jest.fn().mockImplementation(() => ({
         cursor: jest.fn().mockReturnThis(),
         stream: jest.fn().mockImplementation(({ onmessage, onerror }) => {
-          capturedOnMessage = onmessage as (
-            record: RawHorizonContractEvent,
-          ) => void;
+          capturedOnMessage = (record: RawHorizonContractEvent) => {
+            return onmessage(record);
+          };
           capturedOnError = onerror as (err: unknown) => void;
           return mockStop;
         }),
       })),
     };
+    (service as any).server = mockServer;
   });
 
   afterEach(() => {
@@ -143,7 +150,7 @@ describe("StellarIngestionService", () => {
       await service.startStreaming("CTEST");
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const server = (service as any).server as ReturnType<typeof jest.fn>;
+      const server = (service as any).server;
       expect(server.contractEvents).toHaveBeenCalledWith("CTEST");
     });
 
@@ -196,10 +203,28 @@ describe("StellarIngestionService", () => {
       parser.parse.mockReturnValue(event);
 
       const listener = jest.fn();
-      eventEmitter.on("stellar.EscrowDeposited", listener);
+      
+      // Get the service's event emitter directly
+      const serviceEventEmitter = (service as any).eventEmitter;
+      serviceEventEmitter.on("stellar.EscrowDeposited", listener);
 
+      // Mock the emit method to track calls
+      const originalEmit = serviceEventEmitter.emit;
+      const emitSpy = jest.fn().mockImplementation((eventName, eventData) => {
+        // Write to stderr to ensure it shows up
+        process.stderr.write(`Emit called with: ${eventName}\n`);
+        return originalEmit.call(serviceEventEmitter, eventName, eventData);
+      });
+      serviceEventEmitter.emit = emitSpy;
+      
+      process.stderr.write('Calling capturedOnMessage...\n');
       await capturedOnMessage!(makeRawEvent());
-
+      process.stderr.write('capturedOnMessage completed\n');
+      
+      process.stderr.write(`emitSpy calls: ${JSON.stringify(emitSpy.mock.calls)}\n`);
+      
+      // Check if emit was called
+      expect(emitSpy).toHaveBeenCalledWith("stellar.EscrowDeposited", event);
       expect(listener).toHaveBeenCalledWith(event);
     });
 
