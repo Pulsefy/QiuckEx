@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { ScheduleModule } from "@nestjs/schedule";
 
 import { SupabaseModule } from "../supabase/supabase.module";
 import { NotificationService } from "./notification.service";
@@ -21,11 +20,10 @@ import {
  *  - EXPO_ACCESS_TOKEN (optional)            → enables push channel
  *  - Webhook channel is always registered (no credentials needed)
  *
- * Channels not configured simply won't appear in the providerMap; the service
- * will log a warning and skip if an unregistered channel is requested.
+ * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule, ScheduleModule.forRoot()],
+  imports: [SupabaseModule],
   controllers: [NotificationPreferencesController],
   providers: [
     NotificationPreferencesRepository,
