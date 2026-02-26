@@ -11,7 +11,7 @@ import type {
   ContractPausedEvent,
   AdminChangedEvent,
   ContractUpgradedEvent,
-} from "../types/contract-event.types";
+} from "./types/contract-event.types";
 
 /**
  * Raw Horizon contract event record shape (subset we need).
