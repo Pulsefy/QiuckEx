@@ -132,7 +132,8 @@ describe("StellarIngestionService", () => {
         }),
       })),
     };
-    (service as any).server = mockServer;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (service as unknown as { server: typeof mockServer }).server = mockServer;
   });
 
   afterEach(() => {

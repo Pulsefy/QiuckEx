@@ -1,4 +1,4 @@
-import { xdr, Address, nativeToScVal } from "stellar-sdk";
+import { xdr, nativeToScVal } from "stellar-sdk";
 import {
   SorobanEventParser,
   RawHorizonContractEvent,
