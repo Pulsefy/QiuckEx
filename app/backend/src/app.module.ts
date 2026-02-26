@@ -12,6 +12,7 @@ import { MetricsModule } from "./metrics/metrics.module";
 import { LinksModule } from "./links/links.module";
 import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
 import { TransactionsModule } from "./transactions/transactions.module";
+import { ReconciliationModule } from "./reconciliation/reconciliation.module";
 import { MetricsMiddleware } from "./metrics/metrics.middleware";
 import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 
@@ -39,6 +40,7 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     LinksModule,
     ScamAlertsModule,
     TransactionsModule,
+    ReconciliationModule,
   ],
   providers: [
     {
