@@ -72,10 +72,13 @@ pub fn create_amount_commitment(
     // Serialize amount (i128) to big-endian bytes
     let amount_bytes: [u8; 16] = amount.to_be_bytes();
 
-    // Correct loop iteration over bytes
-    for b in &amount_bytes {
-        payload.push_back(*b);
-    }
+    // non-optimized: 16 individual push_back host calls
+    // for b in &amount_bytes {
+    //     payload.push_back(*b);
+    // }
+
+    // optimized: single append — 1 host call
+    payload.append(&Bytes::from_array(env, &amount_bytes));
 
     // Append salt
     payload.append(&salt);

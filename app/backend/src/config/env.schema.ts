@@ -81,6 +81,15 @@ export const envSchema = Joi.object({
     .description(
       "Expo server access token — enhances push notification delivery priority",
     ),
+    .description('Cache TTL in milliseconds for transaction responses'),
+
+  // Reconciliation worker configuration
+  RECONCILIATION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(500)
+    .default(50)
+    .description('Max records per entity type processed per reconciliation run'),
 });
 
 /**
@@ -99,4 +108,5 @@ export interface EnvConfig {
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;
   EXPO_ACCESS_TOKEN?: string;
+  RECONCILIATION_BATCH_SIZE: number;
 }

@@ -3,6 +3,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { AppConfigService } from '../config';
 import {
+  EscrowDbStatus,
+  EscrowRecord,
+  PaymentDbStatus,
+  PaymentRecord,
+} from '../reconciliation/types/reconciliation.types';
+import {
   SupabaseError,
   SupabaseNetworkError,
   SupabaseUniqueConstraintError,
@@ -70,6 +76,78 @@ export class SupabaseService {
       .order('created_at', { ascending: true });
     if (error) this.handleError(error);
     return data ?? [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reconciliation helpers
+  // ---------------------------------------------------------------------------
+
+  async fetchPendingEscrows(
+    statuses: EscrowDbStatus[],
+    limit: number,
+  ): Promise<EscrowRecord[]> {
+    const { data, error } = await this.client
+      .from('escrow_records')
+      .select('*')
+      .in('status', statuses)
+      .order('updated_at', { ascending: true })
+      .limit(limit);
+    if (error) this.handleError(error);
+    return (data as EscrowRecord[]) ?? [];
+  }
+
+  async fetchPendingPayments(
+    statuses: PaymentDbStatus[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    const { data, error } = await this.client
+      .from('payment_records')
+      .select('*')
+      .in('status', statuses)
+      .order('updated_at', { ascending: true })
+      .limit(limit);
+    if (error) this.handleError(error);
+    return (data as PaymentRecord[]) ?? [];
+  }
+
+  async updateEscrowStatus(id: string, status: EscrowDbStatus): Promise<void> {
+    const { error } = await this.client
+      .from('escrow_records')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) this.handleError(error);
+  }
+
+  async updatePaymentStatus(id: string, status: PaymentDbStatus): Promise<void> {
+    const { error } = await this.client
+      .from('payment_records')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) this.handleError(error);
+  }
+
+  async flagIrreconcilableEscrow(id: string, reason: string): Promise<void> {
+    const { error } = await this.client
+      .from('escrow_records')
+      .update({
+        status: 'irreconcilable',
+        reconciliation_note: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) this.handleError(error);
+  }
+
+  async flagIrreconcilablePayment(id: string, reason: string): Promise<void> {
+    const { error } = await this.client
+      .from('payment_records')
+      .update({
+        status: 'irreconcilable',
+        reconciliation_note: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) this.handleError(error);
   }
 
   async checkHealth(): Promise<boolean> {

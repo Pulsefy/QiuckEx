@@ -2,6 +2,8 @@
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
+#[cfg(test)]
+mod bench_test;
 mod commitment;
 #[cfg(test)]
 mod commitment_test;
@@ -366,8 +368,12 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        let commitment_result =
-            commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
+        // non-optimized: owner.clone() — owner not used after this call
+        // let commitment_result =
+        //     commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
+
+        // optimized: move owner directly
+        let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
 
         let commitment = match commitment_result {
             Ok(c) => c,
