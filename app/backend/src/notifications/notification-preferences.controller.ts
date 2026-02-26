@@ -15,7 +15,6 @@ import { NotificationPreferencesRepository } from "./notification-preferences.re
 import {
   UpsertNotificationPreferenceDto,
   NotificationPreferenceResponseDto,
-  DisableChannelDto,
 } from "./dto/notification-preferences.dto";
 import type { NotificationChannel } from "./types/notification.types";
 

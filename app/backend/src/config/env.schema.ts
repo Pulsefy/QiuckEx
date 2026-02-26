@@ -81,7 +81,6 @@ export const envSchema = Joi.object({
     .description(
       "Expo server access token — enhances push notification delivery priority",
     ),
-    .description('Cache TTL in milliseconds for transaction responses'),
 
   // Reconciliation worker configuration
   RECONCILIATION_BATCH_SIZE: Joi.number()
@@ -89,7 +88,9 @@ export const envSchema = Joi.object({
     .min(1)
     .max(500)
     .default(50)
-    .description('Max records per entity type processed per reconciliation run'),
+    .description(
+      "Max records per entity type processed per reconciliation run",
+    ),
 });
 
 /**

@@ -99,12 +99,6 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
         : `Starting stream ${streamId} from "now"`,
     );
 
-    const builder = this.server.operations();
-    // Horizon's contract event endpoint differs from operations; we use
-    // the contract_events() call when available, falling back to filtering
-    // on operations. stellar-sdk ≥13 exposes events() off the server.
-    // Using a type assertion here because typings vary across minor versions.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     // stellar-sdk v13 exposes `server.operationsForAccount` / `server.payments`
     // but for Soroban contract events we use the dedicated endpoint:
     const eventsBuilder = (
