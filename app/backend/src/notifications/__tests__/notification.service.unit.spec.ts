@@ -15,7 +15,7 @@ import type { EscrowDepositedEvent } from "../../ingestion/types/contract-event.
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+const PUBLIC_KEY = "GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2";
 
 function makeEmailPref(
   overrides: Partial<NotificationPreference> = {},

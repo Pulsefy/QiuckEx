@@ -1,4 +1,4 @@
-import { EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 
 import { AppConfigService } from "../../config";
@@ -100,13 +100,18 @@ describe("StellarIngestionService", () => {
     mockStop.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        EventEmitterModule.forRoot({
+          wildcard: true,
+          delimiter: ".",
+        }),
+      ],
       providers: [
         StellarIngestionService,
         { provide: AppConfigService, useValue: mockConfig() },
         { provide: CursorRepository, useValue: cursorRepo },
         { provide: EscrowEventRepository, useValue: escrowRepo },
         { provide: SorobanEventParser, useValue: parser },
-        EventEmitter2,
       ],
     }).compile();
 
@@ -115,7 +120,7 @@ describe("StellarIngestionService", () => {
 
     // Stub the Horizon.Server used internally so we never touch the network
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (service as any).server = {
+    const mockServer = {
       contractEvents: jest.fn().mockImplementation(() => ({
         cursor: jest.fn().mockReturnThis(),
         stream: jest.fn().mockImplementation(({ onmessage, onerror }) => {
@@ -127,6 +132,7 @@ describe("StellarIngestionService", () => {
         }),
       })),
     };
+    (service as any).server = mockServer;
   });
 
   afterEach(() => {
@@ -143,7 +149,7 @@ describe("StellarIngestionService", () => {
       await service.startStreaming("CTEST");
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const server = (service as any).server as ReturnType<typeof jest.fn>;
+      const server = (service as any).server;
       expect(server.contractEvents).toHaveBeenCalledWith("CTEST");
     });
 
