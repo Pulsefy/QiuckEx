@@ -1,4 +1,4 @@
-import { EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 
 import { AppConfigService } from "../../config";
@@ -100,13 +100,18 @@ describe("StellarIngestionService", () => {
     mockStop.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        EventEmitterModule.forRoot({
+          wildcard: true,
+          delimiter: ".",
+        }),
+      ],
       providers: [
         StellarIngestionService,
         { provide: AppConfigService, useValue: mockConfig() },
         { provide: CursorRepository, useValue: cursorRepo },
         { provide: EscrowEventRepository, useValue: escrowRepo },
         { provide: SorobanEventParser, useValue: parser },
-        EventEmitter2,
       ],
     }).compile();
 
@@ -115,18 +120,24 @@ describe("StellarIngestionService", () => {
 
     // Stub the Horizon.Server used internally so we never touch the network
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (service as any).server = {
+    const mockServer = {
       contractEvents: jest.fn().mockImplementation(() => ({
         cursor: jest.fn().mockReturnThis(),
         stream: jest.fn().mockImplementation(({ onmessage, onerror }) => {
-          capturedOnMessage = onmessage as (
-            record: RawHorizonContractEvent,
-          ) => void;
+          capturedOnMessage = (record: RawHorizonContractEvent) => {
+            // Call the async handleRecord method and wait for it to complete
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (service as any).handleRecord(record, "contract:CTEST");
+          };
           capturedOnError = onerror as (err: unknown) => void;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          void onmessage;
           return mockStop;
         }),
       })),
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (service as unknown as { server: typeof mockServer }).server = mockServer;
   });
 
   afterEach(() => {
@@ -143,7 +154,7 @@ describe("StellarIngestionService", () => {
       await service.startStreaming("CTEST");
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const server = (service as any).server as ReturnType<typeof jest.fn>;
+      const server = (service as any).server;
       expect(server.contractEvents).toHaveBeenCalledWith("CTEST");
     });
 
@@ -180,6 +191,9 @@ describe("StellarIngestionService", () => {
       const event = makeEscrowDepositedEvent();
       parser.parse.mockReturnValue(event);
 
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
+      
       const raw = makeRawEvent();
       await capturedOnMessage!(raw);
 
@@ -195,6 +209,9 @@ describe("StellarIngestionService", () => {
       const event = makeEscrowDepositedEvent();
       parser.parse.mockReturnValue(event);
 
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
+
       const listener = jest.fn();
       eventEmitter.on("stellar.EscrowDeposited", listener);
 
@@ -206,6 +223,9 @@ describe("StellarIngestionService", () => {
     it("does NOT throw when cursor save fails (non-fatal)", async () => {
       parser.parse.mockReturnValue(null);
       cursorRepo.saveCursor.mockRejectedValue(new Error("DB down"));
+
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
 
       await expect(capturedOnMessage!(makeRawEvent())).resolves.not.toThrow();
     });
