@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { EventEmitterModule, EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
@@ -7,7 +7,6 @@ import { NOTIFICATION_PROVIDERS } from "./providers/notification-provider.interf
 
 describe("NotificationService (Event Hook Verification)", () => {
   let service: NotificationService;
-  let eventEmitter: EventEmitter2;
   let module: TestingModule;
 
   const mockPrefsRepo = {
@@ -47,7 +46,6 @@ describe("NotificationService (Event Hook Verification)", () => {
     await module.init();
 
     service = module.get<NotificationService>(NotificationService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
 
     Object.defineProperty(service, "logger", {
       value: mockLogger,

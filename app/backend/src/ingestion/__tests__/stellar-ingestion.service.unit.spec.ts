@@ -130,6 +130,8 @@ describe("StellarIngestionService", () => {
             return (service as any).handleRecord(record, "contract:CTEST");
           };
           capturedOnError = onerror as (err: unknown) => void;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          void onmessage;
           return mockStop;
         }),
       })),

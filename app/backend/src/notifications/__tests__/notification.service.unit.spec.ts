@@ -1,6 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { EventEmitterModule, EventEmitter2 } from "@nestjs/event-emitter";
-
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { NotificationService } from "../notification.service";
 import { NotificationPreferencesRepository } from "../notification-preferences.repository";
 import { NotificationLogRepository } from "../notification-log.repository";
@@ -99,7 +98,6 @@ describe("NotificationService", () => {
   let prefsRepo: jest.Mocked<NotificationPreferencesRepository>;
   let logRepo: jest.Mocked<NotificationLogRepository>;
   let emailProvider: ReturnType<typeof mockEmailProvider>;
-  let eventEmitter: EventEmitter2;
   let module: TestingModule;
 
   beforeEach(async () => {
@@ -120,7 +118,6 @@ describe("NotificationService", () => {
     await module.init();
 
     service = module.get(NotificationService);
-    eventEmitter = module.get(EventEmitter2);
     
     // Ensure the service is fully initialized
     service.onModuleInit();
