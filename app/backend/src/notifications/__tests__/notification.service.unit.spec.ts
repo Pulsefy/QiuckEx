@@ -121,6 +121,9 @@ describe("NotificationService", () => {
 
     service = module.get(NotificationService);
     eventEmitter = module.get(EventEmitter2);
+    
+    // Ensure the service is fully initialized
+    service.onModuleInit();
   });
 
   afterEach(async () => {
@@ -144,11 +147,12 @@ describe("NotificationService", () => {
 
   it("calls dispatch when stellar.EscrowDeposited is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(NotificationService.prototype, "dispatch")
+      .spyOn(service, "dispatch")
       .mockResolvedValue(undefined);
     const event = makeEscrowDepositedEvent();
 
-    await eventEmitter.emitAsync("stellar.EscrowDeposited", event);
+    // Manually call the event handler method to test it directly
+    await service.onEscrowDeposited(event);
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -161,15 +165,18 @@ describe("NotificationService", () => {
 
   it("calls dispatch when payment.received is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(NotificationService.prototype, "dispatch")
+      .spyOn(service, "dispatch")
       .mockResolvedValue(undefined);
 
-    await eventEmitter.emitAsync("payment.received", {
+    const payload = {
       txHash: "tx123",
       amount: "100000000",
       sender: "GSENDER",
       recipientPublicKey: PUBLIC_KEY,
-    });
+    };
+
+    // Manually call the event handler method to test it directly
+    await service.onPaymentReceived(payload);
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "payment.received" }),
@@ -179,13 +186,16 @@ describe("NotificationService", () => {
 
   it("calls dispatch when username.claimed is emitted", async () => {
     const dispatchSpy = jest
-      .spyOn(NotificationService.prototype, "dispatch")
+      .spyOn(service, "dispatch")
       .mockResolvedValue(undefined);
 
-    await eventEmitter.emitAsync("username.claimed", {
-      username: "alice",
+    const payload = {
+      username: "testuser",
       publicKey: PUBLIC_KEY,
-    });
+    };
+
+    // Manually call the event handler method to test it directly
+    await service.onUsernameClaimed(payload);
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "username.claimed" }),

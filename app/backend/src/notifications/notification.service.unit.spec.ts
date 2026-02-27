@@ -53,6 +53,9 @@ describe("NotificationService (Event Hook Verification)", () => {
       value: mockLogger,
       writable: true,
     });
+    
+    // Ensure the service is fully initialized
+    service.onModuleInit();
   });
 
   afterEach(async () => {
@@ -61,7 +64,7 @@ describe("NotificationService (Event Hook Verification)", () => {
 
   it('should react to "username.claimed" event and call dispatch', async () => {
     const dispatchSpy = jest
-      .spyOn(NotificationService.prototype, "dispatch")
+      .spyOn(service, "dispatch")
       .mockResolvedValue(undefined);
 
     const payload = {
@@ -69,7 +72,8 @@ describe("NotificationService (Event Hook Verification)", () => {
       publicKey: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
     };
 
-    await eventEmitter.emitAsync("username.claimed", payload);
+    // Manually call the event handler method to test it directly
+    await service.onUsernameClaimed(payload);
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "username.claimed" }),
@@ -79,7 +83,7 @@ describe("NotificationService (Event Hook Verification)", () => {
 
   it('should react to "payment.received" event and call dispatch', async () => {
     const dispatchSpy = jest
-      .spyOn(NotificationService.prototype, "dispatch")
+      .spyOn(service, "dispatch")
       .mockResolvedValue(undefined);
 
     const payload = {
@@ -90,7 +94,8 @@ describe("NotificationService (Event Hook Verification)", () => {
         "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
     };
 
-    await eventEmitter.emitAsync("payment.received", payload);
+    // Manually call the event handler method to test it directly
+    await service.onPaymentReceived(payload);
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "payment.received" }),

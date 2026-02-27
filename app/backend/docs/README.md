@@ -1,0 +1,218 @@
+# Backend Documentation
+
+## Overview
+
+The QuickEx backend is a NestJS-based application that provides a comprehensive cryptocurrency trading and notification system. It integrates with Stellar blockchain for transaction processing and includes real-time event ingestion, user management, and notification services.
+
+## Architecture
+
+### Core Modules
+
+- **App Module**: Root module that configures global settings and imports feature modules
+- **Config Module**: Handles environment configuration and validation
+- **Health Module**: Provides health check endpoints
+- **Metrics Module**: Collects and exposes application metrics
+- **Stellar Module**: Core Stellar blockchain integration
+- **Transactions Module**: Handles transaction processing and validation
+- **Usernames Module**: Manages username registration and resolution
+- **Notifications Module**: Handles notification dispatching across multiple providers
+- **Ingestion Module**: Real-time Stellar event ingestion and processing
+
+### Key Services
+
+#### StellarIngestionService
+- **Purpose**: Ingests real-time events from Stellar blockchain via Horizon API
+- **Features**:
+  - Contract event streaming with cursor-based resumption
+  - Exponential backoff reconnection logic
+  - Event parsing and persistence
+  - Domain event emission via EventEmitter2
+
+#### NotificationService
+- **Purpose**: Dispatches notifications based on user preferences
+- **Features**:
+  - Multiple notification providers (Email, Push, Webhook)
+  - Event-driven architecture using @OnEvent decorators
+  - Rate limiting and preference filtering
+  - Notification logging and tracking
+
+#### SorobanEventParser
+- **Purpose**: Parses raw Stellar contract events into structured domain events
+- **Features**:
+  - XDR decoding using stellar-sdk
+  - Address validation and conversion
+  - Event type classification
+
+## API Endpoints
+
+### Health Checks
+- `GET /health` - Basic health check
+- `GET /health/ready` - Readiness probe
+- `GET /health/live` - Liveness probe
+
+### Metrics
+- `GET /metrics` - Prometheus metrics endpoint
+
+### Swagger Documentation
+- `GET /api` - Interactive API documentation
+- `GET /api-json` - OpenAPI JSON specification
+
+## Environment Configuration
+
+### Required Environment Variables
+
+```bash
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+NETWORK=testnet
+
+# Database
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Stellar Configuration
+STELLAR_NETWORK=testnet
+
+# Metrics
+METRICS_ENABLED=true
+METRICS_ENDPOINT_PROTECTED=false
+```
+
+## Testing
+
+### Test Structure
+- Unit tests: `*.unit.spec.ts`
+- Integration tests: `*.integration.spec.ts`
+- E2E tests: `*.e2e-spec.ts`
+
+### Running Tests
+```bash
+# Run all tests
+pnpm run test
+
+# Run unit tests only
+pnpm run test:unit
+
+# Run integration tests only
+pnpm run test:int
+
+# Run E2E tests only
+pnpm run test:e2e
+```
+
+### Test Coverage
+- Total tests: 274
+- Coverage includes all major services and repositories
+- Tests use Jest framework with NestJS testing utilities
+
+## Event System
+
+### Event Types
+- `stellar.EscrowDeposited` - Escrow deposit events
+- `stellar.EscrowWithdrawn` - Escrow withdrawal events
+- `stellar.EscrowRefunded` - Escrow refund events
+- `payment.received` - Payment received events
+- `username.claimed` - Username claim events
+
+### Event Flow
+1. StellarIngestionService streams events from Horizon
+2. SorobanEventParser converts raw events to domain events
+3. Events are emitted via EventEmitter2
+4. NotificationService listens for relevant events
+5. Notifications are dispatched based on user preferences
+
+## Database Schema
+
+### Key Tables
+- `cursors` - Stream cursor tracking for event ingestion
+- `escrow_events` - Escrow-related events
+- `notification_preferences` - User notification preferences
+- `notification_logs` - Notification delivery tracking
+
+## Error Handling
+
+### Global Error Handling
+- HTTP exception filters for standardized error responses
+- Winston logging for structured logging
+- Graceful degradation for external service failures
+
+### Rate Limiting
+- Built-in rate limiting for API endpoints
+- Exponential backoff for Stellar Horizon API calls
+- Circuit breaker pattern for external service integration
+
+## Deployment
+
+### Build Process
+```bash
+# Build the application
+pnpm run build
+
+# Start production server
+pnpm run start:prod
+```
+
+### Docker Support
+- Dockerfile included for containerized deployment
+- Multi-stage build for optimized production images
+
+## Monitoring
+
+### Metrics
+- Prometheus metrics collection
+- Custom business metrics for transaction processing
+- Health check endpoints for load balancers
+
+### Logging
+- Structured logging with Winston
+- Correlation IDs for request tracing
+- Different log levels for development and production
+
+## Security
+
+### Features
+- Helmet for security headers
+- CORS configuration
+- Input validation and sanitization
+- Environment variable validation
+
+### Best Practices
+- Principle of least privilege
+- Secure secret management
+- Regular dependency updates
+
+## Development
+
+### Getting Started
+```bash
+# Install dependencies
+pnpm install
+
+# Run development server
+pnpm run dev
+
+# Run linting
+pnpm run lint
+
+# Run type checking
+pnpm run type-check
+```
+
+### Code Style
+- ESLint configuration for consistent code style
+- Prettier for code formatting
+- TypeScript for type safety
+
+## Contributing
+
+### Guidelines
+- Follow existing code patterns and conventions
+- Write comprehensive tests for new features
+- Update documentation for API changes
+- Ensure all tests pass before submitting PRs
+
+### Git Workflow
+- Feature branches for new development
+- Pull requests for code review
+- Semantic versioning for releases

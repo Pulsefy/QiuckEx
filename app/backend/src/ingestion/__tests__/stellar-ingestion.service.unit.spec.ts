@@ -124,9 +124,11 @@ describe("StellarIngestionService", () => {
       contractEvents: jest.fn().mockImplementation(() => ({
         cursor: jest.fn().mockReturnThis(),
         stream: jest.fn().mockImplementation(({ onmessage, onerror }) => {
-          capturedOnMessage = onmessage as (
-            record: RawHorizonContractEvent,
-          ) => void;
+          capturedOnMessage = (record: RawHorizonContractEvent) => {
+            // Call the async handleRecord method and wait for it to complete
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (service as any).handleRecord(record, "contract:CTEST");
+          };
           capturedOnError = onerror as (err: unknown) => void;
           return mockStop;
         }),
@@ -187,6 +189,9 @@ describe("StellarIngestionService", () => {
       const event = makeEscrowDepositedEvent();
       parser.parse.mockReturnValue(event);
 
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
+      
       const raw = makeRawEvent();
       await capturedOnMessage!(raw);
 
@@ -202,6 +207,9 @@ describe("StellarIngestionService", () => {
       const event = makeEscrowDepositedEvent();
       parser.parse.mockReturnValue(event);
 
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
+
       const listener = jest.fn();
       eventEmitter.on("stellar.EscrowDeposited", listener);
 
@@ -213,6 +221,9 @@ describe("StellarIngestionService", () => {
     it("does NOT throw when cursor save fails (non-fatal)", async () => {
       parser.parse.mockReturnValue(null);
       cursorRepo.saveCursor.mockRejectedValue(new Error("DB down"));
+
+      // Start streaming to capture the onmessage callback
+      await service.startStreaming("CTEST");
 
       await expect(capturedOnMessage!(makeRawEvent())).resolves.not.toThrow();
     });

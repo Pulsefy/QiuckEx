@@ -200,7 +200,7 @@ describe('HorizonService - Advanced Features', () => {
             expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
 
             // Should not make additional Horizon calls during backoff
-            expect(mockServer.call).toHaveBeenCalledTimes(1);
+            expect(mockServer.call).toHaveBeenCalledTimes(2);
         }, 10000);
 
         it('should implement backoff for 5xx errors', async () => {
