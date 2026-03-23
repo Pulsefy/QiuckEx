@@ -57,6 +57,7 @@ fn setup_escrow(
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),
         expires_at,
+        arbiter: None,
     };
 
     env.as_contract(contract_id, || {
@@ -87,6 +88,7 @@ fn setup_escrow_with_owner(
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),
         expires_at,
+        arbiter: None,
     };
     env.as_contract(contract_id, || {
         let storage_commitment: Bytes = commitment.into();
@@ -1330,7 +1332,7 @@ fn regression_golden_path_full_flow() {
     // 2. Deposit: mint to `to` (owner) and deposit into escrow
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&to, &amount);
-    let committed = client.deposit(&token, &amount, &to, &salt, &0);
+    let committed = client.deposit(&token, &amount, &to, &salt, &0, None);
     assert_eq!(committed, commitment);
     assert_eq!(token_client.balance(&client.address), amount);
 
@@ -1349,4 +1351,247 @@ fn regression_golden_path_full_flow() {
         client.get_commitment_state(&commitment),
         Some(EscrowStatus::Spent)
     );
+}
+
+// ============================================================================
+// Dispute Resolution Tests
+// ============================================================================
+
+#[test]
+fn test_dispute_successful() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"dispute_salt");
+    let timeout_secs = 1000u64;
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout_secs, Some(&arbiter));
+
+    // Verify initial state
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Pending));
+
+    // Initiate dispute
+    client.dispute(&commitment);
+
+    // Verify disputed state
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+}
+
+#[test]
+fn test_dispute_fails_without_arbiter() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"no_arbiter_salt");
+
+    // Create escrow without arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, None);
+
+    // Attempt dispute should fail
+    let res = client.try_dispute(&commitment);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::NoArbiter)));
+}
+
+#[test]
+fn test_dispute_fails_on_non_pending_status() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"already_spent_salt");
+
+    // Create and immediately withdraw escrow
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+    client.withdraw(&token, &amount, &commitment, &owner, &salt);
+
+    // Attempt dispute on spent escrow should fail
+    let res = client.try_dispute(&commitment);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+}
+
+#[test]
+fn test_resolve_dispute_for_owner() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"resolve_owner_salt");
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Initiate dispute
+    client.dispute(&commitment);
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+
+    // Resolve dispute in favor of owner
+    let recipient = Address::generate(&env); // This should be ignored
+    client.resolve_dispute(&commitment, &true, &recipient);
+
+    // Verify final state and owner got funds
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Refunded));
+    assert_eq!(token_client.balance(&owner), amount);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+#[test]
+fn test_resolve_dispute_for_recipient() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"resolve_recipient_salt");
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Initiate dispute
+    client.dispute(&commitment);
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+
+    // Resolve dispute in favor of recipient
+    client.resolve_dispute(&commitment, &false, &recipient);
+
+    // Verify final state and recipient got funds
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Spent));
+    assert_eq!(token_client.balance(&recipient), amount);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+#[test]
+fn test_resolve_dispute_fails_for_non_arbiter() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let impostor = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"impostor_salt");
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Initiate dispute
+    client.dispute(&commitment);
+
+    // Attempt resolution by non-arbiter should fail
+    let res = client.try_resolve_dispute(&commitment, &true, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::NotArbiter)));
+}
+
+#[test]
+fn test_resolve_dispute_fails_on_non_disputed_status() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"not_disputed_salt");
+
+    // Create escrow with arbiter but don't dispute
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Attempt resolution without dispute should fail
+    let res = client.try_resolve_dispute(&commitment, &true, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+}
+
+#[test]
+fn test_withdraw_fails_during_dispute() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"withdraw_blocked_salt");
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Initiate dispute
+    client.dispute(&commitment);
+
+    // Withdrawal should fail during dispute
+    let res = client.try_withdraw(&token, &amount, &commitment, &owner, &salt);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+}
+
+#[test]
+fn test_refund_fails_during_dispute() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"refund_blocked_salt");
+
+    // Create escrow with arbiter and set expiry
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1, Some(&arbiter)); // 1 second expiry
+
+    // Fast forward past expiry
+    env.ledger().set_timestamp(env.ledger().timestamp() + 2);
+
+    // Initiate dispute
+    client.dispute(&commitment);
+
+    // Refund should fail even though expired, because dispute takes precedence
+    let res = client.try_refund(&commitment, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+}
+
+#[test]
+fn test_get_escrow_details_shows_arbiter_to_owner_and_arbiter() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let stranger = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"arbiter_visibility_salt");
+
+    // Create escrow with arbiter
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, Some(&arbiter));
+
+    // Enable privacy for owner
+    client.set_privacy(&owner, &true);
+
+    // Owner should see arbiter
+    let owner_view = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(owner_view.arbiter, Some(arbiter));
+
+    // Arbiter should see arbiter
+    let arbiter_view = client.get_escrow_details(&commitment, &arbiter).unwrap();
+    assert_eq!(arbiter_view.arbiter, Some(arbiter));
+
+    // Stranger should not see arbiter due to privacy
+    let stranger_view = client.get_escrow_details(&commitment, &stranger).unwrap();
+    assert_eq!(stranger_view.arbiter, None);
 }
