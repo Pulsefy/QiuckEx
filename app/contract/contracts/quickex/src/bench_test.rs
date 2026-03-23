@@ -115,7 +115,7 @@ fn bench_deposit() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    let _ = client.deposit(&token, &amount, &owner, &salt, &0u64, None);
+    let _ = client.deposit(&token, &amount, &owner, &salt, &0u64, &None);
     print_budget(&env, "deposit");
 }
 
@@ -135,7 +135,7 @@ fn bench_deposit_with_commitment() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    client.deposit_with_commitment(&from, &token, &amount, &commitment, &0u64, None);
+    client.deposit_with_commitment(&from, &token, &amount, &commitment, &0u64, &None);
     print_budget(&env, "deposit_with_commitment");
 }
 

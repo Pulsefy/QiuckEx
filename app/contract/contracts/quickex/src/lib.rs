@@ -481,7 +481,7 @@ impl QuickexContract {
 
         let privacy_on = privacy::get_privacy(&env, entry.owner.clone());
         let is_owner = caller == entry.owner;
-        let is_arbiter = entry.arbiter.as_ref().map_or(false, |a| caller == *a);
+        let is_arbiter = entry.arbiter.as_ref().is_some_and(|a| caller == *a);
         let show_sensitive = !privacy_on || is_owner || is_arbiter;
 
         if show_sensitive {
