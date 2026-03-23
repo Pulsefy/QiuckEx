@@ -93,3 +93,17 @@ pub fn require_not_paused(env: &Env) -> Result<(), QuickexError> {
     }
     Ok(())
 }
+
+#[allow(dead_code)]
+pub fn set_pause_flags(
+    env: &Env,
+    caller: &Address,
+    flags_to_enable: u64,
+    flags_to_disable: u64,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable);
+
+    Ok(())
+}

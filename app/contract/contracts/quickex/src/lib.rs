@@ -68,8 +68,8 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
+        if is_feature_paused(&env, PauseFlag::Withdrawal) {
+            return Err(QuickexError::OperationPaused);
         }
         escrow::withdraw(&env, amount, to, salt)
     }
@@ -122,8 +122,8 @@ impl QuickexContract {
     /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
+        if is_feature_paused(&env, PauseFlag::SetPrivacy) {
+            return Err(QuickexError::OperationPaused);
         }
         privacy::set_privacy(&env, owner, enabled)
     }
@@ -165,8 +165,8 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
     }
@@ -191,6 +191,9 @@ impl QuickexContract {
         amount: i128,
         salt: Bytes,
     ) -> Result<BytesN<32>, QuickexError> {
+        if is_feature_paused(&env, PauseFlag::CreateAmountCommitment) {
+            return Err(QuickexError::OperationPaused);
+        }
         commitment::create_amount_commitment(&env, owner, amount, salt)
     }
 
@@ -261,8 +264,8 @@ impl QuickexContract {
         commitment: BytesN<32>,
         timeout_secs: u64,
     ) -> Result<(), QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
+        if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
+            return Err(QuickexError::OperationPaused);
         }
         escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
     }
@@ -283,6 +286,10 @@ impl QuickexContract {
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
     /// * `InvalidOwner` - Caller is not the original owner
     pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
+        if is_feature_paused(&env, PauseFlag::Refund) {
+            return Err(QuickexError::OperationPaused);
+        }
+
         escrow::refund(&env, commitment, caller)
     }
 
@@ -313,6 +320,42 @@ impl QuickexContract {
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
         admin::set_paused(&env, caller, new_state)
+    }
+
+    /// Check if the functiom is currently paused.
+    ///
+    /// Returns `true` if paused, `false` otherwise.
+    pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
+        storage::is_feature_paused(env, flag)
+    }
+
+    /// Pause a function in the contract (**Admin only**).
+    ///
+    /// When paused, the particular operations isblocked. Caller must equal the stored admin.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must equal admin)
+    /// * `mask` - PauseFlag Enum
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not the admin, or admin not set
+    pub fn pause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        admin::set_pause_flags(&env, &caller, mask, 0)
+    }
+
+    /// UnPause a function in the contract (**Admin only**).
+    ///
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must equal admin)
+    /// * `mask` - PauseFlag Enum
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not the admin, or admin not set
+    pub fn unpause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        admin::set_pause_flags(&env, &caller, 0, mask)
     }
 
     /// Transfer admin rights to a new address (**Admin only**).
