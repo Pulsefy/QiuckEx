@@ -40,4 +40,5 @@ pub enum QuickexError {
     NoArbiter = 312,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
+    OperationPaused = 1000,
 }

@@ -71,10 +71,12 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
+    Pause,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
     PrivacyHistory(Address),
+    // Pause(u64)
 }
 
 // -----------------------------------------------------------------------------
@@ -197,4 +199,46 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
         .persistent()
         .get(&key)
         .unwrap_or(Vec::new(env))
+}
+
+#[contracttype]
+#[repr(u64)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum PauseFlag {
+    Deposit = 1,
+    DepositWithCommitment = 2,
+    Withdrawal = 3,
+    Refund = 4,
+    SetPrivacy = 5,
+    CreateAmountCommitment = 6,
+}
+
+// Helper – current mask
+pub fn get_pause_mask(env: &Env) -> u64 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Pause)
+        .unwrap_or(0u64)
+}
+
+// Check one flag
+pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
+    let mask = get_pause_mask(env);
+    (mask & flag as u64) != 0
+}
+
+// #[allow(dead_code)]
+// pub fn set_paused(env: &Env, paused: bool) {
+//     let key = DataKey::Paused;
+//     env.storage().persistent().set(&key, &paused);
+// }
+
+// Admin-only: toggle multiple flags at once
+pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
+    let mut mask = get_pause_mask(env);
+
+    mask |= flags_to_enable;
+    mask &= !flags_to_disable;
+
+    env.storage().persistent().set(&DataKey::Pause, &mask);
 }
