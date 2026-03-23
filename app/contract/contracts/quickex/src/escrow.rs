@@ -348,9 +348,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
     // Guard: must have an arbiter assigned
-    if entry.arbiter.is_none() {
-        return Err(QuickexError::NoArbiter);
-    }
+    let arbiter = entry.arbiter.ok_or(QuickexError::NoArbiter)?;
 
     // Guard: escrow must be in Pending state
     if entry.status != EscrowStatus::Pending {
@@ -361,7 +359,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     updated.status = EscrowStatus::Disputed;
     put_escrow(env, &commitment_bytes, &updated);
 
-    events::publish_escrow_disputed(env, commitment, entry.arbiter.unwrap());
+    events::publish_escrow_disputed(env, commitment, arbiter);
 
     Ok(())
 }
