@@ -25,11 +25,7 @@ fn create_test_token(env: &Env) -> Address {
 
 /// Simulate the off-chain DH key derivation so tests can compute the correct
 /// stealth address without needing a real EC library.
-fn compute_stealth_address(
-    env: &Env,
-    eph_pub: &BytesN<32>,
-    spend_pub: &BytesN<32>,
-) -> BytesN<32> {
+fn compute_stealth_address(env: &Env, eph_pub: &BytesN<32>, spend_pub: &BytesN<32>) -> BytesN<32> {
     let shared = stealth::derive_shared_secret(env, eph_pub, spend_pub);
     stealth::derive_stealth_address(env, spend_pub, &shared)
 }
@@ -62,16 +58,15 @@ fn test_stealth_full_flow() {
     mint(&env, &token, &sender, amount);
 
     // Sender registers ephemeral key and locks funds.
-    let returned_stealth = client
-        .register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        );
+    let returned_stealth = client.register_ephemeral_key(
+        &sender,
+        &token,
+        &amount,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &0,
+    );
 
     assert_eq!(returned_stealth, stealth_address);
 
@@ -82,8 +77,7 @@ fn test_stealth_full_flow() {
     );
 
     // Recipient withdraws.
-    let ok = client
-        .stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
+    let ok = client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
 
     assert!(ok);
 
@@ -144,16 +138,15 @@ fn test_register_duplicate_stealth_address_fails() {
     mint(&env, &token, &sender, amount * 2);
 
     // First registration succeeds.
-    client
-        .register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        );
+    client.register_ephemeral_key(
+        &sender,
+        &token,
+        &amount,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &0,
+    );
 
     // Second registration with same stealth address must fail.
     let err = client
@@ -187,16 +180,15 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
 
     mint(&env, &token, &sender, amount);
 
-    client
-        .register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        );
+    client.register_ephemeral_key(
+        &sender,
+        &token,
+        &amount,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &0,
+    );
 
     // Use a different spend_pub at withdrawal.
     let wrong_spend_pub: BytesN<32> = BytesN::from_array(&env, &[99u8; 32]);
@@ -224,20 +216,18 @@ fn test_stealth_double_withdraw_fails() {
 
     mint(&env, &token, &sender, amount);
 
-    client
-        .register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        );
+    client.register_ephemeral_key(
+        &sender,
+        &token,
+        &amount,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &0,
+    );
 
     // First withdrawal succeeds.
-    client
-        .stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
+    client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
 
     // Second withdrawal must fail.
     let err = client
@@ -264,16 +254,15 @@ fn test_stealth_withdraw_after_expiry_fails() {
     mint(&env, &token, &sender, amount);
 
     // Register with a 100-second timeout.
-    client
-        .register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &100,
-        );
+    client.register_ephemeral_key(
+        &sender,
+        &token,
+        &amount,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &100,
+    );
 
     // Advance ledger past expiry.
     env.ledger().with_mut(|l| l.timestamp += 200);

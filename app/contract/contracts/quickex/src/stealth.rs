@@ -190,8 +190,8 @@ pub fn stealth_withdraw(
 ) -> Result<bool, QuickexError> {
     recipient.require_auth();
 
-    let mut entry = get_stealth_escrow(env, &stealth_address)
-        .ok_or(QuickexError::StealthEscrowNotFound)?;
+    let mut entry =
+        get_stealth_escrow(env, &stealth_address).ok_or(QuickexError::StealthEscrowNotFound)?;
 
     if entry.status != EscrowStatus::Pending {
         return Err(QuickexError::AlreadySpent);
@@ -217,13 +217,7 @@ pub fn stealth_withdraw(
     let token_client = token::Client::new(env, &entry.token);
     token_client.transfer(&env.current_contract_address(), &recipient, &entry.amount);
 
-    events::publish_stealth_withdrawn(
-        env,
-        stealth_address,
-        recipient,
-        entry.token,
-        entry.amount,
-    );
+    events::publish_stealth_withdrawn(env, stealth_address, recipient, entry.token, entry.amount);
 
     Ok(true)
 }

@@ -542,10 +542,7 @@ impl QuickexContract {
     ///
     /// # Arguments
     /// * `stealth_address` – The 32-byte one-time stealth address.
-    pub fn get_stealth_status(
-        env: Env,
-        stealth_address: BytesN<32>,
-    ) -> Option<EscrowStatus> {
+    pub fn get_stealth_status(env: Env, stealth_address: BytesN<32>) -> Option<EscrowStatus> {
         stealth::get_stealth_status(&env, &stealth_address)
     }
 
