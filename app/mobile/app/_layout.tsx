@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { OfflineBanner } from '../components/resilience/offline-banner';
+import useNotifications from '../hooks/useNotifications';
 
 import { parsePaymentLink } from '@/utils/parse-payment-link';
 
@@ -43,6 +44,7 @@ function useDeepLinkHandler() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   useDeepLinkHandler();
+  useNotifications();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
