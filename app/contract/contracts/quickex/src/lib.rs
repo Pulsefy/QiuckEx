@@ -11,6 +11,9 @@ mod errors;
 mod escrow;
 mod events;
 mod privacy;
+mod stealth;
+#[cfg(test)]
+mod stealth_test;
 mod storage;
 #[cfg(test)]
 mod storage_test;
@@ -444,6 +447,108 @@ impl QuickexContract {
             })
         }
     }
+    // -----------------------------------------------------------------------
+    // Stealth Address – Privacy v2 (Issue #157)
+    // -----------------------------------------------------------------------
+
+    /// Register an ephemeral public key and lock funds for a stealth recipient.
+    ///
+    /// The sender computes a one-time `stealth_address` off-chain via:
+    /// ```text
+    /// shared_secret   = SHA-256(eph_pub || spend_pub)
+    /// stealth_address = SHA-256(spend_pub || shared_secret)
+    /// ```
+    /// The contract re-derives and verifies the stealth address on-chain, then
+    /// locks `amount` of `token` under it.  The recipient's main address is
+    /// never recorded on-chain.
+    ///
+    /// # Arguments
+    /// * `sender`          – Depositor (must authorize token transfer).
+    /// * `token`           – Token contract address.
+    /// * `amount`          – Amount to lock; must be positive.
+    /// * `eph_pub`         – Sender's ephemeral public key (32 bytes).
+    /// * `spend_pub`       – Recipient's spend public key (32 bytes).
+    /// * `stealth_address` – Pre-computed one-time address (32 bytes).
+    /// * `timeout_secs`    – Seconds until expiry; 0 = no expiry.
+    ///
+    /// # Errors
+    /// * `InvalidAmount`            – amount ≤ 0.
+    /// * `ContractPaused`           – contract is paused.
+    /// * `StealthAddressMismatch`   – on-chain re-derivation does not match.
+    /// * `StealthAddressAlreadyUsed`– stealth address already has a deposit.
+    pub fn register_ephemeral_key(
+        env: Env,
+        sender: Address,
+        token: Address,
+        amount: i128,
+        eph_pub: BytesN<32>,
+        spend_pub: BytesN<32>,
+        stealth_address: BytesN<32>,
+        timeout_secs: u64,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        stealth::register_ephemeral_key(
+            &env,
+            sender,
+            token,
+            amount,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            timeout_secs,
+        )
+    }
+
+    /// Withdraw funds locked under a stealth address.
+    ///
+    /// The caller proves ownership by supplying the matching `spend_pub` and
+    /// `eph_pub`.  The contract re-derives the stealth address; if it matches,
+    /// funds are transferred to `recipient`.
+    ///
+    /// The `recipient` address is only revealed at withdrawal time and is not
+    /// linked to any prior on-chain activity.
+    ///
+    /// # Arguments
+    /// * `recipient`       – Address to receive the funds (must authorize).
+    /// * `eph_pub`         – Ephemeral public key from the registration event.
+    /// * `spend_pub`       – Recipient's spend public key (32 bytes).
+    /// * `stealth_address` – The one-time stealth address to withdraw from.
+    ///
+    /// # Errors
+    /// * `StealthEscrowNotFound`  – no escrow for this stealth address.
+    /// * `AlreadySpent`           – already withdrawn or refunded.
+    /// * `EscrowExpired`          – escrow has passed its expiry.
+    /// * `StealthAddressMismatch` – re-derived address does not match.
+    /// * `ContractPaused`         – contract is paused.
+    pub fn stealth_withdraw(
+        env: Env,
+        recipient: Address,
+        eph_pub: BytesN<32>,
+        spend_pub: BytesN<32>,
+        stealth_address: BytesN<32>,
+    ) -> Result<bool, QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address)
+    }
+
+    /// Get the status of a stealth escrow (read-only).
+    ///
+    /// Returns `Pending`, `Spent`, or `Refunded` if an escrow exists; `None` otherwise.
+    /// Does not reveal amount, token, or any key material.
+    ///
+    /// # Arguments
+    /// * `stealth_address` – The 32-byte one-time stealth address.
+    pub fn get_stealth_status(
+        env: Env,
+        stealth_address: BytesN<32>,
+    ) -> Option<EscrowStatus> {
+        stealth::get_stealth_status(&env, &stealth_address)
+    }
+
     /// Upgrade the contract to a new WASM implementation (**Admin only**).
     ///
     /// Caller must equal admin and authorize. The new WASM must be pre-uploaded to the network.

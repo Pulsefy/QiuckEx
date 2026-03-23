@@ -10,7 +10,9 @@ export type SorobanEventType =
   | "PrivacyToggled"
   | "ContractPaused"
   | "AdminChanged"
-  | "ContractUpgraded";
+  | "ContractUpgraded"
+  | "EphemeralKeyRegistered"
+  | "StealthWithdrawn";
 
 export interface BaseContractEvent {
   eventType: SorobanEventType;
@@ -69,6 +71,29 @@ export interface ContractUpgradedEvent extends BaseContractEvent {
   admin: string;
 }
 
+/** Emitted when a sender registers an ephemeral public key and locks funds for a stealth recipient. */
+export interface EphemeralKeyRegisteredEvent extends BaseContractEvent {
+  eventType: "EphemeralKeyRegistered";
+  /** One-time stealth address (hex). */
+  stealthAddress: string;
+  /** Sender's ephemeral public key (hex). */
+  ephPub: string;
+  token: string;
+  amount: bigint;
+  expiresAt: bigint;
+}
+
+/** Emitted when a recipient withdraws funds from a stealth escrow. */
+export interface StealthWithdrawnEvent extends BaseContractEvent {
+  eventType: "StealthWithdrawn";
+  /** One-time stealth address (hex). */
+  stealthAddress: string;
+  /** Recipient's real address – only revealed at withdrawal time. */
+  recipient: string;
+  token: string;
+  amount: bigint;
+}
+
 export type QuickExContractEvent =
   | EscrowDepositedEvent
   | EscrowWithdrawnEvent
@@ -76,9 +101,13 @@ export type QuickExContractEvent =
   | PrivacyToggledEvent
   | ContractPausedEvent
   | AdminChangedEvent
-  | ContractUpgradedEvent;
+  | ContractUpgradedEvent
+  | EphemeralKeyRegisteredEvent
+  | StealthWithdrawnEvent;
 
 export type EscrowEvent =
   | EscrowDepositedEvent
   | EscrowWithdrawnEvent
   | EscrowRefundedEvent;
+
+export type StealthEvent = EphemeralKeyRegisteredEvent | StealthWithdrawnEvent;

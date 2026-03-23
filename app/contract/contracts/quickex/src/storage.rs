@@ -38,9 +38,9 @@
 //! - **Value layout**: Changing `EscrowEntry` fields may require migration logic; adding optional
 //!   fields can be done carefully with defaults.
 
-use soroban_sdk::{contracttype, Address, Bytes, Env, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::EscrowEntry;
+use crate::types::{EscrowEntry, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -75,6 +75,8 @@ pub enum DataKey {
     PrivacyLevel(Address),
     /// Privacy level change history per account.
     PrivacyHistory(Address),
+    /// Stealth escrow entry keyed by the 32-byte stealth address (Privacy v2).
+    StealthEscrow(BytesN<32>),
 }
 
 // -----------------------------------------------------------------------------
@@ -197,4 +199,22 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
         .persistent()
         .get(&key)
         .unwrap_or(Vec::new(env))
+}
+
+// -----------------------------------------------------------------------------
+// Stealth escrow helpers (Privacy v2 – Issue #157)
+// -----------------------------------------------------------------------------
+
+/// Store a stealth escrow entry keyed by the 32-byte stealth address.
+pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().set(&key, entry);
+}
+
+/// Retrieve a stealth escrow entry by stealth address.
+///
+/// Returns `None` if no entry exists.
+pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<StealthEscrowEntry> {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().get(&key)
 }

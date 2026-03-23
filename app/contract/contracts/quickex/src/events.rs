@@ -179,3 +179,76 @@ pub(crate) fn publish_escrow_refunded(
     }
     .publish(env);
 }
+
+// ---------------------------------------------------------------------------
+// Stealth address events (Privacy v2 – Issue #157)
+// ---------------------------------------------------------------------------
+
+#[contractevent(topics = ["EphemeralKeyRegistered"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EphemeralKeyRegisteredEvent {
+    /// One-time stealth address (indexed for scanning).
+    #[topic]
+    pub stealth_address: BytesN<32>,
+
+    /// Sender's ephemeral public key (indexed so recipient can scan).
+    #[topic]
+    pub eph_pub: BytesN<32>,
+
+    pub token: Address,
+    pub amount: i128,
+    pub expires_at: u64,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_ephemeral_key_registered(
+    env: &Env,
+    stealth_address: BytesN<32>,
+    eph_pub: BytesN<32>,
+    token: Address,
+    amount: i128,
+    expires_at: u64,
+) {
+    EphemeralKeyRegisteredEvent {
+        stealth_address,
+        eph_pub,
+        token,
+        amount,
+        expires_at,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["StealthWithdrawn"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StealthWithdrawnEvent {
+    /// One-time stealth address (indexed).
+    #[topic]
+    pub stealth_address: BytesN<32>,
+
+    /// Recipient's real address – only revealed at withdrawal time.
+    #[topic]
+    pub recipient: Address,
+
+    pub token: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_stealth_withdrawn(
+    env: &Env,
+    stealth_address: BytesN<32>,
+    recipient: Address,
+    token: Address,
+    amount: i128,
+) {
+    StealthWithdrawnEvent {
+        stealth_address,
+        recipient,
+        token,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}

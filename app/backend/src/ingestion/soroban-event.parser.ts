@@ -11,6 +11,8 @@ import type {
   ContractPausedEvent,
   AdminChangedEvent,
   ContractUpgradedEvent,
+  EphemeralKeyRegisteredEvent,
+  StealthWithdrawnEvent,
 } from "./types/contract-event.types";
 
 /**
@@ -76,6 +78,10 @@ export class SorobanEventParser {
           return this.parseAdminChanged(topics, dataVal, base);
         case "ContractUpgraded":
           return this.parseContractUpgraded(topics, dataVal, base);
+        case "EphemeralKeyRegistered":
+          return this.parseEphemeralKeyRegistered(topics, dataVal, base);
+        case "StealthWithdrawn":
+          return this.parseStealthWithdrawn(topics, dataVal, base);
         default:
           this.logger.debug(`Unrecognised event name: ${eventName}`);
           return null;
@@ -225,6 +231,57 @@ export class SorobanEventParser {
       ...base,
       newWasmHash,
       admin,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stealth address event parsers (Privacy v2 – Issue #157)
+  // ---------------------------------------------------------------------------
+
+  private parseEphemeralKeyRegistered(
+    topics: xdr.ScVal[],
+    data: xdr.ScVal,
+    base: Omit<
+      EphemeralKeyRegisteredEvent,
+      "eventType" | "stealthAddress" | "ephPub" | "token" | "amount" | "expiresAt"
+    >,
+  ): EphemeralKeyRegisteredEvent {
+    // Topics: [name, stealth_address, eph_pub]
+    const stealthAddress = this.decodeBytes32Hex(topics[1]);
+    const ephPub = this.decodeBytes32Hex(topics[2]);
+    const map = this.dataToMap(data);
+
+    return {
+      eventType: "EphemeralKeyRegistered",
+      ...base,
+      stealthAddress,
+      ephPub,
+      token: this.decodeAddress(map["token"]),
+      amount: BigInt(scValToNative(map["amount"])),
+      expiresAt: BigInt(scValToNative(map["expires_at"])),
+    };
+  }
+
+  private parseStealthWithdrawn(
+    topics: xdr.ScVal[],
+    data: xdr.ScVal,
+    base: Omit<
+      StealthWithdrawnEvent,
+      "eventType" | "stealthAddress" | "recipient" | "token" | "amount"
+    >,
+  ): StealthWithdrawnEvent {
+    // Topics: [name, stealth_address, recipient]
+    const stealthAddress = this.decodeBytes32Hex(topics[1]);
+    const recipient = this.decodeAddress(topics[2]);
+    const map = this.dataToMap(data);
+
+    return {
+      eventType: "StealthWithdrawn",
+      ...base,
+      stealthAddress,
+      recipient,
+      token: this.decodeAddress(map["token"]),
+      amount: BigInt(scValToNative(map["amount"])),
     };
   }
 

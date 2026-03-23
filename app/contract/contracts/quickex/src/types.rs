@@ -2,7 +2,7 @@
 //!
 //! See [`crate::storage`] for the storage schema and key layout.
 
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, BytesN};
 
 /// Escrow entry status.
 ///
@@ -81,5 +81,33 @@ pub struct PrivacyAwareEscrowView {
     /// Creation timestamp (always visible).
     pub created_at: u64,
     /// Expiry timestamp; `0` means no expiry (always visible).
+    pub expires_at: u64,
+}
+
+/// Stealth escrow entry for Privacy v2 (Issue #157).
+///
+/// Locked under a one-time stealth address derived via Diffie-Hellman.
+/// The original recipient's public address is never stored on-chain.
+///
+/// ## Field visibility
+/// - `eph_pub` is public (needed by recipient to scan).
+/// - `token`, `amount`, `status`, `created_at`, `expires_at` are public.
+/// - The link between `eph_pub` and the recipient's real identity is only
+///   computable by the recipient (who holds the matching private key).
+#[contracttype]
+#[derive(Clone)]
+pub struct StealthEscrowEntry {
+    /// Token contract address for the escrowed funds.
+    pub token: Address,
+    /// Amount in token base units.
+    pub amount: i128,
+    /// Sender's ephemeral public key (32 bytes). Stored so the recipient can
+    /// scan events and re-derive the shared secret off-chain.
+    pub eph_pub: BytesN<32>,
+    /// Current lifecycle status.
+    pub status: EscrowStatus,
+    /// Ledger timestamp when the stealth escrow was created.
+    pub created_at: u64,
+    /// Expiry timestamp; `0` means no expiry.
     pub expires_at: u64,
 }

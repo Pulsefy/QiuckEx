@@ -32,6 +32,13 @@ pub enum QuickexError {
     EscrowNotExpired = 308,
     /// Caller is not the original owner of the escrow.
     InvalidOwner = 309,
+    // Stealth address errors (400-499)
+    /// Derived stealth address does not match the provided one.
+    StealthAddressMismatch = 400,
+    /// A stealth escrow already exists for this stealth address.
+    StealthAddressAlreadyUsed = 401,
+    /// No stealth escrow found for the given stealth address.
+    StealthEscrowNotFound = 402,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
 }
