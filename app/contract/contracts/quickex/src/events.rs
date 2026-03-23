@@ -192,11 +192,7 @@ pub(crate) fn publish_escrow_refunded(
     .publish(env);
 }
 
-pub(crate) fn publish_escrow_disputed(
-    env: &Env,
-    commitment: BytesN<32>,
-    arbiter: Address,
-) {
+pub(crate) fn publish_escrow_disputed(env: &Env, commitment: BytesN<32>, arbiter: Address) {
     EscrowDisputedEvent {
         commitment,
         arbiter,

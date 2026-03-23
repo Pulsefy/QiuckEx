@@ -1370,16 +1370,29 @@ fn test_dispute_successful() {
     // Create escrow with arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout_secs, Some(&arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout_secs,
+        Some(&arbiter),
+    );
 
     // Verify initial state
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Pending));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Pending)
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
 
     // Verify disputed state
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Disputed)
+    );
 }
 
 #[test]
@@ -1417,7 +1430,10 @@ fn test_dispute_fails_on_non_pending_status() {
 
     // Attempt dispute on spent escrow should fail
     let res = client.try_dispute(&commitment);
-    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+    assert_eq!(
+        res,
+        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+    );
 }
 
 #[test]
@@ -1436,14 +1452,20 @@ fn test_resolve_dispute_for_owner() {
 
     // Initiate dispute
     client.dispute(&commitment);
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Disputed)
+    );
 
     // Resolve dispute in favor of owner
     let recipient = Address::generate(&env); // This should be ignored
     client.resolve_dispute(&commitment, &true, &recipient);
 
     // Verify final state and owner got funds
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Refunded));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Refunded)
+    );
     assert_eq!(token_client.balance(&owner), amount);
     assert_eq!(token_client.balance(&client.address), 0);
 }
@@ -1465,13 +1487,19 @@ fn test_resolve_dispute_for_recipient() {
 
     // Initiate dispute
     client.dispute(&commitment);
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Disputed));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Disputed)
+    );
 
     // Resolve dispute in favor of recipient
     client.resolve_dispute(&commitment, &false, &recipient);
 
     // Verify final state and recipient got funds
-    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Spent));
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Spent)
+    );
     assert_eq!(token_client.balance(&recipient), amount);
     assert_eq!(token_client.balance(&client.address), 0);
 }
@@ -1515,7 +1543,10 @@ fn test_resolve_dispute_fails_on_non_disputed_status() {
 
     // Attempt resolution without dispute should fail
     let res = client.try_resolve_dispute(&commitment, &true, &owner);
-    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+    assert_eq!(
+        res,
+        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+    );
 }
 
 #[test]
@@ -1537,7 +1568,10 @@ fn test_withdraw_fails_during_dispute() {
 
     // Withdrawal should fail during dispute
     let res = client.try_withdraw(&token, &amount, &commitment, &owner, &salt);
-    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+    assert_eq!(
+        res,
+        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+    );
 }
 
 #[test]
@@ -1562,7 +1596,10 @@ fn test_refund_fails_during_dispute() {
 
     // Refund should fail even though expired, because dispute takes precedence
     let res = client.try_refund(&commitment, &owner);
-    assert_eq!(res, Err(Ok(crate::errors::QuickexError::InvalidDisputeState)));
+    assert_eq!(
+        res,
+        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+    );
 }
 
 #[test]

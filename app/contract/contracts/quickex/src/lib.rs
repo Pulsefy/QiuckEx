@@ -271,7 +271,15 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs, arbiter)
+        escrow::deposit_with_commitment(
+            &env,
+            from,
+            token,
+            amount,
+            commitment,
+            timeout_secs,
+            arbiter,
+        )
     }
 
     /// Refund an expired escrow back to its original owner.

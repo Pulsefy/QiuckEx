@@ -416,12 +416,22 @@ pub fn resolve_dispute(
     put_escrow(env, &commitment_bytes, &updated);
 
     let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(&env.current_contract_address(), &recipient_address, &entry.amount);
+    token_client.transfer(
+        &env.current_contract_address(),
+        &recipient_address,
+        &entry.amount,
+    );
 
     if resolve_for_owner {
         events::publish_escrow_refunded(env, entry.owner, commitment, entry.token, entry.amount);
     } else {
-        events::publish_escrow_withdrawn(env, commitment, recipient_address, entry.token, entry.amount);
+        events::publish_escrow_withdrawn(
+            env,
+            commitment,
+            recipient_address,
+            entry.token,
+            entry.amount,
+        );
     }
 
     Ok(())
