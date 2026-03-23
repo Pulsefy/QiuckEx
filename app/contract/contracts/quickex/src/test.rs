@@ -604,7 +604,7 @@ fn test_event_snapshot_escrow_refunded_schema() {
     token_client.mint(&owner, &amount);
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, None);
     env.ledger()
         .set_timestamp(env.ledger().timestamp() + timeout);
 
@@ -1243,7 +1243,7 @@ fn test_refund_successful() {
     token_client.mint(&owner, &amount);
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, None);
 
     let start_time = env.ledger().timestamp();
     let expires_at = start_time + timeout;
@@ -1280,7 +1280,7 @@ fn test_refund_unauthorized_fails() {
     let salt = Bytes::from_slice(&env, b"thief_salt");
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &100);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, None);
 
     // Advance past expiry
     env.ledger().set_timestamp(env.ledger().timestamp() + 101);
@@ -1299,7 +1299,7 @@ fn test_double_refund_fails() {
     let salt = Bytes::from_slice(&env, b"double_refund");
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &100);
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, None);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 101);
 
