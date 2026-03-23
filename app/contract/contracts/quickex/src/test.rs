@@ -542,7 +542,7 @@ fn test_deposit() {
 
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    client.deposit_with_commitment(&user, &token_id, &500, &commitment, &0);
+    client.deposit_with_commitment(&user, &token_id, &500, &commitment, &0, None);
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);
@@ -566,7 +566,7 @@ fn test_event_snapshot_escrow_deposited_schema() {
     let client = QuickexContractClient::new(&env, &contract_id);
 
     let commitment = BytesN::from_array(&env, &[7; 32]);
-    client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0);
+    client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0, None);
 }
 
 #[test]
@@ -673,7 +673,7 @@ fn test_deposit_with_commitment_fails_when_paused() {
     client.initialize(&admin);
     client.set_paused(&admin, &true);
 
-    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0);
+    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0, None);
     assert_contract_error(result, QuickexError::ContractPaused);
 }
 
@@ -838,6 +838,7 @@ fn test_get_commitment_state_spent() {
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
         expires_at: 0,
+        arbiter: None,
     };
 
     env.as_contract(&client.address, || {
@@ -984,6 +985,7 @@ fn test_verify_proof_view_spent_commitment() {
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
         expires_at: 0,
+        arbiter: None,
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
@@ -1077,6 +1079,7 @@ fn test_get_escrow_details_spent_status() {
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
         expires_at: 0,
+        arbiter: None,
     };
 
     env.as_contract(&client.address, || {
@@ -1376,7 +1379,7 @@ fn test_dispute_successful() {
         &owner,
         &salt,
         &timeout_secs,
-        Some(&arbiter),
+        &Some(arbiter),
     );
 
     // Verify initial state
