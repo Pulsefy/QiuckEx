@@ -22,8 +22,9 @@
 //! contract directory for how to extend the suite when adding new features.
 
 use crate::{
-    errors::QuickexError, storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract,
-    QuickexContractClient,
+    errors::QuickexError,
+    storage::{put_escrow, PauseFlag},
+    EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
@@ -659,44 +660,162 @@ fn test_set_privacy_same_value_fails() {
     assert_contract_error(second, QuickexError::PrivacyAlreadySet);
 }
 
+// fn test_deposit_with_commitment_fails_when_paused() {
+//     let (env, client) = setup();
+//     let admin = Address::generate(&env);
+//     let user = Address::generate(&env);
+//     let token = create_test_token(&env);
+//     let amount: i128 = 500;
+//     let commitment = BytesN::from_array(&env, &[9u8; 32]);
+
+//     client.initialize(&admin);
+//     client.set_paused(&admin, &true);
+
+//     let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0);
+//     assert_contract_error(result, QuickexError::ContractPaused);
+// }
+
 #[test]
 fn test_deposit_with_commitment_fails_when_paused() {
-    let (env, client) = setup();
-    let admin = Address::generate(&env);
+    let env = Env::default();
+    env.mock_all_auths();
+
     let user = Address::generate(&env);
-    let token = create_test_token(&env);
-    let amount: i128 = 500;
-    let commitment = BytesN::from_array(&env, &[9u8; 32]);
+    let token_admin = Address::generate(&env);
+    let admin = Address::generate(&env);
+
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+
+    token_client.mint(&user, &1000);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let commitment = BytesN::from_array(&env, &[1; 32]);
 
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.pause_features(&admin, &(PauseFlag::DepositWithCommitment as u64));
 
-    let result = client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0);
-    assert_contract_error(result, QuickexError::ContractPaused);
+    let result = client.try_deposit_with_commitment(&user, &token_id, &500, &commitment, &0);
+    assert_contract_error(result, QuickexError::OperationPaused);
 }
 
 #[test]
 fn test_withdraw_fails_when_paused() {
     let (env, client) = setup();
     let token = create_test_token(&env);
-    let admin = Address::generate(&env);
     let to = Address::generate(&env);
+    let admin = Address::generate(&env);
     let amount: i128 = 1000;
-    let salt = Bytes::from_slice(&env, b"paused_salt");
+    let salt = Bytes::from_slice(&env, b"test_salt_123");
 
     let mut data = Bytes::new(&env);
+
     let address_bytes: Bytes = to.clone().to_xdr(&env);
+
     data.append(&address_bytes);
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
+
     let commitment: BytesN<32> = env.crypto().sha256(&data).into();
 
     setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
+
+    env.mock_all_auths();
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&client.address, &amount);
+
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.pause_features(&admin, &(PauseFlag::Withdrawal as u64));
 
     let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
-    assert_contract_error(result, QuickexError::ContractPaused);
+    assert_contract_error(result, QuickexError::OperationPaused);
+}
+
+#[test]
+fn test_deposit_fails_when_paused() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_refund_salt");
+    let admin = Address::generate(&env);
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let timeout = 100;
+
+    client.initialize(&admin);
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64));
+
+    let result = client.try_deposit(&token, &amount, &owner, &salt, &timeout);
+    assert_contract_error(result, QuickexError::OperationPaused);
+}
+
+#[test]
+fn test_refund_fails_when_paused() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"refund_salt");
+    let admin = Address::generate(&env);
+
+    // Use contract deposit to get owner correctly stored
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    client.initialize(&admin);
+    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+
+    let timeout = 100;
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+
+    let start_time = env.ledger().timestamp();
+    let expires_at = start_time + timeout;
+
+    // Advance past expiry
+    env.ledger().set_timestamp(expires_at);
+
+    let result = client.try_refund(&commitment, &owner);
+    assert_contract_error(result, QuickexError::OperationPaused);
+}
+
+#[test]
+fn test_refund_pause_unpause() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"refund_salt");
+    let admin = Address::generate(&env);
+
+    // Use contract deposit to get owner correctly stored
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    client.initialize(&admin);
+    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+
+    let timeout = 100;
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout);
+
+    let start_time = env.ledger().timestamp();
+    let expires_at = start_time + timeout;
+
+    // Advance past expiry
+    env.ledger().set_timestamp(expires_at);
+
+    let result = client.try_refund(&commitment, &owner);
+    assert_contract_error(result, QuickexError::OperationPaused);
+
+    client.unpause_features(&admin, &(PauseFlag::Refund as u64));
+    client.refund(&commitment, &owner);
 }
 
 #[test]
