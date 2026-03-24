@@ -36,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/discovery" className="hover:text-white transition">Discovery</Link>
               <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
               <Link href="/generator" className="hover:text-white transition">Generator</Link>
+              <Link href="/marketplace" className="hover:text-white transition">Marketplace</Link>
             </div>
 
             <div className="hidden md:block shrink-0 ml-4">
