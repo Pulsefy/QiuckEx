@@ -521,4 +521,28 @@ impl QuickexContract {
 
         Ok(())
     }
+
+    /// Extend the storage TTL of an escrow record.
+    ///
+    /// Any user can call this to keep an escrow from being archived.
+    /// Re-prolongs storage for another 6 months.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::extend_escrow_ttl(&env, commitment)
+    }
+
+    /// Cleanup terminal escrow entries to reclaim storage deposits.
+    ///
+    /// Only removes escrows that are already `Spent` or `Refunded`.
+    /// Reclaims the storage deposit for the contract's benefit (or whoever paid it).
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    pub fn cleanup_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::cleanup_escrow(&env, commitment)
+    }
 }

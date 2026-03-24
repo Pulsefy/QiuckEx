@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
-import { mockFetch } from "@/hooks/mockApi";
+import { mockFetch, mockContractCall } from "@/hooks/mockApi";
 import { useEffect } from "react";
 
 type DashboardResponse = {
@@ -21,12 +21,23 @@ export default function Dashboard() {
     );
   }, [callApi]);
 
+  const handleExtend = async (id: string) => {
+    console.log("Extending TTL for", id);
+    await mockContractCall("extend", id);
+    alert("Storage TTL extended for 6 months!");
+  };
+
+  const handleCleanup = async (id: string) => {
+    console.log("Cleaning up", id);
+    await mockContractCall("cleanup", id);
+    alert("Storage deposit reclaimed and record cleaned up!");
+  };
+
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;
    if (!data || !data.items || data.items.length === 0) {
     return <p>No transactions yet. Create your first payment link!</p>;
   }
-
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -128,21 +139,22 @@ export default function Dashboard() {
 
           {/* Scrollable table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[600px]">
+            <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="text-[9px] sm:text-[10px] font-black text-neutral-600 uppercase tracking-widest border-b border-white/5">
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Transaction ID</th>
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Asset</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Memo</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">Timestamp</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">Memo / Status</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">Timestamp</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">Actions</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-white/5">
                 {[
-                  { id: "GD2P...5H2W", amount: "50.00 USDC", memo: "Project Milestone #1", date: "2 mins ago", status: "Privacy Enabled" },
-                  { id: "GD1R...3K9L", amount: "125.00 XLM", memo: "Frontend Consulting", date: "Jan 20, 14:32", status: "Public" },
-                  { id: "GC8T...9Q0M", amount: "20.00 USDC", memo: "Subscription Renewal", date: "Jan 19, 09:12", status: "Privacy Enabled" },
+                  { id: "GD2P...5H2W", amount: "50.00 USDC", memo: "Project Milestone #1", date: "2 mins ago", status: "Pending", privacy: "Enabled" },
+                  { id: "GD1R...3K9L", amount: "125.00 XLM", memo: "Frontend Consulting", date: "Jan 20, 14:32", status: "Spent", privacy: "Off" },
+                  { id: "GC8T...9Q0M", amount: "20.00 USDC", memo: "Subscription Renewal", date: "Jan 19, 09:12", status: "Refunded", privacy: "Enabled" },
                 ].map((tx, i) => (
                   <tr key={i} className="hover:bg-white/[0.03] transition">
                     <td className="px-6 sm:px-10 py-6">
@@ -157,14 +169,36 @@ export default function Dashboard() {
                     <td className="px-6 sm:px-10 py-6">
                       <div className="flex flex-col">
                         <span className="text-neutral-300 font-bold">{tx.memo}</span>
-                        <span className={`text-[9px] uppercase font-black tracking-widest mt-1 ${
-                          tx.status.includes("Privacy") ? "text-indigo-400" : "text-neutral-600"
-                        }`}>
-                          {tx.status}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[9px] uppercase font-black tracking-widest ${
+                            tx.status === "Pending" ? "text-yellow-500" : tx.status === "Spent" ? "text-green-500" : "text-red-400"
+                          }`}>
+                            {tx.status}
+                          </span>
+                          <span className="text-[9px] uppercase font-black tracking-widest text-neutral-600">
+                             • Privacy {tx.privacy}
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 sm:px-10 py-6 text-neutral-500 text-right">{tx.date}</td>
+                    <td className="px-6 sm:px-10 py-6 text-neutral-500">{tx.date}</td>
+                    <td className="px-6 sm:px-10 py-6 text-right">
+                      {tx.status === "Pending" ? (
+                        <button 
+                          onClick={() => handleExtend(tx.id)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition shadow-sm"
+                        >
+                          Extend TTL
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleCleanup(tx.id)}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition shadow-sm"
+                        >
+                          Cleanup
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

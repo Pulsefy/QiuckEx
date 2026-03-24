@@ -51,6 +51,12 @@ use crate::types::EscrowEntry;
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
+// Storage TTL Constants (Assume ~5s ledger time)
+pub const DAY_IN_LEDGERS: u32 = 17_280;
+pub const MONTH_IN_LEDGERS: u32 = 518_400;
+pub const SIX_MONTHS_IN_LEDGERS: u32 = 3_110_400;
+pub const LEDGER_THRESHOLD: u32 = DAY_IN_LEDGERS * 10; // 10 days threshold
+
 // -----------------------------------------------------------------------------
 // DataKey enum – central key derivation
 // -----------------------------------------------------------------------------
@@ -90,6 +96,16 @@ pub enum DataKey {
 pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
     let key = DataKey::Escrow(commitment.clone());
     env.storage().persistent().set(&key, entry);
+    // Extend TTL for 6 months if current TTL < 10 days
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+/// Remove an escrow entry from storage and reclaim the storage deposit.
+pub fn remove_escrow(env: &Env, commitment: &Bytes) {
+    let key = DataKey::Escrow(commitment.clone());
+    env.storage().persistent().remove(&key);
 }
 
 /// Get an escrow entry from storage.

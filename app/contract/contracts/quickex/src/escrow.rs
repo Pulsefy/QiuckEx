@@ -20,7 +20,9 @@ use crate::{
     commitment,
     errors::QuickexError,
     events,
-    storage::{get_escrow, has_escrow, put_escrow},
+    storage::{
+        get_escrow, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
+    },
     types::{EscrowEntry, EscrowStatus},
 };
 
@@ -302,4 +304,42 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     events::publish_escrow_refunded(env, entry.owner, commitment, entry.token, entry.amount);
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// TTL & Cleanup
+// ---------------------------------------------------------------------------
+
+/// Extend the storage TTL of an escrow record.
+///
+/// Any user can call this to keep an escrow from being archived.
+pub fn extend_escrow_ttl(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.into();
+    if !has_escrow(env, &commitment_bytes) {
+        return Err(QuickexError::CommitmentNotFound);
+    }
+
+    env.storage().persistent().extend_ttl(
+        &crate::storage::DataKey::Escrow(commitment_bytes),
+        LEDGER_THRESHOLD,
+        SIX_MONTHS_IN_LEDGERS,
+    );
+    Ok(())
+}
+
+/// Cleanup terminal escrow entries to reclaim storage deposits.
+///
+/// Only escrows in `Spent` or `Refunded` status can be removed.
+pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    match entry.status {
+        EscrowStatus::Spent | EscrowStatus::Refunded => {
+            remove_escrow(env, &commitment_bytes);
+            Ok(())
+        }
+        _ => Err(QuickexError::AlreadySpent), // Reuse error or add a more specific one if needed
+    }
 }
