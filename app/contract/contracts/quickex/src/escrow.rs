@@ -236,13 +236,13 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    if entry.status != EscrowStatus::Pending {
-        return Err(QuickexError::AlreadySpent);
-    }
-
     // Guard: block withdrawal if escrow is disputed.
     if entry.status == EscrowStatus::Disputed {
         return Err(QuickexError::InvalidDisputeState);
+    }
+
+    if entry.status != EscrowStatus::Pending {
+        return Err(QuickexError::AlreadySpent);
     }
 
     // Guard: block withdrawal if expired.
@@ -298,13 +298,13 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    if entry.status != EscrowStatus::Pending {
-        return Err(QuickexError::AlreadySpent);
-    }
-
     // Guard: block refund if escrow is disputed.
     if entry.status == EscrowStatus::Disputed {
         return Err(QuickexError::InvalidDisputeState);
+    }
+
+    if entry.status != EscrowStatus::Pending {
+        return Err(QuickexError::AlreadySpent);
     }
 
     if !is_expired(env, &entry) {
