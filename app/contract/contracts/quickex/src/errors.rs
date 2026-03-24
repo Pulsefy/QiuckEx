@@ -32,6 +32,12 @@ pub enum QuickexError {
     EscrowNotExpired = 308,
     /// Caller is not the original owner of the escrow.
     InvalidOwner = 309,
+    /// Escrow is not in a state that allows disputes.
+    InvalidDisputeState = 310,
+    /// Caller is not authorized to resolve disputes (not the arbiter).
+    NotArbiter = 311,
+    /// No arbiter assigned to this escrow.
+    NoArbiter = 312,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
     OperationPaused = 1000,
