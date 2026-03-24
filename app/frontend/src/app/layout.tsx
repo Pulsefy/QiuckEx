@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { SearchBar } from "@/components/SearchBar";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -19,22 +20,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          
         
         <header className="border-b border-white/5 bg-neutral-950/60 backdrop-blur-xl sticky top-0 z-50">
-          <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
+          <nav className="container mx-auto px-6 py-4 flex justify-between items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 shrink-0 lg:mr-4">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold italic">
                 Q
               </div>
-              <span className="text-xl font-bold tracking-tight">QuickEx</span>
-            
+              <span className="text-xl font-bold tracking-tight hidden lg:block">QuickEx</span>
             </Link>
-  <NetworkBadge />
-            <div className="hidden md:flex gap-8 text-sm text-neutral-400 font-medium">
+            
+            <div className="flex-1 max-w-md mx-2 md:mx-4">
+              <SearchBar />
+            </div>
+
+            <div className="hidden md:flex items-center gap-6 text-sm text-neutral-400 font-medium shrink-0 ml-2">
+              <Link href="/discovery" className="hover:text-white transition">Discovery</Link>
               <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
               <Link href="/generator" className="hover:text-white transition">Generator</Link>
             </div>
 
+            <div className="hidden md:block shrink-0 ml-4">
+              <NetworkBadge />
+            </div>
            
-            <div className="md:hidden text-neutral-400">☰</div>
+            <div className="md:hidden flex items-center gap-4 text-neutral-400 shrink-0 ml-2">
+              <NetworkBadge />
+              <div className="text-2xl cursor-pointer">☰</div>
+            </div>
           </nav>
         </header>
 
