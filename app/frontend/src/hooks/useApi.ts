@@ -16,7 +16,11 @@ export function useApi<T>() {
       setData(res);
       return res;
     } catch (err: unknown) {
-      setError("Something went wrong. Please try again.");
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Something went wrong. Please try again.";
+      setError(msg);
       console.error(err);
     } finally {
       setLoading(false);
