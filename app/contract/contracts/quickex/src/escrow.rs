@@ -6,13 +6,20 @@
 //! [*] --> Pending  : deposit() / deposit_with_commitment()
 //! Pending --> Spent    : withdraw(proof)  [current_time < expires_at OR no expiry]
 //! Pending --> Refunded : refund(owner)    [current_time >= expires_at]
+//! Pending --> Disputed : dispute()        [any participant can call]
+//! Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
+//! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 //! ```
 //!
 //! Guard rails:
 //! - `withdraw` fails with [`EscrowExpired`] if `expires_at > 0` and `now >= expires_at`.
+//! - `withdraw` fails with [`AlreadySpent`] if status is not `Pending`.
+//! - `withdraw` fails if escrow is `Disputed` (funds locked during dispute).
 //! - `refund` fails with [`EscrowNotExpired`] if `expires_at == 0` or `now < expires_at`.
 //! - Both fail with [`AlreadySpent`] if status is not `Pending`.
 //! - `refund` fails with [`InvalidOwner`] if caller ≠ `entry.owner`.
+//! - `dispute` requires an assigned arbiter and `Pending` status.
+//! - `resolve_dispute` can only be called by the assigned arbiter.
 
 use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
@@ -45,6 +52,7 @@ fn is_expired(env: &Env, entry: &EscrowEntry) -> bool {
 /// - Sets status to `Pending`.
 /// - If `timeout_secs > 0`, the escrow expires `timeout_secs` seconds after creation.
 ///   Pass `0` for a non-expiring escrow.
+/// - Optionally sets an `arbiter` who can resolve disputes.
 ///
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
@@ -56,6 +64,7 @@ pub fn deposit(
     owner: Address,
     salt: Bytes,
     timeout_secs: u64,
+    arbiter: Option<Address>,
 ) -> Result<BytesN<32>, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
@@ -96,6 +105,7 @@ pub fn deposit(
         status: EscrowStatus::Pending,
         created_at: now,
         expires_at,
+        arbiter,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
@@ -121,6 +131,7 @@ pub fn deposit(
 ///
 /// - Validates commitment uniqueness.
 /// - If `timeout_secs > 0`, the escrow expires after that many seconds.
+/// - Optionally sets an `arbiter` who can resolve disputes.
 ///
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
@@ -132,6 +143,7 @@ pub fn deposit_with_commitment(
     amount: i128,
     commitment: BytesN<32>,
     timeout_secs: u64,
+    arbiter: Option<Address>,
 ) -> Result<(), QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
@@ -180,6 +192,7 @@ pub fn deposit_with_commitment(
         status: EscrowStatus::Pending,
         created_at: now,
         expires_at,
+        arbiter,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
@@ -222,6 +235,11 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: block withdrawal if escrow is disputed.
+    if entry.status == EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
 
     if entry.status != EscrowStatus::Pending {
         return Err(QuickexError::AlreadySpent);
@@ -280,6 +298,11 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
+    // Guard: block refund if escrow is disputed.
+    if entry.status == EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
     if entry.status != EscrowStatus::Pending {
         return Err(QuickexError::AlreadySpent);
     }
@@ -300,6 +323,114 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     token_client.transfer(&env.current_contract_address(), &entry.owner, &entry.amount);
 
     events::publish_escrow_refunded(env, entry.owner, commitment, entry.token, entry.amount);
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// dispute
+// ---------------------------------------------------------------------------
+
+/// Initiate a dispute for a pending escrow, locking the funds.
+///
+/// - Any participant can call this function.
+/// - Requires an assigned arbiter.
+/// - Escrow must be in `Pending` status.
+/// - Changes status to `Disputed`, locking funds until resolution.
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`NoArbiter`] – no arbiter assigned to the escrow.
+/// - [`InvalidDisputeState`] – escrow is not in `Pending` status.
+pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: must have an arbiter assigned
+    let arbiter = entry.arbiter.as_ref().ok_or(QuickexError::NoArbiter)?;
+
+    // Guard: escrow must be in Pending state
+    if entry.status != EscrowStatus::Pending {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
+    let mut updated = entry.clone();
+    updated.status = EscrowStatus::Disputed;
+    put_escrow(env, &commitment_bytes, &updated);
+
+    events::publish_escrow_disputed(env, commitment, arbiter.clone());
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// resolve_dispute
+// ---------------------------------------------------------------------------
+
+/// Resolve a disputed escrow by determining the recipient of funds.
+///
+/// - Only callable by the assigned arbiter.
+/// - Escrow must be in `Disputed` status.
+/// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
+///
+/// # Arguments
+/// - `commitment`: The escrow commitment hash
+/// - `resolve_for_owner`: If `true`, funds go to owner; if `false`, funds go to recipient
+/// - `recipient`: Address to receive funds when `resolve_for_owner` is `false`
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`NotArbiter`] – caller is not the assigned arbiter.
+/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+pub fn resolve_dispute(
+    env: &Env,
+    commitment: BytesN<32>,
+    resolve_for_owner: bool,
+    recipient: Address,
+) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: caller must be the assigned arbiter
+    let arbiter = entry.arbiter.as_ref().ok_or(QuickexError::NoArbiter)?;
+    arbiter.require_auth();
+
+    // Guard: escrow must be in Disputed state
+    if entry.status != EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
+    let (final_status, recipient_address) = if resolve_for_owner {
+        (EscrowStatus::Refunded, entry.owner.clone())
+    } else {
+        recipient.require_auth();
+        (EscrowStatus::Spent, recipient)
+    };
+
+    let mut updated = entry.clone();
+    updated.status = final_status;
+    put_escrow(env, &commitment_bytes, &updated);
+
+    let token_client = token::Client::new(env, &entry.token);
+    token_client.transfer(
+        &env.current_contract_address(),
+        &recipient_address,
+        &entry.amount,
+    );
+
+    if resolve_for_owner {
+        events::publish_escrow_refunded(env, entry.owner, commitment, entry.token, entry.amount);
+    } else {
+        events::publish_escrow_withdrawn(
+            env,
+            commitment,
+            recipient_address,
+            entry.token,
+            entry.amount,
+        );
+    }
 
     Ok(())
 }

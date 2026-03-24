@@ -24,6 +24,7 @@ fn test_escrow_storage() {
             status: EscrowStatus::Pending,
             created_at,
             expires_at: 0,
+            arbiter: None,
         };
 
         // Test put_escrow
@@ -65,6 +66,7 @@ fn test_escrow_status_update() {
             status: EscrowStatus::Pending,
             created_at,
             expires_at: 0,
+            arbiter: None,
         };
 
         put_escrow(&env, &commitment, &entry);
