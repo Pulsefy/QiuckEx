@@ -12,15 +12,21 @@ use soroban_sdk::{contracttype, Address};
 /// [*] --> Pending  : deposit()
 /// Pending --> Spent    : withdraw(proof)  [current_time < expires_at]
 /// Pending --> Refunded : refund(owner)    [current_time >= expires_at]
+/// Pending --> Disputed : dispute()        [any participant can call]
+/// Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
+/// Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 /// ```
 ///
 /// - `Pending`:  Funds are escrowed, awaiting withdrawal or refund.
+/// - `Disputed`: Escrow is under arbiter review; funds are locked.
 /// - `Spent`:    Withdrawal completed successfully. Terminal state.
-/// - `Refunded`: Owner reclaimed funds after timeout. Terminal state.
+/// - `Refunded`: Owner reclaimed funds after timeout or arbiter decision. Terminal state.
+/// - `Expired`:  Kept for backwards-compat with any existing on-chain data.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
     Pending,
+    Disputed,
     Spent,
     /// Kept for backwards-compat with any existing on-chain data; semantically
     /// equivalent to an escrow that has passed expiry but not yet been refunded.
@@ -42,13 +48,15 @@ pub struct EscrowEntry {
     pub amount: i128,
     /// Owner who deposited and may refund after expiry.
     pub owner: Address,
-    /// Current status (Pending, Spent, Refunded, Expired).
+    /// Current status (Pending, Disputed, Spent, Refunded, Expired).
     pub status: EscrowStatus,
     /// Ledger timestamp when the escrow was created.
     pub created_at: u64,
     /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
+    /// Arbiter address who can resolve disputes. If `None`, no arbiter is assigned.
+    pub arbiter: Option<Address>,
 }
 
 /// Privacy-aware view of an escrow entry.
@@ -82,4 +90,6 @@ pub struct PrivacyAwareEscrowView {
     pub created_at: u64,
     /// Expiry timestamp; `0` means no expiry (always visible).
     pub expires_at: u64,
+    /// Arbiter address. Visible to owner and arbiter, `None` to others when privacy is enabled.
+    pub arbiter: Option<Address>,
 }

@@ -33,6 +33,9 @@ use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView};
 /// [*] --> Pending  : deposit() / deposit_with_commitment()
 /// Pending --> Spent    : withdraw(proof)  [now < expires_at, or no expiry]
 /// Pending --> Refunded : refund(owner)    [now >= expires_at]
+/// Pending --> Disputed : dispute()        [any participant can call]
+/// Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
+/// Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 /// ```
 #[contract]
 pub struct QuickexContract;
@@ -151,6 +154,7 @@ impl QuickexContract {
     /// * `owner` - Owner of the funds (must authorize)
     /// * `salt` - Random salt (0–1024 bytes) for uniqueness
     /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -164,11 +168,12 @@ impl QuickexContract {
         owner: Address,
         salt: Bytes,
         timeout_secs: u64,
+        arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
-        escrow::deposit(&env, token, amount, owner, salt, timeout_secs)
+        escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
     }
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
@@ -251,6 +256,7 @@ impl QuickexContract {
     /// * `amount` - Amount to deposit; must be positive
     /// * `commitment` - 32-byte commitment hash (must be unique)
     /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -263,11 +269,20 @@ impl QuickexContract {
         amount: i128,
         commitment: BytesN<32>,
         timeout_secs: u64,
+        arbiter: Option<Address>,
     ) -> Result<(), QuickexError> {
         if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
-        escrow::deposit_with_commitment(&env, from, token, amount, commitment, timeout_secs)
+        escrow::deposit_with_commitment(
+            &env,
+            from,
+            token,
+            amount,
+            commitment,
+            timeout_secs,
+            arbiter,
+        )
     }
 
     /// Refund an expired escrow back to its original owner.
@@ -291,6 +306,48 @@ impl QuickexContract {
         }
 
         escrow::refund(&env, commitment, caller)
+    }
+
+    /// Initiate a dispute for a pending escrow, locking the funds.
+    ///
+    /// Any participant can call this function to start a dispute. The escrow must
+    /// have an assigned arbiter and be in `Pending` status. Changes status to `Disputed`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `NoArbiter` - No arbiter assigned to the escrow
+    /// * `InvalidDisputeState` - Escrow is not in `Pending` status
+    pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::dispute(&env, commitment)
+    }
+
+    /// Resolve a disputed escrow by determining the recipient of funds.
+    ///
+    /// Only callable by the assigned arbiter. The arbiter decides whether funds
+    /// go to the original owner (refund) or to a specified recipient (spend).
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `resolve_for_owner` - If true, funds go to owner; if false, funds go to recipient
+    /// * `recipient` - Address to receive funds when resolve_for_owner is false
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `NotArbiter` - Caller is not the assigned arbiter
+    /// * `NoArbiter` - No arbiter assigned to the escrow
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    pub fn resolve_dispute(
+        env: Env,
+        commitment: BytesN<32>,
+        resolve_for_owner: bool,
+        recipient: Address,
+    ) -> Result<(), QuickexError> {
+        escrow::resolve_dispute(&env, commitment, resolve_for_owner, recipient)
     }
 
     /// Initialize the contract with an admin address (one-time only).
@@ -447,9 +504,10 @@ impl QuickexContract {
     ///
     /// ## Privacy behaviour
     /// - If the escrow owner **has privacy enabled** and `caller` is **not** the owner,
-    ///   the `amount` and `owner` fields are returned as `None`.
+    ///   the `amount`, `owner`, and `arbiter` fields are returned as `None`.
     /// - If privacy is **disabled**, or `caller` equals the escrow owner,
     ///   all fields are returned in full.
+    /// - If `caller` equals the arbiter, the arbiter field is always visible.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -466,17 +524,10 @@ impl QuickexContract {
 
         let privacy_on = privacy::get_privacy(&env, entry.owner.clone());
         let is_owner = caller == entry.owner;
+        let is_arbiter = entry.arbiter.as_ref().is_some_and(|a| caller == *a);
+        let show_sensitive = !privacy_on || is_owner || is_arbiter;
 
-        if privacy_on && !is_owner {
-            Some(PrivacyAwareEscrowView {
-                token: entry.token,
-                amount: None,
-                owner: None,
-                status: entry.status,
-                created_at: entry.created_at,
-                expires_at: entry.expires_at,
-            })
-        } else {
+        if show_sensitive {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
                 amount: Some(entry.amount),
@@ -484,6 +535,17 @@ impl QuickexContract {
                 status: entry.status,
                 created_at: entry.created_at,
                 expires_at: entry.expires_at,
+                arbiter: entry.arbiter,
+            })
+        } else {
+            Some(PrivacyAwareEscrowView {
+                token: entry.token,
+                amount: None,
+                owner: None,
+                status: entry.status,
+                created_at: entry.created_at,
+                expires_at: entry.expires_at,
+                arbiter: None,
             })
         }
     }

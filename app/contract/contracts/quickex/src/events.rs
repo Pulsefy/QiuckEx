@@ -163,6 +163,18 @@ pub struct EscrowRefundedEvent {
     pub timestamp: u64,
 }
 
+#[contractevent(topics = ["EscrowDisputed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowDisputedEvent {
+    #[topic]
+    pub commitment: BytesN<32>,
+
+    #[topic]
+    pub arbiter: Address,
+
+    pub timestamp: u64,
+}
+
 pub(crate) fn publish_escrow_refunded(
     env: &Env,
     owner: Address,
@@ -175,6 +187,15 @@ pub(crate) fn publish_escrow_refunded(
         owner,
         token,
         amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_escrow_disputed(env: &Env, commitment: BytesN<32>, arbiter: Address) {
+    EscrowDisputedEvent {
+        commitment,
+        arbiter,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
