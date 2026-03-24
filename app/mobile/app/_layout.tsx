@@ -1,12 +1,18 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as Linking from 'expo-linking';
-import { Stack, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
-import { OfflineBanner } from '../components/resilience/offline-banner';
+import {
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
+} from "@react-navigation/native";
+import * as Linking from "expo-linking";
+import { Stack, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { useColorScheme } from "react-native";
+import { OfflineBanner } from "../components/resilience/offline-banner";
+import { AppLockOverlay } from "../components/security/app-lock-overlay";
+import { SecurityProvider, useSecurity } from "../hooks/use-security";
 
-import { parsePaymentLink } from '@/utils/parse-payment-link';
+import { parsePaymentLink } from "@/utils/parse-payment-link";
 
 function useDeepLinkHandler() {
   const router = useRouter();
@@ -18,7 +24,7 @@ function useDeepLinkHandler() {
 
       const { username, amount, asset, memo, privacy } = result.data;
       router.replace({
-        pathname: '/payment-confirmation',
+        pathname: "/payment-confirmation",
         params: {
           username,
           amount,
@@ -29,7 +35,7 @@ function useDeepLinkHandler() {
       });
     }
 
-    const subscription = Linking.addEventListener('url', handleURL);
+    const subscription = Linking.addEventListener("url", handleURL);
 
     // Handle cold-start deep link
     Linking.getInitialURL().then((url) => {
@@ -42,19 +48,35 @@ function useDeepLinkHandler() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  return (
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <SecurityProvider>
+        <AppShell />
+      </SecurityProvider>
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
+}
+
+function AppShell() {
+  const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
   useDeepLinkHandler();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <>
       <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="security" />
         <Stack.Screen name="wallet-connect" />
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+      {isReady && settings.biometricLockEnabled ? (
+        <AppLockOverlay visible={isAppLocked} onUnlock={unlockApp} />
+      ) : null}
+    </>
   );
 }

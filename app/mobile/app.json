@@ -10,9 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "associatedDomains": [
-        "applinks:quickex.to"
-      ]
+      "associatedDomains": ["applinks:quickex.to"]
     },
     "android": {
       "adaptiveIcon": {
@@ -44,6 +42,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "QuickEx uses Face ID to protect payments and sensitive wallet data."
+        }
+      ],
       [
         "expo-camera",
         {
