@@ -1,6 +1,9 @@
 //! Tests for the stealth address PoC (Issue #157 – Privacy v2).
 
-use crate::{errors::QuickexError, stealth, EscrowStatus, QuickexContract, QuickexContractClient};
+use crate::{
+    errors::QuickexError, stealth, types::StealthDepositParams, EscrowStatus, QuickexContract,
+    QuickexContractClient,
+};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, BytesN, Env,
@@ -30,10 +33,31 @@ fn compute_stealth_address(env: &Env, eph_pub: &BytesN<32>, spend_pub: &BytesN<3
     stealth::derive_stealth_address(env, spend_pub, &shared)
 }
 
-/// Mint `amount` tokens to `recipient` via the test token admin.
+/// Mint `amount` tokens to `recipient`.
 fn mint(env: &Env, token: &Address, recipient: &Address, amount: i128) {
-    let token_client = token::StellarAssetClient::new(env, token);
-    token_client.mint(recipient, &amount);
+    token::StellarAssetClient::new(env, token).mint(recipient, &amount);
+}
+
+/// Build a `StealthDepositParams` with the given fields.
+fn make_params(
+    env: &Env,
+    sender: Address,
+    token: Address,
+    amount: i128,
+    eph_pub: BytesN<32>,
+    spend_pub: BytesN<32>,
+    stealth_address: BytesN<32>,
+    timeout_secs: u64,
+) -> StealthDepositParams {
+    StealthDepositParams {
+        sender,
+        token,
+        amount,
+        eph_pub,
+        spend_pub,
+        stealth_address,
+        timeout_secs,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,50 +73,42 @@ fn test_stealth_full_flow() {
     let recipient = Address::generate(&env);
     let amount: i128 = 1_000;
 
-    // Simulate key material (32-byte blobs).
     let eph_pub: BytesN<32> = BytesN::from_array(&env, &[1u8; 32]);
     let spend_pub: BytesN<32> = BytesN::from_array(&env, &[2u8; 32]);
     let stealth_address = compute_stealth_address(&env, &eph_pub, &spend_pub);
 
-    // Fund sender.
     mint(&env, &token, &sender, amount);
 
-    // Sender registers ephemeral key and locks funds.
-    let returned_stealth = client.register_ephemeral_key(
-        &sender,
-        &token,
-        &amount,
-        &eph_pub,
-        &spend_pub,
-        &stealth_address,
-        &0,
-    );
+    let returned_stealth = client.register_ephemeral_key(&make_params(
+        &env,
+        sender,
+        token.clone(),
+        amount,
+        eph_pub.clone(),
+        spend_pub.clone(),
+        stealth_address.clone(),
+        0,
+    ));
 
     assert_eq!(returned_stealth, stealth_address);
-
-    // Status should be Pending.
     assert_eq!(
         client.get_stealth_status(&stealth_address),
         Some(EscrowStatus::Pending)
     );
 
-    // Recipient withdraws.
     let ok = client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
-
     assert!(ok);
 
-    // Status should now be Spent.
     assert_eq!(
         client.get_stealth_status(&stealth_address),
         Some(EscrowStatus::Spent)
     );
 
-    // Recipient should have received the tokens.
     let token_client = token::Client::new(&env, &token);
     assert_eq!(token_client.balance(&recipient), amount);
 }
 
-/// Registering with a wrong stealth address (mismatched DH) must fail.
+/// Registering with a wrong stealth address must fail.
 #[test]
 fn test_register_wrong_stealth_address_fails() {
     let (env, client) = setup();
@@ -102,25 +118,25 @@ fn test_register_wrong_stealth_address_fails() {
 
     let eph_pub: BytesN<32> = BytesN::from_array(&env, &[3u8; 32]);
     let spend_pub: BytesN<32> = BytesN::from_array(&env, &[4u8; 32]);
-    // Deliberately wrong stealth address.
     let wrong_stealth: BytesN<32> = BytesN::from_array(&env, &[0u8; 32]);
 
     mint(&env, &token, &sender, amount);
 
     let err = client
-        .try_register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &wrong_stealth,
-            &0,
-        )
+        .try_register_ephemeral_key(&make_params(
+            &env,
+            sender,
+            token,
+            amount,
+            eph_pub,
+            spend_pub,
+            wrong_stealth,
+            0,
+        ))
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::StealthAddressMismatch.into());
+    assert_eq!(err, QuickexError::StealthAddressMismatch);
 }
 
 /// Registering the same stealth address twice must fail.
@@ -137,32 +153,32 @@ fn test_register_duplicate_stealth_address_fails() {
 
     mint(&env, &token, &sender, amount * 2);
 
-    // First registration succeeds.
-    client.register_ephemeral_key(
-        &sender,
-        &token,
-        &amount,
-        &eph_pub,
-        &spend_pub,
-        &stealth_address,
-        &0,
-    );
+    client.register_ephemeral_key(&make_params(
+        &env,
+        sender.clone(),
+        token.clone(),
+        amount,
+        eph_pub.clone(),
+        spend_pub.clone(),
+        stealth_address.clone(),
+        0,
+    ));
 
-    // Second registration with same stealth address must fail.
     let err = client
-        .try_register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        )
+        .try_register_ephemeral_key(&make_params(
+            &env,
+            sender,
+            token,
+            amount,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            0,
+        ))
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::StealthAddressAlreadyUsed.into());
+    assert_eq!(err, QuickexError::StealthAddressAlreadyUsed);
 }
 
 /// Withdrawing with wrong spend_pub must fail.
@@ -180,17 +196,17 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
 
     mint(&env, &token, &sender, amount);
 
-    client.register_ephemeral_key(
-        &sender,
-        &token,
-        &amount,
-        &eph_pub,
-        &spend_pub,
-        &stealth_address,
-        &0,
-    );
+    client.register_ephemeral_key(&make_params(
+        &env,
+        sender,
+        token,
+        amount,
+        eph_pub.clone(),
+        spend_pub,
+        stealth_address.clone(),
+        0,
+    ));
 
-    // Use a different spend_pub at withdrawal.
     let wrong_spend_pub: BytesN<32> = BytesN::from_array(&env, &[99u8; 32]);
 
     let err = client
@@ -198,7 +214,7 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::StealthAddressMismatch.into());
+    assert_eq!(err, QuickexError::StealthAddressMismatch);
 }
 
 /// Double withdrawal must fail with AlreadySpent.
@@ -216,26 +232,25 @@ fn test_stealth_double_withdraw_fails() {
 
     mint(&env, &token, &sender, amount);
 
-    client.register_ephemeral_key(
-        &sender,
-        &token,
-        &amount,
-        &eph_pub,
-        &spend_pub,
-        &stealth_address,
-        &0,
-    );
+    client.register_ephemeral_key(&make_params(
+        &env,
+        sender,
+        token,
+        amount,
+        eph_pub.clone(),
+        spend_pub.clone(),
+        stealth_address.clone(),
+        0,
+    ));
 
-    // First withdrawal succeeds.
     client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
 
-    // Second withdrawal must fail.
     let err = client
         .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address)
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::AlreadySpent.into());
+    assert_eq!(err, QuickexError::AlreadySpent);
 }
 
 /// Withdrawal after expiry must fail with EscrowExpired.
@@ -253,18 +268,17 @@ fn test_stealth_withdraw_after_expiry_fails() {
 
     mint(&env, &token, &sender, amount);
 
-    // Register with a 100-second timeout.
-    client.register_ephemeral_key(
-        &sender,
-        &token,
-        &amount,
-        &eph_pub,
-        &spend_pub,
-        &stealth_address,
-        &100,
-    );
+    client.register_ephemeral_key(&make_params(
+        &env,
+        sender,
+        token,
+        amount,
+        eph_pub.clone(),
+        spend_pub.clone(),
+        stealth_address.clone(),
+        100,
+    ));
 
-    // Advance ledger past expiry.
     env.ledger().with_mut(|l| l.timestamp += 200);
 
     let err = client
@@ -272,7 +286,7 @@ fn test_stealth_withdraw_after_expiry_fails() {
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::EscrowExpired.into());
+    assert_eq!(err, QuickexError::EscrowExpired);
 }
 
 /// Registering with zero amount must fail.
@@ -287,19 +301,20 @@ fn test_stealth_register_zero_amount_fails() {
     let stealth_address = compute_stealth_address(&env, &eph_pub, &spend_pub);
 
     let err = client
-        .try_register_ephemeral_key(
-            &sender,
-            &token,
-            &0,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        )
+        .try_register_ephemeral_key(&make_params(
+            &env,
+            sender,
+            token,
+            0,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            0,
+        ))
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::InvalidAmount.into());
+    assert_eq!(err, QuickexError::InvalidAmount);
 }
 
 /// Querying a non-existent stealth address returns None.
@@ -329,17 +344,18 @@ fn test_stealth_register_fails_when_paused() {
     mint(&env, &token, &sender, amount);
 
     let err = client
-        .try_register_ephemeral_key(
-            &sender,
-            &token,
-            &amount,
-            &eph_pub,
-            &spend_pub,
-            &stealth_address,
-            &0,
-        )
+        .try_register_ephemeral_key(&make_params(
+            &env,
+            sender,
+            token,
+            amount,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            0,
+        ))
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err, QuickexError::ContractPaused.into());
+    assert_eq!(err, QuickexError::ContractPaused);
 }

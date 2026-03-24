@@ -84,6 +84,29 @@ pub struct PrivacyAwareEscrowView {
     pub expires_at: u64,
 }
 
+/// Parameters for registering an ephemeral key (stealth deposit).
+///
+/// Bundles the 8 arguments of `register_ephemeral_key` into a single struct
+/// to satisfy the `clippy::too_many_arguments` lint (limit: 7).
+#[contracttype]
+#[derive(Clone)]
+pub struct StealthDepositParams {
+    /// Depositor address (must authorize the token transfer).
+    pub sender: Address,
+    /// Token contract address.
+    pub token: Address,
+    /// Amount to lock; must be positive.
+    pub amount: i128,
+    /// Sender's ephemeral public key (32 bytes).
+    pub eph_pub: BytesN<32>,
+    /// Recipient's spend public key (32 bytes).
+    pub spend_pub: BytesN<32>,
+    /// Pre-computed one-time stealth address (32 bytes).
+    pub stealth_address: BytesN<32>,
+    /// Seconds until expiry; 0 = no expiry.
+    pub timeout_secs: u64,
+}
+
 /// Stealth escrow entry for Privacy v2 (Issue #157).
 ///
 /// Locked under a one-time stealth address derived via Diffie-Hellman.

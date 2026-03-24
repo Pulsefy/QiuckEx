@@ -45,7 +45,7 @@ use crate::{
     errors::QuickexError,
     events,
     storage::{get_stealth_escrow, put_stealth_escrow},
-    types::{EscrowStatus, StealthEscrowEntry},
+    types::{EscrowStatus, StealthDepositParams, StealthEscrowEntry},
 };
 
 // ---------------------------------------------------------------------------
@@ -99,14 +99,18 @@ pub fn derive_stealth_address(
 /// - [`StealthAddressAlreadyUsed`]– a deposit already exists for this stealth address.
 pub fn register_ephemeral_key(
     env: &Env,
-    sender: Address,
-    token: Address,
-    amount: i128,
-    eph_pub: BytesN<32>,
-    spend_pub: BytesN<32>,
-    stealth_address: BytesN<32>,
-    timeout_secs: u64,
+    params: StealthDepositParams,
 ) -> Result<BytesN<32>, QuickexError> {
+    let StealthDepositParams {
+        sender,
+        token,
+        amount,
+        eph_pub,
+        spend_pub,
+        stealth_address,
+        timeout_secs,
+    } = params;
+
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
@@ -130,7 +134,8 @@ pub fn register_ephemeral_key(
 
     // Transfer funds from sender to contract.
     let token_client = token::Client::new(env, &token);
-    token_client.transfer(&sender, &env.current_contract_address(), &amount);
+    let contract_addr = env.current_contract_address();
+    token_client.transfer(&sender, &contract_addr, &amount);
 
     let now = env.ledger().timestamp();
     let expires_at = if timeout_secs > 0 {

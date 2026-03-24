@@ -23,7 +23,7 @@ mod types;
 
 use errors::QuickexError;
 use storage::*;
-use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView};
+use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView, StealthDepositParams};
 
 /// QuickEx Privacy Contract
 ///
@@ -462,14 +462,8 @@ impl QuickexContract {
     /// locks `amount` of `token` under it.  The recipient's main address is
     /// never recorded on-chain.
     ///
-    /// # Arguments
-    /// * `sender`          – Depositor (must authorize token transfer).
-    /// * `token`           – Token contract address.
-    /// * `amount`          – Amount to lock; must be positive.
-    /// * `eph_pub`         – Sender's ephemeral public key (32 bytes).
-    /// * `spend_pub`       – Recipient's spend public key (32 bytes).
-    /// * `stealth_address` – Pre-computed one-time address (32 bytes).
-    /// * `timeout_secs`    – Seconds until expiry; 0 = no expiry.
+    /// All deposit parameters are bundled in [`StealthDepositParams`] to keep
+    /// the argument count within clippy's limit.
     ///
     /// # Errors
     /// * `InvalidAmount`            – amount ≤ 0.
@@ -478,27 +472,12 @@ impl QuickexContract {
     /// * `StealthAddressAlreadyUsed`– stealth address already has a deposit.
     pub fn register_ephemeral_key(
         env: Env,
-        sender: Address,
-        token: Address,
-        amount: i128,
-        eph_pub: BytesN<32>,
-        spend_pub: BytesN<32>,
-        stealth_address: BytesN<32>,
-        timeout_secs: u64,
+        params: StealthDepositParams,
     ) -> Result<BytesN<32>, QuickexError> {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        stealth::register_ephemeral_key(
-            &env,
-            sender,
-            token,
-            amount,
-            eph_pub,
-            spend_pub,
-            stealth_address,
-            timeout_secs,
-        )
+        stealth::register_ephemeral_key(&env, params)
     }
 
     /// Withdraw funds locked under a stealth address.
