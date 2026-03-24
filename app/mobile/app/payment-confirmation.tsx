@@ -1,17 +1,14 @@
-import * as Linking from 'expo-linking';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Linking from "expo-linking";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useSecurity } from "@/hooks/use-security";
 
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
+  const { authenticateForSensitiveAction } = useSecurity();
   const params = useLocalSearchParams<{
     username: string;
     amount: string;
@@ -21,19 +18,30 @@ export default function PaymentConfirmationScreen() {
   }>();
 
   const { username, amount, asset, memo, privacy } = params;
-  const isPrivate = privacy === 'true';
+  const isPrivate = privacy === "true";
   const isValid = username && amount && asset;
 
   const handlePayWithWallet = async () => {
-    const stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`;
+    const authorized = await authenticateForSensitiveAction(
+      "payment_authorization",
+    );
+    if (!authorized) {
+      Alert.alert(
+        "Authentication Required",
+        "You must authenticate with biometrics or PIN before sending payment.",
+      );
+      return;
+    }
+
+    const stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ""}`;
     const canOpen = await Linking.canOpenURL(stellarUri);
     if (canOpen) {
       await Linking.openURL(stellarUri);
     } else {
       Alert.alert(
-        'No Wallet Found',
-        'Install a Stellar-compatible wallet to complete this payment.',
-        [{ text: 'OK' }],
+        "No Wallet Found",
+        "Install a Stellar-compatible wallet to complete this payment.",
+        [{ text: "OK" }],
       );
     }
   };
@@ -46,10 +54,14 @@ export default function PaymentConfirmationScreen() {
             <Text style={styles.errorIcon}>!</Text>
             <Text style={styles.errorTitle}>Invalid Payment Link</Text>
             <Text style={styles.errorBody}>
-              This payment link is missing required information. Please try scanning again or check the link.
+              This payment link is missing required information. Please try
+              scanning again or check the link.
             </Text>
           </View>
-          <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/')}>
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => router.replace("/")}
+          >
             <Text style={styles.secondaryBtnText}>Go Back</Text>
           </Pressable>
         </View>
@@ -61,7 +73,9 @@ export default function PaymentConfirmationScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.heading}>Confirm Payment</Text>
-        <Text style={styles.subheading}>Review the details below before paying</Text>
+        <Text style={styles.subheading}>
+          Review the details below before paying
+        </Text>
 
         <View style={styles.card}>
           <Row label="Recipient" value={`@${username}`} />
@@ -85,7 +99,10 @@ export default function PaymentConfirmationScreen() {
           <Pressable style={styles.primaryBtn} onPress={handlePayWithWallet}>
             <Text style={styles.primaryBtnText}>Pay with Wallet</Text>
           </Pressable>
-          <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/')}>
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => router.replace("/")}
+          >
             <Text style={styles.secondaryBtnText}>Cancel</Text>
           </Pressable>
         </View>
@@ -114,72 +131,88 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: "#fff" },
   content: {
     flex: 1,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   heading: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#000',
+    fontWeight: "bold",
+    color: "#000",
     marginBottom: 4,
   },
   subheading: {
     fontSize: 16,
-    color: '#888',
+    color: "#888",
     marginBottom: 32,
   },
   card: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     borderRadius: 16,
     padding: 20,
     marginBottom: 40,
   },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 14,
   },
-  rowLabel: { fontSize: 15, color: '#888' },
-  rowValue: { fontSize: 16, fontWeight: '500', color: '#222', flexShrink: 1, textAlign: 'right' },
-  rowValueHighlight: { fontSize: 20, fontWeight: '700', color: '#000' },
-  divider: { height: 1, backgroundColor: '#E5E5E5' },
+  rowLabel: { fontSize: 15, color: "#888" },
+  rowValue: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#222",
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  rowValueHighlight: { fontSize: 20, fontWeight: "700", color: "#000" },
+  divider: { height: 1, backgroundColor: "#E5E5E5" },
   actions: { gap: 12 },
   primaryBtn: {
-    backgroundColor: '#000',
+    backgroundColor: "#000",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  primaryBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  primaryBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   secondaryBtn: {
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  secondaryBtnText: { color: '#888', fontSize: 16, fontWeight: '500' },
+  secondaryBtnText: { color: "#888", fontSize: 16, fontWeight: "500" },
   errorCard: {
-    backgroundColor: '#FFF3F3',
+    backgroundColor: "#FFF3F3",
     borderRadius: 16,
     padding: 32,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   errorIcon: {
     fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FF3B30',
-    backgroundColor: '#FFE5E5',
+    fontWeight: "bold",
+    color: "#FF3B30",
+    backgroundColor: "#FFE5E5",
     width: 56,
     height: 56,
     lineHeight: 56,
     borderRadius: 28,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
-  errorTitle: { fontSize: 22, fontWeight: '700', color: '#222', marginBottom: 8 },
-  errorBody: { fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22 },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 8,
+  },
+  errorBody: {
+    fontSize: 15,
+    color: "#888",
+    textAlign: "center",
+    lineHeight: 22,
+  },
 });
