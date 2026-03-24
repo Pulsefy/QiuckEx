@@ -36,7 +36,7 @@ import { VERIFIED_STELLAR_ASSETS } from "./verified-assets.constant";
 @Controller("stellar")
 export class StellarController {
   constructor(
-    private readonly pathPreview: PathPreviewService,
+    private readonly pathPreviewService: PathPreviewService,
     private readonly transactionsService: TransactionsService,
     private readonly appConfig: AppConfigService,
   ) {}
@@ -59,7 +59,7 @@ export class StellarController {
       "Returns candidate paths and estimated source amounts for a fixed destination amount.",
   })
   async pathPreview(@Body() body: PathPreviewRequestDto) {
-    return this.pathPreview.previewPaths(body);
+    return this.pathPreviewService.previewPaths(body);
   }
 
   @Post("soroban-preflight")
