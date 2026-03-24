@@ -31,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="hidden md:flex gap-8 text-sm text-neutral-400 font-medium">
               <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
               <Link href="/generator" className="hover:text-white transition">Generator</Link>
+              <Link href="/marketplace" className="hover:text-white transition">Marketplace</Link>
             </div>
 
            
