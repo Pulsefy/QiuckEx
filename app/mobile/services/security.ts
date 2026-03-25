@@ -1,5 +1,32 @@
-import * as Crypto from "expo-crypto";
-import * as SecureStore from "expo-secure-store";
+// Lazily load native modules to avoid runtime errors in environments where
+// native Expo modules (expo-crypto, expo-secure-store) are not available
+// (web, node, or mismatched Expo Go). We provide JS fallbacks where possible.
+let ExpoCrypto: any | undefined;
+let ExpoSecureStore: any | undefined;
+let AsyncStorage: any | undefined;
+
+try {
+  // Use require so bundlers won't eagerly fail when native modules are missing
+  // (this can happen in web or test environments).
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+  ExpoCrypto = require("expo-crypto");
+} catch (e) {
+  ExpoCrypto = undefined;
+}
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+  ExpoSecureStore = require("expo-secure-store");
+} catch (e) {
+  ExpoSecureStore = undefined;
+}
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+  AsyncStorage = require("@react-native-async-storage/async-storage");
+} catch (e) {
+  AsyncStorage = undefined;
+}
 
 import type { SecuritySettings } from "@/types/security";
 
@@ -14,36 +41,65 @@ const DEFAULT_SETTINGS: SecuritySettings = {
 
 async function isSecureStoreAvailable() {
   try {
-    return await SecureStore.isAvailableAsync();
+    if (
+      ExpoSecureStore &&
+      typeof ExpoSecureStore.isAvailableAsync === "function"
+    ) {
+      return await ExpoSecureStore.isAvailableAsync();
+    }
+    return false;
   } catch {
     return false;
   }
 }
 
 async function getItem(key: string) {
-  if (!(await isSecureStoreAvailable())) {
-    return null;
+  if (await isSecureStoreAvailable()) {
+    return ExpoSecureStore.getItemAsync(key);
   }
 
-  return SecureStore.getItemAsync(key);
+  // Fallback to AsyncStorage if available (less secure, used for web/testing)
+  if (AsyncStorage && typeof AsyncStorage.getItem === "function") {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 async function setItem(key: string, value: string) {
-  if (!(await isSecureStoreAvailable())) {
+  if (await isSecureStoreAvailable()) {
+    await ExpoSecureStore.setItemAsync(key, value, {
+      keychainAccessible: ExpoSecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
     return;
   }
 
-  await SecureStore.setItemAsync(key, value, {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
+  if (AsyncStorage && typeof AsyncStorage.setItem === "function") {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 async function deleteItem(key: string) {
-  if (!(await isSecureStoreAvailable())) {
+  if (await isSecureStoreAvailable()) {
+    await ExpoSecureStore.deleteItemAsync(key);
     return;
   }
 
-  await SecureStore.deleteItemAsync(key);
+  if (AsyncStorage && typeof AsyncStorage.removeItem === "function") {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export async function getSecuritySettings(): Promise<SecuritySettings> {
@@ -65,10 +121,43 @@ export async function saveSecuritySettings(settings: SecuritySettings) {
 }
 
 async function hashPin(pin: string) {
-  return Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${PIN_HASH_SALT}:${pin}`,
-  );
+  // Prefer ExpoCrypto if available, otherwise use Web Crypto or Node crypto as fallback
+  try {
+    if (ExpoCrypto && typeof ExpoCrypto.digestStringAsync === "function") {
+      return ExpoCrypto.digestStringAsync(
+        ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+        `${PIN_HASH_SALT}:${pin}`,
+      );
+    }
+  } catch (e) {
+    // fallthrough to other methods
+  }
+
+  // Web Crypto API
+  try {
+    if (typeof globalThis?.crypto?.subtle?.digest === "function") {
+      const data = new TextEncoder().encode(`${PIN_HASH_SALT}:${pin}`);
+      const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
+      // convert to hex
+      const arr = Array.from(new Uint8Array(hash));
+      return arr.map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+  } catch (e) {
+    // continue to Node fallback
+  }
+
+  // Node crypto fallback (if running in node)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+    const nodeCrypto = require("crypto");
+    return nodeCrypto
+      .createHash("sha256")
+      .update(`${PIN_HASH_SALT}:${pin}`)
+      .digest("hex");
+  } catch (e) {
+    // As a last resort, return a non-cryptographic string (shouldn't happen)
+    return `${PIN_HASH_SALT}:${pin}`;
+  }
 }
 
 export async function setFallbackPin(pin: string) {

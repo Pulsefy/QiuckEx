@@ -2,10 +2,15 @@ import { Link } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import NotificationCenter from "../components/notifications/NotificationCenter";
 
 export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ position: "absolute", top: 12, right: 16, zIndex: 100 }}>
+        {/* Bell */}
+        <NotificationCenter />
+      </View>
       <View style={styles.content}>
         <Text style={styles.title}>QuickEx</Text>
 
