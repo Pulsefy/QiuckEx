@@ -12,7 +12,8 @@ export function useWallet() {
     // TODO: Replace with real wallet integration
     setWallet({
       connected: true,
-      publicKey: "GABCD1234MOCKPUBLICKEY5678XYZ",
+      // Use a valid testnet public key so we can trigger real testnet payments during demo
+      publicKey: "GAMOSFOKEYHFDGMXIEFEYBUYK3ZMFYN3PFLOTBRXFGBFGRKBKLQSLGLP",
       network: "testnet",
     });
   };
