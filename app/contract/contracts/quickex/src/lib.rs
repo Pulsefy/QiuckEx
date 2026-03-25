@@ -27,6 +27,17 @@ use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView};
 /// Soroban smart contract providing escrow, privacy controls, and X-Ray-style amount
 /// commitments for the QuickEx platform. See the contract README for main flows.
 ///
+/// ## Asset Support
+///
+/// This contract supports both Native XLM and Stellar Asset Contract (SAC) tokens:
+/// - **Native XLM**: The native lumens of the Stellar network. Use the stellar
+///   network's native asset address when calling deposit functions.
+/// - **SAC Tokens**: Any token implemented via Stellar Asset Contracts (e.g., USDC,
+///   custom tokens). Use the SAC contract address as the token parameter.
+///
+/// The contract uses Soroban's standardized token interface which works uniformly across
+/// all asset types. No special wrap/unwrap logic is required from users.
+///
 /// ## Escrow State Machine
 ///
 /// ```text

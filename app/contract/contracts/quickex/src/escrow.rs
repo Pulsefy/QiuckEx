@@ -11,6 +11,16 @@
 //! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 //! ```
 //!
+//! ## Asset Type Handling
+//!
+//! This module supports both Native XLM and Stellar Asset Contract (SAC) tokens:
+//! - **Native XLM**: Uses the native lumens asset. The token address will be the stellar
+//!   network's native asset identifier.
+//! - **SAC Tokens**: Uses wrapped tokens via Stellar Asset Contracts (e.g., USDC, custom tokens).
+//!
+//! The contract uses the standardized `soroban_sdk::token::Client` which works uniformly across
+//! both asset types. No special wrap/unwrap logic is needed as Soroban handles this transparently.
+//!
 //! Guard rails:
 //! - `withdraw` fails with [`EscrowExpired`] if `expires_at > 0` and `now >= expires_at`.
 //! - `withdraw` fails with [`AlreadySpent`] if status is not `Pending`.
