@@ -82,7 +82,7 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Withdrawal) {
+        if is_feature_paused(&env, PauseFlag::Withdrawal as u64) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::withdraw(&env, amount, to, salt)
@@ -136,9 +136,6 @@ impl QuickexContract {
     /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
-        if is_feature_paused(&env, PauseFlag::SetPrivacy) {
-            return Err(QuickexError::OperationPaused);
-        }
         privacy::set_privacy(&env, owner, enabled)
     }
 
@@ -181,7 +178,7 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Deposit) {
+        if is_feature_paused(&env, PauseFlag::Deposit as u64) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
@@ -207,9 +204,6 @@ impl QuickexContract {
         amount: i128,
         salt: Bytes,
     ) -> Result<BytesN<32>, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::CreateAmountCommitment) {
-            return Err(QuickexError::OperationPaused);
-        }
         commitment::create_amount_commitment(&env, owner, amount, salt)
     }
 
@@ -282,7 +276,7 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<(), QuickexError> {
-        if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
+        if is_feature_paused(&env, PauseFlag::DepositWithCommitment as u64) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit_with_commitment(
@@ -312,7 +306,7 @@ impl QuickexContract {
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
     /// * `InvalidOwner` - Caller is not the original owner
     pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Refund) {
+        if is_feature_paused(&env, PauseFlag::Refund as u64) {
             return Err(QuickexError::OperationPaused);
         }
 
@@ -394,7 +388,7 @@ impl QuickexContract {
     ///
     /// Returns `true` if paused, `false` otherwise.
     pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
-        storage::is_feature_paused(env, flag)
+        storage::is_feature_paused(env, flag as u64)
     }
 
     /// Pause a function in the contract (**Admin only**).
