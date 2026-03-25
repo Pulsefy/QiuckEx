@@ -199,8 +199,8 @@ pub fn deposit_with_commitment(
     events::publish_escrow_deposited(
         env,
         commitment,
-        token_client.address,
         from_ref,
+        token_client.address,
         amount,
         expires_at,
     );
