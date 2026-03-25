@@ -12,11 +12,9 @@ use soroban_sdk::{contracttype, Address, BytesN};
 /// [*] --> Pending  : deposit()
 /// Pending --> Spent    : withdraw(proof)  [current_time < expires_at]
 /// Pending --> Refunded : refund(owner)    [current_time >= expires_at]
+/// Pending --> Disputed : dispute()        [any participant with arbiter]
+/// Disputed --> Spent/Refunded : resolve_dispute() [arbiter decides]
 /// ```
-///
-/// - `Pending`:  Funds are escrowed, awaiting withdrawal or refund.
-/// - `Spent`:    Withdrawal completed successfully. Terminal state.
-/// - `Refunded`: Owner reclaimed funds after timeout. Terminal state.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
@@ -26,13 +24,13 @@ pub enum EscrowStatus {
     /// equivalent to an escrow that has passed expiry but not yet been refunded.
     Expired,
     Refunded,
+    /// Funds are locked pending arbiter resolution.
+    Disputed,
 }
 
 /// Escrow entry structure.
 ///
 /// Stored under [`DataKey::Escrow`](crate::storage::DataKey::Escrow)(commitment) in persistent storage.
-/// Each entry corresponds to one deposit, keyed by the commitment hash
-/// `SHA256(owner || amount || salt)`.
 #[contracttype]
 #[derive(Clone)]
 pub struct EscrowEntry {
@@ -42,13 +40,15 @@ pub struct EscrowEntry {
     pub amount: i128,
     /// Owner who deposited and may refund after expiry.
     pub owner: Address,
-    /// Current status (Pending, Spent, Refunded, Expired).
+    /// Current status (Pending, Spent, Refunded, Expired, Disputed).
     pub status: EscrowStatus,
     /// Ledger timestamp when the escrow was created.
     pub created_at: u64,
     /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
+    /// Optional arbiter address for dispute resolution.
+    pub arbiter: Option<Address>,
 }
 
 /// Privacy-aware view of an escrow entry.
@@ -82,6 +82,8 @@ pub struct PrivacyAwareEscrowView {
     pub created_at: u64,
     /// Expiry timestamp; `0` means no expiry (always visible).
     pub expires_at: u64,
+    /// Arbiter address for dispute resolution. `None` if not set.
+    pub arbiter: Option<Address>,
 }
 
 /// Parameters for registering an ephemeral key (stealth deposit).

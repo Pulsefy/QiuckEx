@@ -40,7 +40,6 @@ fn mint(env: &Env, token: &Address, recipient: &Address, amount: i128) {
 
 /// Build a `StealthDepositParams` with the given fields.
 fn make_params(
-    env: &Env,
     sender: Address,
     token: Address,
     amount: i128,
@@ -80,7 +79,6 @@ fn test_stealth_full_flow() {
     mint(&env, &token, &sender, amount);
 
     let returned_stealth = client.register_ephemeral_key(&make_params(
-        &env,
         sender,
         token.clone(),
         amount,
@@ -124,7 +122,6 @@ fn test_register_wrong_stealth_address_fails() {
 
     let err = client
         .try_register_ephemeral_key(&make_params(
-            &env,
             sender,
             token,
             amount,
@@ -154,7 +151,6 @@ fn test_register_duplicate_stealth_address_fails() {
     mint(&env, &token, &sender, amount * 2);
 
     client.register_ephemeral_key(&make_params(
-        &env,
         sender.clone(),
         token.clone(),
         amount,
@@ -166,7 +162,6 @@ fn test_register_duplicate_stealth_address_fails() {
 
     let err = client
         .try_register_ephemeral_key(&make_params(
-            &env,
             sender,
             token,
             amount,
@@ -197,7 +192,6 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
     mint(&env, &token, &sender, amount);
 
     client.register_ephemeral_key(&make_params(
-        &env,
         sender,
         token,
         amount,
@@ -233,7 +227,6 @@ fn test_stealth_double_withdraw_fails() {
     mint(&env, &token, &sender, amount);
 
     client.register_ephemeral_key(&make_params(
-        &env,
         sender,
         token,
         amount,
@@ -269,7 +262,6 @@ fn test_stealth_withdraw_after_expiry_fails() {
     mint(&env, &token, &sender, amount);
 
     client.register_ephemeral_key(&make_params(
-        &env,
         sender,
         token,
         amount,
@@ -302,7 +294,6 @@ fn test_stealth_register_zero_amount_fails() {
 
     let err = client
         .try_register_ephemeral_key(&make_params(
-            &env,
             sender,
             token,
             0,
@@ -345,7 +336,6 @@ fn test_stealth_register_fails_when_paused() {
 
     let err = client
         .try_register_ephemeral_key(&make_params(
-            &env,
             sender,
             token,
             amount,

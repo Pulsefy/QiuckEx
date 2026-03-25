@@ -175,6 +175,15 @@ pub struct EscrowDisputedEvent {
     pub timestamp: u64,
 }
 
+pub(crate) fn publish_escrow_disputed(env: &Env, commitment: BytesN<32>, arbiter: Address) {
+    EscrowDisputedEvent {
+        commitment,
+        arbiter,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 pub(crate) fn publish_escrow_refunded(
     env: &Env,
     owner: Address,
