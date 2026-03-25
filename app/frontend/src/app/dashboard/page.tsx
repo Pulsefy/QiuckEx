@@ -6,13 +6,14 @@ import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
 import { fetchUserBids, fetchUserListings, UserBid, UserListing, formatCountdown } from "@/hooks/marketplaceApi";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
 
 export default function Dashboard() {
-  const { data, error, loading, callApi } = useApi<DashboardResponse>();
+  const { error, loading, callApi } = useApi<DashboardResponse>();
   const [userBids, setUserBids] = useState<UserBid[]>([]);
   const [userListings, setUserListings] = useState<UserListing[]>([]);
 
@@ -28,9 +29,6 @@ export default function Dashboard() {
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;
-   if (!data || !data.items || data.items.length === 0) {
-    return <p>No transactions yet. Create your first payment link!</p>;
-  }
 
 
   return (
@@ -116,6 +114,11 @@ export default function Dashboard() {
               Estimated settlement: 3 seconds
             </p>
           </div>
+        </div>
+
+        {/* ANALYTICS DASHBOARD */}
+        <div className="mb-10 md:mb-16">
+          <AnalyticsDashboard />
         </div>
 
         {/* TABLE */}
