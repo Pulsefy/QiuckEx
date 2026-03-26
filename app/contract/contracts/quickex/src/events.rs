@@ -21,6 +21,7 @@ pub struct EscrowWithdrawnEvent {
 
     pub token: Address,
     pub amount: i128,
+    pub fee: i128,
     pub timestamp: u64,
 }
 
@@ -119,12 +120,14 @@ pub(crate) fn publish_escrow_withdrawn(
     owner: Address,
     token: Address,
     amount: i128,
+    fee: i128,
 ) {
     EscrowWithdrawnEvent {
         escrow_id: commitment,
         owner,
         token,
         amount,
+        fee,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -269,6 +272,37 @@ pub(crate) fn publish_stealth_withdrawn(
         recipient,
         token,
         amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "FeeConfigChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeConfigChangedEvent {
+    pub fee_bps: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
+    FeeConfigChangedEvent {
+        fee_bps,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PlatformWalletChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlatformWalletChangedEvent {
+    #[topic]
+    pub wallet: Address,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_platform_wallet_changed(env: &Env, wallet: Address) {
+    PlatformWalletChangedEvent {
+        wallet,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

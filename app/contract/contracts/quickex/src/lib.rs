@@ -10,6 +10,9 @@ mod commitment_test;
 mod errors;
 mod escrow;
 mod events;
+mod fee;
+#[cfg(test)]
+mod fee_test;
 mod privacy;
 mod stealth;
 #[cfg(test)]
@@ -23,7 +26,7 @@ mod types;
 
 use errors::QuickexError;
 use storage::*;
-use types::{EscrowEntry, EscrowStatus, PrivacyAwareEscrowView, StealthDepositParams};
+use types::{EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, StealthDepositParams};
 
 /// QuickEx Privacy Contract
 ///
@@ -367,6 +370,34 @@ impl QuickexContract {
     /// Returns `None` if the contract has not been initialized.
     pub fn get_admin(env: Env) -> Option<Address> {
         admin::get_admin(&env)
+    }
+
+    /// Get the current fee configuration (read-only).
+    pub fn get_fee_config(env: Env) -> FeeConfig {
+        storage::get_fee_config(&env)
+    }
+
+    /// Set the fee configuration (**Admin only**).
+    pub fn set_fee_config(
+        env: Env,
+        caller: Address,
+        config: FeeConfig,
+    ) -> Result<(), QuickexError> {
+        admin::set_fee_config(&env, &caller, config)
+    }
+
+    /// Get the platform wallet address (read-only).
+    pub fn get_platform_wallet(env: Env) -> Option<Address> {
+        storage::get_platform_wallet(&env)
+    }
+
+    /// Set the platform wallet address (**Admin only**).
+    pub fn set_platform_wallet(
+        env: Env,
+        caller: Address,
+        wallet: Address,
+    ) -> Result<(), QuickexError> {
+        admin::set_platform_wallet(&env, &caller, wallet)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).
