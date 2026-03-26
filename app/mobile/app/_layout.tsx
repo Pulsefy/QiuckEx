@@ -100,6 +100,9 @@ function AppShell() {
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
+        <Stack.Screen name="contacts" />
+        <Stack.Screen name="add-contact" />
+        <Stack.Screen name="edit-contact" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
         <AppLockOverlay visible={isAppLocked} onUnlock={unlockApp} />
