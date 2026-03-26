@@ -118,7 +118,11 @@ pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<
 }
 
 /// Set platform wallet address (**admin only**).
-pub fn set_platform_wallet(env: &Env, caller: &Address, wallet: Address) -> Result<(), QuickexError> {
+pub fn set_platform_wallet(
+    env: &Env,
+    caller: &Address,
+    wallet: Address,
+) -> Result<(), QuickexError> {
     require_admin(env, caller)?;
     storage::set_platform_wallet(env, &wallet);
     crate::events::publish_platform_wallet_changed(env, wallet);

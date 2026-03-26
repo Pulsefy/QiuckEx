@@ -378,7 +378,11 @@ impl QuickexContract {
     }
 
     /// Set the fee configuration (**Admin only**).
-    pub fn set_fee_config(env: Env, caller: Address, config: FeeConfig) -> Result<(), QuickexError> {
+    pub fn set_fee_config(
+        env: Env,
+        caller: Address,
+        config: FeeConfig,
+    ) -> Result<(), QuickexError> {
         admin::set_fee_config(&env, &caller, config)
     }
 
@@ -388,7 +392,11 @@ impl QuickexContract {
     }
 
     /// Set the platform wallet address (**Admin only**).
-    pub fn set_platform_wallet(env: Env, caller: Address, wallet: Address) -> Result<(), QuickexError> {
+    pub fn set_platform_wallet(
+        env: Env,
+        caller: Address,
+        wallet: Address,
+    ) -> Result<(), QuickexError> {
         admin::set_platform_wallet(&env, &caller, wallet)
     }
 

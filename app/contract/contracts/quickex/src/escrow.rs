@@ -26,8 +26,7 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 use crate::{
     commitment,
     errors::QuickexError,
-    events,
-    fee,
+    events, fee,
     storage::{get_escrow, get_platform_wallet, has_escrow, put_escrow},
     types::{EscrowEntry, EscrowStatus},
 };
@@ -277,7 +276,11 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 
     if fee_amount > 0 {
         if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(&env.current_contract_address(), &platform_wallet, &fee_amount);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &platform_wallet,
+                &fee_amount,
+            );
         }
     }
 
@@ -439,7 +442,11 @@ pub fn resolve_dispute(
 
     if fee_amount > 0 {
         if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(&env.current_contract_address(), &platform_wallet, &fee_amount);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &platform_wallet,
+                &fee_amount,
+            );
         }
     }
 
