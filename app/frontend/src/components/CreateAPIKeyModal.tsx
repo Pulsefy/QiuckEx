@@ -1,4 +1,4 @@
-import { ApiKey, NewKeyForm, Scope } from "@/app/settings/developer/page";
+import { NewKeyForm, Scope } from "@/app/Settings/developer/page";
 import React from "react";
 
 type Props = {
