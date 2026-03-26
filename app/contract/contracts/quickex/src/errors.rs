@@ -32,13 +32,21 @@ pub enum QuickexError {
     EscrowNotExpired = 308,
     /// Caller is not the original owner of the escrow.
     InvalidOwner = 309,
-    /// Escrow is not in a state that allows disputes.
-    InvalidDisputeState = 310,
-    /// Caller is not authorized to resolve disputes (not the arbiter).
-    NotArbiter = 311,
-    /// No arbiter assigned to this escrow.
-    NoArbiter = 312,
+    /// No arbiter assigned to the escrow; dispute cannot be raised.
+    NoArbiter = 310,
+    /// Escrow is not in the required state for this operation.
+    InvalidDisputeState = 311,
+    /// Caller is not the assigned arbiter.
+    NotArbiter = 312,
+    /// The requested operation is paused via granular pause flags.
+    OperationPaused = 313,
+    // Stealth address errors (400-499)
+    /// Derived stealth address does not match the provided one.
+    StealthAddressMismatch = 400,
+    /// A stealth escrow already exists for this stealth address.
+    StealthAddressAlreadyUsed = 401,
+    /// No stealth escrow found for the given stealth address.
+    StealthEscrowNotFound = 402,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
-    OperationPaused = 1000,
 }

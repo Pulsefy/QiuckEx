@@ -38,9 +38,9 @@
 //! - **Value layout**: Changing `EscrowEntry` fields may require migration logic; adding optional
 //!   fields can be done carefully with defaults.
 
-use soroban_sdk::{contracttype, Address, Bytes, Env, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::EscrowEntry;
+use crate::types::{EscrowEntry, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -50,6 +50,15 @@ use crate::types::EscrowEntry;
 /// Used as `(Symbol::new(env, PRIVACY_ENABLED_KEY), Address)` in persistent storage.
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
+
+/// Bitmask flags for granular operation pausing.
+#[allow(dead_code)]
+pub enum PauseFlag {
+    Deposit = 1,
+    Withdrawal = 2,
+    Refund = 4,
+    DepositWithCommitment = 8,
+}
 
 // -----------------------------------------------------------------------------
 // DataKey enum – central key derivation
@@ -71,12 +80,14 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
-    Pause,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
     PrivacyHistory(Address),
-    // Pause(u64)
+    /// Stealth escrow entry keyed by the 32-byte stealth address (Privacy v2).
+    StealthEscrow(BytesN<32>),
+    /// Granular operation pause bitmask (singleton).
+    PauseFlags,
 }
 
 // -----------------------------------------------------------------------------
@@ -152,6 +163,22 @@ pub fn set_paused(env: &Env, paused: bool) {
     env.storage().persistent().set(&key, &paused);
 }
 
+/// Set pause flags (granular pause control – caller already verified by admin module).
+#[allow(dead_code)]
+pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
+    let key = DataKey::PauseFlags;
+    let current: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+    let updated = (current | flags_to_enable) & !flags_to_disable;
+    env.storage().persistent().set(&key, &updated);
+}
+
+/// Check whether a specific operation flag is paused.
+pub fn is_feature_paused(env: &Env, flag: u64) -> bool {
+    let key = DataKey::PauseFlags;
+    let flags: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+    flags & flag != 0
+}
+
 /// Get paused state.
 #[allow(dead_code)]
 pub fn is_paused(env: &Env) -> bool {
@@ -201,44 +228,20 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
         .unwrap_or(Vec::new(env))
 }
 
-#[contracttype]
-#[repr(u64)]
-#[derive(Clone, Copy, PartialEq)]
-pub enum PauseFlag {
-    Deposit = 1,
-    DepositWithCommitment = 2,
-    Withdrawal = 3,
-    Refund = 4,
-    SetPrivacy = 5,
-    CreateAmountCommitment = 6,
+// -----------------------------------------------------------------------------
+// Stealth escrow helpers (Privacy v2 – Issue #157)
+// -----------------------------------------------------------------------------
+
+/// Store a stealth escrow entry keyed by the 32-byte stealth address.
+pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().set(&key, entry);
 }
 
-// Helper – current mask
-pub fn get_pause_mask(env: &Env) -> u64 {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Pause)
-        .unwrap_or(0u64)
-}
-
-// Check one flag
-pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
-    let mask = get_pause_mask(env);
-    (mask & flag as u64) != 0
-}
-
-// #[allow(dead_code)]
-// pub fn set_paused(env: &Env, paused: bool) {
-//     let key = DataKey::Paused;
-//     env.storage().persistent().set(&key, &paused);
-// }
-
-// Admin-only: toggle multiple flags at once
-pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
-    let mut mask = get_pause_mask(env);
-
-    mask |= flags_to_enable;
-    mask &= !flags_to_disable;
-
-    env.storage().persistent().set(&DataKey::Pause, &mask);
+/// Retrieve a stealth escrow entry by stealth address.
+///
+/// Returns `None` if no entry exists.
+pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<StealthEscrowEntry> {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().get(&key)
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { SearchBar } from "@/components/SearchBar";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -26,8 +27,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-white`}
       >
         <header className="border-b border-white/5 bg-neutral-950/60 backdrop-blur-xl sticky top-0 z-50">
-          <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
+          <nav className="container mx-auto px-6 py-4 flex justify-between items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 shrink-0 lg:mr-4">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold italic">
                 Q
               </div>

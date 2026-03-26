@@ -4,14 +4,18 @@ import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { fetchUserBids, fetchUserListings, UserBid, UserListing, formatCountdown } from "@/hooks/marketplaceApi";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
 
 export default function Dashboard() {
-  const { data, error, loading, callApi } = useApi<DashboardResponse>();
+  const { error, loading, callApi } = useApi<DashboardResponse>();
+  const [userBids, setUserBids] = useState<UserBid[]>([]);
+  const [userListings, setUserListings] = useState<UserListing[]>([]);
 
   useEffect(() => {
     callApi(() =>
@@ -19,13 +23,12 @@ export default function Dashboard() {
         items: [],
       }),
     );
+    fetchUserBids().then(setUserBids);
+    fetchUserListings().then(setUserListings);
   }, [callApi]);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;
-  if (!data || !data.items || data.items.length === 0) {
-    return <p>No transactions yet. Create your first payment link!</p>;
-  }
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -49,6 +52,9 @@ export default function Dashboard() {
             className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
           >
             <span>⚡</span> Link Generator
+          </Link>
+          <Link href="/marketplace" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+            <span>🏪</span> Marketplace
           </Link>
         </nav>
       </aside>
@@ -120,6 +126,11 @@ export default function Dashboard() {
               Estimated settlement: 3 seconds
             </p>
           </div>
+        </div>
+
+        {/* ANALYTICS DASHBOARD */}
+        <div className="mb-10 md:mb-16">
+          <AnalyticsDashboard />
         </div>
 
         {/* TABLE */}
@@ -225,6 +236,79 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {/* ── MY LISTINGS & BIDS ───────────────────── */}
+        <div className="mt-10 md:mt-16 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl shadow-2xl overflow-hidden">
+          <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black mb-1">Marketplace Activity</h2>
+              <p className="text-xs sm:text-sm text-neutral-500">Your active bids and listed usernames</p>
+            </div>
+            <Link
+              href="/marketplace"
+              className="px-5 py-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white font-bold text-sm rounded-xl transition-all"
+            >
+              Browse Marketplace →
+            </Link>
+          </div>
+
+          <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5">
+            {/* My Bids */}
+            <div className="p-6 sm:p-8">
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">My Active Bids</h3>
+              {userBids.length === 0 ? (
+                <p className="text-neutral-600 text-sm">No active bids yet. <Link href="/marketplace" className="text-indigo-400 hover:underline">Browse the marketplace</Link>.</p>
+              ) : (
+                <div className="space-y-3">
+                  {userBids.map((bid) => (
+                    <div key={bid.username} className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <div>
+                        <p className="font-black text-base">@{bid.username}</p>
+                        <p className="text-[11px] text-neutral-500">My bid: {bid.myBid} USDC · Ends {formatCountdown(bid.endsAt)}</p>
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+                        bid.isWinning
+                          ? "text-emerald-400 bg-emerald-400/10 border border-emerald-400/20"
+                          : "text-red-400 bg-red-400/10 border border-red-400/20"
+                      }`}>
+                        {bid.isWinning ? "Winning" : "Outbid"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* My Listings */}
+            <div className="p-6 sm:p-8">
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">My Listings</h3>
+              {userListings.length === 0 ? (
+                <p className="text-neutral-600 text-sm">No usernames listed yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {userListings.map((listing) => (
+                    <div key={listing.username} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-black text-base">@{listing.username}</p>
+                        <span className="text-[10px] font-black text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-2 py-1 rounded-lg">
+                          {listing.bidCount} bids
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-neutral-500">
+                        <span>Current: {listing.currentBid} USDC</span>
+                        <span>Ends: {formatCountdown(listing.endsAt)}</span>
+                      </div>
+                      <div className="mt-2 w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, (listing.currentBid / (listing.minBid * 5)) * 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </main>
     </div>
   );
