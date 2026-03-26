@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RecurringPaymentsService } from './recurring-payments.service';
 import { RecurringPaymentsRepository, DbRecurringPaymentLink, DbRecurringPaymentExecution } from './recurring-payments.repository';
-import { ExecutionStatus } from './dto/recurring-payment.dto';
 import { RecurringPaymentProcessor } from '../stellar/recurring-payment-processor';
 
 @Injectable()
@@ -54,8 +53,9 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
       for (const link of linksDue) {
         await this.processRecurringPayment(link);
       }
-    } catch (error: any) {
-      this.logger.error(`Error in scheduled payment execution: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error in scheduled payment execution: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
     }
   }
 
@@ -70,8 +70,9 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
       // This would query for payments scheduled in the next 24 hours
       // Implementation depends on specific notification requirements
       // For now, we'll skip detailed implementation
-    } catch (error: any) {
-      this.logger.error(`Error sending notifications: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error sending notifications: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
     }
   }
 
@@ -101,13 +102,14 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
 
       // Execute the payment
       await this.executeSinglePayment(link, execution);
-    } catch (error: any) {
-      this.logger.error(`Error processing recurring payment ${linkId}: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error processing recurring payment ${linkId}: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
 
       // Mark as failed
       await this.schedulerService.markPaymentFailure(
         linkId,
-        error.message || 'Unknown error',
+        errorMessage,
         0, // Initial attempt
       );
     }
@@ -155,15 +157,16 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
 
       // Send notification
       await this.notifyUser(link, execution, 'success', transactionHash);
-    } catch (error: any) {
-      this.logger.error(`Payment execution failed: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Payment execution failed: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
 
       const currentRetryCount = execution.retry_count + 1;
 
       // Mark as failed (with retry logic)
       await this.schedulerService.markPaymentFailure(
         executionId,
-        error.message || 'Payment execution failed',
+        errorMessage,
         currentRetryCount,
       );
 
@@ -171,13 +174,13 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
       this.eventEmitter.emit('recurring.payment.failed', {
         executionId,
         linkId: link.id,
-        failureReason: error.message,
+        failureReason: errorMessage,
         retryCount: currentRetryCount,
         permanent: currentRetryCount >= this.maxRetries,
       });
 
       // Send failure notification
-      await this.notifyUser(link, execution, 'failed', undefined, error.message);
+      await this.notifyUser(link, execution, 'failed', undefined, errorMessage);
 
       // Re-throw to let caller handle
       throw error;
@@ -216,12 +219,14 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
       });
 
       this.logger.debug(`Emitted notification event: ${eventType}`);
-    } catch (error: any) {
-      this.logger.error(`Error emitting notification: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error emitting notification: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
     }
   }
 
-  private async resolveUsernameToAddress(username: string): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async resolveUsernameToAddress(_username: string): Promise<string | null> {
     // TODO: Integrate with usernames module to resolve username to Stellar address
     // For now, return null - in production this would query the usernames table
     this.logger.warn('Username resolution not yet implemented');

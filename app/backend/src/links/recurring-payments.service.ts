@@ -37,7 +37,7 @@ export class RecurringPaymentsService {
     try {
       // Calculate initial execution date
       const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
-      const nextExecutionDate = this.calculateNextExecutionDate(startDate, dto.frequency);
+      this.calculateNextExecutionDate(startDate, dto.frequency);
 
       // Create the link
       const link = await this.repository.createLink({
@@ -75,10 +75,11 @@ export class RecurringPaymentsService {
       });
 
       return this.mapToResponseDto(link);
-    } catch (error: any) {
-      this.logger.error(`Error creating recurring link: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error creating recurring link: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException(
-        `Failed to create recurring payment link: ${error.message}`,
+        `Failed to create recurring payment link: ${errorMessage}`,
       );
     }
   }
@@ -152,10 +153,11 @@ export class RecurringPaymentsService {
       });
 
       return this.mapToResponseDto(updatedLink);
-    } catch (error: any) {
-      this.logger.error(`Error updating recurring link: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating recurring link: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException(
-        `Failed to update recurring payment link: ${error.message}`,
+        `Failed to update recurring payment link: ${errorMessage}`,
       );
     }
   }
@@ -231,9 +233,9 @@ export class RecurringPaymentsService {
     }
 
     // Calculate next execution date from now
-    const nextExecutionDate = this.calculateNextExecutionDate(new Date(), link.frequency);
+    this.calculateNextExecutionDate(new Date(), link.frequency);
 
-    const updatedLink = await this.repository.updateLink(id, {
+    await this.repository.updateLink(id, {
       // Reset next execution date
     });
 

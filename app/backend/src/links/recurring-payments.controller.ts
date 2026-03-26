@@ -3,14 +3,11 @@ import {
   Get,
   Post,
   Patch,
-  Delete,
   Body,
   Param,
   Query,
   HttpCode,
   HttpStatus,
-  BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { RecurringPaymentsService } from './recurring-payments.service';
@@ -21,6 +18,7 @@ import {
   ListRecurringPaymentsResponseDto,
   QueryRecurringPaymentsDto,
   RecurringStatus,
+  RecurringPaymentExecutionDto,
 } from './dto/recurring-payment.dto';
 
 @ApiTags('recurring-payments')
@@ -255,7 +253,7 @@ export class RecurringPaymentsController {
   })
   async getExecutionHistory(
     @Param('id') id: string,
-  ): Promise<{ success: boolean; data: any[] }> {
+  ): Promise<{ success: boolean; data: RecurringPaymentExecutionDto[] }> {
     const executions = await this.service.getExecutionHistory(id);
     return {
       success: true,

@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
-  RecurringPaymentLinkResponseDto,
-  RecurringPaymentExecutionDto,
   FrequencyType,
   RecurringStatus,
   ExecutionStatus,
@@ -199,7 +197,7 @@ export class RecurringPaymentsRepository {
       referenceId: string | null;
     }>,
   ): Promise<DbRecurringPaymentLink> {
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, unknown> = {};
 
     if (updates.amount !== undefined) updateData.amount = updates.amount;
     if (updates.frequency !== undefined) updateData.frequency = updates.frequency;
@@ -368,7 +366,7 @@ export class RecurringPaymentsRepository {
       lastRetryAt?: Date | null;
     },
   ): Promise<DbRecurringPaymentExecution> {
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       status,
       ...(updates?.executedAt && { executed_at: updates.executedAt.toISOString() }),
       ...(updates?.transactionHash !== undefined && { transaction_hash: updates.transactionHash }),
