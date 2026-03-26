@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{types::FeeConfig, QuickexContract, QuickexContractClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
@@ -20,7 +18,7 @@ fn setup_test(
     let owner = Address::generate(env);
     let recipient = Address::generate(env);
 
-    let contract_id = env.register_contract(None, QuickexContract);
+    let contract_id = env.register(QuickexContract, ());
     let client = QuickexContractClient::new(env, &contract_id);
 
     client.initialize(&admin);
@@ -55,7 +53,9 @@ fn test_withdrawal_with_fee() {
 
     // Setup token
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract(token_admin.clone());
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let token_client = token::Client::new(&env, &token_id);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
 
@@ -116,7 +116,9 @@ fn test_zero_fee() {
     let (client, admin, platform_wallet, owner, _) = setup_test(&env);
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract(token_admin.clone());
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let token_client = token::Client::new(&env, &token_id);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
 
