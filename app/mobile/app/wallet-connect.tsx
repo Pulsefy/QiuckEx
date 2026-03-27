@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useNetworkStatus } from "../hooks/use-network-status";
 import { useSecurity } from "../hooks/use-security";
+import { usePaymentListener } from "../hooks/usePaymentListener";
 
 type Network = "testnet" | "mainnet";
 
@@ -40,6 +41,9 @@ export default function WalletConnectScreen() {
     await saveSensitiveSessionToken(generateMockSessionToken());
     setSessionTokenPreview(null);
   };
+
+  // Start polling for payments when publicKey is available
+  usePaymentListener(publicKey ?? undefined);
 
   const handleDisconnect = async () => {
     setConnected(false);

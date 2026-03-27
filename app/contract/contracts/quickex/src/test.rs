@@ -27,10 +27,10 @@ use crate::{
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events as _, Ledger},
     token,
     xdr::ToXdr,
-    Address, Bytes, BytesN, ConversionError, Env, InvokeError,
+    Address, Bytes, BytesN, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -250,6 +250,24 @@ fn assert_contract_error<T>(
     }
 }
 
+fn latest_contract_event(env: &Env, contract_id: &Address) -> (soroban_sdk::Vec<Val>, Val) {
+    let all = env.events().all();
+    let len = all.len();
+
+    for i in (0..len).rev() {
+        let event = all.get(i).unwrap();
+        if event.0 == *contract_id {
+            return (event.1, event.2);
+        }
+    }
+
+    panic!("no contract event found for contract id")
+}
+
+fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
+    data.try_into_val(env).unwrap()
+}
+
 /// Regression suite: golden path withdrawal — deposit then withdraw by proof.
 #[test]
 fn test_successful_withdrawal() {
@@ -449,6 +467,20 @@ fn test_event_snapshot_privacy_toggled_schema() {
     let account = Address::generate(&env);
 
     client.set_privacy(&account, &true);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_PRIVACY"));
+    assert_eq!(t1, Symbol::new(&env, "PrivacyToggled"));
+    assert_eq!(t2, account);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "enabled")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
@@ -568,6 +600,24 @@ fn test_event_snapshot_escrow_deposited_schema() {
 
     let commitment = BytesN::from_array(&env, &[7; 32]);
     client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0, &None);
+
+    let (topics, data) = latest_contract_event(&env, &contract_id);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t1, Symbol::new(&env, "EscrowDeposited"));
+    assert_eq!(t2, commitment);
+    assert_eq!(t3, user);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "expires_at")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
@@ -591,6 +641,23 @@ fn test_event_snapshot_escrow_withdrawn_schema() {
     token_client.mint(&client.address, &amount);
 
     let _ = client.withdraw(&token, &amount, &commitment, &to, &salt);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t1, Symbol::new(&env, "EscrowWithdrawn"));
+    assert_eq!(t2, commitment);
+    assert_eq!(t3, to);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
@@ -610,6 +677,54 @@ fn test_event_snapshot_escrow_refunded_schema() {
         .set_timestamp(env.ledger().timestamp() + timeout);
 
     client.refund(&commitment, &owner);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t1, Symbol::new(&env, "EscrowRefunded"));
+    assert_eq!(t2, commitment);
+    assert_eq!(t3, owner);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+}
+
+#[test]
+fn test_event_snapshot_escrow_disputed_schema() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"event_dispute_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, &Some(arbiter.clone()));
+    client.dispute(&commitment);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t1, Symbol::new(&env, "EscrowDisputed"));
+    assert_eq!(t2, commitment);
+    assert_eq!(t3, arbiter);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
@@ -619,6 +734,20 @@ fn test_event_snapshot_contract_paused_schema() {
 
     client.initialize(&admin);
     client.set_paused(&admin, &true);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+    assert_eq!(t1, Symbol::new(&env, "ContractPaused"));
+    assert_eq!(t2, admin);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "paused")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
@@ -879,6 +1008,21 @@ fn test_event_snapshot_admin_changed_schema() {
 
     client.initialize(&old_admin);
     client.set_admin(&old_admin, &new_admin);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+    assert_eq!(t1, Symbol::new(&env, "AdminChanged"));
+    assert_eq!(t2, old_admin);
+    assert_eq!(t3, new_admin);
+
+    let data_map = event_data_map(&env, data);
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
 #[test]
