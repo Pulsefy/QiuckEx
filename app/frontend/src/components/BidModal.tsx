@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { MarketplaceListing, formatCountdown, placeBid } from "@/hooks/marketplaceApi";
 
 type BidModalProps = {
@@ -64,7 +64,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               <div className="text-6xl animate-bounce">🎉</div>
               <h2 className="text-2xl font-black">Bid Placed!</h2>
               <p className="text-neutral-400">
-                You're leading with{" "}
+                You&apos;re leading with{" "}
                 <span className="text-indigo-400 font-bold">{parsedAmount} USDC</span> on{" "}
                 <span className="text-white font-bold">@{listing.username}</span>.
               </p>

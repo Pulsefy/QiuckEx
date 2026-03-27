@@ -136,3 +136,13 @@ pub struct StealthEscrowEntry {
     /// Expiry timestamp; `0` means no expiry.
     pub expires_at: u64,
 }
+
+/// Fee configuration for the platform.
+///
+/// Stored under [`DataKey::FeeConfig`](crate::storage::DataKey::FeeConfig) in persistent storage.
+#[contracttype]
+#[derive(Clone, Copy, Debug)]
+pub struct FeeConfig {
+    /// Fee in basis points (1 = 0.01%, 100 = 1%, 10000 = 100%).
+    pub fee_bps: u32,
+}
