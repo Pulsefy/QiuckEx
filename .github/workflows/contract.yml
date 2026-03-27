@@ -31,7 +31,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "app/contract"
+          workspaces: "."
 
       - name: Check formatting
         run: cargo fmt --all -- --check
