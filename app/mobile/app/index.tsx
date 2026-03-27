@@ -2,16 +2,53 @@ import { Link } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import NotificationCenter from "../components/notifications/NotificationCenter";
 
 export default function HomeScreen() {
+  // Pay Again shortcut logic
+  const [recentContacts, setRecentContacts] = React.useState([]);
+  React.useEffect(() => {
+    async function loadContacts() {
+      try {
+        const { getContacts } = require("../services/contacts");
+        const contacts = await getContacts();
+        setRecentContacts(contacts.slice(0, 3));
+      } catch {}
+    }
+    loadContacts();
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ position: "absolute", top: 12, right: 16, zIndex: 100 }}>
+        {/* Bell */}
+        <NotificationCenter />
+      </View>
       <View style={styles.content}>
         <Text style={styles.title}>QuickEx</Text>
 
         <Text style={styles.subtitle}>
           Fast, privacy-focused payment link platform built on Stellar.
         </Text>
+
+        {/* Pay Again Shortcut */}
+        {recentContacts.length > 0 && (
+          <View style={{ width: "100%", marginBottom: 20 }}>
+            <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>Pay Again</Text>
+            {recentContacts.map((contact) => (
+              <Link
+                key={contact.id}
+                href={{ pathname: "/payment-confirmation", params: { username: contact.address } }}
+                asChild
+              >
+                <TouchableOpacity style={{ backgroundColor: "#F5F5F5", padding: 12, borderRadius: 8, marginBottom: 8 }}>
+                  <Text style={{ fontWeight: "bold", fontSize: 16 }}>{contact.nickname || contact.address}</Text>
+                  <Text style={{ color: "#888" }}>{contact.address}</Text>
+                </TouchableOpacity>
+              </Link>
+            ))}
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Instant Payments</Text>
@@ -30,6 +67,12 @@ export default function HomeScreen() {
         <Link href="/wallet-connect" asChild>
           <TouchableOpacity style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Connect Wallet</Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/contacts" asChild>
+          <TouchableOpacity style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Contacts</Text>
           </TouchableOpacity>
         </Link>
 

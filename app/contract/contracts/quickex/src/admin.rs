@@ -1,6 +1,7 @@
 use crate::errors::QuickexError;
 use crate::events::{publish_admin_changed, publish_contract_paused};
 use crate::storage;
+use crate::types::FeeConfig; // Added this import for FeeConfig
 use soroban_sdk::{Address, Env};
 
 /// Initialize the contract with an admin address.
@@ -105,5 +106,25 @@ pub fn set_pause_flags(
 
     storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable);
 
+    Ok(())
+}
+
+/// Set fee configuration (**admin only**).
+pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+    storage::set_fee_config(env, &config);
+    crate::events::publish_fee_config_changed(env, config.fee_bps);
+    Ok(())
+}
+
+/// Set platform wallet address (**admin only**).
+pub fn set_platform_wallet(
+    env: &Env,
+    caller: &Address,
+    wallet: Address,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+    storage::set_platform_wallet(env, &wallet);
+    crate::events::publish_platform_wallet_changed(env, wallet);
     Ok(())
 }

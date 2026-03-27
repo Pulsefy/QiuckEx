@@ -33,7 +33,10 @@ export default function Settings() {
       {/* MOBILE HEADER */}
       <div className="md:hidden relative z-10 p-4 border-b border-white/5 bg-black/20 backdrop-blur-3xl">
         <div className="flex items-center justify-between">
-          <Link href="/dashboard" className="text-neutral-400 hover:text-white transition">
+          <Link
+            href="/dashboard"
+            className="text-neutral-400 hover:text-white transition"
+          >
             ← Back
           </Link>
           <h1 className="text-lg font-black">Settings</h1>
@@ -44,13 +47,22 @@ export default function Settings() {
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-72 h-screen fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col z-20">
         <nav className="flex-1 px-4 py-30 space-y-2">
-          <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition"
+          >
             <span>📊</span> Dashboard
           </Link>
-          <Link href="/generator" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition">
+          <Link
+            href="/generator"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition"
+          >
             <span>⚡</span> Link Generator
           </Link>
-          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold">
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold"
+          >
             <span className="text-indigo-400">⚙️</span> Profile Settings
           </Link>
         </nav>
@@ -71,16 +83,34 @@ export default function Settings() {
         {/* Mobile subheader */}
         <div className="md:hidden mb-6">
           <p className="text-neutral-400 text-sm">
-            Customize quickex.to/<span className="text-white font-bold">{form.username}</span>
+            Customize quickex.to/
+            <span className="text-white font-bold">{form.username}</span>
           </p>
         </div>
+
+        <nav className="flex gap-3 mb-8">
+          <Link
+            href="/settings"
+            className="px-4 py-2 rounded-xl border border-white/10 bg-white/10 text-sm font-semibold hover:bg-white/20"
+          >
+            General
+          </Link>
+          <Link
+            href="/settings/developer"
+            className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5"
+          >
+            Developer
+          </Link>
+        </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Settings Form */}
           <div className="space-y-4 sm:space-y-6">
             {/* Theme Settings Card */}
             <div className="rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
-              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Theme Settings</h2>
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
+                Theme Settings
+              </h2>
 
               <div className="space-y-4">
                 <div>
@@ -91,13 +121,17 @@ export default function Settings() {
                     <input
                       type="color"
                       value={form.primaryColor}
-                      onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, primaryColor: e.target.value })
+                      }
                       className="w-14 sm:w-16 h-11 sm:h-12 rounded-xl border border-white/10 bg-transparent cursor-pointer"
                     />
                     <input
                       type="text"
                       value={form.primaryColor}
-                      onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, primaryColor: e.target.value })
+                      }
                       className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm sm:text-base"
                       placeholder="#6366f1"
                     />
@@ -111,7 +145,9 @@ export default function Settings() {
                   <input
                     type="url"
                     value={form.avatarUrl}
-                    onChange={(e) => setForm({ ...form, avatarUrl: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, avatarUrl: e.target.value })
+                    }
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm sm:text-base"
                     placeholder="https://example.com/avatar.jpg"
                   />
@@ -138,7 +174,9 @@ export default function Settings() {
 
             {/* Social Links Card */}
             <div className="rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
-              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Social Links</h2>
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
+                Social Links
+              </h2>
 
               <div className="space-y-4">
                 <div>
@@ -146,11 +184,15 @@ export default function Settings() {
                     Twitter/X Handle
                   </label>
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500 text-sm sm:text-base">@</span>
+                    <span className="text-neutral-500 text-sm sm:text-base">
+                      @
+                    </span>
                     <input
                       type="text"
                       value={form.twitterHandle}
-                      onChange={(e) => setForm({ ...form, twitterHandle: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, twitterHandle: e.target.value })
+                      }
                       className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm sm:text-base"
                       placeholder="stellarorg"
                       maxLength={15}
@@ -165,7 +207,9 @@ export default function Settings() {
                   <input
                     type="text"
                     value={form.discordHandle}
-                    onChange={(e) => setForm({ ...form, discordHandle: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, discordHandle: e.target.value })
+                    }
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm sm:text-base"
                     placeholder="user#1234"
                     maxLength={32}
@@ -179,7 +223,9 @@ export default function Settings() {
                   <input
                     type="text"
                     value={form.githubHandle}
-                    onChange={(e) => setForm({ ...form, githubHandle: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, githubHandle: e.target.value })
+                    }
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm sm:text-base"
                     placeholder="stellar"
                     maxLength={39}
@@ -220,7 +266,9 @@ export default function Settings() {
           {/* Live Preview - Mobile/Tablet (when toggled) */}
           {showPreview && (
             <div className="lg:hidden rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
-              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Live Preview</h2>
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
+                Live Preview
+              </h2>
               <div className="rounded-2xl border border-white/10 overflow-hidden bg-neutral-950">
                 <ProfilePreview {...form} />
               </div>
@@ -292,7 +340,11 @@ function ProfilePreview({
       <h1 className="text-xl sm:text-2xl font-black mb-2">@{username}</h1>
 
       {/* Bio */}
-      {bio && <p className="text-neutral-400 text-xs sm:text-sm mb-4 sm:mb-6 px-2">{bio}</p>}
+      {bio && (
+        <p className="text-neutral-400 text-xs sm:text-sm mb-4 sm:mb-6 px-2">
+          {bio}
+        </p>
+      )}
 
       {/* Social Links */}
       {(twitterHandle || discordHandle || githubHandle) && (

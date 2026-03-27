@@ -4,29 +4,37 @@ import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import {
+  fetchUserBids,
+  fetchUserListings,
+  UserBid,
+  UserListing,
+  formatCountdown,
+} from "@/hooks/marketplaceApi";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
 
 export default function Dashboard() {
-  const { data, error, loading, callApi } = useApi<DashboardResponse>();
+  const { error, loading, callApi } = useApi<DashboardResponse>();
+  const [userBids, setUserBids] = useState<UserBid[]>([]);
+  const [userListings, setUserListings] = useState<UserListing[]>([]);
 
   useEffect(() => {
     callApi(() =>
       mockFetch({
         items: [],
-      })
+      }),
     );
+    fetchUserBids().then(setUserBids);
+    fetchUserListings().then(setUserListings);
   }, [callApi]);
 
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;
-   if (!data || !data.items || data.items.length === 0) {
-    return <p>No transactions yet. Create your first payment link!</p>;
-  }
-
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -36,20 +44,31 @@ export default function Dashboard() {
       <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px] rounded-full" />
       <div className="fixed bottom-[-20%] right-[-30%] w-[50%] h-[50%] bg-purple-500/5 blur-[100px] rounded-full" />
 
-     
-
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-72 h-screen fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col z-20">
-        
-        
         <nav className="flex-1 px-4 py-30 space-y-2 ">
-          <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold"
+          >
             <span className="text-indigo-400">📊</span> Dashboard
           </Link>
-          <Link href="/generator" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+          <Link
+            href="/generator"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+          >
             <span>⚡</span> Link Generator
           </Link>
-          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+          <Link
+            href="/marketplace"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+          >
+            <span>🏪</span> Marketplace
+          </Link>
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+          >
             <span>⚙️</span> Profile Settings
           </Link>
         </nav>
@@ -57,12 +76,12 @@ export default function Dashboard() {
 
       {/* MAIN CONTENT */}
       <main className="relative z-10 p-4 sm:p-6 md:p-12 md:ml-72">
-        
         {/* HEADER */}
         <header className="mb-10 md:mb-16 flex flex-col md:flex-row md:justify-between md:items-start gap-6">
           <div>
             <nav className="flex items-center gap-2 text-xs font-bold text-neutral-600 uppercase tracking-widest mb-2 md:mb-4">
-              <span>QuickEx</span> / <span className="text-neutral-400">Overview</span>
+              <span>QuickEx</span> /{" "}
+              <span className="text-neutral-400">Overview</span>
             </nav>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-2">
@@ -83,18 +102,26 @@ export default function Dashboard() {
           {/* Revenue card */}
           <div className="relative group overflow-hidden p-6 sm:p-8 rounded-3xl bg-neutral-900/40 border border-white/5 hover:border-indigo-500/30 transition">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20">
-              <span className="text-5xl sm:text-6xl text-indigo-500 font-black">$</span>
+              <span className="text-5xl sm:text-6xl text-indigo-500 font-black">
+                $
+              </span>
             </div>
-            <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">Total Revenue</p>
+            <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">
+              Total Revenue
+            </p>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl sm:text-5xl font-black">$1,240.50</p>
-              <span className="text-xs font-black text-green-500 bg-green-500/10 px-2 py-1 rounded-lg">+12.5%</span>
+              <span className="text-xs font-black text-green-500 bg-green-500/10 px-2 py-1 rounded-lg">
+                +12.5%
+              </span>
             </div>
           </div>
 
           {/* Success rate */}
           <div className="p-6 sm:p-8 rounded-3xl bg-neutral-900/40 border border-white/5">
-            <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">Success Rate</p>
+            <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">
+              Success Rate
+            </p>
             <p className="text-3xl sm:text-5xl font-black">98.2%</p>
             <div className="mt-3 w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
               <div className="w-[98%] h-full bg-indigo-500" />
@@ -103,9 +130,12 @@ export default function Dashboard() {
 
           {/* Payout */}
           <div className="p-6 sm:p-8 rounded-3xl bg-indigo-500 border border-indigo-400 shadow-[0_20px_40px_-15px_rgba(99,102,241,0.3)]">
-            <p className="text-xs sm:text-sm text-indigo-100/60 mb-1 font-bold uppercase">Available Payout</p>
+            <p className="text-xs sm:text-sm text-indigo-100/60 mb-1 font-bold uppercase">
+              Available Payout
+            </p>
             <p className="text-3xl sm:text-5xl font-black">
-              850.00 <span className="text-base sm:text-2xl opacity-60">USDC</span>
+              850.00{" "}
+              <span className="text-base sm:text-2xl opacity-60">USDC</span>
             </p>
             <p className="text-[10px] sm:text-xs text-indigo-100/40 mt-3 italic">
               Estimated settlement: 3 seconds
@@ -113,12 +143,21 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ANALYTICS DASHBOARD */}
+        <div className="mb-10 md:mb-16">
+          <AnalyticsDashboard />
+        </div>
+
         {/* TABLE */}
         <div className="rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl shadow-2xl overflow-hidden">
           <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row justify-between gap-4">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black mb-1">Activity Feed</h2>
-              <p className="text-xs sm:text-sm text-neutral-500">Synced with Stellar Horizon API</p>
+              <h2 className="text-xl sm:text-2xl font-black mb-1">
+                Activity Feed
+              </h2>
+              <p className="text-xs sm:text-sm text-neutral-500">
+                Synced with Stellar Horizon API
+              </p>
             </div>
 
             <div className="bg-white/5 p-2 rounded-xl border border-white/5">
@@ -137,15 +176,35 @@ export default function Dashboard() {
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Transaction ID</th>
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Asset</th>
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Memo</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">Timestamp</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">
+                    Timestamp
+                  </th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-white/5">
                 {[
-                  { id: "GD2P...5H2W", amount: "50.00 USDC", memo: "Project Milestone #1", date: "2 mins ago", status: "Privacy Enabled" },
-                  { id: "GD1R...3K9L", amount: "125.00 XLM", memo: "Frontend Consulting", date: "Jan 20, 14:32", status: "Public" },
-                  { id: "GC8T...9Q0M", amount: "20.00 USDC", memo: "Subscription Renewal", date: "Jan 19, 09:12", status: "Privacy Enabled" },
+                  {
+                    id: "GD2P...5H2W",
+                    amount: "50.00 USDC",
+                    memo: "Project Milestone #1",
+                    date: "2 mins ago",
+                    status: "Privacy Enabled",
+                  },
+                  {
+                    id: "GD1R...3K9L",
+                    amount: "125.00 XLM",
+                    memo: "Frontend Consulting",
+                    date: "Jan 20, 14:32",
+                    status: "Public",
+                  },
+                  {
+                    id: "GC8T...9Q0M",
+                    amount: "20.00 USDC",
+                    memo: "Subscription Renewal",
+                    date: "Jan 19, 09:12",
+                    status: "Privacy Enabled",
+                  },
                 ].map((tx, i) => (
                   <tr key={i} className="hover:bg-white/[0.03] transition">
                     <td className="px-6 sm:px-10 py-6">
@@ -153,21 +212,33 @@ export default function Dashboard() {
                         <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] opacity-50 font-mono">
                           #{i + 1}
                         </span>
-                        <span className="font-mono text-neutral-400 text-sm sm:text-base">{tx.id}</span>
+                        <span className="font-mono text-neutral-400 text-sm sm:text-base">
+                          {tx.id}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-6 sm:px-10 py-6 font-black text-lg">{tx.amount}</td>
+                    <td className="px-6 sm:px-10 py-6 font-black text-lg">
+                      {tx.amount}
+                    </td>
                     <td className="px-6 sm:px-10 py-6">
                       <div className="flex flex-col">
-                        <span className="text-neutral-300 font-bold">{tx.memo}</span>
-                        <span className={`text-[9px] uppercase font-black tracking-widest mt-1 ${
-                          tx.status.includes("Privacy") ? "text-indigo-400" : "text-neutral-600"
-                        }`}>
+                        <span className="text-neutral-300 font-bold">
+                          {tx.memo}
+                        </span>
+                        <span
+                          className={`text-[9px] uppercase font-black tracking-widest mt-1 ${
+                            tx.status.includes("Privacy")
+                              ? "text-indigo-400"
+                              : "text-neutral-600"
+                          }`}
+                        >
                           {tx.status}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 sm:px-10 py-6 text-neutral-500 text-right">{tx.date}</td>
+                    <td className="px-6 sm:px-10 py-6 text-neutral-500 text-right">
+                      {tx.date}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -181,6 +252,114 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── MY LISTINGS & BIDS ───────────────────── */}
+        <div className="mt-10 md:mt-16 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl shadow-2xl overflow-hidden">
+          <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black mb-1">
+                Marketplace Activity
+              </h2>
+              <p className="text-xs sm:text-sm text-neutral-500">
+                Your active bids and listed usernames
+              </p>
+            </div>
+            <Link
+              href="/marketplace"
+              className="px-5 py-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white font-bold text-sm rounded-xl transition-all"
+            >
+              Browse Marketplace →
+            </Link>
+          </div>
+
+          <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5">
+            {/* My Bids */}
+            <div className="p-6 sm:p-8">
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+                My Active Bids
+              </h3>
+              {userBids.length === 0 ? (
+                <p className="text-neutral-600 text-sm">
+                  No active bids yet.{" "}
+                  <Link
+                    href="/marketplace"
+                    className="text-indigo-400 hover:underline"
+                  >
+                    Browse the marketplace
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {userBids.map((bid) => (
+                    <div
+                      key={bid.username}
+                      className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5"
+                    >
+                      <div>
+                        <p className="font-black text-base">@{bid.username}</p>
+                        <p className="text-[11px] text-neutral-500">
+                          My bid: {bid.myBid} USDC · Ends{" "}
+                          {formatCountdown(bid.endsAt)}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+                          bid.isWinning
+                            ? "text-emerald-400 bg-emerald-400/10 border border-emerald-400/20"
+                            : "text-red-400 bg-red-400/10 border border-red-400/20"
+                        }`}
+                      >
+                        {bid.isWinning ? "Winning" : "Outbid"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* My Listings */}
+            <div className="p-6 sm:p-8">
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+                My Listings
+              </h3>
+              {userListings.length === 0 ? (
+                <p className="text-neutral-600 text-sm">
+                  No usernames listed yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {userListings.map((listing) => (
+                    <div
+                      key={listing.username}
+                      className="p-4 rounded-2xl bg-white/[0.03] border border-white/5"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-black text-base">
+                          @{listing.username}
+                        </p>
+                        <span className="text-[10px] font-black text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-2 py-1 rounded-lg">
+                          {listing.bidCount} bids
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-neutral-500">
+                        <span>Current: {listing.currentBid} USDC</span>
+                        <span>Ends: {formatCountdown(listing.endsAt)}</span>
+                      </div>
+                      <div className="mt-2 w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 rounded-full"
+                          style={{
+                            width: `${Math.min(100, (listing.currentBid / (listing.minBid * 5)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );
