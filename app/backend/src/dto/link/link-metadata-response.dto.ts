@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { PathPreviewRow } from '../../stellar/path-preview.service';
 
 /**
  * Response DTO for link metadata
@@ -84,6 +85,23 @@ export class LinkMetadataResponseDto {
     nullable: true,
   })
   referenceId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Asset codes this link accepts for payment (multi-asset support)',
+    example: ['XLM', 'USDC'],
+    type: [String],
+    nullable: true,
+  })
+  acceptedAssets?: string[] | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Swap path options for each accepted asset that differs from the destination asset. ' +
+      'Only present when acceptedAssets is provided in the request.',
+    type: 'array',
+    nullable: true,
+  })
+  swapOptions?: PathPreviewRow[] | null;
 
   @ApiProperty({
     description: 'Metadata information',
