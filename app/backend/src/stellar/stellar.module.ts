@@ -10,6 +10,6 @@ import { StellarController } from "./stellar.controller";
   imports: [TransactionsModule],
   controllers: [StellarController],
   providers: [LinkService, HorizonService, PathPreviewService],
-  exports: [LinkService, HorizonService],
+  exports: [LinkService, HorizonService, PathPreviewService],
 })
 export class StellarModule {}

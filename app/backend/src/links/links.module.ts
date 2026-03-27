@@ -7,6 +7,7 @@ import { RecurringPaymentsScheduler } from './recurring-payments.scheduler';
 import { RecurringPaymentsRepository } from './recurring-payments.repository';
 import { RecurringPaymentProcessor } from '../stellar/recurring-payment-processor';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { StellarModule } from '../stellar/stellar.module';
 
 @Module({
   controllers: [LinksController, RecurringPaymentsController],
@@ -18,6 +19,6 @@ import { SupabaseModule } from '../supabase/supabase.module';
     RecurringPaymentProcessor,
   ],
   exports: [LinksService, RecurringPaymentsService],
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, StellarModule],
 })
 export class LinksModule {}
