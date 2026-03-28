@@ -5,6 +5,15 @@ import type { NotificationPreference, BaseNotificationPayload } from '../../type
 
 const PUBLIC_KEY = 'GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2';
 
+// Define the type for the mapping object
+interface TelegramUserMapping {
+  telegramId: number;
+  publicKey: string;
+  isVerified: boolean;
+  enabled: boolean;
+  minAmountStroops?: bigint;
+}
+
 // Mock dependencies with proper typing
 const mockTelegramBotService = {
   sendNotification: jest.fn(),
@@ -71,7 +80,7 @@ describe('TelegramNotificationProvider', () => {
 
   describe('send', () => {
     it('sends notification to verified Telegram user', async () => {
-      const mapping = {
+      const mapping: TelegramUserMapping = {
         telegramId: 123456789,
         publicKey: PUBLIC_KEY,
         isVerified: true,
@@ -79,7 +88,7 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping);
       mockTelegramBotService.sendNotification.mockResolvedValue(999);
 
       const pref = makePreference();
@@ -117,14 +126,14 @@ describe('TelegramNotificationProvider', () => {
     });
 
     it('throws error when Telegram account is not verified', async () => {
-      const mapping = {
+      const mapping: TelegramUserMapping = {
         telegramId: 123456789,
         publicKey: PUBLIC_KEY,
         isVerified: false,
         enabled: true,
       };
 
-      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping);
 
       const pref = makePreference();
       const payload = makePayload();
@@ -135,7 +144,7 @@ describe('TelegramNotificationProvider', () => {
     });
 
     it('skips notification when notifications are disabled', async () => {
-      const mapping = {
+      const mapping: TelegramUserMapping = {
         telegramId: 123456789,
         publicKey: PUBLIC_KEY,
         isVerified: true,
@@ -143,7 +152,7 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping);
 
       const pref = makePreference();
       const payload = makePayload();
@@ -155,7 +164,7 @@ describe('TelegramNotificationProvider', () => {
     });
 
     it('skips notification when amount is below threshold', async () => {
-      const mapping = {
+      const mapping: TelegramUserMapping = {
         telegramId: 123456789,
         publicKey: PUBLIC_KEY,
         isVerified: true,
@@ -163,7 +172,7 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 100_000_000n, // 10 XLM
       };
 
-      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping);
 
       const pref = makePreference();
       const payload = makePayload({ amountStroops: 50_000_000n }); // 5 XLM
@@ -175,7 +184,7 @@ describe('TelegramNotificationProvider', () => {
     });
 
     it('formats message with transaction details', async () => {
-      const mapping = {
+      const mapping: TelegramUserMapping = {
         telegramId: 123456789,
         publicKey: PUBLIC_KEY,
         isVerified: true,
@@ -183,7 +192,7 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping);
       mockTelegramBotService.sendNotification.mockResolvedValue(999);
 
       const pref = makePreference();
