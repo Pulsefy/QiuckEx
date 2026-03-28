@@ -3,10 +3,14 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 #[cfg(test)]
+mod assert_helpers;
+#[cfg(test)]
 mod bench_test;
 mod commitment;
 #[cfg(test)]
 mod commitment_test;
+#[cfg(test)]
+mod coverage_test;
 mod errors;
 mod escrow;
 mod events;
@@ -22,6 +26,8 @@ mod storage;
 mod storage_test;
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod test_context;
 mod types;
 
 use errors::QuickexError;
