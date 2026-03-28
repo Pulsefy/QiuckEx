@@ -30,6 +30,7 @@ export class ScamAlertsController {
     description: "Invalid input data",
   })
   async scan(@Body() scanLinkDto: ScanLinkDto): Promise<ScanResultDto> {
-    return this.scamAlertsService.scanLink(scanLinkDto);
+    const result = await this.scamAlertsService.scanLink(scanLinkDto);
+    return result as unknown as ScanResultDto;
   }
 }
