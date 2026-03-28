@@ -91,6 +91,15 @@ export const envSchema = Joi.object({
     .description(
       "Max records per entity type processed per reconciliation run",
     ),
+
+  // Rate limiting — optional bcrypt-hashed API keys (comma-separated)
+  // Generate a hash: node -e "require('bcrypt').hash('MY_KEY', 10).then(console.log)"
+  API_KEYS: Joi.string()
+    .optional()
+    .description(
+      "Comma-separated list of bcrypt-hashed API keys for trusted clients. " +
+        "Valid keys receive higher rate limits (120 req/min vs 20 req/min).",
+    ),
 });
 
 /**
@@ -110,4 +119,5 @@ export interface EnvConfig {
   SENDGRID_FROM_EMAIL?: string;
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
+  API_KEYS?: string;
 }
