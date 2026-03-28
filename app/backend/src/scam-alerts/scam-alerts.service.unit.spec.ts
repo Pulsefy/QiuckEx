@@ -142,7 +142,7 @@ describe("ScamAlertsService", () => {
 
 	describe("Newly Created Account Detection", () => {
 		beforeEach(() => {
-			// Clear the cache before each test
+			// Clear the cache before each test using bracket notation to bypass privacy
 			(service as any).accountAgeCache.clear();
 		});
 
@@ -198,7 +198,7 @@ describe("ScamAlertsService", () => {
 
 	describe("External Blocklist Detection", () => {
 		beforeEach(() => {
-			// Clear the cache before each test
+			// Clear the cache before each test using bracket notation to bypass privacy
 			(service as any).blocklistCache.clear();
 		});
 
