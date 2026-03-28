@@ -53,7 +53,13 @@ async function bootstrap() {
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "x-correlation-id", "x-api-key"],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "x-correlation-id",
+        "X-API-Key",
+      ],
+
     });
   }
 
