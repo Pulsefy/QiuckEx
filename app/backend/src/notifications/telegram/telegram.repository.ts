@@ -15,6 +15,21 @@ export interface TelegramUserMapping {
   updatedAt: Date;
 }
 
+// Define the raw database row interface
+interface RawTelegramUserMapping {
+  id: string;
+  telegram_id: number;
+  username: string | null;
+  public_key: string;
+  is_verified: boolean;
+  verification_code: string | null;
+  enabled: boolean;
+  min_amount_stroops: string;
+  last_notification_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 @Injectable()
 export class TelegramRepository {
   private readonly logger = new Logger(TelegramRepository.name);
@@ -280,7 +295,7 @@ export class TelegramRepository {
     return (data ?? []).map(this.mapRow);
   }
 
-  private mapRow(row: any): TelegramUserMapping {
+  private mapRow(row: RawTelegramUserMapping): TelegramUserMapping {
     return {
       id: row.id,
       telegramId: Number(row.telegram_id),

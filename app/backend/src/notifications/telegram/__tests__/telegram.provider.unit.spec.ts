@@ -5,15 +5,26 @@ import type { NotificationPreference, BaseNotificationPayload } from '../../type
 
 const PUBLIC_KEY = 'GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2';
 
-// Mock dependencies
+// Mock dependencies with proper typing
 const mockTelegramBotService = {
   sendNotification: jest.fn(),
+  verifyUser: jest.fn(),
+  getBot: jest.fn(),
+  onModuleInit: jest.fn(),
+  onModuleDestroy: jest.fn(),
 };
 
 const mockTelegramRepository = {
   findByPublicKey: jest.fn(),
   updateLastNotification: jest.fn(),
   logNotification: jest.fn(),
+  findByTelegramId: jest.fn(),
+  upsertMapping: jest.fn(),
+  markAsVerified: jest.fn(),
+  setEnabled: jest.fn(),
+  setMinAmount: jest.fn(),
+  deleteMapping: jest.fn(),
+  getEnabledMappings: jest.fn(),
 };
 
 function makePreference(
@@ -47,16 +58,15 @@ function makePayload(
 
 describe('TelegramNotificationProvider', () => {
   let provider: TelegramNotificationProvider;
-  let botService: jest.Mocked<TelegramBotService>;
-  let repo: jest.Mocked<TelegramRepository>;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    botService = mockTelegramBotService as any;
-    repo = mockTelegramRepository as any;
-
-    provider = new TelegramNotificationProvider(botService, repo);
+    // Create the provider with mocked dependencies
+    provider = new TelegramNotificationProvider(
+      mockTelegramBotService as unknown as TelegramBotService,
+      mockTelegramRepository as unknown as TelegramRepository
+    );
   });
 
   describe('send', () => {
@@ -69,23 +79,23 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      repo.findByPublicKey.mockResolvedValue(mapping as any);
-      botService.sendNotification.mockResolvedValue(999);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramBotService.sendNotification.mockResolvedValue(999);
 
       const pref = makePreference();
       const payload = makePayload();
 
       const result = await provider.send(pref, payload);
 
-      expect(repo.findByPublicKey).toHaveBeenCalledWith(PUBLIC_KEY);
-      expect(botService.sendNotification).toHaveBeenCalledWith(
+      expect(mockTelegramRepository.findByPublicKey).toHaveBeenCalledWith(PUBLIC_KEY);
+      expect(mockTelegramBotService.sendNotification).toHaveBeenCalledWith(
         123456789,
         'Payment Received',
         expect.stringContaining('You received 10 XLM'),
         expect.any(Object),
       );
-      expect(repo.updateLastNotification).toHaveBeenCalledWith(123456789);
-      expect(repo.logNotification).toHaveBeenCalledWith(
+      expect(mockTelegramRepository.updateLastNotification).toHaveBeenCalledWith(123456789);
+      expect(mockTelegramRepository.logNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           telegramId: 123456789,
           status: 'sent',
@@ -96,7 +106,7 @@ describe('TelegramNotificationProvider', () => {
     });
 
     it('throws error when no Telegram mapping found', async () => {
-      repo.findByPublicKey.mockResolvedValue(null);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(null);
 
       const pref = makePreference();
       const payload = makePayload();
@@ -114,7 +124,7 @@ describe('TelegramNotificationProvider', () => {
         enabled: true,
       };
 
-      repo.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
 
       const pref = makePreference();
       const payload = makePayload();
@@ -133,14 +143,14 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      repo.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
 
       const pref = makePreference();
       const payload = makePayload();
 
       const result = await provider.send(pref, payload);
 
-      expect(botService.sendNotification).not.toHaveBeenCalled();
+      expect(mockTelegramBotService.sendNotification).not.toHaveBeenCalled();
       expect(result.messageId).toBeUndefined();
     });
 
@@ -153,14 +163,14 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 100_000_000n, // 10 XLM
       };
 
-      repo.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
 
       const pref = makePreference();
       const payload = makePayload({ amountStroops: 50_000_000n }); // 5 XLM
 
       const result = await provider.send(pref, payload);
 
-      expect(botService.sendNotification).not.toHaveBeenCalled();
+      expect(mockTelegramBotService.sendNotification).not.toHaveBeenCalled();
       expect(result.messageId).toBeUndefined();
     });
 
@@ -173,8 +183,8 @@ describe('TelegramNotificationProvider', () => {
         minAmountStroops: 0n,
       };
 
-      repo.findByPublicKey.mockResolvedValue(mapping as any);
-      botService.sendNotification.mockResolvedValue(999);
+      mockTelegramRepository.findByPublicKey.mockResolvedValue(mapping as any);
+      mockTelegramBotService.sendNotification.mockResolvedValue(999);
 
       const pref = makePreference();
       const payload = makePayload({
@@ -186,7 +196,7 @@ describe('TelegramNotificationProvider', () => {
 
       await provider.send(pref, payload);
 
-      expect(botService.sendNotification).toHaveBeenCalledWith(
+      expect(mockTelegramBotService.sendNotification).toHaveBeenCalledWith(
         123456789,
         expect.any(String),
         expect.stringContaining('Transaction: `abc123d...`'),

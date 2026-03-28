@@ -57,7 +57,7 @@ export class ScamAlertsService {
 	async scanLink(linkData: PaymentLinkData): Promise<ScanResult> {
 		this.logger.log(`Scanning link: ${JSON.stringify(linkData)}`);
 
-		let alerts: ScamAlert[] = [];
+		const alerts: ScamAlert[] = []; // Changed from 'let' to 'const' as it's not reassigned
 
 		// Execute rule engine
 		for (const rule of this.rules) {

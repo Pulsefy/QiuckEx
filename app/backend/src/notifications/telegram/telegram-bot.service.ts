@@ -63,7 +63,6 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     // /start command - Welcome and instructions
     this.bot.start(async (ctx) => {
       const telegramId = ctx.from?.id;
-      const username = ctx.from?.username;
 
       if (!telegramId) {
         await ctx.reply("⚠️ Unable to identify you. Please try again.");
@@ -109,7 +108,6 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     // Handle public key submission for linking
     this.bot.on(message("text"), async (ctx) => {
       const telegramId = ctx.from?.id;
-      const username = ctx.from?.username;
       const text = ctx.message.text.trim();
 
       if (!telegramId) return;
@@ -150,7 +148,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         // Save mapping with verification code
         await this.telegramRepo.upsertMapping({
           telegramId,
-          username: username ?? undefined,
+          username: ctx.from?.username ?? undefined,
           publicKey: text,
           verificationCode,
         });
