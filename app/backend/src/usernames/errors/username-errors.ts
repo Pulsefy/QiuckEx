@@ -9,6 +9,8 @@ export enum UsernameErrorCode {
   LIMIT_EXCEEDED = 'USERNAME_LIMIT_EXCEEDED',
   /** Username format invalid (length or pattern). */
   INVALID_FORMAT = 'USERNAME_INVALID_FORMAT',
+  /** Username not found. */
+  NOT_FOUND = 'USERNAME_NOT_FOUND',
 }
 
 export class UsernameConflictError extends Error {
