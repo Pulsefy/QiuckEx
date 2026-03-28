@@ -6,7 +6,7 @@ import NotificationCenter from "../components/notifications/NotificationCenter";
 
 export default function HomeScreen() {
   // Pay Again shortcut logic
-  const [recentContacts, setRecentContacts] = React.useState([]);
+  const [recentContacts, setRecentContacts] = React.useState<any[]>([]);
   React.useEffect(() => {
     async function loadContacts() {
       try {
@@ -89,6 +89,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </Link>
 
+        {/* Link Generator */}
+        <Link href="/link-generator" asChild>
+          <TouchableOpacity style={styles.linkGenButton}>
+            <Text style={styles.linkGenButtonText}>Generate Link</Text>
+          </TouchableOpacity>
+        </Link>
+
         {/* Transaction History */}
         <Link href="/transactions" asChild>
           <TouchableOpacity style={styles.secondaryButton}>
@@ -168,6 +175,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   quickReceiveButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+
+  /* Link Generator Button */
+  linkGenButton: {
+    backgroundColor: "#2563EB",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  linkGenButtonText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",

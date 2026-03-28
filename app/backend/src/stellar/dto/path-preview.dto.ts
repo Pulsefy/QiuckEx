@@ -10,6 +10,7 @@ import {
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+
 export class PathAssetRefDto {
   @ApiProperty({ example: "USDC" })
   @IsString()
@@ -52,4 +53,32 @@ export class PathPreviewRequestDto {
   @ValidateNested({ each: true })
   @Type(() => PathAssetRefDto)
   sourceAssets!: PathAssetRefDto[];
+}
+
+export class StrictSendPathPreviewRequestDto {
+  @ApiProperty({
+    description: "Human-readable amount the sender will send exactly",
+    example: "10.5",
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d{1,14})?$/, {
+    message: "sourceAmount must be a positive decimal number",
+  })
+  sourceAmount!: string;
+
+  @ApiProperty({ type: PathAssetRefDto })
+  @ValidateNested()
+  @Type(() => PathAssetRefDto)
+  sourceAsset!: PathAssetRefDto;
+
+  @ApiProperty({
+    type: [PathAssetRefDto],
+    description: "Assets the recipient could receive (strict-send path search)",
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PathAssetRefDto)
+  destinationAssets!: PathAssetRefDto[];
 }

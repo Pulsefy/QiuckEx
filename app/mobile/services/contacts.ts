@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Contact } from '../types/contact';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 let supabase: any = null;
 try {
   supabase = require('./supabase').supabase;
@@ -26,7 +26,7 @@ export async function getContacts(): Promise<Contact[]> {
 export async function saveContact(contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
   const newContact: Contact = {
     ...contact,
-    id: uuidv4(),
+    id: Crypto.randomUUID(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

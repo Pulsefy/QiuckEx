@@ -10,7 +10,11 @@ import {
   findVerifiedAsset,
   type VerifiedAssetRecord,
 } from "./verified-assets.constant";
-import type { PathAssetRefDto, PathPreviewRequestDto } from "./dto/path-preview.dto";
+import type {
+  PathAssetRefDto,
+  PathPreviewRequestDto,
+  StrictSendPathPreviewRequestDto,
+} from "./dto/path-preview.dto";
 
 type HorizonPathRecord = {
   source_asset_type: string;
@@ -54,6 +58,17 @@ function toHorizonSourceAssetParam(asset: VerifiedAssetRecord): string {
     return "native";
   }
   return `${asset.code}:${asset.issuer}`;
+}
+
+function horizonSourceParams(asset: VerifiedAssetRecord): Record<string, string> {
+  if (asset.type === "native") {
+    return { source_asset_type: "native" };
+  }
+  return {
+    source_asset_type: asset.type,
+    source_asset_code: asset.code,
+    source_asset_issuer: asset.issuer ?? "",
+  };
 }
 
 function horizonDestinationParams(asset: VerifiedAssetRecord): Record<string, string> {
@@ -178,6 +193,82 @@ export class PathPreviewService {
         formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
       ),
       /** Ratio of destination_amount : source_amount in smallest units (informative) */
+      rateDescription: formatStroopsRatio(
+        r.source_amount,
+        r.destination_amount,
+      ),
+    }));
+
+    return { paths, horizonUrl: base };
+  }
+
+  async strictSendPaths(
+    body: StrictSendPathPreviewRequestDto,
+  ): Promise<{ paths: PathPreviewRow[]; horizonUrl: string }> {
+    const source = this.assertVerified(body.sourceAsset);
+    const destinations = body.destinationAssets.map((d) =>
+      this.assertVerified(d),
+    );
+
+    const srcStroops = toAssetStroops(body.sourceAmount, source.decimals);
+    const srcParams = horizonSourceParams(source);
+    const destination_assets = destinations
+      .map(toHorizonSourceAssetParam)
+      .join(",");
+
+    const params = new URLSearchParams({
+      ...srcParams,
+      source_amount: srcStroops,
+      destination_assets,
+    });
+
+    const base = this.resolveHorizonBaseUrl();
+    const url = `${base}/paths/strict-send?${params.toString()}`;
+
+    let json: HorizonPathsResponse;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const text = await res.text();
+        this.logger.warn(
+          `Horizon strict-send failed ${res.status}: ${text.slice(0, 500)}`,
+        );
+        throw new ServiceUnavailableException(
+          "Unable to fetch path estimates from Horizon.",
+        );
+      }
+      json = (await res.json()) as HorizonPathsResponse;
+    } catch (err) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      this.logger.error("Horizon strict-send path preview network error", err);
+      throw new ServiceUnavailableException(
+        "Unable to reach Stellar Horizon for path preview.",
+      );
+    }
+
+    const records = json._embedded?.records ?? [];
+    const paths: PathPreviewRow[] = records.map((r) => ({
+      sourceAmount: r.source_amount,
+      sourceAsset: formatAssetLabel(
+        r.source_asset_type,
+        r.source_asset_code,
+        r.source_asset_issuer,
+      ),
+      destinationAmount: r.destination_amount,
+      destinationAsset: formatAssetLabel(
+        r.destination_asset_type,
+        r.destination_asset_code,
+        r.destination_asset_issuer,
+      ),
+      hopCount: Array.isArray(r.path) ? r.path.length : 0,
+      pathHops: (r.path ?? []).map((hop) =>
+        formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
+      ),
       rateDescription: formatStroopsRatio(
         r.source_amount,
         r.destination_amount,

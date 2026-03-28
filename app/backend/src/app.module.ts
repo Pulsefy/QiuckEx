@@ -27,6 +27,8 @@ import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
+import { ApiKeysModule } from "./api-keys/api-keys.module";
+import { MarketplaceModule } from "./marketplace/marketplace.module";
 
 type AppImport =
   | Type<unknown>
@@ -60,6 +62,8 @@ type AppImport =
       TransactionsModule,
       PaymentsModule,
       IngestionModule,
+      ApiKeysModule,
+      MarketplaceModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't

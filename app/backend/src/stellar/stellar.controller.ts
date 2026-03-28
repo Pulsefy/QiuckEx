@@ -21,7 +21,10 @@ import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 import { AppConfigService } from "../config/app-config.service";
 import { TransactionsService } from "../transactions/transaction.service";
-import { PathPreviewRequestDto } from "./dto/path-preview.dto";
+import {
+  PathPreviewRequestDto,
+  StrictSendPathPreviewRequestDto,
+} from "./dto/path-preview.dto";
 import { SorobanPreflightDto } from "./dto/soroban-preflight.dto";
 import { PathPreviewService } from "./path-preview.service";
 import { VERIFIED_STELLAR_ASSETS } from "./verified-assets.constant";
@@ -60,6 +63,18 @@ export class StellarController {
   })
   async pathPreview(@Body() body: PathPreviewRequestDto) {
     return this.pathPreviewService.previewPaths(body);
+  }
+
+  @Post("path-preview/strict-send")
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({
+    summary: "Strict-send path preview (Horizon)",
+    description:
+      "Returns candidate paths and estimated destination amounts for a fixed source amount.",
+  })
+  async strictSendPathPreview(@Body() body: StrictSendPathPreviewRequestDto) {
+    return this.pathPreviewService.strictSendPaths(body);
   }
 
   @Post("soroban-preflight")
