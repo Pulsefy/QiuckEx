@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseService, SearchProfileResult, TrendingCreatorResult } from '../supabase/supabase.service';
 import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 import { AppConfigService } from '../config';
 import {
@@ -29,7 +29,7 @@ export class UsernamesService {
   ) { }
 
   /**
-   * Normalize username for storage (lowercase). Validation (length, pattern) is done by DTO.
+   * Normalize username for storage (lowercase).
    */
   normalizeUsername(username: string): string {
     return username.trim().toLowerCase();
@@ -92,5 +92,79 @@ export class UsernamesService {
    */
   async listByPublicKey(publicKey: string): Promise<UsernameRow[]> {
     return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<UsernameRow[]>;
+  }
+
+  /**
+   * Search for public usernames with fuzzy matching.
+   * Returns profiles sorted by similarity score.
+   */
+  async searchPublicUsernames(
+    query: string,
+    limit: number = 10,
+  ): Promise<SearchProfileResult[]> {
+    const normalizedQuery = this.normalizeUsername(query);
+
+    if (!normalizedQuery || normalizedQuery.length < 2) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.INVALID_FORMAT,
+        'Search query must be at least 2 characters',
+        'query',
+      );
+    }
+
+    const results = await this.supabase.searchPublicUsernames(normalizedQuery, limit);
+
+    // Update activity timestamp for clicked results (async, non-blocking)
+    if (results.length > 0) {
+      this.supabase.updateUsernameActivity(results[0].username).catch(() => {
+        // Ignore errors - activity tracking is best-effort
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Get trending creators based on transaction volume.
+   * Defaults to last 24 hours, configurable via timeWindowHours.
+   */
+  async getTrendingCreators(
+    timeWindowHours: number = 24,
+    limit: number = 10,
+  ): Promise<TrendingCreatorResult[]> {
+    if (timeWindowHours < 1 || timeWindowHours > 720) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.INVALID_FORMAT,
+        'Time window must be between 1 and 720 hours',
+        'timeWindowHours',
+      );
+    }
+
+    return this.supabase.getTrendingCreators(timeWindowHours, limit);
+  }
+
+  /**
+   * Toggle public profile visibility for a username.
+   */
+  async togglePublicProfile(
+    username: string,
+    publicKey: string,
+    isPublic: boolean,
+  ): Promise<void> {
+    const normalized = this.normalizeUsername(username);
+
+    // Verify ownership
+    const usernames = await this.listByPublicKey(publicKey);
+    const owned = usernames.find(u => u.username === normalized);
+
+    if (!owned) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.NOT_FOUND,
+        'Username not found or does not belong to this wallet',
+        'username',
+      );
+    }
+
+    await this.supabase.togglePublicProfile(normalized, isPublic);
   }
 }
