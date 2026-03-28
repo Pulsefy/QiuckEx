@@ -3,8 +3,6 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "reac
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { saveContact } from "../services/contacts";
-import { v4 as uuidv4 } from "uuid";
-
 export default function AddContactScreen() {
   const [nickname, setNickname] = useState("");
   const [address, setAddress] = useState("");
@@ -19,12 +17,9 @@ export default function AddContactScreen() {
     setSaving(true);
     try {
       await saveContact({
-        id: uuidv4(),
         address: address.trim(),
         nickname: nickname.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      } as any);
       router.replace("/contacts");
     } catch (e) {
       Alert.alert("Failed to save contact");
