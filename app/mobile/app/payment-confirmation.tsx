@@ -69,6 +69,28 @@ export default function PaymentConfirmationScreen() {
     );
   }
 
+  // Save Contact logic
+  const [savingContact, setSavingContact] = React.useState(false);
+  const { saveContact } = require("../services/contacts");
+  const { v4: uuidv4 } = require("uuid");
+  async function handleSaveContact() {
+    setSavingContact(true);
+    try {
+      await saveContact({
+        id: uuidv4(),
+        address: username,
+        nickname: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      Alert.alert("Contact saved!", "Recipient has been added to your contacts.");
+    } catch (e) {
+      Alert.alert("Failed to save contact");
+    } finally {
+      setSavingContact(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -104,6 +126,15 @@ export default function PaymentConfirmationScreen() {
             onPress={() => router.replace("/")}
           >
             <Text style={styles.secondaryBtnText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryBtn, { marginTop: 8 }]}
+            onPress={handleSaveContact}
+            disabled={savingContact}
+          >
+            <Text style={styles.secondaryBtnText}>
+              {savingContact ? "Saving..." : "Save Recipient as Contact"}
+            </Text>
           </Pressable>
         </View>
       </View>

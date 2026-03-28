@@ -3,6 +3,8 @@ import {
   IsString,
   IsBoolean,
   IsOptional,
+  IsArray,
+  ArrayMinSize,
   Min,
   Max,
   Matches,
@@ -141,4 +143,18 @@ export class LinkMetadataRequestDto {
     message: 'Reference ID must be 1-64 alphanumeric characters, hyphens, or underscores',
   })
   referenceId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Asset codes this link accepts for payment (enables multi-asset swap suggestions). Each must be a whitelisted asset.',
+    example: ['XLM', 'USDC'],
+    type: [String],
+    enum: ['XLM', 'USDC', 'AQUA', 'yXLM'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  @Validate(IsStellarAsset, { each: true })
+  acceptedAssets?: string[];
 }

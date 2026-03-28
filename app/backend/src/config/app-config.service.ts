@@ -101,4 +101,11 @@ export class AppConfigService {
   get reconciliationBatchSize(): number {
     return this.configService.get('RECONCILIATION_BATCH_SIZE', { infer: true });
   }
+
+  /**
+   * QuickEx Soroban contract id (optional). Used for ingestion and soroban preflight.
+   */
+  get quickexContractId(): string | undefined {
+    return this.configService.get('QUICKEX_CONTRACT_ID', { infer: true });
+  }
 }

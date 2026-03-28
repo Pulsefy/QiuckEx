@@ -2,7 +2,7 @@
 //!
 //! See [`crate::storage`] for the storage schema and key layout.
 
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, BytesN};
 
 /// Escrow entry status.
 ///
@@ -12,33 +12,25 @@ use soroban_sdk::{contracttype, Address};
 /// [*] --> Pending  : deposit()
 /// Pending --> Spent    : withdraw(proof)  [current_time < expires_at]
 /// Pending --> Refunded : refund(owner)    [current_time >= expires_at]
-/// Pending --> Disputed : dispute()        [any participant can call]
-/// Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
-/// Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
+/// Pending --> Disputed : dispute()        [any participant with arbiter]
+/// Disputed --> Spent/Refunded : resolve_dispute() [arbiter decides]
 /// ```
-///
-/// - `Pending`:  Funds are escrowed, awaiting withdrawal or refund.
-/// - `Disputed`: Escrow is under arbiter review; funds are locked.
-/// - `Spent`:    Withdrawal completed successfully. Terminal state.
-/// - `Refunded`: Owner reclaimed funds after timeout or arbiter decision. Terminal state.
-/// - `Expired`:  Kept for backwards-compat with any existing on-chain data.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
     Pending,
-    Disputed,
     Spent,
     /// Kept for backwards-compat with any existing on-chain data; semantically
     /// equivalent to an escrow that has passed expiry but not yet been refunded.
     Expired,
     Refunded,
+    /// Funds are locked pending arbiter resolution.
+    Disputed,
 }
 
 /// Escrow entry structure.
 ///
 /// Stored under [`DataKey::Escrow`](crate::storage::DataKey::Escrow)(commitment) in persistent storage.
-/// Each entry corresponds to one deposit, keyed by the commitment hash
-/// `SHA256(owner || amount || salt)`.
 #[contracttype]
 #[derive(Clone)]
 pub struct EscrowEntry {
@@ -48,14 +40,14 @@ pub struct EscrowEntry {
     pub amount: i128,
     /// Owner who deposited and may refund after expiry.
     pub owner: Address,
-    /// Current status (Pending, Disputed, Spent, Refunded, Expired).
+    /// Current status (Pending, Spent, Refunded, Expired, Disputed).
     pub status: EscrowStatus,
     /// Ledger timestamp when the escrow was created.
     pub created_at: u64,
     /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
-    /// Arbiter address who can resolve disputes. If `None`, no arbiter is assigned.
+    /// Optional arbiter address for dispute resolution.
     pub arbiter: Option<Address>,
 }
 
@@ -90,6 +82,67 @@ pub struct PrivacyAwareEscrowView {
     pub created_at: u64,
     /// Expiry timestamp; `0` means no expiry (always visible).
     pub expires_at: u64,
-    /// Arbiter address. Visible to owner and arbiter, `None` to others when privacy is enabled.
+    /// Arbiter address for dispute resolution. `None` if not set.
     pub arbiter: Option<Address>,
+}
+
+/// Parameters for registering an ephemeral key (stealth deposit).
+///
+/// Bundles the 8 arguments of `register_ephemeral_key` into a single struct
+/// to satisfy the `clippy::too_many_arguments` lint (limit: 7).
+#[contracttype]
+#[derive(Clone)]
+pub struct StealthDepositParams {
+    /// Depositor address (must authorize the token transfer).
+    pub sender: Address,
+    /// Token contract address.
+    pub token: Address,
+    /// Amount to lock; must be positive.
+    pub amount: i128,
+    /// Sender's ephemeral public key (32 bytes).
+    pub eph_pub: BytesN<32>,
+    /// Recipient's spend public key (32 bytes).
+    pub spend_pub: BytesN<32>,
+    /// Pre-computed one-time stealth address (32 bytes).
+    pub stealth_address: BytesN<32>,
+    /// Seconds until expiry; 0 = no expiry.
+    pub timeout_secs: u64,
+}
+
+/// Stealth escrow entry for Privacy v2 (Issue #157).
+///
+/// Locked under a one-time stealth address derived via Diffie-Hellman.
+/// The original recipient's public address is never stored on-chain.
+///
+/// ## Field visibility
+/// - `eph_pub` is public (needed by recipient to scan).
+/// - `token`, `amount`, `status`, `created_at`, `expires_at` are public.
+/// - The link between `eph_pub` and the recipient's real identity is only
+///   computable by the recipient (who holds the matching private key).
+#[contracttype]
+#[derive(Clone)]
+pub struct StealthEscrowEntry {
+    /// Token contract address for the escrowed funds.
+    pub token: Address,
+    /// Amount in token base units.
+    pub amount: i128,
+    /// Sender's ephemeral public key (32 bytes). Stored so the recipient can
+    /// scan events and re-derive the shared secret off-chain.
+    pub eph_pub: BytesN<32>,
+    /// Current lifecycle status.
+    pub status: EscrowStatus,
+    /// Ledger timestamp when the stealth escrow was created.
+    pub created_at: u64,
+    /// Expiry timestamp; `0` means no expiry.
+    pub expires_at: u64,
+}
+
+/// Fee configuration for the platform.
+///
+/// Stored under [`DataKey::FeeConfig`](crate::storage::DataKey::FeeConfig) in persistent storage.
+#[contracttype]
+#[derive(Clone, Copy, Debug)]
+pub struct FeeConfig {
+    /// Fee in basis points (1 = 0.01%, 100 = 1%, 10000 = 100%).
+    pub fee_bps: u32,
 }

@@ -9,6 +9,6 @@ import { SorobanRpcService } from "./soroban-rpc.service";
   imports: [AppConfigModule],
   controllers: [TransactionsController],
   providers: [HorizonService, TransactionsService, SorobanRpcService],
-  exports: [HorizonService],
+  exports: [HorizonService, TransactionsService],
 })
 export class TransactionsModule {}

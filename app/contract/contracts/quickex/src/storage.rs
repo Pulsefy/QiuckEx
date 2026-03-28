@@ -38,9 +38,9 @@
 //! - **Value layout**: Changing `EscrowEntry` fields may require migration logic; adding optional
 //!   fields can be done carefully with defaults.
 
-use soroban_sdk::{contracttype, Address, Bytes, Env, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::EscrowEntry;
+use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -51,11 +51,14 @@ use crate::types::EscrowEntry;
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
-// Storage TTL Constants (Assume ~5s ledger time)
-pub const DAY_IN_LEDGERS: u32 = 17_280;
-pub const MONTH_IN_LEDGERS: u32 = 518_400;
-pub const SIX_MONTHS_IN_LEDGERS: u32 = 3_110_400;
-pub const LEDGER_THRESHOLD: u32 = DAY_IN_LEDGERS * 10; // 10 days threshold
+/// Bitmask flags for granular operation pausing.
+#[allow(dead_code)]
+pub enum PauseFlag {
+    Deposit = 1,
+    Withdrawal = 2,
+    Refund = 4,
+    DepositWithCommitment = 8,
+}
 
 // -----------------------------------------------------------------------------
 // DataKey enum – central key derivation
@@ -82,7 +85,14 @@ pub enum DataKey {
     PrivacyLevel(Address),
     /// Privacy level change history per account.
     PrivacyHistory(Address),
-    // Pause(u64)
+    /// Stealth escrow entry keyed by the 32-byte stealth address (Privacy v2).
+    StealthEscrow(BytesN<32>),
+    /// Granular operation pause bitmask (singleton).
+    PauseFlags,
+    /// Fee configuration (singleton).
+    FeeConfig,
+    /// Platform wallet address for fee collection (singleton).
+    PlatformWallet,
 }
 
 // -----------------------------------------------------------------------------
@@ -166,6 +176,22 @@ pub fn get_admin(env: &Env) -> Option<Address> {
 pub fn set_paused(env: &Env, paused: bool) {
     let key = DataKey::Paused;
     env.storage().persistent().set(&key, &paused);
+}
+
+/// Set pause flags (granular pause control – caller already verified by admin module).
+#[allow(dead_code)]
+pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
+    let key = DataKey::PauseFlags;
+    let current: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+    let updated = (current | flags_to_enable) & !flags_to_disable;
+    env.storage().persistent().set(&key, &updated);
+}
+
+/// Check whether a specific operation flag is paused.
+pub fn is_feature_paused(env: &Env, flag: u64) -> bool {
+    let key = DataKey::PauseFlags;
+    let flags: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+    flags & flag != 0
 }
 
 /// Get paused state.

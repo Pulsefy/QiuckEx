@@ -1,16 +1,25 @@
 import {
-    DarkTheme,
-    DefaultTheme,
-    ThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
 } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { useColorScheme } from "react-native";
+// Ensure web build or Expo web uses the local backend during development
+if (typeof document !== "undefined" && !(global as any).API_BASE_URL) {
+  // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
+  (global as any).API_BASE_URL = "http://localhost:4000";
+}
 import { OfflineBanner } from "../components/resilience/offline-banner";
 import { AppLockOverlay } from "../components/security/app-lock-overlay";
 import { SecurityProvider, useSecurity } from "../hooks/use-security";
+import { NotificationProvider } from "../components/notifications/NotificationContext";
+import ToastNotification from "../components/notifications/ToastNotification";
+import NotificationCenter from "../components/notifications/NotificationCenter";
+import { usePaymentListener } from "../hooks/usePaymentListener";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
 
@@ -46,13 +55,31 @@ function useDeepLinkHandler() {
   }, [router]);
 }
 
+function DevPoller() {
+  // demo public key used by send_test_payment.js
+  const demo = "GAMOSFOKEYHFDGMXIEFEYBUYK3ZMFYN3PFLOTBRXFGBFGRKBKLQSLGLP";
+  // call the hook so polling starts. Hook internally is a no-op in prod.
+  usePaymentListener(demo);
+  return null;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <SecurityProvider>
-        <AppShell />
+        <NotificationProvider>
+          {/* Dev-only global poller: ensures polling runs on web during development
+              even if the wallet screen isn't active. */}
+          {process.env.NODE_ENV !== "production" ? (
+            // start polling for demo address used by send_test_payment.js
+            // eslint-disable-next-line react/jsx-no-useless-fragment
+            <DevPoller />
+          ) : null}
+          <AppShell />
+          <ToastNotification />
+        </NotificationProvider>
       </SecurityProvider>
       <StatusBar style="auto" />
     </ThemeProvider>
@@ -73,6 +100,9 @@ function AppShell() {
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
+        <Stack.Screen name="contacts" />
+        <Stack.Screen name="add-contact" />
+        <Stack.Screen name="edit-contact" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
         <AppLockOverlay visible={isAppLocked} onUnlock={unlockApp} />
