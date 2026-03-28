@@ -28,6 +28,7 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
 import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
+import { MarketplaceModule } from "./marketplace/marketplace.module";
 
 type AppImport =
   | Type<unknown>
@@ -62,6 +63,7 @@ type AppImport =
       PaymentsModule,
       IngestionModule,
       ApiKeysModule,
+      MarketplaceModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't

@@ -29,6 +29,29 @@ export interface TrendingCreatorResult extends SearchProfileResult {
   transaction_count: number;
 }
 
+export interface MarketplaceListing {
+  id: string;
+  username: string;
+  seller_public_key: string;
+  asking_price: number;
+  status: 'active' | 'sold' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+  sold_at: string | null;
+  buyer_public_key: string | null;
+  final_price: number | null;
+}
+
+export interface MarketplaceBid {
+  id: string;
+  listing_id: string;
+  bidder_public_key: string;
+  bid_amount: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+}
+
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
@@ -376,12 +399,105 @@ export class SupabaseService {
   ): Promise<void> {
     const { error } = await this.client
       .from('usernames')
-      .update({ 
+      .update({
         is_public: isPublic,
         last_active_at: new Date().toISOString(),
       })
       .eq('username', username);
-    
+
+    if (error) this.handleError(error);
+  }
+
+  async createListing(
+    username: string,
+    sellerPublicKey: string,
+    askingPrice: number,
+  ): Promise<MarketplaceListing> {
+    const { data, error } = await this.client
+      .from('username_marketplace')
+      .insert({ username, seller_public_key: sellerPublicKey, asking_price: askingPrice })
+      .select()
+      .single();
+    if (error) this.handleError(error);
+    return data as MarketplaceListing;
+  }
+
+  async getActiveListings(limit: number, offset: number): Promise<{ listings: MarketplaceListing[]; total: number }> {
+    const { data, error, count } = await this.client
+      .from('username_marketplace')
+      .select('*', { count: 'exact' })
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) this.handleError(error);
+    return { listings: (data ?? []) as MarketplaceListing[], total: count ?? 0 };
+  }
+
+  async getListingById(listingId: string): Promise<MarketplaceListing | null> {
+    const { data, error } = await this.client
+      .from('username_marketplace')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+    if (error) this.handleError(error);
+    return data as MarketplaceListing | null;
+  }
+
+  async getActiveListingByUsername(username: string): Promise<MarketplaceListing | null> {
+    const { data, error } = await this.client
+      .from('username_marketplace')
+      .select('*')
+      .eq('username', username)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (error) this.handleError(error);
+    return data as MarketplaceListing | null;
+  }
+
+  async cancelListing(listingId: string): Promise<void> {
+    const { error } = await this.client
+      .from('username_marketplace')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', listingId);
+    if (error) this.handleError(error);
+  }
+
+  async placeBid(listingId: string, bidderPublicKey: string, bidAmount: number): Promise<MarketplaceBid> {
+    const { data, error } = await this.client
+      .from('username_bids')
+      .insert({ listing_id: listingId, bidder_public_key: bidderPublicKey, bid_amount: bidAmount })
+      .select()
+      .single();
+    if (error) this.handleError(error);
+    return data as MarketplaceBid;
+  }
+
+  async getBidsByListingId(listingId: string): Promise<MarketplaceBid[]> {
+    const { data, error } = await this.client
+      .from('username_bids')
+      .select('*')
+      .eq('listing_id', listingId)
+      .order('bid_amount', { ascending: false });
+    if (error) this.handleError(error);
+    return (data ?? []) as MarketplaceBid[];
+  }
+
+  async getBidById(bidId: string): Promise<MarketplaceBid | null> {
+    const { data, error } = await this.client
+      .from('username_bids')
+      .select('*')
+      .eq('id', bidId)
+      .maybeSingle();
+    if (error) this.handleError(error);
+    return data as MarketplaceBid | null;
+  }
+
+  async acceptBid(listingId: string, bidId: string, sellerPublicKey: string): Promise<void> {
+    const { error } = await this.client.rpc('accept_username_bid', {
+      p_listing_id: listingId,
+      p_bid_id: bidId,
+      p_seller_public_key: sellerPublicKey,
+    });
     if (error) this.handleError(error);
   }
 }

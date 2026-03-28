@@ -8,5 +8,6 @@ import { UsernamesService } from './usernames.service';
   imports: [SupabaseModule],
   controllers: [UsernamesController],
   providers: [UsernamesService],
+  exports: [UsernamesService],
 })
 export class UsernamesModule {}
