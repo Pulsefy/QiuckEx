@@ -2,6 +2,12 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ScamAlertsService } from "./scam-alerts.service";
 import { ScamAlertType, ScamSeverity } from "./constants/scam-rules.constants";
 
+// Define a type that represents the internal structure of the service for testing
+type InternalScamAlertsService = {
+  accountAgeCache: Map<string, { isRecent: boolean; timestamp: number }>;
+  blocklistCache: Map<string, { data: string[]; timestamp: number }>;
+};
+
 // Mock fetch globally for the tests
 global.fetch = jest.fn();
 
@@ -142,8 +148,8 @@ describe("ScamAlertsService", () => {
 
 	describe("Newly Created Account Detection", () => {
 		beforeEach(() => {
-			// Clear the cache before each test using bracket notation to bypass privacy
-			(service as any).accountAgeCache.clear();
+			// Clear the cache before each test using a properly typed cast
+			(service as unknown as InternalScamAlertsService).accountAgeCache.clear();
 		});
 
 		it("should flag newly created accounts", async () => {
@@ -198,8 +204,8 @@ describe("ScamAlertsService", () => {
 
 	describe("External Blocklist Detection", () => {
 		beforeEach(() => {
-			// Clear the cache before each test using bracket notation to bypass privacy
-			(service as any).blocklistCache.clear();
+			// Clear the cache before each test using a properly typed cast
+			(service as unknown as InternalScamAlertsService).blocklistCache.clear();
 		});
 
 		it("should flag addresses on external blocklist", async () => {
