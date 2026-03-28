@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseService, SearchProfileResult, TrendingCreatorResult } from '../supabase/supabase.service';
 import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 import { AppConfigService } from '../config';
 import {
@@ -101,9 +101,9 @@ export class UsernamesService {
   async searchPublicUsernames(
     query: string,
     limit: number = 10,
-  ): Promise<any[]> {
+  ): Promise<SearchProfileResult[]> {
     const normalizedQuery = this.normalizeUsername(query);
-    
+
     if (!normalizedQuery || normalizedQuery.length < 2) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
@@ -113,7 +113,7 @@ export class UsernamesService {
     }
 
     const results = await this.supabase.searchPublicUsernames(normalizedQuery, limit);
-    
+
     // Update activity timestamp for clicked results (async, non-blocking)
     if (results.length > 0) {
       this.supabase.updateUsernameActivity(results[0].username).catch(() => {
@@ -131,7 +131,7 @@ export class UsernamesService {
   async getTrendingCreators(
     timeWindowHours: number = 24,
     limit: number = 10,
-  ): Promise<any[]> {
+  ): Promise<TrendingCreatorResult[]> {
     if (timeWindowHours < 1 || timeWindowHours > 720) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
@@ -152,11 +152,11 @@ export class UsernamesService {
     isPublic: boolean,
   ): Promise<void> {
     const normalized = this.normalizeUsername(username);
-    
+
     // Verify ownership
     const usernames = await this.listByPublicKey(publicKey);
     const owned = usernames.find(u => u.username === normalized);
-    
+
     if (!owned) {
       throw new UsernameValidationError(
         UsernameErrorCode.NOT_FOUND,

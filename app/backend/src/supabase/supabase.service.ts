@@ -14,6 +14,21 @@ import {
   SupabaseUniqueConstraintError,
 } from "./supabase.errors";
 
+export interface SearchProfileResult {
+  id: string;
+  username: string;
+  public_key: string;
+  created_at: string;
+  last_active_at: string | null;
+  is_public: boolean;
+  similarity_score?: number;
+}
+
+export interface TrendingCreatorResult extends SearchProfileResult {
+  transaction_volume: number;
+  transaction_count: number;
+}
+
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
@@ -199,7 +214,7 @@ export class SupabaseService {
   async searchPublicUsernames(
     query: string,
     limit: number = 10,
-  ): Promise<any[]> {
+  ): Promise<SearchProfileResult[]> {
     const normalizedQuery = query.trim().toLowerCase();
     
     // Use PostgreSQL word_similarity for fuzzy matching
@@ -224,7 +239,7 @@ export class SupabaseService {
   private async searchUsernamesFallback(
     query: string,
     limit: number,
-  ): Promise<any[]> {
+  ): Promise<SearchProfileResult[]> {
     // Escape special characters for LIKE query
     const escapedQuery = query.replace(/[%_]/g, '\\$&');
     const pattern = `%${escapedQuery}%`;
@@ -240,10 +255,10 @@ export class SupabaseService {
     if (error) this.handleError(error);
     
     // Calculate simple similarity score based on position and length
-    return (data ?? []).map((row: any) => ({
+    return (data ?? []).map((row: SearchProfileResult) => ({
       ...row,
       similarity_score: this.calculateSimpleSimilarity(row.username, query),
-    })).sort((a: any, b: any) => b.similarity_score - a.similarity_score);
+    })).sort((a: SearchProfileResult, b: SearchProfileResult) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0));
   }
 
   /**
@@ -274,7 +289,7 @@ export class SupabaseService {
   async getTrendingCreators(
     timeWindowHours: number,
     limit: number = 10,
-  ): Promise<any[]> {
+  ): Promise<TrendingCreatorResult[]> {
     const cutoffTime = new Date();
     cutoffTime.setHours(cutoffTime.getHours() - timeWindowHours);
     
@@ -301,7 +316,7 @@ export class SupabaseService {
       volumeMap.set(publicKey, current);
     };
     
-    (payments ?? []).forEach((payment: any) => {
+    (payments ?? []).forEach((payment: { sender_public_key: string; receiver_public_key: string; amount_usd: number }) => {
       processTransaction(payment.sender_public_key, payment.amount_usd);
       processTransaction(payment.receiver_public_key, payment.amount_usd);
     });
@@ -329,14 +344,15 @@ export class SupabaseService {
     }
     
     // Merge volume data with profile data
-    return (profiles ?? []).map((profile: any) => {
-      const [_, stats] = topCreators.find(([key]) => key === profile.public_key) || [[], { volume: 0, count: 0 }];
+    return (profiles ?? []).map((profile: SearchProfileResult) => {
+      const found = topCreators.find(([key]) => key === profile.public_key);
+      const stats = found ? found[1] : { volume: 0, count: 0 };
       return {
         ...profile,
         transaction_volume: stats.volume,
         transaction_count: stats.count,
-      };
-    }).sort((a: any, b: any) => (b.transaction_volume || 0) - (a.transaction_volume || 0));
+      } as TrendingCreatorResult;
+    }).sort((a: TrendingCreatorResult, b: TrendingCreatorResult) => (b.transaction_volume || 0) - (a.transaction_volume || 0));
   }
 
   /**

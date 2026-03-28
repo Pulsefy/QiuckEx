@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AppConfigService } from '../config/app-config.service';
-import { UsernameValidationError, UsernameErrorCode } from './errors';
+import { UsernameValidationError } from './errors';
 
 describe('UsernamesService - Public Profile Discovery', () => {
   let service: UsernamesService;
@@ -191,7 +191,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
         },
       ];
 
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames as any);
+      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames);
       supabaseMock.togglePublicProfile!.mockResolvedValue();
 
       await expect(
@@ -211,7 +211,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
         },
       ];
 
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames as any);
+      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames);
       supabaseMock.togglePublicProfile!.mockResolvedValue();
 
       await service.togglePublicProfile('  ALICE  ', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR', false);
@@ -241,7 +241,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
         },
       ];
 
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames as any);
+      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue(existingUsernames);
 
       await expect(
         service.togglePublicProfile('alice', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR', true),
