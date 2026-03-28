@@ -152,11 +152,19 @@ export class HorizonService {
                             assetString = `${payment.asset_code}:${payment.asset_issuer}`;
                         }
 
+                        const isSuccessful =
+                            'transaction_successful' in payment
+                                ? Boolean(payment.transaction_successful)
+                                : true;
+
                         return {
                             amount: payment.amount,
                             asset: assetString,
                             memo,
                             timestamp: payment.created_at,
+                            source: payment.from,
+                            destination: payment.to,
+                            status: isSuccessful ? 'Success' : 'Pending',
                             txHash: payment.transaction_hash,
                             pagingToken: payment.paging_token,
                         };

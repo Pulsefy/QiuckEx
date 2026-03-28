@@ -9,6 +9,27 @@ jest.mock('expo-router', () => ({
     useRouter: () => ({ back: jest.fn() }),
 }));
 
+jest.mock('@shopify/flash-list', () => {
+    const React = require('react');
+    const { FlatList } = require('react-native');
+    return {
+        FlashList: React.forwardRef((props: unknown, ref: unknown) => (
+            <FlatList ref={ref} {...(props as object)} />
+        )),
+    };
+});
+
+jest.mock('expo-file-system', () => ({
+    cacheDirectory: 'file://cache/',
+    writeAsStringAsync: jest.fn(),
+    EncodingType: { UTF8: 'utf8' },
+}));
+
+jest.mock('expo-sharing', () => ({
+    isAvailableAsync: jest.fn(() => Promise.resolve(false)),
+    shareAsync: jest.fn(),
+}));
+
 // ── Hook mock ─────────────────────────────────────────────────────────────
 
 const mockUseTransactions = jest.fn();
