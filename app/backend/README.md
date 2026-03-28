@@ -298,3 +298,68 @@ pnpm turbo run test --filter=@quickex/backend
 Tests include:
 - Environment schema validation tests (`env.schema.spec.ts`)
 - Integration tests for endpoints (`app.spec.ts`)
+
+## Notifications
+
+The backend includes a comprehensive notification engine that supports multiple channels:
+
+### Supported Channels
+
+- **Email** - via SendGrid
+- **Push Notifications** - via Expo Push (for mobile app)
+- **Webhooks** - for custom integrations
+- **Telegram** - real-time bot notifications ✨
+
+### Telegram Bot Integration
+
+QuickEx supports real-time notifications via Telegram! Users can link their Telegram accounts to receive instant alerts for payments, escrow events, and more.
+
+#### Quick Setup
+
+1. **Create a Telegram Bot**: Use [@BotFather](https://t.me/BotFather) to create a bot and get a token
+2. **Configure environment**: Add `TELEGRAM_BOT_TOKEN=your-token-here` to `.env`
+3. **Install dependencies**: `npm install telegraf`
+4. **Run migrations**: Apply the database migration for Telegram tables
+5. **Restart the server**: The bot will start automatically
+
+For complete setup instructions, user guide, and API documentation, see:
+- **[Telegram Bot Guide](docs/TELEGRAM-BOT-GUIDE.md)** - Complete setup and usage guide
+
+#### User Commands
+
+Users interact with the bot using Telegram commands:
+- `/start` - Link their QuickEx account
+- `/status` - Check linkage status
+- `/settings` - Configure notification preferences
+- `/min <amount>` - Set minimum amount threshold (in XLM)
+- `/enable` / `/disable` - Toggle notifications
+- `/unlink` - Disconnect account
+
+#### API Endpoints
+
+Programmatic access is available via REST API:
+- `GET /telegram/status/:telegramId` - Check linkage status
+- `POST /telegram/verify/:telegramId` - Verify account with code
+- `PUT /telegram/settings/:telegramId` - Update settings
+- `DELETE /telegram/link/:telegramId` - Unlink account
+
+### Event Types
+
+Notifications are triggered for:
+- 💰 Payment received
+- 🔒 Escrow deposited/withdrawn/refunded
+- 🔄 Recurring payment events
+- ✅ Username claimed
+
+### Configuration
+
+Notification providers are configured via environment variables:
+
+| Variable | Channel | Required |
+|----------|---------|----------|
+| `SENDGRID_API_KEY` | Email | No |
+| `SENDGRID_FROM_EMAIL` | Email | No |
+| `EXPO_ACCESS_TOKEN` | Push | No |
+| `TELEGRAM_BOT_TOKEN` | Telegram | No |
+
+Webhook channel requires no credentials and is always available.
