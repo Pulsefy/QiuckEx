@@ -26,12 +26,11 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 use crate::{
     commitment,
     errors::QuickexError,
-    events,
-    storage::{
-        get_escrow, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
-    },
     events, fee,
-    storage::{get_escrow, get_platform_wallet, has_escrow, put_escrow},
+    storage::{
+        get_escrow, get_platform_wallet, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD,
+        SIX_MONTHS_IN_LEDGERS,
+    },
     types::{EscrowEntry, EscrowStatus},
 };
 

@@ -10,7 +10,6 @@ mod commitment_test;
 mod errors;
 mod escrow;
 mod events;
-mod privacy;
 mod fee;
 #[cfg(test)]
 mod fee_test;
@@ -75,7 +74,6 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Withdrawal) {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
