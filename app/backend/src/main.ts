@@ -1,3 +1,6 @@
+// Sentry instrumentation MUST be imported before everything else
+import "./sentry/instrument";
+
 import "reflect-metadata";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -15,6 +18,7 @@ import { AppModule } from "./app.module";
 import { AppConfigService } from "./config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
+import { SentryExceptionFilter, SentryService } from "./sentry";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -82,7 +86,13 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  app.useGlobalFilters(new GlobalHttpExceptionFilter(configService));
+  // Register Sentry exception filter FIRST so it captures errors,
+  // then the existing HTTP exception filter handles the response.
+  const sentryService = app.get(SentryService);
+  app.useGlobalFilters(
+    new SentryExceptionFilter(sentryService, configService),
+    new GlobalHttpExceptionFilter(configService),
+  );
 
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
