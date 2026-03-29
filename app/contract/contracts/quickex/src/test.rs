@@ -1914,6 +1914,7 @@ fn test_get_escrow_details_shows_arbiter_to_owner_and_arbiter() {
 
 /// Test helper: Create a mock native XLM asset address
 /// In production, this would be the actual Stellar network native asset address
+#[allow(dead_code)]
 fn create_native_xlm_mock(env: &Env) -> Address {
     // For testing purposes, we generate a specific address to represent XLM
     // In production on mainnet, this would be the actual native asset identifier
@@ -1921,9 +1922,11 @@ fn create_native_xlm_mock(env: &Env) -> Address {
 }
 
 /// Test helper: Create different types of SAC tokens for testing
-fn create_sac_token<'a>(env: &'a Env, name: &str) -> (Address, token::StellarAssetClient<'a>) {
+fn create_sac_token<'a>(env: &'a Env, _name: &str) -> (Address, token::StellarAssetClient<'a>) {
     let admin = Address::generate(env);
-    let token_address = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_address = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let client = token::StellarAssetClient::new(env, &token_address);
     (token_address, client)
 }
@@ -2015,14 +2018,7 @@ fn test_cross_asset_custom_token_deposit_refund() {
     custom_client.mint(&owner, &amount);
 
     // Deposit with timeout
-    let commitment = client.deposit(
-        &custom_token,
-        &amount,
-        &owner,
-        &salt,
-        &timeout_secs,
-        &None,
-    );
+    let commitment = client.deposit(&custom_token, &amount, &owner, &salt, &timeout_secs, &None);
 
     // Advance time past expiry
     env.ledger()
@@ -2195,15 +2191,15 @@ fn test_cross_asset_privacy_preserved_across_tokens() {
     // Test that privacy settings work correctly regardless of token type
     let (env, client) = setup();
     let (token_a, client_a) = create_sac_token(&env, "TokenA");
-    let (token_b, _client_b) = create_sac_token(&env, "TokenB");
+    let (_token_b, _client_b) = create_sac_token(&env, "TokenB");
     let owner = Address::generate(&env);
     let stranger = Address::generate(&env);
     let amount: i128 = 1000;
-    let salt = Bytes::from_slice(&env, b"privacy_multi_salt");
+    let _salt = Bytes::from_slice(&env, b"privacy_multi_salt");
 
     // Create escrows with privacy enabled
     client_a.mint(&owner, &amount);
-    let commitment_a = client.deposit(&token_a, &amount, &owner, &salt, &0, &None);
+    let commitment_a = client.deposit(&token_a, &amount, &owner, &_salt, &0, &None);
 
     // Enable privacy
     client.set_privacy(&owner, &true);
@@ -2240,7 +2236,7 @@ fn test_cross_asset_deposit_with_commitment_various_tokens() {
     );
 
     // Withdraw using the same commitment
-    let salt = Bytes::from_slice(&env, b"pre_commitment_salt");
+    let _salt = Bytes::from_slice(&env, b"pre_commitment_salt");
     // Note: In real usage, the commitment would be created with proper salt
     // This is simplified for testing the token handling
 }

@@ -38,6 +38,7 @@ use crate::{types::FeeConfig, QuickexContract, QuickexContractClient};
 /// Test harness for QuickEx contract tests.
 ///
 /// See the module-level docs for usage examples.
+#[allow(dead_code)]
 pub struct TestContext<'a> {
     /// Soroban test env, all auths mocked.
     pub env: Env,
@@ -53,6 +54,7 @@ pub struct TestContext<'a> {
     pub token: Address,
 }
 
+#[allow(dead_code)]
 impl<'a> TestContext<'a> {
     // -- constructors -------------------------------------------------------
 
