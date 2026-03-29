@@ -2,7 +2,7 @@
 // Channels
 // ---------------------------------------------------------------------------
 
-export type NotificationChannel = "email" | "push" | "webhook";
+export type NotificationChannel = "email" | "push" | "webhook" | "telegram";
 
 // ---------------------------------------------------------------------------
 // Notification domain events

@@ -53,6 +53,7 @@ pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
 /// Bitmask flags for granular operation pausing.
 #[allow(dead_code)]
+#[contracttype]
 pub enum PauseFlag {
     Deposit = 1,
     Withdrawal = 2,

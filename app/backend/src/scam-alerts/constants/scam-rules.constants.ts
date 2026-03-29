@@ -62,6 +62,22 @@ export const BLACKLISTED_RECIPIENTS = [
 ];
 
 /**
+ * External blocklist sources
+ */
+export const EXTERNAL_BLOCKLIST_SOURCES = [
+	{
+		name: "Stellar Expert Blocklist",
+		url: "https://api.stellar.expert/api/blocklist",
+		method: "GET"
+	},
+	{
+		name: "QuickEx Community Blocklist",
+		url: "https://blocklist.quickex.io/api/v1/blocklist",
+		method: "GET"
+	}
+];
+
+/**
  * Suspicious memo patterns (regex)
  */
 export const SUSPICIOUS_MEMO_PATTERNS = [
@@ -75,6 +91,23 @@ export const SUSPICIOUS_MEMO_PATTERNS = [
 	/verify.*account/i, // Verification scam
 	/claim.*reward/i, // Reward scam
 ];
+
+/**
+ * Thresholds for account age checks (in days)
+ */
+export const ACCOUNT_AGE_THRESHOLDS = {
+	NEW_ACCOUNT_DAYS: 7, // Accounts younger than this are considered new
+	MODERATE_ACCOUNT_DAYS: 30, // Accounts younger than this may trigger warnings
+};
+
+/**
+ * Thresholds for frequency/amount patterns
+ */
+export const FREQUENCY_THRESHOLD = {
+	LOW_VALUE_THRESHOLD: 10, // Amount under which frequency becomes suspicious (in USD equivalent)
+	HIGH_FREQUENCY_THRESHOLD: 5, // Number of transactions in time window that triggers alert
+	TIME_WINDOW_HOURS: 1, // Time window in hours to check for frequency
+};
 
 /**
  * Severity levels for scam alerts
@@ -98,6 +131,9 @@ export enum ScamAlertType {
 	URGENCY_PATTERN = "urgency_pattern",
 	BLACKLISTED_RECIPIENT = "blacklisted_recipient",
 	HIGH_VALUE_MISSING_MEMO = "high_value_missing_memo",
+	NEWLY_CREATED_ACCOUNT = "newly_created_account",
+	HIGH_FREQUENCY_LOW_VALUE = "high_frequency_low_value",
+	BLACKLISTED_EXTERNAL = "blacklisted_external",
 }
 
 /**
@@ -145,5 +181,20 @@ export const SCAM_RULES = {
 		message: "High value transfer missing a memo",
 		recommendation:
 			"Large transfers usually require a memo. Verify with the recipient.",
+	},
+	[ScamAlertType.NEWLY_CREATED_ACCOUNT]: {
+		severity: ScamSeverity.MEDIUM,
+		message: "Recipient account was created recently",
+		recommendation: "Be cautious when sending to newly created accounts",
+	},
+	[ScamAlertType.HIGH_FREQUENCY_LOW_VALUE]: {
+		severity: ScamSeverity.HIGH,
+		message: "High frequency of low-value transactions may indicate spam",
+		recommendation: "This pattern is common in spam/phishing attacks",
+	},
+	[ScamAlertType.BLACKLISTED_EXTERNAL]: {
+		severity: ScamSeverity.CRITICAL,
+		message: "Recipient is on an external blocklist",
+		recommendation: "ABORT IMMEDIATELY. This recipient is flagged by external security sources.",
 	},
 };

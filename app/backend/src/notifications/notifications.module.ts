@@ -11,6 +11,10 @@ import {
   ExpoPushProvider,
   WebhookProvider,
 } from "./providers/notification-provider.interface";
+import { TelegramRepository } from "./telegram/telegram.repository";
+import { TelegramBotService } from "./telegram/telegram-bot.service";
+import { TelegramNotificationProvider } from "./telegram/telegram.provider";
+import { TelegramController } from "./telegram/telegram.controller";
 
 /**
  * Notification engine module.
@@ -18,19 +22,26 @@ import {
  * Provider configuration is driven by environment variables:
  *  - SENDGRID_API_KEY + SENDGRID_FROM_EMAIL  → enables email channel
  *  - EXPO_ACCESS_TOKEN (optional)            → enables push channel
+ *  - TELEGRAM_BOT_TOKEN (optional)           → enables Telegram channel
  *  - Webhook channel is always registered (no credentials needed)
  *
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
   imports: [SupabaseModule],
-  controllers: [NotificationPreferencesController],
+  controllers: [NotificationPreferencesController, TelegramController],
   providers: [
     NotificationPreferencesRepository,
     NotificationLogRepository,
+    TelegramRepository,
+    TelegramBotService,
+    TelegramNotificationProvider,
     {
       provide: NOTIFICATION_PROVIDERS,
-      useFactory: () => {
+      useFactory: (
+        telegramBot: TelegramBotService,
+        telegramRepo: TelegramRepository,
+      ) => {
         const providers = [];
 
         const sendgridKey = process.env["SENDGRID_API_KEY"];
@@ -42,11 +53,36 @@ import {
         providers.push(new ExpoPushProvider(process.env["EXPO_ACCESS_TOKEN"]));
         providers.push(new WebhookProvider());
 
+        // Add Telegram provider if bot is initialized
+        const telegramToken = process.env["TELEGRAM_BOT_TOKEN"];
+        if (telegramToken) {
+          providers.push(
+            new TelegramNotificationProvider(telegramBot, telegramRepo),
+          );
+        }
+
         return providers;
       },
+      inject: [TelegramBotService, TelegramRepository],
     },
     NotificationService,
   ],
-  exports: [NotificationService, NotificationPreferencesRepository],
+  exports: [
+    NotificationService,
+    NotificationPreferencesRepository,
+    TelegramRepository,
+    TelegramBotService,
+    TelegramNotificationProvider,
+  ],
 })
 export class NotificationsModule {}
+
+/**
+ * Factory function to create Telegram provider with dependencies
+ */
+export function createTelegramProvider(
+  telegramBot: TelegramBotService,
+  telegramRepo: TelegramRepository,
+): TelegramNotificationProvider {
+  return new TelegramNotificationProvider(telegramBot, telegramRepo);
+}
