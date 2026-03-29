@@ -379,6 +379,9 @@ export default function Generator() {
           >
             <span className="text-indigo-400">⚡</span> Link Generator
           </Link>
+          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+            <span>⚙️</span> Profile Settings
+          </Link>
         </nav>
       </aside>
 
