@@ -29,6 +29,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
+import { SentryModule } from "./sentry";
 
 type AppImport =
   | Type<unknown>
@@ -39,6 +40,7 @@ type AppImport =
 @Module({
   imports: ((): AppImport[] => {
     const baseImports: AppImport[] = [
+      SentryModule,
       AppConfigModule,
       // ScheduleModule registered once here — shared by NotificationsModule and ReconciliationModule
       ScheduleModule.forRoot(),

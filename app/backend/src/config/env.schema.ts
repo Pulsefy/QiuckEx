@@ -100,6 +100,45 @@ export const envSchema = Joi.object({
       "Comma-separated list of bcrypt-hashed API keys for trusted clients. " +
         "Valid keys receive higher rate limits (120 req/min vs 20 req/min).",
     ),
+
+  // ---------------------------------------------------------------------------
+  // Sentry Error Monitoring (optional; omit to disable)
+  // ---------------------------------------------------------------------------
+
+  SENTRY_DSN: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Sentry DSN for error reporting — omit to disable Sentry"),
+
+  SENTRY_ENVIRONMENT: Joi.string()
+    .optional()
+    .description(
+      "Sentry environment tag (e.g. production, staging). Falls back to NODE_ENV.",
+    ),
+
+  SENTRY_RELEASE: Joi.string()
+    .optional()
+    .description(
+      "Sentry release identifier (e.g. quickex-backend@1.2.3)",
+    ),
+
+  SENTRY_TRACES_SAMPLE_RATE: Joi.number()
+    .min(0)
+    .max(1)
+    .optional()
+    .default(1.0)
+    .description(
+      "Sentry performance traces sample rate (0.0 to 1.0). Default: 1.0",
+    ),
+
+  SENTRY_PROFILES_SAMPLE_RATE: Joi.number()
+    .min(0)
+    .max(1)
+    .optional()
+    .default(1.0)
+    .description(
+      "Sentry profiling sample rate (0.0 to 1.0). Default: 1.0",
+    ),
 });
 
 /**
@@ -120,4 +159,9 @@ export interface EnvConfig {
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
   API_KEYS?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+  SENTRY_TRACES_SAMPLE_RATE: number;
+  SENTRY_PROFILES_SAMPLE_RATE: number;
 }

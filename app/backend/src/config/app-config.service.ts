@@ -108,4 +108,11 @@ export class AppConfigService {
   get quickexContractId(): string | undefined {
     return this.configService.get('QUICKEX_CONTRACT_ID', { infer: true });
   }
+
+  /**
+   * Sentry DSN for error reporting. Undefined means Sentry is disabled.
+   */
+  get sentryDsn(): string | undefined {
+    return this.configService.get('SENTRY_DSN', { infer: true });
+  }
 }
