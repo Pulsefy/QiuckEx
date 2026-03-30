@@ -85,6 +85,10 @@ export default function PaymentConfirmationScreen() {
     }
   };
 
+  const [savingContact, setSavingContact] = React.useState(false);
+  const { saveContact } = require("../services/contacts");
+  const { v4: uuidv4 } = require("uuid");
+
   if (!isValid) {
     return (
       <SafeAreaView style={styles.container}>
@@ -109,9 +113,6 @@ export default function PaymentConfirmationScreen() {
   }
 
   // Save Contact logic
-  const [savingContact, setSavingContact] = React.useState(false);
-  const { saveContact } = require("../services/contacts");
-  const { v4: uuidv4 } = require("uuid");
   async function handleSaveContact() {
     setSavingContact(true);
     try {
