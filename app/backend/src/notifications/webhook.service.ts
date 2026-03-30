@@ -3,10 +3,7 @@ import * as crypto from "crypto";
 
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
-import type {
-  NotificationEventType,
-  NotificationPreference,
-} from "./types/notification.types";
+import type { NotificationPreference } from "./types/notification.types";
 import type {
   CreateWebhookDto,
   UpdateWebhookDto,

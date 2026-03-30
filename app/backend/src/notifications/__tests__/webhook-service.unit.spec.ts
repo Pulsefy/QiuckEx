@@ -1,15 +1,12 @@
 import { WebhookService } from "../webhook.service";
-import { NotificationPreferencesRepository } from "../notification-preferences.repository";
-import { NotificationLogRepository } from "../notification-log.repository";
-import type {
-  NotificationPreference,
-  NotificationEventType,
-} from "../types/notification.types";
+import type { NotificationPreference } from "../types/notification.types";
 
 describe("WebhookService", () => {
   let service: WebhookService;
-  let mockPrefsRepo: jest.Mocked<NotificationPreferencesRepository>;
-  let mockLogRepo: jest.Mocked<NotificationLogRepository>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockPrefsRepo: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockLogRepo: any;
 
   const PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
 
@@ -36,12 +33,12 @@ describe("WebhookService", () => {
       getWebhooksByPublicKey: jest.fn(),
       deleteWebhook: jest.fn(),
       regenerateWebhookSecret: jest.fn(),
-    } as any;
+    };
 
     mockLogRepo = {
       getWebhookDeliveryLogs: jest.fn(),
       getWebhookStats: jest.fn(),
-    } as any;
+    };
 
     service = new WebhookService(mockPrefsRepo, mockLogRepo);
   });
@@ -50,7 +47,7 @@ describe("WebhookService", () => {
     it("should create webhook with auto-generated secret", async () => {
       mockPrefsRepo.upsertPreference.mockResolvedValue(makePref());
 
-      const result = await service.createWebhook(PUBLIC_KEY, {
+      await service.createWebhook(PUBLIC_KEY, {
         webhookUrl: "https://example.com/webhook",
       });
 
@@ -63,7 +60,6 @@ describe("WebhookService", () => {
         }),
       );
 
-      // Secret should be generated
       const call = mockPrefsRepo.upsertPreference.mock.calls[0];
       expect(call[2].webhookSecret).toMatch(/^whsec_[a-f0-9]{64}$/);
     });
@@ -109,7 +105,7 @@ describe("WebhookService", () => {
 
       await service.createWebhook(PUBLIC_KEY, {
         webhookUrl: "https://example.com/webhook",
-        minAmountStroops: 100000000, // 1 XLM
+        minAmountStroops: 100000000,
       });
 
       expect(mockPrefsRepo.upsertPreference).toHaveBeenCalledWith(

@@ -1,10 +1,10 @@
 import { WebhookProvider } from "../providers/notification-provider.interface";
+import * as crypto from "crypto";
 import type {
   NotificationPreference,
   BaseNotificationPayload,
 } from "../types/notification.types";
 
-// Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
@@ -199,10 +199,9 @@ describe("WebhookProvider", () => {
     it("should reject invalid signature", () => {
       const body = JSON.stringify({ test: "data" });
       const wrongSecret = "wrong_secret";
-      const signature = `sha256=${require("crypto")
-        .createHmac("sha256", wrongSecret)
-        .update(body)
-        .digest("hex")}`;
+      const hmac = crypto.createHmac("sha256", wrongSecret);
+      hmac.update(body);
+      const signature = `sha256=${hmac.digest("hex")}`;
 
       const isValid = WebhookProvider.verifySignature(
         body,

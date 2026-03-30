@@ -3,7 +3,6 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import * as request from "supertest";
 import { WebhooksController } from "../webhooks.controller";
 import { WebhookService } from "../webhook.service";
-import type { NotificationPreference } from "../types/notification.types";
 
 describe("WebhooksController (e2e)", () => {
   let app: INestApplication;
@@ -11,17 +10,6 @@ describe("WebhooksController (e2e)", () => {
 
   const PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
   const WEBHOOK_ID = "00000000-0000-0000-0000-000000000001";
-
-  const mockWebhook: NotificationPreference = {
-    id: WEBHOOK_ID,
-    publicKey: PUBLIC_KEY,
-    channel: "webhook",
-    webhookUrl: "https://example.com/webhook",
-    webhookSecret: "whsec_testsecret",
-    events: null,
-    minAmountStroops: 0n,
-    enabled: true,
-  };
 
   beforeAll(async () => {
     mockWebhookService = {

@@ -6,7 +6,6 @@ import type {
   NotificationPreference,
   BaseNotificationPayload,
   WebhookPayload,
-  WebhookDeliveryResult,
 } from "../types/notification.types";
 
 // ---------------------------------------------------------------------------
