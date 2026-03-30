@@ -47,6 +47,15 @@ export class UpsertNotificationPreferenceDto {
   webhookUrl?: string;
 
   @ApiPropertyOptional({
+    example: "whsec_xxxxxxxxxxxxxxxx",
+    description:
+      "Secret key for HMAC-SHA256 payload signing. If not provided, one will be generated automatically.",
+  })
+  @IsOptional()
+  @IsString()
+  webhookSecret?: string;
+
+  @ApiPropertyOptional({
     type: [String],
     enum: VALID_EVENTS,
     nullable: true,
@@ -90,6 +99,12 @@ export class NotificationPreferenceResponseDto {
   @ApiPropertyOptional() email?: string;
   @ApiPropertyOptional() pushToken?: string;
   @ApiPropertyOptional() webhookUrl?: string;
+  @ApiPropertyOptional({
+    example: "whsec_xxxxxxxxxxxxxxxx",
+    description:
+      "Secret key for HMAC-SHA256 payload signing (only for webhook channel, masked on read)",
+  })
+  webhookSecret?: string;
   @ApiPropertyOptional({ type: [String], nullable: true }) events!:
     | NotificationEventType[]
     | null;

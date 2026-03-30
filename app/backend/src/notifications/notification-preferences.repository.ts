@@ -13,9 +13,12 @@ interface RawPreference {
   email: string | null;
   push_token: string | null;
   webhook_url: string | null;
+  webhook_secret: string | null;
   events: string[] | null;
   min_amount_stroops: string | null; // Supabase returns bigint as string
   enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 function mapRow(row: RawPreference): NotificationPreference {
@@ -26,6 +29,7 @@ function mapRow(row: RawPreference): NotificationPreference {
     email: row.email ?? undefined,
     pushToken: row.push_token ?? undefined,
     webhookUrl: row.webhook_url ?? undefined,
+    webhookSecret: row.webhook_secret ?? undefined,
     events: (row.events as NotificationEventType[] | null) ?? null,
     minAmountStroops: BigInt(row.min_amount_stroops ?? "0"),
     enabled: row.enabled,
@@ -67,6 +71,7 @@ export class NotificationPreferencesRepository {
       email?: string;
       pushToken?: string;
       webhookUrl?: string;
+      webhookSecret?: string;
       events?: NotificationEventType[] | null;
       minAmountStroops?: bigint;
       enabled?: boolean;
@@ -78,6 +83,7 @@ export class NotificationPreferencesRepository {
       email: options.email ?? null,
       push_token: options.pushToken ?? null,
       webhook_url: options.webhookUrl ?? null,
+      webhook_secret: options.webhookSecret ?? null,
       events: options.events ?? null,
       min_amount_stroops: (options.minAmountStroops ?? 0n).toString(),
       enabled: options.enabled ?? true,
@@ -118,5 +124,85 @@ export class NotificationPreferencesRepository {
       );
       throw error;
     }
+  }
+
+  /** Get a specific webhook preference by ID. */
+  async getWebhookById(id: string): Promise<NotificationPreference | null> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_preferences")
+      .select("*")
+      .eq("id", id)
+      .eq("channel", "webhook")
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`Failed to fetch webhook ${id}: ${error.message}`);
+      throw error;
+    }
+
+    return data ? mapRow(data as RawPreference) : null;
+  }
+
+  /** Get all webhooks for a public key. */
+  async getWebhooksByPublicKey(
+    publicKey: string,
+  ): Promise<NotificationPreference[]> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_preferences")
+      .select("*")
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook");
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch webhooks for ${publicKey}: ${error.message}`,
+      );
+      throw error;
+    }
+
+    return (data ?? []).map(mapRow);
+  }
+
+  /** Delete a webhook preference. */
+  async deleteWebhook(id: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .getClient()
+      .from("notification_preferences")
+      .delete()
+      .eq("id", id)
+      .eq("channel", "webhook");
+
+    if (error) {
+      this.logger.error(`Failed to delete webhook ${id}: ${error.message}`);
+      throw error;
+    }
+
+    return true;
+  }
+
+  /** Regenerate webhook secret. */
+  async regenerateWebhookSecret(
+    id: string,
+    newSecret: string,
+  ): Promise<NotificationPreference> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_preferences")
+      .update({ webhook_secret: newSecret })
+      .eq("id", id)
+      .eq("channel", "webhook")
+      .select()
+      .single();
+
+    if (error) {
+      this.logger.error(
+        `Failed to regenerate secret for webhook ${id}: ${error.message}`,
+      );
+      throw error;
+    }
+
+    return mapRow(data as RawPreference);
   }
 }

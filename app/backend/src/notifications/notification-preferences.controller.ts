@@ -74,6 +74,7 @@ export class NotificationPreferencesController {
       email: dto.email,
       pushToken: dto.pushToken,
       webhookUrl: dto.webhookUrl,
+      webhookSecret: dto.webhookSecret,
       events: dto.events ?? null,
       minAmountStroops:
         dto.minAmountStroops !== undefined
@@ -112,6 +113,7 @@ export class NotificationPreferencesController {
     email?: string;
     pushToken?: string;
     webhookUrl?: string;
+    webhookSecret?: string;
     events: string[] | null;
     minAmountStroops: bigint;
     enabled: boolean;
@@ -123,6 +125,7 @@ export class NotificationPreferencesController {
     dto.email = pref.email;
     dto.pushToken = pref.pushToken;
     dto.webhookUrl = pref.webhookUrl;
+    dto.webhookSecret = pref.webhookSecret;
     dto.events = pref.events as NotificationPreferenceResponseDto["events"];
     dto.minAmountStroops = pref.minAmountStroops.toString();
     dto.enabled = pref.enabled;

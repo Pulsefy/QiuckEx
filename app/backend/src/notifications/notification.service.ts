@@ -294,6 +294,8 @@ export class NotificationService implements OnModuleInit {
         eventType,
         eventId,
         result.messageId,
+        result.httpStatus,
+        result.responseBody,
       );
       this.logger.log(
         "[" +

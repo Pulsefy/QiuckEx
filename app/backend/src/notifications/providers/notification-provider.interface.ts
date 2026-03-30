@@ -1,8 +1,11 @@
 import { Logger } from "@nestjs/common";
+import * as crypto from "crypto";
+
 import type {
   NotificationChannel,
   NotificationPreference,
   BaseNotificationPayload,
+  WebhookPayload,
 } from "../types/notification.types";
 
 // ---------------------------------------------------------------------------
@@ -10,8 +13,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface ProviderSendResult {
-  /** Provider-side message identifier for tracking. */
   messageId?: string;
+  httpStatus?: number;
+  responseBody?: string;
 }
 
 export interface INotificationProvider {
@@ -73,7 +77,6 @@ export class SendGridEmailProvider implements INotificationProvider {
       throw new Error(`SendGrid error ${response.status}: ${text}`);
     }
 
-    // SendGrid returns X-Message-Id header
     const messageId = response.headers.get("X-Message-Id") ?? undefined;
     this.logger.debug(
       `Email sent to ${preference.email}: messageId=${messageId}`,
@@ -100,7 +103,6 @@ export class ExpoPushProvider implements INotificationProvider {
   readonly channel: NotificationChannel = "push";
   private readonly logger = new Logger(ExpoPushProvider.name);
 
-  // Optional server-side Expo access token for priority push
   constructor(private readonly accessToken?: string) {}
 
   async send(
@@ -161,6 +163,7 @@ export class ExpoPushProvider implements INotificationProvider {
 export class WebhookProvider implements INotificationProvider {
   readonly channel: NotificationChannel = "webhook";
   private readonly logger = new Logger(WebhookProvider.name);
+  private readonly maxResponseBodyLength = 1000;
 
   async send(
     preference: NotificationPreference,
@@ -170,30 +173,101 @@ export class WebhookProvider implements INotificationProvider {
       throw new Error("No webhook URL configured for preference");
     }
 
-    const body = {
-      eventType: payload.eventType,
-      eventId: payload.eventId,
-      title: payload.title,
-      body: payload.body,
-      occurredAt: payload.occurredAt,
-      recipientPublicKey: payload.recipientPublicKey,
-      metadata: payload.metadata ?? {},
+    const webhookPayload = this.buildWebhookPayload(payload);
+    const body = JSON.stringify(webhookPayload);
+    const signature = this.signPayload(body, preference.webhookSecret);
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-QuickEx-Signature": signature,
+      "X-QuickEx-Delivery": webhookPayload.id,
+      "X-QuickEx-Event": payload.eventType,
+      "X-QuickEx-Timestamp": webhookPayload.sentAt,
     };
 
     const response = await fetch(preference.webhookUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers,
+      body,
     });
+
+    let responseBody: string | undefined;
+    try {
+      const text = await response.text();
+      responseBody =
+        text.length > this.maxResponseBodyLength
+          ? text.slice(0, this.maxResponseBodyLength) + "..."
+          : text;
+    } catch {
+      // Ignore response body read errors
+    }
 
     if (!response.ok) {
       throw new Error(
-        `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}`,
+        `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}: ${responseBody ?? "no response body"}`,
       );
     }
 
-    this.logger.debug(`Webhook delivered to ${preference.webhookUrl}`);
-    return {};
+    this.logger.debug(
+      `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
+    );
+
+    return {
+      httpStatus: response.status,
+      responseBody,
+    };
+  }
+
+  private buildWebhookPayload(
+    payload: BaseNotificationPayload,
+  ): WebhookPayload {
+    const deliveryId = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    return {
+      id: deliveryId,
+      eventType: payload.eventType,
+      eventId: payload.eventId,
+      timestamp: payload.occurredAt,
+      sentAt: new Date().toISOString(),
+      recipientPublicKey: payload.recipientPublicKey,
+      title: payload.title,
+      body: payload.body,
+      data: payload.metadata ?? {},
+    };
+  }
+
+  private signPayload(body: string, secret?: string): string {
+    if (!secret) {
+      this.logger.warn(
+        "Webhook secret not configured - payload will not be signed",
+      );
+      return "";
+    }
+
+    const hmac = crypto.createHmac("sha256", secret);
+    hmac.update(body);
+    const digest = hmac.digest("hex");
+    return `sha256=${digest}`;
+  }
+
+  static verifySignature(
+    body: string,
+    signature: string,
+    secret: string,
+  ): boolean {
+    if (!signature.startsWith("sha256=")) {
+      return false;
+    }
+
+    const expectedDigest = signature.slice(7);
+    const hmac = crypto.createHmac("sha256", secret);
+    hmac.update(body);
+    const actualDigest = hmac.digest("hex");
+
+    return crypto.timingSafeEqual(
+      Buffer.from(expectedDigest, "hex"),
+      Buffer.from(actualDigest, "hex"),
+    );
   }
 }
 
