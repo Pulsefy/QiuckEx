@@ -15,6 +15,8 @@ import { TelegramRepository } from "./telegram/telegram.repository";
 import { TelegramBotService } from "./telegram/telegram-bot.service";
 import { TelegramNotificationProvider } from "./telegram/telegram.provider";
 import { TelegramController } from "./telegram/telegram.controller";
+import { WebhookService } from "./webhook.service";
+import { WebhooksController } from "./webhooks.controller";
 
 /**
  * Notification engine module.
@@ -29,13 +31,18 @@ import { TelegramController } from "./telegram/telegram.controller";
  */
 @Module({
   imports: [SupabaseModule],
-  controllers: [NotificationPreferencesController, TelegramController],
+  controllers: [
+    NotificationPreferencesController,
+    TelegramController,
+    WebhooksController,
+  ],
   providers: [
     NotificationPreferencesRepository,
     NotificationLogRepository,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookService,
     {
       provide: NOTIFICATION_PROVIDERS,
       useFactory: (
@@ -73,6 +80,7 @@ import { TelegramController } from "./telegram/telegram.controller";
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookService,
   ],
 })
 export class NotificationsModule {}

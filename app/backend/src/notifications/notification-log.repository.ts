@@ -11,11 +11,6 @@ export class NotificationLogRepository {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /**
-   * Create a pending log entry.
-   * Uses ON CONFLICT DO NOTHING so duplicate events don't create extra rows.
-   * Returns the existing or newly created row id.
-   */
   async createPending(
     publicKey: string,
     channel: NotificationChannel,
@@ -50,22 +45,31 @@ export class NotificationLogRepository {
     return data?.id ?? null;
   }
 
-  /** Mark a delivery as sent. */
   async markSent(
     publicKey: string,
     channel: NotificationChannel,
     eventType: NotificationEventType,
     eventId: string,
     providerMessageId?: string,
+    httpStatus?: number,
+    responseBody?: string,
   ): Promise<void> {
+    const updateData: Record<string, unknown> = {
+      status: "sent",
+      provider_message_id: providerMessageId ?? null,
+      last_error: null,
+    };
+
+    if (channel === "webhook") {
+      updateData.webhook_response_status = httpStatus ?? null;
+      updateData.webhook_response_body = responseBody ?? null;
+      updateData.webhook_delivered_at = new Date().toISOString();
+    }
+
     const { error } = await this.supabase
       .getClient()
       .from("notification_log")
-      .update({
-        status: "sent",
-        provider_message_id: providerMessageId ?? null,
-        last_error: null,
-      })
+      .update(updateData)
       .eq("public_key", publicKey)
       .eq("channel", channel)
       .eq("event_type", eventType)
@@ -76,7 +80,6 @@ export class NotificationLogRepository {
     }
   }
 
-  /** Mark a delivery as failed, recording the error and incrementing attempts. */
   async markFailed(
     publicKey: string,
     channel: NotificationChannel,
@@ -84,10 +87,8 @@ export class NotificationLogRepository {
     eventId: string,
     errorMessage: string,
   ): Promise<void> {
-    // Increment attempts via RPC or read-modify-write (simple approach)
     const client = this.supabase.getClient();
 
-    // Read current attempt count
     const { data } = await client
       .from("notification_log")
       .select("attempts")
@@ -112,7 +113,6 @@ export class NotificationLogRepository {
     }
   }
 
-  /** Return failed entries eligible for retry (status=failed, attempts < maxAttempts). */
   async getPendingRetries(maxAttempts: number): Promise<
     Array<{
       publicKey: string;
@@ -145,7 +145,6 @@ export class NotificationLogRepository {
     }));
   }
 
-  /** Check if an event was already successfully delivered via a channel (idempotency check). */
   async isAlreadySent(
     publicKey: string,
     channel: NotificationChannel,
@@ -164,5 +163,103 @@ export class NotificationLogRepository {
       .maybeSingle();
 
     return !!data;
+  }
+
+  async getWebhookDeliveryLogs(
+    publicKey: string,
+    limit = 50,
+  ): Promise<
+    Array<{
+      id: string;
+      eventType: NotificationEventType;
+      eventId: string;
+      status: string;
+      attempts: number;
+      lastError?: string;
+      httpStatus?: number;
+      responseBody?: string;
+      createdAt: string;
+      deliveredAt?: string;
+    }>
+  > {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .select(
+        "id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, webhook_delivered_at",
+      )
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch webhook logs for ${publicKey}: ${error.message}`,
+      );
+      return [];
+    }
+
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      eventType: r.event_type as NotificationEventType,
+      eventId: r.event_id,
+      status: r.status,
+      attempts: r.attempts,
+      lastError: r.last_error ?? undefined,
+      httpStatus: r.webhook_response_status ?? undefined,
+      responseBody: r.webhook_response_body ?? undefined,
+      createdAt: r.created_at,
+      deliveredAt: r.webhook_delivered_at ?? undefined,
+    }));
+  }
+
+  /** Get webhook stats for a specific public key. */
+  async getWebhookStats(publicKey: string): Promise<{
+    totalSent: number;
+    totalFailed: number;
+    pendingRetries: number;
+    lastDeliveryAt?: string;
+    lastError?: string;
+  }> {
+    const client = this.supabase.getClient();
+
+    // Get counts by status
+    const { data: sentData } = await client
+      .from("notification_log")
+      .select("id", { count: "exact", head: true })
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("status", "sent");
+
+    const { data: failedData } = await client
+      .from("notification_log")
+      .select("id", { count: "exact", head: true })
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("status", "failed");
+
+    const pendingRetries = await this.getPendingRetries(3);
+    const pendingForUser = pendingRetries.filter(
+      (r) => r.publicKey === publicKey && r.channel === "webhook",
+    );
+
+    const { data: lastDelivery } = await client
+      .from("notification_log")
+      .select("webhook_delivered_at, last_error")
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("status", "sent")
+      .order("webhook_delivered_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      totalSent: sentData?.length ?? 0,
+      totalFailed: failedData?.length ?? 0,
+      pendingRetries: pendingForUser.length,
+      lastDeliveryAt: lastDelivery?.webhook_delivered_at ?? undefined,
+      lastError: lastDelivery?.last_error ?? undefined,
+    };
   }
 }
