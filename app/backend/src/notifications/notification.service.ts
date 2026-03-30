@@ -17,9 +17,6 @@ import type {
   EscrowRefundedPayload,
   PaymentReceivedPayload,
   UsernameClaimedPayload,
-  RecurringPaymentExecutedPayload,
-  RecurringPaymentFailedPayload,
-  RecurringLinkStatusPayload,
 } from "./types/notification.types";
 import {
   NotificationEvent,
@@ -185,6 +182,7 @@ export class NotificationService implements OnModuleInit {
     const filtered = preferences.filter((pref) =>
       this.matchesPreference(payload, pref),
     );
+
     await Promise.allSettled(
       filtered.map((pref) => this.sendToChannel(pref, payload)),
     );
@@ -230,11 +228,13 @@ export class NotificationService implements OnModuleInit {
     if (pref.events !== null && !pref.events.includes(payload.eventType)) {
       return false;
     }
+
     if (pref.minAmountStroops > 0n && payload.amountStroops !== undefined) {
       if (payload.amountStroops < pref.minAmountStroops) {
         return false;
       }
     }
+
     return true;
   }
 
@@ -251,6 +251,7 @@ export class NotificationService implements OnModuleInit {
       eventType,
       eventId,
     );
+
     if (alreadySent) {
       this.logger.debug(
         "Already sent " +
@@ -279,6 +280,7 @@ export class NotificationService implements OnModuleInit {
     }
 
     const provider = this.providerMap.get(channel);
+
     if (!provider) {
       this.logger.warn("No provider registered for channel " + channel);
       return;
@@ -288,6 +290,7 @@ export class NotificationService implements OnModuleInit {
 
     try {
       const result = await provider.send(pref, payload);
+
       await this.logRepo.markSent(
         publicKey,
         channel,
@@ -297,6 +300,7 @@ export class NotificationService implements OnModuleInit {
         result.httpStatus,
         result.responseBody,
       );
+
       this.logger.log(
         "[" +
           channel +
@@ -308,6 +312,7 @@ export class NotificationService implements OnModuleInit {
       );
     } catch (err) {
       const msg = (err as Error).message;
+
       await this.logRepo.markFailed(
         publicKey,
         channel,
@@ -315,6 +320,7 @@ export class NotificationService implements OnModuleInit {
         eventId,
         msg,
       );
+
       this.logger.error(
         "[" +
           channel +
