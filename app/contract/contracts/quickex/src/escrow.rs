@@ -10,7 +10,7 @@
 //! Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
 //! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 //! ```
-//! 
+//!
 //! //! # Time-lock Invariants
 //!
 //! These invariants are strictly enforced and must hold at all times:
@@ -74,7 +74,7 @@ use crate::{
 // ---------------------------------------------------------------------------
 
 /// Returns `true` when an escrow has expired according to the ledger clock.
-/// 
+///
 /// Enforces INV-2: an escrow with `expires_at == 0` is considered non-expiring
 /// and will NEVER return `true` here, making it ineligible for `refund`.
 ///
@@ -94,7 +94,7 @@ fn is_expired(env: &Env, entry: &EscrowEntry) -> bool {
 fn is_within_window(env: &Env, entry: &EscrowEntry) -> bool {
     !is_expired(env, entry)
 }
- 
+
 /// Validates and computes `expires_at` from `timeout_secs`.
 ///
 /// Enforces INV-3: uses `saturating_add` to prevent u64 overflow. If the
@@ -111,13 +111,13 @@ fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError>
     }
     let now = env.ledger().timestamp();
     let expires_at = now.saturating_add(timeout_secs);
- 
+
     // Guard against saturated overflow: if the result is u64::MAX it means
     // timeout_secs was unreasonably large — reject it explicitly.
     if expires_at == u64::MAX {
         return Err(QuickexError::InvalidTimeout);
     }
- 
+
     Ok(expires_at)
 }
 
@@ -303,7 +303,7 @@ pub fn deposit_with_commitment(
 ///
 /// The caller (`to`) must authorize. The commitment is recomputed from
 /// `to`, `amount`, and `salt` and must match an existing pending escrow.
-/// 
+///
 /// # Time-lock enforcement
 /// Enforces INV-1: if `expires_at > 0` and ledger timestamp >= `expires_at`,
 /// this function MUST fail. There is no admin override or bypass.
@@ -389,7 +389,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 /// - Only callable after `expires_at` has been reached (and `expires_at > 0`).
 /// - Caller must be the original depositor (`entry.owner`).
 /// - Escrow must still be `Pending`.
-/// 
+///
 /// # Time-lock enforcement
 /// Enforces INV-2: both conditions must hold simultaneously —
 /// `expires_at > 0` (was set) AND `now >= expires_at` (has elapsed).
@@ -416,7 +416,7 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
         }
         return Err(QuickexError::AlreadySpent);
     }
- 
+
     // INV-2: strictly enforce — both expires_at > 0 AND now >= expires_at must hold
     if !is_expired(env, &entry) {
         return Err(QuickexError::EscrowNotExpired);
