@@ -17,7 +17,15 @@ import type {
   EscrowRefundedPayload,
   PaymentReceivedPayload,
   UsernameClaimedPayload,
+  RecurringPaymentExecutedPayload,
+  RecurringPaymentFailedPayload,
+  RecurringLinkStatusPayload,
 } from "./types/notification.types";
+import {
+  NotificationEvent,
+  PaymentReceivedEvent,
+  UsernameClaimedEvent,
+} from "../events/notification.events";
 import type {
   EscrowDepositedEvent,
   EscrowWithdrawnEvent,
@@ -116,13 +124,8 @@ export class NotificationService implements OnModuleInit {
     await this.dispatch(payload);
   }
 
-  @OnEvent("payment.received", { async: true })
-  async onPaymentReceived(event: {
-    txHash: string;
-    amount: string;
-    sender: string;
-    recipientPublicKey: string;
-  }): Promise<void> {
+  @OnEvent(NotificationEvent.PaymentReceived, { async: true })
+  async onPaymentReceived(event: PaymentReceivedEvent): Promise<void> {
     const amountStroops = BigInt(event.amount);
     const payload: PaymentReceivedPayload = {
       eventType: "payment.received",
@@ -144,11 +147,8 @@ export class NotificationService implements OnModuleInit {
     await this.dispatch(payload);
   }
 
-  @OnEvent("username.claimed", { async: true })
-  async onUsernameClaimed(event: {
-    username: string;
-    publicKey: string;
-  }): Promise<void> {
+  @OnEvent(NotificationEvent.UsernameClaimed, { async: true })
+  async onUsernameClaimed(event: UsernameClaimedEvent): Promise<void> {
     const payload: UsernameClaimedPayload = {
       eventType: "username.claimed",
       eventId: "username:" + event.username,

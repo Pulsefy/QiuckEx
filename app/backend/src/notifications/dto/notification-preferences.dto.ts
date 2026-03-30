@@ -24,6 +24,15 @@ const VALID_EVENTS: NotificationEventType[] = [
   "EscrowRefunded",
   "payment.received",
   "username.claimed",
+  "recurring.payment.due",
+  "recurring.payment.executed",
+  "recurring.payment.failed",
+  "recurring.payment.cancelled",
+  "recurring.link.created",
+  "recurring.link.updated",
+  "recurring.link.paused",
+  "recurring.link.resumed",
+  "recurring.link.completed",
 ];
 
 export class UpsertNotificationPreferenceDto {
