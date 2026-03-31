@@ -51,14 +51,20 @@ use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
+pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
+pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
+
 /// Bitmask flags for granular operation pausing.
-#[allow(dead_code)]
 #[contracttype]
+#[repr(u64)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PauseFlag {
     Deposit = 1,
     Withdrawal = 2,
     Refund = 4,
     DepositWithCommitment = 8,
+    SetPrivacy = 16,
+    CreateAmountCommitment = 32,
 }
 
 // -----------------------------------------------------------------------------
@@ -180,7 +186,7 @@ pub fn set_paused(env: &Env, paused: bool) {
 }
 
 /// Set pause flags (granular pause control – caller already verified by admin module).
-#[allow(dead_code)]
+/// Set pause flags (granular pause control – caller already verified by admin module).
 pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
     let key = DataKey::PauseFlags;
     let current: u64 = env.storage().persistent().get(&key).unwrap_or(0);
@@ -189,10 +195,10 @@ pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags
 }
 
 /// Check whether a specific operation flag is paused.
-pub fn is_feature_paused(env: &Env, flag: u64) -> bool {
+pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
     let key = DataKey::PauseFlags;
     let flags: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-    flags & flag != 0
+    flags & (flag as u64) != 0
 }
 
 /// Get paused state.
@@ -244,44 +250,44 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
         .unwrap_or(Vec::new(env))
 }
 
-#[contracttype]
-#[repr(u64)]
-#[derive(Clone, Copy, PartialEq)]
-pub enum PauseFlag {
-    Deposit = 1,
-    DepositWithCommitment = 2,
-    Withdrawal = 3,
-    Refund = 4,
-    SetPrivacy = 5,
-    CreateAmountCommitment = 6,
-}
+// -----------------------------------------------------------------------------
+// Fee & Wallet helpers
+// -----------------------------------------------------------------------------
 
-// Helper – current mask
-pub fn get_pause_mask(env: &Env) -> u64 {
+pub fn get_fee_config(env: &Env) -> FeeConfig {
     env.storage()
         .persistent()
-        .get(&DataKey::Pause)
-        .unwrap_or(0u64)
+        .get(&DataKey::FeeConfig)
+        .unwrap_or(FeeConfig { fee_bps: 0 })
 }
 
-// Check one flag
-pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
-    let mask = get_pause_mask(env);
-    (mask & flag as u64) != 0
+pub fn set_fee_config(env: &Env, config: &FeeConfig) {
+    env.storage().persistent().set(&DataKey::FeeConfig, config);
 }
 
-// #[allow(dead_code)]
-// pub fn set_paused(env: &Env, paused: bool) {
-//     let key = DataKey::Paused;
-//     env.storage().persistent().set(&key, &paused);
-// }
+pub fn get_platform_wallet(env: &Env) -> Option<Address> {
+    env.storage().persistent().get(&DataKey::PlatformWallet)
+}
 
-// Admin-only: toggle multiple flags at once
-pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
-    let mut mask = get_pause_mask(env);
+pub fn set_platform_wallet(env: &Env, wallet: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PlatformWallet, wallet);
+}
 
-    mask |= flags_to_enable;
-    mask &= !flags_to_disable;
+// -----------------------------------------------------------------------------
+// Stealth helpers
+// -----------------------------------------------------------------------------
 
-    env.storage().persistent().set(&DataKey::Pause, &mask);
+pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<StealthEscrowEntry> {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().get(&key)
+}
+
+pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().set(&key, entry);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
 }
