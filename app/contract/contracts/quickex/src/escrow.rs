@@ -23,8 +23,8 @@
 //!   `refund` MUST fail with `EscrowNotExpired` unless BOTH:
 //!   - `expires_at > 0` (escrow was created with a timeout), AND
 //!   - `env.ledger().timestamp() >= expires_at` (timeout has been reached).
-//! 
-//!   A non-expiring escrow (`expires_at == 0`) can NEVER be refunded via `refund`.
+//!
+//!  A non-expiring escrow (`expires_at == 0`) can NEVER be refunded via `refund`.
 //!
 //! **INV-3 (Overflow-safe expiry):**
 //!   `expires_at` is always computed via `saturating_add` to prevent u64 overflow.
