@@ -23,6 +23,7 @@
 //!   `refund` MUST fail with `EscrowNotExpired` unless BOTH:
 //!   - `expires_at > 0` (escrow was created with a timeout), AND
 //!   - `env.ledger().timestamp() >= expires_at` (timeout has been reached).
+//! 
 //!   A non-expiring escrow (`expires_at == 0`) can NEVER be refunded via `refund`.
 //!
 //! **INV-3 (Overflow-safe expiry):**
@@ -265,11 +266,6 @@ pub fn deposit_with_commitment(
     token_client.transfer(&from, env.current_contract_address(), &amount);
 
     let now = env.ledger().timestamp();
-    let expires_at = if timeout_secs > 0 {
-        now.saturating_add(timeout_secs)
-    } else {
-        0
-    };
 
     let from_ref = from.clone();
     let entry = EscrowEntry {

@@ -2281,10 +2281,11 @@ mod tests {
         use super::*;
 
         fn make_entry(expires_at: u64) -> EscrowEntry {
+            let env = Env::default();
             EscrowEntry {
-                token: Address::default(),
+                token: Address::generate(&env),
                 amount: 1000,
-                owner: Address::default(),
+                owner: Address::generate(&env),
                 status: EscrowStatus::Pending,
                 created_at: 0,
                 expires_at,
@@ -2354,8 +2355,8 @@ mod tests {
 
     // #[cfg(feature = "testutils")]
     mod fuzz {
-        use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
-        use soroban_sdk::{Bytes, Env};
+        use soroban_sdk::testutils::Address as _;
+        use soroban_sdk::Env;
 
         use super::*;
 
@@ -2363,23 +2364,23 @@ mod tests {
             Env::default()
         }
 
-        fn set_timestamp(env: &Env, timestamp: u64) {
-            env.ledger().set(LedgerInfo {
-                timestamp,
-                protocol_version: 22,
-                sequence_number: (timestamp / 5) as u32,
-                network_id: [0u8; 32].into(),
-                base_reserve: 5_000_000,
-                min_temp_entry_ttl: 100,
-                min_persistent_entry_ttl: 100,
-                max_entry_ttl: 10_000_000,
-            });
+        fn dummy_entry(env: &Env, status: EscrowStatus, expires_at: u64) -> EscrowEntry {
+            EscrowEntry {
+                token: Address::generate(env),
+                amount: 1000,
+                owner: Address::generate(env),
+                status,
+                created_at: 0,
+                expires_at,
+                arbiter: None,
+            }
         }
 
         // INV-1: withdrawal MUST fail at or after expiry for any timestamp value
         // Fuzz: runs across a range of (created_at, timeout, withdraw_at) triples
         #[test]
         fn fuzz_withdraw_always_fails_at_or_after_expiry() {
+            let env = setup_env();
             let test_cases: &[(u64, u64, u64)] = &[
                 // (created_at, timeout_secs, withdraw_attempt_timestamp)
                 (0, 100, 100),          // exactly at expiry
@@ -2400,15 +2401,7 @@ mod tests {
 
                 // Verify our helper correctly identifies these as expired
                 // by constructing a mock entry and calling is_expired logic directly
-                let entry = EscrowEntry {
-                    token: Address::default(),
-                    amount: 1000,
-                    owner: Address::default(),
-                    status: EscrowStatus::Pending,
-                    created_at,
-                    expires_at,
-                    arbiter: None,
-                };
+                let entry = dummy_entry(&env, EscrowStatus::Pending, expires_at);
 
                 assert!(
                     expires_at > 0,
@@ -2458,18 +2451,11 @@ mod tests {
         // INV-2: refund MUST fail if expires_at == 0 regardless of timestamp
         #[test]
         fn fuzz_refund_always_fails_for_non_expiring_escrow() {
+            let env = setup_env();
             let timestamps: &[u64] = &[0, 1, 100, 999_999, u64::MAX / 2];
 
             for &ts in timestamps {
-                let entry = EscrowEntry {
-                    token: Address::default(),
-                    amount: 1000,
-                    owner: Address::default(),
-                    status: EscrowStatus::Pending,
-                    created_at: 0,
-                    expires_at: 0, // non-expiring
-                    arbiter: None,
-                };
+                let entry = dummy_entry(&env, EscrowStatus::Pending, 0);
 
                 // INV-2: expires_at == 0 → is_expired returns false always
                 let would_be_expired = entry.expires_at > 0 && ts >= entry.expires_at;
@@ -2561,18 +2547,11 @@ mod tests {
         // INV-4: neither withdraw nor refund may proceed while Disputed
         #[test]
         fn fuzz_disputed_escrow_blocks_all_fund_movements() {
+            let env = setup_env();
             let statuses = [EscrowStatus::Disputed];
 
             for status in &statuses {
-                let entry = EscrowEntry {
-                    token: Address::default(),
-                    amount: 1000,
-                    owner: Address::default(),
-                    status: status.clone(),
-                    created_at: 0,
-                    expires_at: 0,
-                    arbiter: None,
-                };
+                let entry = dummy_entry(&env, *status, 0);
 
                 // Both withdraw and refund check: if Disputed → InvalidDisputeState
                 let is_disputed = entry.status == EscrowStatus::Disputed;
@@ -2586,18 +2565,11 @@ mod tests {
         // INV-5: terminal states must be final
         #[test]
         fn fuzz_terminal_states_are_final() {
+            let env = setup_env();
             let terminal_statuses = [EscrowStatus::Spent, EscrowStatus::Refunded];
 
             for status in &terminal_statuses {
-                let entry = EscrowEntry {
-                    token: Address::default(),
-                    amount: 1000,
-                    owner: Address::default(),
-                    status: status.clone(),
-                    created_at: 0,
-                    expires_at: 0,
-                    arbiter: None,
-                };
+                let entry = dummy_entry(&env, *status, 0);
 
                 // Both withdraw and refund reject non-Pending status
                 let is_terminal =
