@@ -90,7 +90,10 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Withdrawal as u64) {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Withdrawal) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::withdraw(&env, amount, to, salt)
@@ -186,7 +189,10 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Deposit as u64) {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
@@ -284,7 +290,10 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<(), QuickexError> {
-        if is_feature_paused(&env, PauseFlag::DepositWithCommitment as u64) {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit_with_commitment(
@@ -314,11 +323,28 @@ impl QuickexContract {
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
     /// * `InvalidOwner` - Caller is not the original owner
     pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
-        if is_feature_paused(&env, PauseFlag::Refund as u64) {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Refund) {
             return Err(QuickexError::OperationPaused);
         }
 
         escrow::refund(&env, commitment, caller)
+    }
+
+    /// Cleanup terminal escrow entries to reclaim storage deposits.
+    ///
+    /// Only escrows in `Spent` or `Refunded` status can be removed.
+    pub fn cleanup_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::cleanup_escrow(&env, commitment)
+    }
+
+    /// Extend the storage TTL of an escrow record.
+    ///
+    /// Any user can call this to keep an escrow from being archived.
+    pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::extend_escrow_ttl(&env, commitment)
     }
 
     /// Initiate a dispute for a pending escrow, locking the funds.
@@ -335,6 +361,9 @@ impl QuickexContract {
     /// * `NoArbiter` - No arbiter assigned to the escrow
     /// * `InvalidDisputeState` - Escrow is not in `Pending` status
     pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::dispute(&env, commitment)
     }
 
@@ -360,6 +389,9 @@ impl QuickexContract {
         resolve_for_owner: bool,
         recipient: Address,
     ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         escrow::resolve_dispute(&env, commitment, resolve_for_owner, recipient)
     }
 
@@ -396,7 +428,7 @@ impl QuickexContract {
     ///
     /// Returns `true` if paused, `false` otherwise.
     pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
-        storage::is_feature_paused(env, flag as u64)
+        storage::is_feature_paused(env, flag)
     }
 
     /// Pause a function in the contract (**Admin only**).
@@ -509,10 +541,6 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        // non-optimized: owner.clone() — owner not used after this call
-        // let commitment_result =
-        //     commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
-
         // optimized: move owner directly
         let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
 
