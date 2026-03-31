@@ -49,4 +49,5 @@ pub enum QuickexError {
     StealthEscrowNotFound = 402,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
+    InvalidTimeout = 901,
 }
