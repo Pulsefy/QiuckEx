@@ -294,6 +294,8 @@ describe("NotificationService", () => {
         "payment.received",
         "tx-abc",
         "msg-1",
+        undefined,
+        undefined,
       );
     });
 

@@ -27,6 +27,32 @@ export interface INotificationProvider {
 }
 
 // ---------------------------------------------------------------------------
+// No-op provider for local / development transports
+// ---------------------------------------------------------------------------
+export class NoopNotificationProvider implements INotificationProvider {
+  readonly channel: NotificationChannel;
+  private readonly logger = new Logger(NoopNotificationProvider.name);
+
+  constructor(channel: NotificationChannel) {
+    this.channel = channel;
+  }
+
+  async send(
+    preference: NotificationPreference,
+    payload: BaseNotificationPayload,
+  ): Promise<ProviderSendResult> {
+    this.logger.debug(
+      `[noop:${this.channel}] simulated notification for ${payload.eventType} to ${preference.publicKey}`,
+    );
+    return {
+      messageId: `noop:${payload.eventId}`,
+      httpStatus: 200,
+      responseBody: "noop",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // SendGrid email provider
 // ---------------------------------------------------------------------------
 

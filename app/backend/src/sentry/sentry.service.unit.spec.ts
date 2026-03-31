@@ -1,20 +1,28 @@
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Test, TestingModule } from '@nestjs/testing';
 import { SentryService } from './sentry.service';
 
-// Mock the @sentry/nestjs module entirely
+// ✅ Centralized mocks
 const mockGetClient = jest.fn();
-const mockCaptureException = jest.fn().mockReturnValue('mock-event-id');
-const mockCaptureMessage = jest.fn().mockReturnValue('mock-event-id');
+const mockCaptureException = jest.fn();
+const mockCaptureMessage = jest.fn();
 const mockSetUser = jest.fn();
 const mockAddBreadcrumb = jest.fn();
 const mockSetTag = jest.fn();
 const mockSetExtra = jest.fn();
 
+// ✅ Mock @sentry/nestjs
 jest.mock('@sentry/nestjs', () => ({
   getClient: mockGetClient,
-  captureException: mockCaptureException,
-  captureMessage: mockCaptureMessage,
+  captureException: (...args: any[]) => {
+    mockCaptureException(...args);
+    return 'mock-event-id';
+  },
+  captureMessage: (...args: any[]) => {
+    mockCaptureMessage(...args);
+    return 'mock-event-id';
+  },
   setUser: mockSetUser,
   addBreadcrumb: mockAddBreadcrumb,
   setTag: mockSetTag,
@@ -25,12 +33,13 @@ describe('SentryService', () => {
   let service: SentryService;
 
   beforeEach(async () => {
+    jest.clearAllMocks(); // ✅ reset BEFORE module creation
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [SentryService],
     }).compile();
 
     service = module.get<SentryService>(SentryService);
-    jest.clearAllMocks();
   });
 
   describe('isEnabled', () => {
@@ -46,10 +55,12 @@ describe('SentryService', () => {
   });
 
   describe('captureException', () => {
-    it('should capture exception when Sentry is enabled', () => {
+    it('should capture exception when enabled', () => {
       mockGetClient.mockReturnValue({});
+
       const error = new Error('Test error');
       const result = service.captureException(error, { orderId: '123' });
+
       expect(mockCaptureException).toHaveBeenCalledWith(
         error,
         expect.any(Function),
@@ -57,23 +68,26 @@ describe('SentryService', () => {
       expect(result).toBe('mock-event-id');
     });
 
-    it('should return undefined when Sentry is not enabled', () => {
+    it('should return undefined when disabled', () => {
       mockGetClient.mockReturnValue(undefined);
-      const error = new Error('Test error');
-      const result = service.captureException(error);
+
+      const result = service.captureException(new Error('Test error'));
+
       expect(mockCaptureException).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
     });
   });
 
   describe('captureMessage', () => {
-    it('should capture message when Sentry is enabled', () => {
+    it('should capture message when enabled', () => {
       mockGetClient.mockReturnValue({});
+
       const result = service.captureMessage(
         'Horizon API down',
         'fatal',
         { endpoint: 'https://horizon.stellar.org' },
       );
+
       expect(mockCaptureMessage).toHaveBeenCalledWith(
         'Horizon API down',
         expect.any(Function),
@@ -81,21 +95,24 @@ describe('SentryService', () => {
       expect(result).toBe('mock-event-id');
     });
 
-    it('should return undefined when Sentry is not enabled', () => {
+    it('should return undefined when disabled', () => {
       mockGetClient.mockReturnValue(undefined);
+
       const result = service.captureMessage('test');
+
       expect(mockCaptureMessage).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
     });
   });
 
   describe('setUser', () => {
-    it('should set user context with wallet', () => {
+    it('should set user with wallet', () => {
       service.setUser({
         id: 'user-1',
         wallet: 'GAB...XYZ',
         username: 'alice',
       });
+
       expect(mockSetUser).toHaveBeenCalledWith({
         id: 'user-1',
         username: 'alice',
@@ -103,8 +120,9 @@ describe('SentryService', () => {
       });
     });
 
-    it('should set user context without wallet', () => {
+    it('should set user without wallet', () => {
       service.setUser({ id: 'user-1' });
+
       expect(mockSetUser).toHaveBeenCalledWith({
         id: 'user-1',
         username: undefined,
@@ -120,13 +138,14 @@ describe('SentryService', () => {
   });
 
   describe('addBreadcrumb', () => {
-    it('should add a breadcrumb with custom data', () => {
+    it('should add breadcrumb with data', () => {
       service.addBreadcrumb({
         category: 'stellar',
         message: 'Payment submitted',
         level: 'info',
         data: { txHash: 'abc123' },
       });
+
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
         category: 'stellar',
         message: 'Payment submitted',
@@ -140,6 +159,7 @@ describe('SentryService', () => {
         category: 'stellar',
         message: 'Connected',
       });
+
       expect(mockAddBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({ level: 'info' }),
       );
@@ -147,16 +167,17 @@ describe('SentryService', () => {
   });
 
   describe('setTag', () => {
-    it('should set a tag on the scope', () => {
+    it('should set tag', () => {
       service.setTag('network', 'testnet');
       expect(mockSetTag).toHaveBeenCalledWith('network', 'testnet');
     });
   });
 
   describe('setExtra', () => {
-    it('should set extra data on the scope', () => {
+    it('should set extra data', () => {
       service.setExtra('contractId', 'C123');
       expect(mockSetExtra).toHaveBeenCalledWith('contractId', 'C123');
     });
   });
 });
+

@@ -10,6 +10,7 @@ import {
   SendGridEmailProvider,
   ExpoPushProvider,
   WebhookProvider,
+  NoopNotificationProvider,
 } from "./providers/notification-provider.interface";
 import { TelegramRepository } from "./telegram/telegram.repository";
 import { TelegramBotService } from "./telegram/telegram-bot.service";
@@ -55,9 +56,17 @@ import { WebhooksController } from "./webhooks.controller";
         const fromEmail = process.env["SENDGRID_FROM_EMAIL"];
         if (sendgridKey && fromEmail) {
           providers.push(new SendGridEmailProvider(sendgridKey, fromEmail));
+        } else {
+          providers.push(new NoopNotificationProvider("email"));
         }
 
-        providers.push(new ExpoPushProvider(process.env["EXPO_ACCESS_TOKEN"]));
+        const expoToken = process.env["EXPO_ACCESS_TOKEN"];
+        if (expoToken) {
+          providers.push(new ExpoPushProvider(expoToken));
+        } else {
+          providers.push(new NoopNotificationProvider("push"));
+        }
+
         providers.push(new WebhookProvider());
 
         // Add Telegram provider if bot is initialized
@@ -66,6 +75,8 @@ import { WebhooksController } from "./webhooks.controller";
           providers.push(
             new TelegramNotificationProvider(telegramBot, telegramRepo),
           );
+        } else {
+          providers.push(new NoopNotificationProvider("telegram"));
         }
 
         return providers;

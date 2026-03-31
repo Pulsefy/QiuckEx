@@ -132,7 +132,11 @@ export type NotificationPayload =
   | EscrowWithdrawnPayload
   | EscrowRefundedPayload
   | PaymentReceivedPayload
-  | UsernameClaimedPayload;
+  | UsernameClaimedPayload
+  | RecurringPaymentDuePayload
+  | RecurringPaymentExecutedPayload
+  | RecurringPaymentFailedPayload
+  | RecurringLinkStatusPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences
