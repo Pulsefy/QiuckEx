@@ -9,6 +9,9 @@ export interface TransactionItem {
   timestamp: string;
   txHash: string;
   pagingToken: string;
+  source: string;
+  destination: string;
+  status: "Success" | "Pending";
 }
 
 /**

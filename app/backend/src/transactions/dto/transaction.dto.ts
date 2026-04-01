@@ -65,6 +65,18 @@ export class TransactionItemDto {
   @ApiProperty({ example: "2026-02-21T08:00:00Z" })
   timestamp: string;
 
+  @ApiProperty({ example: "GABCD...1234", description: "Source account" })
+  source: string;
+
+  @ApiProperty({ example: "GDCBA...4321", description: "Destination account" })
+  destination: string;
+
+  @ApiProperty({
+    example: "Success",
+    description: "Transaction status (Success or Pending)",
+  })
+  status: "Success" | "Pending";
+
   @ApiProperty({ example: "6852...a341" })
   txHash: string;
 

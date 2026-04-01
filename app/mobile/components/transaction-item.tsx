@@ -35,8 +35,14 @@ function shortenHash(hash: string): string {
     return `${hash.slice(0, 6)}…${hash.slice(-6)}`;
 }
 
+function shortenAddress(address: string): string {
+    if (address.length <= 12) return address;
+    return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 export default function TransactionItem({ item }: Props) {
     const assetLabel = formatAsset(item.asset);
+    const hasAddresses = Boolean(item.source || item.destination);
 
     const handleCopyHash = () => {
         Clipboard.setString(item.txHash);
@@ -62,6 +68,11 @@ export default function TransactionItem({ item }: Props) {
                 <TouchableOpacity onPress={handleCopyHash} activeOpacity={0.6}>
                     <Text style={styles.txHash}>{shortenHash(item.txHash)}</Text>
                 </TouchableOpacity>
+                {hasAddresses ? (
+                    <Text style={styles.address} numberOfLines={1}>
+                        {shortenAddress(item.source)} → {shortenAddress(item.destination)}
+                    </Text>
+                ) : null}
                 <Text style={styles.date}>{formatDate(item.timestamp)}</Text>
             </View>
 
@@ -117,6 +128,11 @@ const styles = StyleSheet.create({
     txHash: {
         fontSize: 11,
         color: '#9CA3AF',
+        fontFamily: 'monospace',
+    },
+    address: {
+        fontSize: 11,
+        color: '#6B7280',
         fontFamily: 'monospace',
     },
     date: {
