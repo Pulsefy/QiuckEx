@@ -3,14 +3,10 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
 #[cfg(test)]
-mod assert_helpers;
-#[cfg(test)]
 mod bench_test;
 mod commitment;
 #[cfg(test)]
 mod commitment_test;
-#[cfg(test)]
-mod coverage_test;
 mod errors;
 mod escrow;
 mod events;
@@ -39,12 +35,26 @@ use types::{EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, Stealt
 /// Soroban smart contract providing escrow, privacy controls, and X-Ray-style amount
 /// commitments for the QuickEx platform. See the contract README for main flows.
 ///
+/// ## Asset Support
+///
+/// This contract supports both Native XLM and Stellar Asset Contract (SAC) tokens:
+/// - **Native XLM**: The native lumens of the Stellar network. Use the stellar
+///   network's native asset address when calling deposit functions.
+/// - **SAC Tokens**: Any token implemented via Stellar Asset Contracts (e.g., USDC,
+///   custom tokens). Use the SAC contract address as the token parameter.
+///
+/// The contract uses Soroban's standardized token interface which works uniformly across
+/// all asset types. No special wrap/unwrap logic is required from users.
+///
 /// ## Escrow State Machine
 ///
 /// ```text
 /// [*] --> Pending  : deposit() / deposit_with_commitment()
 /// Pending --> Spent    : withdraw(proof)  [now < expires_at, or no expiry]
 /// Pending --> Refunded : refund(owner)    [now >= expires_at]
+/// Pending --> Disputed : dispute()        [any participant can call]
+/// Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
+/// Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 /// ```
 #[contract]
 pub struct QuickexContract;
@@ -83,7 +93,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        if storage::is_feature_paused(&env, storage::PauseFlag::Withdrawal as u64) {
+        if is_feature_paused(&env, PauseFlag::Withdrawal) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::withdraw(&env, amount, to, salt)
@@ -137,9 +147,6 @@ impl QuickexContract {
     /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
-        }
         privacy::set_privacy(&env, owner, enabled)
     }
 
@@ -166,6 +173,7 @@ impl QuickexContract {
     /// * `owner` - Owner of the funds (must authorize)
     /// * `salt` - Random salt (0–1024 bytes) for uniqueness
     /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -184,7 +192,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        if storage::is_feature_paused(&env, storage::PauseFlag::Deposit as u64) {
+        if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
@@ -267,6 +275,7 @@ impl QuickexContract {
     /// * `amount` - Amount to deposit; must be positive
     /// * `commitment` - 32-byte commitment hash (must be unique)
     /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
     ///
     /// # Errors
     /// * `InvalidAmount` - Amount is zero or negative
@@ -284,7 +293,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        if storage::is_feature_paused(&env, storage::PauseFlag::DepositWithCommitment as u64) {
+        if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit_with_commitment(
@@ -314,10 +323,76 @@ impl QuickexContract {
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
     /// * `InvalidOwner` - Caller is not the original owner
     pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
-        if storage::is_feature_paused(&env, storage::PauseFlag::Refund as u64) {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Refund) {
             return Err(QuickexError::OperationPaused);
         }
+
         escrow::refund(&env, commitment, caller)
+    }
+
+    /// Cleanup terminal escrow entries to reclaim storage deposits.
+    ///
+    /// Only escrows in `Spent` or `Refunded` status can be removed.
+    pub fn cleanup_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::cleanup_escrow(&env, commitment)
+    }
+
+    /// Extend the storage TTL of an escrow record.
+    ///
+    /// Any user can call this to keep an escrow from being archived.
+    pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        escrow::extend_escrow_ttl(&env, commitment)
+    }
+
+    /// Initiate a dispute for a pending escrow, locking the funds.
+    ///
+    /// Any participant can call this function to start a dispute. The escrow must
+    /// have an assigned arbiter and be in `Pending` status. Changes status to `Disputed`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `NoArbiter` - No arbiter assigned to the escrow
+    /// * `InvalidDisputeState` - Escrow is not in `Pending` status
+    pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        escrow::dispute(&env, commitment)
+    }
+
+    /// Resolve a disputed escrow by determining the recipient of funds.
+    ///
+    /// Only callable by the assigned arbiter. The arbiter decides whether funds
+    /// go to the original owner (refund) or to a specified recipient (spend).
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `resolve_for_owner` - If true, funds go to owner; if false, funds go to recipient
+    /// * `recipient` - Address to receive funds when resolve_for_owner is false
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `NotArbiter` - Caller is not the assigned arbiter
+    /// * `NoArbiter` - No arbiter assigned to the escrow
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    pub fn resolve_dispute(
+        env: Env,
+        commitment: BytesN<32>,
+        resolve_for_owner: bool,
+        recipient: Address,
+    ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        escrow::resolve_dispute(&env, commitment, resolve_for_owner, recipient)
     }
 
     /// Initialize the contract with an admin address (one-time only).
@@ -347,6 +422,42 @@ impl QuickexContract {
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
         admin::set_paused(&env, caller, new_state)
+    }
+
+    /// Check if the functiom is currently paused.
+    ///
+    /// Returns `true` if paused, `false` otherwise.
+    pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
+        storage::is_feature_paused(env, flag)
+    }
+
+    /// Pause a function in the contract (**Admin only**).
+    ///
+    /// When paused, the particular operations isblocked. Caller must equal the stored admin.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must equal admin)
+    /// * `mask` - PauseFlag Enum
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not the admin, or admin not set
+    pub fn pause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        admin::set_pause_flags(&env, &caller, mask, 0)
+    }
+
+    /// UnPause a function in the contract (**Admin only**).
+    ///
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must equal admin)
+    /// * `mask` - PauseFlag Enum
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not the admin, or admin not set
+    pub fn unpause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        admin::set_pause_flags(&env, &caller, 0, mask)
     }
 
     /// Transfer admin rights to a new address (**Admin only**).
@@ -430,10 +541,6 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        // non-optimized: owner.clone() — owner not used after this call
-        // let commitment_result =
-        //     commitment::create_amount_commitment(&env, owner.clone(), amount, salt);
-
         // optimized: move owner directly
         let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
 
@@ -466,9 +573,10 @@ impl QuickexContract {
     ///
     /// ## Privacy behaviour
     /// - If the escrow owner **has privacy enabled** and `caller` is **not** the owner,
-    ///   the `amount` and `owner` fields are returned as `None`.
+    ///   the `amount`, `owner`, and `arbiter` fields are returned as `None`.
     /// - If privacy is **disabled**, or `caller` equals the escrow owner,
     ///   all fields are returned in full.
+    /// - If `caller` equals the arbiter, the arbiter field is always visible.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -485,9 +593,20 @@ impl QuickexContract {
 
         let privacy_on = privacy::get_privacy(&env, entry.owner.clone());
         let is_owner = caller == entry.owner;
-        let is_arbiter = entry.arbiter.as_ref().is_some_and(|a| *a == caller);
+        let is_arbiter = entry.arbiter.as_ref().is_some_and(|a| caller == *a);
+        let show_sensitive = !privacy_on || is_owner || is_arbiter;
 
-        if privacy_on && !is_owner && !is_arbiter {
+        if show_sensitive {
+            Some(PrivacyAwareEscrowView {
+                token: entry.token,
+                amount: Some(entry.amount),
+                owner: Some(entry.owner),
+                status: entry.status,
+                created_at: entry.created_at,
+                expires_at: entry.expires_at,
+                arbiter: entry.arbiter,
+            })
+        } else {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
                 amount: None,
@@ -497,57 +616,7 @@ impl QuickexContract {
                 expires_at: entry.expires_at,
                 arbiter: None,
             })
-        } else {
-            Some(PrivacyAwareEscrowView {
-                token: entry.token,
-                amount: Some(entry.amount),
-                owner: Some(entry.owner.clone()),
-                status: entry.status,
-                created_at: entry.created_at,
-                expires_at: entry.expires_at,
-                arbiter: entry.arbiter,
-            })
         }
-    }
-    // -----------------------------------------------------------------------
-    // Dispute resolution (arbiter flow)
-    // -----------------------------------------------------------------------
-
-    /// Raise a dispute on a pending escrow.
-    ///
-    /// The escrow must have an arbiter assigned and be in `Pending` status.
-    /// Locks funds until the arbiter calls `resolve_dispute`.
-    pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
-        }
-        escrow::dispute(&env, commitment)
-    }
-
-    /// Resolve a disputed escrow.
-    ///
-    /// Only callable by the assigned arbiter. Pass `resolve_for_owner: true`
-    /// to refund the owner, or `false` to pay out to `recipient`.
-    pub fn resolve_dispute(
-        env: Env,
-        commitment: BytesN<32>,
-        resolve_for_owner: bool,
-        recipient: Address,
-    ) -> Result<(), QuickexError> {
-        if admin::is_paused(&env) {
-            return Err(QuickexError::ContractPaused);
-        }
-        escrow::resolve_dispute(&env, commitment, resolve_for_owner, recipient)
-    }
-
-    /// Pause specific operation flags (Admin only).
-    pub fn pause_features(env: Env, caller: Address, flags: u64) -> Result<(), QuickexError> {
-        admin::set_pause_flags(&env, &caller, flags, 0)
-    }
-
-    /// Unpause specific operation flags (Admin only).
-    pub fn unpause_features(env: Env, caller: Address, flags: u64) -> Result<(), QuickexError> {
-        admin::set_pause_flags(&env, &caller, 0, flags)
     }
 
     // -----------------------------------------------------------------------

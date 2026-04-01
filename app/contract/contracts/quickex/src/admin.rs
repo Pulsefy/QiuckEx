@@ -8,7 +8,6 @@ use soroban_sdk::{Address, Env};
 ///
 /// This is a one-time operation; subsequent calls fail with [`AlreadyInitialized`].
 /// The initial admin is allowed to pause/unpause, transfer admin, and upgrade.
-#[allow(dead_code)]
 pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
     if has_admin(env) {
         return Err(QuickexError::AlreadyInitialized);
@@ -22,7 +21,6 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
 }
 
 /// Check if admin has been initialized.
-#[allow(dead_code)]
 pub fn has_admin(env: &Env) -> bool {
     storage::get_admin(env).is_some()
 }
@@ -30,7 +28,6 @@ pub fn has_admin(env: &Env) -> bool {
 /// Get the current admin address.
 ///
 /// Returns `None` if the contract has not been initialised.
-#[allow(dead_code)]
 pub fn get_admin(env: &Env) -> Option<Address> {
     storage::get_admin(env)
 }
@@ -39,7 +36,6 @@ pub fn get_admin(env: &Env) -> Option<Address> {
 ///
 /// - Fails with [`Unauthorized`] if no admin is set.
 /// - Fails with [`Unauthorized`] if `caller` ≠ stored admin.
-#[allow(dead_code)]
 pub fn require_admin(env: &Env, caller: &Address) -> Result<(), QuickexError> {
     caller.require_auth();
 
@@ -52,7 +48,6 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), QuickexError> {
 /// Set a new admin address (**admin only**).
 ///
 /// Emits an `AdminChanged` event for indexers.
-#[allow(dead_code)]
 pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 
@@ -68,7 +63,6 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 /// Set the paused state (**admin only**).
 ///
 /// Emits a `ContractPaused` event whenever the flag changes.
-#[allow(dead_code)]
 pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 
@@ -95,7 +89,6 @@ pub fn require_not_paused(env: &Env) -> Result<(), QuickexError> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn set_pause_flags(
     env: &Env,
     caller: &Address,

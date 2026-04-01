@@ -18,6 +18,11 @@ import type {
   PaymentReceivedPayload,
   UsernameClaimedPayload,
 } from "./types/notification.types";
+import {
+  NotificationEvent,
+  PaymentReceivedEvent,
+  UsernameClaimedEvent,
+} from "../events/notification.events";
 import type {
   EscrowDepositedEvent,
   EscrowWithdrawnEvent,
@@ -116,13 +121,8 @@ export class NotificationService implements OnModuleInit {
     await this.dispatch(payload);
   }
 
-  @OnEvent("payment.received", { async: true })
-  async onPaymentReceived(event: {
-    txHash: string;
-    amount: string;
-    sender: string;
-    recipientPublicKey: string;
-  }): Promise<void> {
+  @OnEvent(NotificationEvent.PaymentReceived, { async: true })
+  async onPaymentReceived(event: PaymentReceivedEvent): Promise<void> {
     const amountStroops = BigInt(event.amount);
     const payload: PaymentReceivedPayload = {
       eventType: "payment.received",
@@ -144,11 +144,8 @@ export class NotificationService implements OnModuleInit {
     await this.dispatch(payload);
   }
 
-  @OnEvent("username.claimed", { async: true })
-  async onUsernameClaimed(event: {
-    username: string;
-    publicKey: string;
-  }): Promise<void> {
+  @OnEvent(NotificationEvent.UsernameClaimed, { async: true })
+  async onUsernameClaimed(event: UsernameClaimedEvent): Promise<void> {
     const payload: UsernameClaimedPayload = {
       eventType: "username.claimed",
       eventId: "username:" + event.username,
@@ -185,6 +182,7 @@ export class NotificationService implements OnModuleInit {
     const filtered = preferences.filter((pref) =>
       this.matchesPreference(payload, pref),
     );
+
     await Promise.allSettled(
       filtered.map((pref) => this.sendToChannel(pref, payload)),
     );
@@ -230,11 +228,13 @@ export class NotificationService implements OnModuleInit {
     if (pref.events !== null && !pref.events.includes(payload.eventType)) {
       return false;
     }
+
     if (pref.minAmountStroops > 0n && payload.amountStroops !== undefined) {
       if (payload.amountStroops < pref.minAmountStroops) {
         return false;
       }
     }
+
     return true;
   }
 
@@ -251,6 +251,7 @@ export class NotificationService implements OnModuleInit {
       eventType,
       eventId,
     );
+
     if (alreadySent) {
       this.logger.debug(
         "Already sent " +
@@ -279,6 +280,7 @@ export class NotificationService implements OnModuleInit {
     }
 
     const provider = this.providerMap.get(channel);
+
     if (!provider) {
       this.logger.warn("No provider registered for channel " + channel);
       return;
@@ -288,13 +290,17 @@ export class NotificationService implements OnModuleInit {
 
     try {
       const result = await provider.send(pref, payload);
+
       await this.logRepo.markSent(
         publicKey,
         channel,
         eventType,
         eventId,
         result.messageId,
+        result.httpStatus,
+        result.responseBody,
       );
+
       this.logger.log(
         "[" +
           channel +
@@ -306,6 +312,7 @@ export class NotificationService implements OnModuleInit {
       );
     } catch (err) {
       const msg = (err as Error).message;
+
       await this.logRepo.markFailed(
         publicKey,
         channel,
@@ -313,6 +320,7 @@ export class NotificationService implements OnModuleInit {
         eventId,
         msg,
       );
+
       this.logger.error(
         "[" +
           channel +

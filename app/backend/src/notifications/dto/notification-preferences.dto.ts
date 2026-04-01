@@ -24,6 +24,15 @@ const VALID_EVENTS: NotificationEventType[] = [
   "EscrowRefunded",
   "payment.received",
   "username.claimed",
+  "recurring.payment.due",
+  "recurring.payment.executed",
+  "recurring.payment.failed",
+  "recurring.payment.cancelled",
+  "recurring.link.created",
+  "recurring.link.updated",
+  "recurring.link.paused",
+  "recurring.link.resumed",
+  "recurring.link.completed",
 ];
 
 export class UpsertNotificationPreferenceDto {
@@ -45,6 +54,15 @@ export class UpsertNotificationPreferenceDto {
   @IsOptional()
   @IsUrl()
   webhookUrl?: string;
+
+  @ApiPropertyOptional({
+    example: "whsec_xxxxxxxxxxxxxxxx",
+    description:
+      "Secret key for HMAC-SHA256 payload signing. If not provided, one will be generated automatically.",
+  })
+  @IsOptional()
+  @IsString()
+  webhookSecret?: string;
 
   @ApiPropertyOptional({
     type: [String],
@@ -90,6 +108,12 @@ export class NotificationPreferenceResponseDto {
   @ApiPropertyOptional() email?: string;
   @ApiPropertyOptional() pushToken?: string;
   @ApiPropertyOptional() webhookUrl?: string;
+  @ApiPropertyOptional({
+    example: "whsec_xxxxxxxxxxxxxxxx",
+    description:
+      "Secret key for HMAC-SHA256 payload signing (only for webhook channel, masked on read)",
+  })
+  webhookSecret?: string;
   @ApiPropertyOptional({ type: [String], nullable: true }) events!:
     | NotificationEventType[]
     | null;

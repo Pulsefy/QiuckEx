@@ -132,7 +132,11 @@ export type NotificationPayload =
   | EscrowWithdrawnPayload
   | EscrowRefundedPayload
   | PaymentReceivedPayload
-  | UsernameClaimedPayload;
+  | UsernameClaimedPayload
+  | RecurringPaymentDuePayload
+  | RecurringPaymentExecutedPayload
+  | RecurringPaymentFailedPayload
+  | RecurringLinkStatusPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences
@@ -145,7 +149,7 @@ export interface NotificationPreference {
   email?: string;
   pushToken?: string;
   webhookUrl?: string;
-  /** null = all events; otherwise only listed event types trigger notifications */
+  webhookSecret?: string;
   events: NotificationEventType[] | null;
   minAmountStroops: bigint;
   enabled: boolean;
@@ -169,4 +173,34 @@ export interface NotificationLogEntry {
   providerMessageId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Webhook-specific types
+// ---------------------------------------------------------------------------
+
+export interface WebhookPayload {
+  id: string;
+  eventType: NotificationEventType;
+  eventId: string;
+  timestamp: string;
+  sentAt: string;
+  recipientPublicKey: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}
+
+export interface WebhookDeliveryResult {
+  success: boolean;
+  httpStatus?: number;
+  responseBody?: string;
+  error?: string;
+}
+
+export interface WebhookStats {
+  totalSent: number;
+  totalFailed: number;
+  lastDeliveryAt?: string;
+  lastError?: string;
 }

@@ -11,6 +11,45 @@
 //! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 //! ```
 //!
+//! //! # Time-lock Invariants
+//!
+//! These invariants are strictly enforced and must hold at all times:
+//!
+//! **INV-1 (No early withdrawal):**
+//!   If `expires_at > 0` and `env.ledger().timestamp() >= expires_at`,
+//!   `withdraw` MUST fail with `EscrowExpired`. There is no override.
+//!
+//! **INV-2 (No early refund):**
+//!   `refund` MUST fail with `EscrowNotExpired` unless BOTH:
+//!   - `expires_at > 0` (escrow was created with a timeout), AND
+//!   - `env.ledger().timestamp() >= expires_at` (timeout has been reached).
+//!
+//!  A non-expiring escrow (`expires_at == 0`) can NEVER be refunded via `refund`.
+//!
+//! **INV-3 (Overflow-safe expiry):**
+//!   `expires_at` is always computed via `saturating_add` to prevent u64 overflow.
+//!   An `expires_at` of `u64::MAX` is treated as effectively non-expiring for
+//!   withdrawal but will never satisfy the `>= expires_at` refund condition in
+//!   practice, as the ledger timestamp cannot reach `u64::MAX`.
+//!
+//! **INV-4 (Disputed funds are locked):**
+//!   Neither `withdraw` nor `refund` may succeed while status is `Disputed`.
+//!   Only `resolve_dispute` (arbiter-gated) can move funds out of `Disputed`.
+//!
+//! **INV-5 (Terminal states are final):**
+//!   Once status is `Spent` or `Refunded`, no further state transitions are
+//!   permitted. All entry points check this before any other logic.
+//!
+//! ## Asset Type Handling
+//!
+//! This module supports both Native XLM and Stellar Asset Contract (SAC) tokens:
+//! - **Native XLM**: Uses the native lumens asset. The token address will be the stellar
+//!   network's native asset identifier.
+//! - **SAC Tokens**: Uses wrapped tokens via Stellar Asset Contracts (e.g., USDC, custom tokens).
+//!
+//! The contract uses the standardized `soroban_sdk::token::Client` which works uniformly across
+//! both asset types. No special wrap/unwrap logic is needed as Soroban handles this transparently.
+//!
 //! Guard rails:
 //! - `withdraw` fails with [`EscrowExpired`] if `expires_at > 0` and `now >= expires_at`.
 //! - `withdraw` fails with [`AlreadySpent`] if status is not `Pending`.
@@ -27,7 +66,10 @@ use crate::{
     commitment,
     errors::QuickexError,
     events, fee,
-    storage::{get_escrow, get_platform_wallet, has_escrow, put_escrow},
+    storage::{
+        get_escrow, get_platform_wallet, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD,
+        SIX_MONTHS_IN_LEDGERS,
+    },
     types::{EscrowEntry, EscrowStatus},
 };
 
@@ -37,9 +79,50 @@ use crate::{
 
 /// Returns `true` when an escrow has expired according to the ledger clock.
 ///
-/// An escrow with `expires_at == 0` never expires.
+/// Enforces INV-2: an escrow with `expires_at == 0` is considered non-expiring
+/// and will NEVER return `true` here, making it ineligible for `refund`.
+///
+/// Enforces INV-1: once this returns `true`, `withdraw` is permanently blocked.
 fn is_expired(env: &Env, entry: &EscrowEntry) -> bool {
-    entry.expires_at > 0 && env.ledger().timestamp() >= entry.expires_at
+    // expires_at == 0 means no timeout was set — never expired
+    if entry.expires_at == 0 {
+        return false;
+    }
+    env.ledger().timestamp() >= entry.expires_at
+}
+
+/// Returns `true` when an escrow is still within its valid withdrawal window.
+///
+/// Enforces INV-1: withdrawal is only valid if the escrow has NOT expired.
+/// A non-expiring escrow (`expires_at == 0`) is always within its window.
+fn is_within_window(env: &Env, entry: &EscrowEntry) -> bool {
+    !is_expired(env, entry)
+}
+
+/// Validates and computes `expires_at` from `timeout_secs`.
+///
+/// Enforces INV-3: uses `saturating_add` to prevent u64 overflow. If the
+/// result saturates to `u64::MAX`, we reject it explicitly — a timeout so
+/// large it overflows is almost certainly a caller error, and allowing
+/// `u64::MAX` as `expires_at` would create an escrow that can never be
+/// refunded (timestamp can never reach `u64::MAX`) while also permanently
+/// blocking withdrawal (INV-1 check: `now >= u64::MAX` is always false for
+/// any real ledger). We surface this as `InvalidTimeout` instead of
+/// silently creating a broken escrow.
+fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError> {
+    if timeout_secs == 0 {
+        return Ok(0); // non-expiring
+    }
+    let now = env.ledger().timestamp();
+    let expires_at = now.saturating_add(timeout_secs);
+
+    // Guard against saturated overflow: if the result is u64::MAX it means
+    // timeout_secs was unreasonably large — reject it explicitly.
+    if expires_at == u64::MAX {
+        return Err(QuickexError::InvalidTimeout);
+    }
+
+    Ok(expires_at)
 }
 
 // ---------------------------------------------------------------------------
@@ -72,13 +155,17 @@ pub fn deposit(
 
     owner.require_auth();
 
+    // INV-3: validated, overflow-safe expiry computation
+    let expires_at = compute_expires_at(env, timeout_secs)?;
+
     let commitment = commitment::create_amount_commitment(env, owner.clone(), amount, salt)?;
     let now = env.ledger().timestamp();
-    let expires_at = if timeout_secs > 0 {
-        now.saturating_add(timeout_secs)
-    } else {
-        0
-    };
+
+    // let expires_at = if timeout_secs > 0 {
+    //     now.saturating_add(timeout_secs)
+    // } else {
+    //     0
+    // };
 
     // non-optimized: token.clone() into entry + token used again for client
     // let entry = EscrowEntry {
@@ -136,6 +223,7 @@ pub fn deposit(
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`CommitmentAlreadyExists`] – commitment already in storage.
+/// - [`InvalidTimeout`] – timeout_secs would overflow u64 when added to now.
 pub fn deposit_with_commitment(
     env: &Env,
     from: Address,
@@ -150,6 +238,9 @@ pub fn deposit_with_commitment(
     }
 
     from.require_auth();
+
+    // INV-3: validated, overflow-safe expiry computation
+    let expires_at = compute_expires_at(env, timeout_secs)?;
 
     // non-optimized: .clone().into() done twice, from.clone() + token.clone() unnecessarily
     // if has_escrow(env, &commitment.clone().into()) {
@@ -178,11 +269,6 @@ pub fn deposit_with_commitment(
     token_client.transfer(&from, env.current_contract_address(), &amount);
 
     let now = env.ledger().timestamp();
-    let expires_at = if timeout_secs > 0 {
-        now.saturating_add(timeout_secs)
-    } else {
-        0
-    };
 
     let from_ref = from.clone();
     let entry = EscrowEntry {
@@ -217,6 +303,10 @@ pub fn deposit_with_commitment(
 /// The caller (`to`) must authorize. The commitment is recomputed from
 /// `to`, `amount`, and `salt` and must match an existing pending escrow.
 ///
+/// # Time-lock enforcement
+/// Enforces INV-1: if `expires_at > 0` and ledger timestamp >= `expires_at`,
+/// this function MUST fail. There is no admin override or bypass.
+///
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`CommitmentNotFound`] – no escrow for computed commitment.
@@ -236,17 +326,17 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    // Guard: block withdrawal if escrow is disputed.
-    if entry.status == EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
-    }
-
+    // INV-5: terminal states are final
     if entry.status != EscrowStatus::Pending {
+        // Distinguish disputed (INV-4) from other terminal states (INV-5)
+        if entry.status == EscrowStatus::Disputed {
+            return Err(QuickexError::InvalidDisputeState);
+        }
         return Err(QuickexError::AlreadySpent);
     }
 
-    // Guard: block withdrawal if expired.
-    if is_expired(env, &entry) {
+    // INV-1: strictly enforce the time-lock — no bypass
+    if !is_within_window(env, &entry) {
         return Err(QuickexError::EscrowExpired);
     }
 
@@ -299,10 +389,16 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 /// - Caller must be the original depositor (`entry.owner`).
 /// - Escrow must still be `Pending`.
 ///
+/// # Time-lock enforcement
+/// Enforces INV-2: both conditions must hold simultaneously —
+/// `expires_at > 0` (was set) AND `now >= expires_at` (has elapsed).
+/// A non-expiring escrow (`expires_at == 0`) can never be refunded.
+///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`AlreadySpent`] – escrow already in a terminal state.
-/// - [`EscrowNotExpired`] – escrow has no timeout or timeout not yet reached.
+/// - [`AlreadySpent`] – escrow already in a terminal state (INV-5).
+/// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
+/// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
 /// - [`InvalidOwner`] – caller is not the original owner.
 pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
     caller.require_auth();
@@ -311,15 +407,16 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    // Guard: block refund if escrow is disputed.
-    if entry.status == EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
-    }
-
+    // INV-5: terminal states are final
     if entry.status != EscrowStatus::Pending {
+        // INV-4: disputed funds are locked — surface a more specific error
+        if entry.status == EscrowStatus::Disputed {
+            return Err(QuickexError::InvalidDisputeState);
+        }
         return Err(QuickexError::AlreadySpent);
     }
 
+    // INV-2: strictly enforce — both expires_at > 0 AND now >= expires_at must hold
     if !is_expired(env, &entry) {
         return Err(QuickexError::EscrowNotExpired);
     }
@@ -341,6 +438,44 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
 }
 
 // ---------------------------------------------------------------------------
+// TTL & Cleanup
+// ---------------------------------------------------------------------------
+
+/// Extend the storage TTL of an escrow record.
+///
+/// Any user can call this to keep an escrow from being archived.
+pub fn extend_escrow_ttl(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.into();
+    if !has_escrow(env, &commitment_bytes) {
+        return Err(QuickexError::CommitmentNotFound);
+    }
+
+    env.storage().persistent().extend_ttl(
+        &crate::storage::DataKey::Escrow(commitment_bytes),
+        LEDGER_THRESHOLD,
+        SIX_MONTHS_IN_LEDGERS,
+    );
+    Ok(())
+}
+
+/// Cleanup terminal escrow entries to reclaim storage deposits.
+///
+/// Only escrows in `Spent` or `Refunded` status can be removed.
+pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    match entry.status {
+        EscrowStatus::Spent | EscrowStatus::Refunded => {
+            remove_escrow(env, &commitment_bytes);
+            Ok(())
+        }
+        _ => Err(QuickexError::AlreadySpent), // Reuse error or add a more specific one if needed
+    }
+}
+
+// ---------------------------------------------------------------------------
 // dispute
 // ---------------------------------------------------------------------------
 
@@ -349,7 +484,7 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
 /// - Any participant can call this function.
 /// - Requires an assigned arbiter.
 /// - Escrow must be in `Pending` status.
-/// - Changes status to `Disputed`, locking funds until resolution.
+/// - Changes status to `Disputed`, locking funds until resolution(INV4)
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
@@ -384,7 +519,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 /// Resolve a disputed escrow by determining the recipient of funds.
 ///
 /// - Only callable by the assigned arbiter.
-/// - Escrow must be in `Disputed` status.
+/// - Escrow must be in `Disputed` status (INV4).
 /// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
 ///
 /// # Arguments

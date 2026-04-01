@@ -10,11 +10,14 @@ import {
   SendGridEmailProvider,
   ExpoPushProvider,
   WebhookProvider,
+  NoopNotificationProvider,
 } from "./providers/notification-provider.interface";
 import { TelegramRepository } from "./telegram/telegram.repository";
 import { TelegramBotService } from "./telegram/telegram-bot.service";
 import { TelegramNotificationProvider } from "./telegram/telegram.provider";
 import { TelegramController } from "./telegram/telegram.controller";
+import { WebhookService } from "./webhook.service";
+import { WebhooksController } from "./webhooks.controller";
 
 /**
  * Notification engine module.
@@ -29,13 +32,18 @@ import { TelegramController } from "./telegram/telegram.controller";
  */
 @Module({
   imports: [SupabaseModule],
-  controllers: [NotificationPreferencesController, TelegramController],
+  controllers: [
+    NotificationPreferencesController,
+    TelegramController,
+    WebhooksController,
+  ],
   providers: [
     NotificationPreferencesRepository,
     NotificationLogRepository,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookService,
     {
       provide: NOTIFICATION_PROVIDERS,
       useFactory: (
@@ -48,9 +56,17 @@ import { TelegramController } from "./telegram/telegram.controller";
         const fromEmail = process.env["SENDGRID_FROM_EMAIL"];
         if (sendgridKey && fromEmail) {
           providers.push(new SendGridEmailProvider(sendgridKey, fromEmail));
+        } else {
+          providers.push(new NoopNotificationProvider("email"));
         }
 
-        providers.push(new ExpoPushProvider(process.env["EXPO_ACCESS_TOKEN"]));
+        const expoToken = process.env["EXPO_ACCESS_TOKEN"];
+        if (expoToken) {
+          providers.push(new ExpoPushProvider(expoToken));
+        } else {
+          providers.push(new NoopNotificationProvider("push"));
+        }
+
         providers.push(new WebhookProvider());
 
         // Add Telegram provider if bot is initialized
@@ -59,6 +75,8 @@ import { TelegramController } from "./telegram/telegram.controller";
           providers.push(
             new TelegramNotificationProvider(telegramBot, telegramRepo),
           );
+        } else {
+          providers.push(new NoopNotificationProvider("telegram"));
         }
 
         return providers;
@@ -73,6 +91,7 @@ import { TelegramController } from "./telegram/telegram.controller";
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookService,
   ],
 })
 export class NotificationsModule {}

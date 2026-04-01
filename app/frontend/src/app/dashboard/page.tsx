@@ -5,7 +5,13 @@ import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
-import { fetchUserBids, fetchUserListings, UserBid, UserListing, formatCountdown } from "@/hooks/marketplaceApi";
+import {
+  fetchUserBids,
+  fetchUserListings,
+  UserBid,
+  UserListing,
+  formatCountdown,
+} from "@/hooks/marketplaceApi";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 type DashboardResponse = {
@@ -27,8 +33,23 @@ export default function Dashboard() {
     fetchUserListings().then(setUserListings);
   }, [callApi]);
 
+  const handleExtend = async (id: string) => {
+    console.log("Extending TTL for", id);
+    await mockContractCall("extend", id);
+    alert("Storage TTL extended for 6 months!");
+  };
+
+  const handleCleanup = async (id: string) => {
+    console.log("Cleaning up", id);
+    await mockContractCall("cleanup", id);
+    alert("Storage deposit reclaimed and record cleaned up!");
+  };
+
   if (loading) return <p>Loading dashboard...</p>;
   if (error) return <p>{error}</p>;
+   if (!data || !data.items || data.items.length === 0) {
+    return <p>No transactions yet. Create your first payment link!</p>;
+  }
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -53,8 +74,17 @@ export default function Dashboard() {
           >
             <span>⚡</span> Link Generator
           </Link>
-          <Link href="/marketplace" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+          <Link
+            href="/marketplace"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+          >
             <span>🏪</span> Marketplace
+          </Link>
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+          >
+            <span>⚙️</span> Profile Settings
           </Link>
         </nav>
       </aside>
@@ -155,15 +185,14 @@ export default function Dashboard() {
 
           {/* Scrollable table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[600px]">
+            <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="text-[9px] sm:text-[10px] font-black text-neutral-600 uppercase tracking-widest border-b border-white/5">
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Transaction ID</th>
                   <th className="px-6 sm:px-10 py-4 sm:py-6">Asset</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Memo</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">
-                    Timestamp
-                  </th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">Memo / Status</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">Timestamp</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">Actions</th>
                 </tr>
               </thead>
 
@@ -207,22 +236,36 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 sm:px-10 py-6">
                       <div className="flex flex-col">
-                        <span className="text-neutral-300 font-bold">
-                          {tx.memo}
-                        </span>
-                        <span
-                          className={`text-[9px] uppercase font-black tracking-widest mt-1 ${
-                            tx.status.includes("Privacy")
-                              ? "text-indigo-400"
-                              : "text-neutral-600"
-                          }`}
-                        >
-                          {tx.status}
-                        </span>
+                        <span className="text-neutral-300 font-bold">{tx.memo}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[9px] uppercase font-black tracking-widest ${
+                            tx.status === "Pending" ? "text-yellow-500" : tx.status === "Spent" ? "text-green-500" : "text-red-400"
+                          }`}>
+                            {tx.status}
+                          </span>
+                          <span className="text-[9px] uppercase font-black tracking-widest text-neutral-600">
+                             • Privacy {tx.privacy}
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 sm:px-10 py-6 text-neutral-500 text-right">
-                      {tx.date}
+                    <td className="px-6 sm:px-10 py-6 text-neutral-500">{tx.date}</td>
+                    <td className="px-6 sm:px-10 py-6 text-right">
+                      {tx.status === "Pending" ? (
+                        <button 
+                          onClick={() => handleExtend(tx.id)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition shadow-sm"
+                        >
+                          Extend TTL
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleCleanup(tx.id)}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition shadow-sm"
+                        >
+                          Cleanup
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -241,8 +284,12 @@ export default function Dashboard() {
         <div className="mt-10 md:mt-16 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl shadow-2xl overflow-hidden">
           <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black mb-1">Marketplace Activity</h2>
-              <p className="text-xs sm:text-sm text-neutral-500">Your active bids and listed usernames</p>
+              <h2 className="text-xl sm:text-2xl font-black mb-1">
+                Marketplace Activity
+              </h2>
+              <p className="text-xs sm:text-sm text-neutral-500">
+                Your active bids and listed usernames
+              </p>
             </div>
             <Link
               href="/marketplace"
@@ -255,22 +302,41 @@ export default function Dashboard() {
           <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5">
             {/* My Bids */}
             <div className="p-6 sm:p-8">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">My Active Bids</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+                My Active Bids
+              </h3>
               {userBids.length === 0 ? (
-                <p className="text-neutral-600 text-sm">No active bids yet. <Link href="/marketplace" className="text-indigo-400 hover:underline">Browse the marketplace</Link>.</p>
+                <p className="text-neutral-600 text-sm">
+                  No active bids yet.{" "}
+                  <Link
+                    href="/marketplace"
+                    className="text-indigo-400 hover:underline"
+                  >
+                    Browse the marketplace
+                  </Link>
+                  .
+                </p>
               ) : (
                 <div className="space-y-3">
                   {userBids.map((bid) => (
-                    <div key={bid.username} className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div
+                      key={bid.username}
+                      className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5"
+                    >
                       <div>
                         <p className="font-black text-base">@{bid.username}</p>
-                        <p className="text-[11px] text-neutral-500">My bid: {bid.myBid} USDC · Ends {formatCountdown(bid.endsAt)}</p>
+                        <p className="text-[11px] text-neutral-500">
+                          My bid: {bid.myBid} USDC · Ends{" "}
+                          {formatCountdown(bid.endsAt)}
+                        </p>
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
-                        bid.isWinning
-                          ? "text-emerald-400 bg-emerald-400/10 border border-emerald-400/20"
-                          : "text-red-400 bg-red-400/10 border border-red-400/20"
-                      }`}>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+                          bid.isWinning
+                            ? "text-emerald-400 bg-emerald-400/10 border border-emerald-400/20"
+                            : "text-red-400 bg-red-400/10 border border-red-400/20"
+                        }`}
+                      >
                         {bid.isWinning ? "Winning" : "Outbid"}
                       </span>
                     </div>
@@ -281,15 +347,24 @@ export default function Dashboard() {
 
             {/* My Listings */}
             <div className="p-6 sm:p-8">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">My Listings</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+                My Listings
+              </h3>
               {userListings.length === 0 ? (
-                <p className="text-neutral-600 text-sm">No usernames listed yet.</p>
+                <p className="text-neutral-600 text-sm">
+                  No usernames listed yet.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {userListings.map((listing) => (
-                    <div key={listing.username} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <div
+                      key={listing.username}
+                      className="p-4 rounded-2xl bg-white/[0.03] border border-white/5"
+                    >
                       <div className="flex justify-between items-start mb-2">
-                        <p className="font-black text-base">@{listing.username}</p>
+                        <p className="font-black text-base">
+                          @{listing.username}
+                        </p>
                         <span className="text-[10px] font-black text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-2 py-1 rounded-lg">
                           {listing.bidCount} bids
                         </span>
@@ -299,7 +374,12 @@ export default function Dashboard() {
                         <span>Ends: {formatCountdown(listing.endsAt)}</span>
                       </div>
                       <div className="mt-2 w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, (listing.currentBid / (listing.minBid * 5)) * 100)}%` }} />
+                        <div
+                          className="h-full bg-indigo-500 rounded-full"
+                          style={{
+                            width: `${Math.min(100, (listing.currentBid / (listing.minBid * 5)) * 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -308,7 +388,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-
       </main>
     </div>
   );

@@ -12,6 +12,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 
 import { AppConfigModule } from "./config";
+import { AssetMetadataModule } from "./asset-metadata/asset-metadata.module";
 import { HealthModule } from "./health/health.module";
 import { StellarModule } from "./stellar/stellar.module";
 import { SupabaseModule } from "./supabase/supabase.module";
@@ -29,6 +30,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
+import { SentryModule } from "./sentry";
 
 type AppImport =
   | Type<unknown>
@@ -39,6 +41,7 @@ type AppImport =
 @Module({
   imports: ((): AppImport[] => {
     const baseImports: AppImport[] = [
+      SentryModule,
       AppConfigModule,
       // ScheduleModule registered once here — shared by NotificationsModule and ReconciliationModule
       ScheduleModule.forRoot(),
@@ -54,6 +57,7 @@ type AppImport =
       ]),
       SupabaseModule,
       HealthModule,
+      AssetMetadataModule,
       StellarModule,
       UsernamesModule,
       MetricsModule,

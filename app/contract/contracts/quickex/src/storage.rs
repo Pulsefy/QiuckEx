@@ -51,13 +51,20 @@ use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
+pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
+pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
+
 /// Bitmask flags for granular operation pausing.
-#[allow(dead_code)]
+#[contracttype]
+#[repr(u64)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PauseFlag {
     Deposit = 1,
     Withdrawal = 2,
     Refund = 4,
     DepositWithCommitment = 8,
+    SetPrivacy = 16,
+    CreateAmountCommitment = 32,
 }
 
 // -----------------------------------------------------------------------------
@@ -80,6 +87,7 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
+    Pause,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -105,6 +113,16 @@ pub enum DataKey {
 pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
     let key = DataKey::Escrow(commitment.clone());
     env.storage().persistent().set(&key, entry);
+    // Extend TTL for 6 months if current TTL < 10 days
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+/// Remove an escrow entry from storage and reclaim the storage deposit.
+pub fn remove_escrow(env: &Env, commitment: &Bytes) {
+    let key = DataKey::Escrow(commitment.clone());
+    env.storage().persistent().remove(&key);
 }
 
 /// Get an escrow entry from storage.
@@ -168,7 +186,7 @@ pub fn set_paused(env: &Env, paused: bool) {
 }
 
 /// Set pause flags (granular pause control – caller already verified by admin module).
-#[allow(dead_code)]
+/// Set pause flags (granular pause control – caller already verified by admin module).
 pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
     let key = DataKey::PauseFlags;
     let current: u64 = env.storage().persistent().get(&key).unwrap_or(0);
@@ -177,10 +195,10 @@ pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags
 }
 
 /// Check whether a specific operation flag is paused.
-pub fn is_feature_paused(env: &Env, flag: u64) -> bool {
+pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
     let key = DataKey::PauseFlags;
     let flags: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-    flags & flag != 0
+    flags & (flag as u64) != 0
 }
 
 /// Get paused state.
@@ -233,52 +251,43 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
 }
 
 // -----------------------------------------------------------------------------
-// Stealth escrow helpers (Privacy v2 – Issue #157)
+// Fee & Wallet helpers
 // -----------------------------------------------------------------------------
 
-/// Store a stealth escrow entry keyed by the 32-byte stealth address.
-pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
-    let key = DataKey::StealthEscrow(stealth_address.clone());
-    env.storage().persistent().set(&key, entry);
+pub fn get_fee_config(env: &Env) -> FeeConfig {
+    env.storage()
+        .persistent()
+        .get(&DataKey::FeeConfig)
+        .unwrap_or(FeeConfig { fee_bps: 0 })
 }
 
-/// Retrieve a stealth escrow entry by stealth address.
-///
-/// Returns `None` if no entry exists.
+pub fn set_fee_config(env: &Env, config: &FeeConfig) {
+    env.storage().persistent().set(&DataKey::FeeConfig, config);
+}
+
+pub fn get_platform_wallet(env: &Env) -> Option<Address> {
+    env.storage().persistent().get(&DataKey::PlatformWallet)
+}
+
+pub fn set_platform_wallet(env: &Env, wallet: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PlatformWallet, wallet);
+}
+
+// -----------------------------------------------------------------------------
+// Stealth helpers
+// -----------------------------------------------------------------------------
+
 pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<StealthEscrowEntry> {
     let key = DataKey::StealthEscrow(stealth_address.clone());
     env.storage().persistent().get(&key)
 }
 
-// -----------------------------------------------------------------------------
-// Fee helpers
-// -----------------------------------------------------------------------------
-
-/// Set fee configuration.
-pub fn set_fee_config(env: &Env, config: &FeeConfig) {
-    let key = DataKey::FeeConfig;
-    env.storage().persistent().set(&key, config);
-}
-
-/// Get fee configuration.
-///
-/// Returns 0 fee (0 bps) if not set.
-pub fn get_fee_config(env: &Env) -> FeeConfig {
-    let key = DataKey::FeeConfig;
+pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
+    let key = DataKey::StealthEscrow(stealth_address.clone());
+    env.storage().persistent().set(&key, entry);
     env.storage()
         .persistent()
-        .get(&key)
-        .unwrap_or(FeeConfig { fee_bps: 0 })
-}
-
-/// Set platform wallet address.
-pub fn set_platform_wallet(env: &Env, wallet: &Address) {
-    let key = DataKey::PlatformWallet;
-    env.storage().persistent().set(&key, wallet);
-}
-
-/// Get platform wallet address.
-pub fn get_platform_wallet(env: &Env) -> Option<Address> {
-    let key = DataKey::PlatformWallet;
-    env.storage().persistent().get(&key)
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
 }

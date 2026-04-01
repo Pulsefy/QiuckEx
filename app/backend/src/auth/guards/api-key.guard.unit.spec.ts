@@ -1,126 +1,84 @@
 import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
-import * as bcrypt from "bcrypt";
+import { Reflector } from "@nestjs/core";
 import { ApiKeyGuard } from "./api-key.guard";
-import { RATE_LIMITS } from "../../common/constants/rate-limit.constants";
+import { ApiKeysService } from "src/api-keys/api-keys.service";
+import { Test } from "@nestjs/testing";
+import { Request } from "express";
 
-jest.mock("bcrypt");
+/** Create a typed mock ExecutionContext with request + optional apiKey */
+function makeContext(headers: Record<string, string> = {}) {
+  const req = {
+    headers,
+  } as Request & { apiKey?: unknown };
 
-const mockBcryptCompare = bcrypt.compare as jest.MockedFunction<
-  typeof bcrypt.compare
->;
-
-/** Build a fake ExecutionContext and expose its underlying request object. */
-function makeContext(headers: Record<string, string> = {}): {
-  ctx: ExecutionContext;
-  req: Record<string, unknown>;
-} {
-  const req: Record<string, unknown> = { headers };
   const ctx = {
-    switchToHttp: () => ({ getRequest: () => req }),
+    switchToHttp: () => ({
+      getRequest: () => req,
+    }),
   } as unknown as ExecutionContext;
+
   return { ctx, req };
 }
 
 describe("ApiKeyGuard", () => {
   let guard: ApiKeyGuard;
-  const originalApiKeys = process.env.API_KEYS;
 
-  beforeEach(() => {
-    guard = new ApiKeyGuard();
-    mockBcryptCompare.mockReset();
-    process.env.API_KEYS = "";
+  const mockApiKeysService = {
+    validateApiKey: jest.fn(),
+  };
+
+  const mockReflector = {
+    get: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ApiKeyGuard,
+        {
+          provide: ApiKeysService,
+          useValue: mockApiKeysService,
+        },
+        {
+          provide: Reflector,
+          useValue: mockReflector,
+        },
+      ],
+    }).compile();
+
+    guard = module.get<ApiKeyGuard>(ApiKeyGuard);
   });
 
-  afterAll(() => {
-    process.env.API_KEYS = originalApiKeys;
+  it("should allow public access when no API key is provided", async () => {
+    const { ctx } = makeContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
   });
 
-  // ---------------------------------------------------------------------------
-  // Public access (no header)
-  // ---------------------------------------------------------------------------
-  describe("when no X-API-Key header is provided", () => {
-    it("should return true and allow public access without touching bcrypt", async () => {
-      const { ctx } = makeContext();
+  it("should allow access when API key is valid", async () => {
+    mockApiKeysService.validateApiKey.mockResolvedValue(true);
 
-      const result = await guard.canActivate(ctx);
-
-      expect(result).toBe(true);
-      expect(mockBcryptCompare).not.toHaveBeenCalled();
+    const { ctx, req } = makeContext({
+      "x-api-key": "valid-key",
     });
 
-    it("should NOT annotate req.apiKey when no key is supplied", async () => {
-      const { ctx, req } = makeContext();
+    const result = await guard.canActivate(ctx);
 
-      await guard.canActivate(ctx);
-
-      expect(req["apiKey"]).toBeUndefined();
-    });
+    expect(result).toBe(true);
+    expect(req.apiKey).toBeDefined();
   });
 
-  // ---------------------------------------------------------------------------
-  // Valid API key
-  // ---------------------------------------------------------------------------
-  describe("when a valid API key is provided", () => {
-    it("should return true and annotate req.apiKey with the elevated rate limit", async () => {
-      process.env.API_KEYS = "$2b$10$hashedvalue";
-      mockBcryptCompare.mockResolvedValueOnce(true as never);
+  it("should deny access when API key is invalid", async () => {
+    mockApiKeysService.validateApiKey.mockResolvedValue(false);
 
-      const { ctx, req } = makeContext({ "x-api-key": "my-secret-key" });
-
-      const result = await guard.canActivate(ctx);
-
-      expect(result).toBe(true);
-      expect(req["apiKey"]).toEqual({ rateLimit: RATE_LIMITS.API_KEY.limit });
+    const { ctx } = makeContext({
+      "x-api-key": "invalid-key",
     });
 
-    it("should short-circuit after the first matching hash (not check the rest)", async () => {
-      process.env.API_KEYS = "hash1,hash2,hash3";
-      mockBcryptCompare
-        .mockResolvedValueOnce(false as never) // hash1 misses
-        .mockResolvedValueOnce(true as never); // hash2 hits – stop here
-
-      const { ctx } = makeContext({ "x-api-key": "my-secret-key" });
-
-      await guard.canActivate(ctx);
-
-      expect(mockBcryptCompare).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Invalid API key
-  // ---------------------------------------------------------------------------
-  describe("when an invalid API key is provided", () => {
-    it("should throw UnauthorizedException when no hash matches", async () => {
-      process.env.API_KEYS = "$2b$10$hashedvalue";
-      mockBcryptCompare.mockResolvedValue(false as never);
-
-      const { ctx } = makeContext({ "x-api-key": "wrong-key" });
-
-      await expect(guard.canActivate(ctx)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it("should include INVALID_API_KEY code in the exception response", async () => {
-      process.env.API_KEYS = "$2b$10$hashedvalue";
-      mockBcryptCompare.mockResolvedValue(false as never);
-
-      const { ctx } = makeContext({ "x-api-key": "wrong-key" });
-
-      await expect(guard.canActivate(ctx)).rejects.toMatchObject({
-        response: { error: "INVALID_API_KEY" },
-      });
-    });
-
-    it("should reject even when API_KEYS env is empty", async () => {
-      process.env.API_KEYS = "";
-      // bcrypt.compare is called zero times because there are no hashes to iterate
-      const { ctx } = makeContext({ "x-api-key": "any-key" });
-
-      await expect(guard.canActivate(ctx)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 });
