@@ -2,6 +2,7 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Switch } from "react-native";
 import { useNotifications } from "../components/notifications/NotificationContext";
+import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 
 export default function SettingsScreen() {
   const { soundEnabled, setSoundEnabled } = useNotifications();
@@ -14,6 +15,11 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Text style={styles.label}>🔔 Sound Effects</Text>
           <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Onboarding</Text>
+          <OnboardingResetButton />
         </View>
       </View>
     </SafeAreaView>
@@ -33,4 +39,13 @@ const styles = StyleSheet.create({
     borderColor: "#f3f4f6",
   },
   label: { fontSize: 16 },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: "#374151",
+  },
 });

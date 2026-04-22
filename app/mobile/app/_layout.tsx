@@ -20,6 +20,7 @@ import { NotificationProvider } from "../components/notifications/NotificationCo
 import ToastNotification from "../components/notifications/ToastNotification";
 import NotificationCenter from "../components/notifications/NotificationCenter";
 import { usePaymentListener } from "../hooks/usePaymentListener";
+import { useOnboarding } from "../hooks/useOnboarding";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
 
@@ -88,12 +89,18 @@ export default function RootLayout() {
 
 function AppShell() {
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
+  const { hasCompletedOnboarding, isLoading: onboardingLoading } = useOnboarding();
   useDeepLinkHandler();
+
+  if (onboardingLoading) {
+    return null; // Show loading screen while checking onboarding status
+  }
 
   return (
     <>
       <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="index" />
         <Stack.Screen name="security" />
         <Stack.Screen name="wallet-connect" />
