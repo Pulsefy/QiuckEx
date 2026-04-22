@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "../themed-text";
 import { useNetworkStatus } from "../../hooks/use-network-status";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 /**
  * A banner that appears at the top of the screen when the device is offline.
@@ -11,10 +12,11 @@ import { useNetworkStatus } from "../../hooks/use-network-status";
 export function OfflineBanner() {
   const { isConnected } = useNetworkStatus();
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
 
-  // Custom colors for the banner
-  const backgroundColor = "#FF8C00"; // Darker orange for visibility
-  const textColor = "#FFFFFF";
+  // Offline banner uses warning colours from the theme
+  const backgroundColor = theme.status.warning;
+  const textColor = theme.buttonPrimaryText;
 
   if (isConnected !== false) {
     return null;

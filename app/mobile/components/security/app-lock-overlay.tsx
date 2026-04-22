@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 interface AppLockOverlayProps {
   visible: boolean;
@@ -13,6 +14,7 @@ interface AppLockOverlayProps {
 }
 
 export function AppLockOverlay({ visible, onUnlock }: AppLockOverlayProps) {
+  const { theme } = useTheme();
   const [unlocking, setUnlocking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const attemptedAutoUnlock = useRef(false);
@@ -45,18 +47,18 @@ export function AppLockOverlay({ visible, onUnlock }: AppLockOverlayProps) {
   if (!visible) return null;
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.card}>
-        <Text style={styles.title}>QuickEx Security Lock</Text>
-        <Text style={styles.body}>
+    <View style={[styles.overlay, { backgroundColor: theme.overlayBg }]}>
+      <View style={[styles.card, { backgroundColor: theme.surfaceElevated }]}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>QuickEx Security Lock</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>
           Use biometrics or your fallback PIN to continue.
         </Text>
 
-        {unlocking ? <ActivityIndicator size="small" color="#111827" /> : null}
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {unlocking ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+        {errorMessage ? <Text style={[styles.error, { color: theme.status.error }]}>{errorMessage}</Text> : null}
 
-        <Pressable style={styles.button} onPress={unlock} disabled={unlocking}>
-          <Text style={styles.buttonText}>Unlock App</Text>
+        <Pressable style={[styles.button, { backgroundColor: theme.buttonPrimaryBg }]} onPress={unlock} disabled={unlocking}>
+          <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>Unlock App</Text>
         </Pressable>
       </View>
     </View>
@@ -66,7 +68,6 @@ export function AppLockOverlay({ visible, onUnlock }: AppLockOverlayProps) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(17, 24, 39, 0.74)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -76,40 +77,34 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 380,
     borderRadius: 20,
-    backgroundColor: "#fff",
     padding: 24,
     alignItems: "center",
   },
   title: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#111827",
     marginBottom: 8,
     textAlign: "center",
   },
   body: {
-    color: "#6B7280",
     fontSize: 15,
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 16,
   },
   error: {
-    color: "#B91C1C",
     marginTop: 10,
     marginBottom: 8,
     fontSize: 13,
   },
   button: {
     marginTop: 8,
-    backgroundColor: "#111827",
     borderRadius: 12,
     width: "100%",
     alignItems: "center",
     paddingVertical: 14,
   },
   buttonText: {
-    color: "#fff",
     fontWeight: "700",
     fontSize: 16,
   },

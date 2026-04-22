@@ -7,6 +7,7 @@ import {
     Clipboard,
 } from 'react-native';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
+import { useTheme } from '../src/theme/ThemeContext';
 
 interface Props {
     item: TransactionItemType;
@@ -41,6 +42,7 @@ function shortenAddress(address: string): string {
 }
 
 export default function TransactionItem({ item }: Props) {
+    const { theme } = useTheme();
     const assetLabel = formatAsset(item.asset);
     const hasAddresses = Boolean(item.source || item.destination);
 
@@ -49,39 +51,39 @@ export default function TransactionItem({ item }: Props) {
     };
 
     return (
-        <View style={styles.row}>
+        <View style={[styles.row, { borderBottomColor: theme.border, backgroundColor: theme.surfaceElevated }]}>
             {/* Left: icon + asset */}
-            <View style={styles.iconWrap}>
-                <Text style={styles.assetIcon}>{assetLabel.slice(0, 3)}</Text>
+            <View style={[styles.iconWrap, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.assetIcon, { color: theme.textPrimary }]}>{assetLabel.slice(0, 3)}</Text>
             </View>
 
             {/* Middle: asset name, memo, date */}
             <View style={styles.middle}>
-                <Text style={styles.assetName}>
+                <Text style={[styles.assetName, { color: theme.textPrimary }]}>
                     {assetLabel}
                 </Text>
                 {item.memo ? (
-                    <Text style={styles.memo} numberOfLines={1}>
+                    <Text style={[styles.memo, { color: theme.textSecondary }]} numberOfLines={1}>
                         {item.memo}
                     </Text>
                 ) : null}
                 <TouchableOpacity onPress={handleCopyHash} activeOpacity={0.6}>
-                    <Text style={styles.txHash}>{shortenHash(item.txHash)}</Text>
+                    <Text style={[styles.txHash, { color: theme.textMuted }]}>{shortenHash(item.txHash)}</Text>
                 </TouchableOpacity>
                 {hasAddresses ? (
-                    <Text style={styles.address} numberOfLines={1}>
+                    <Text style={[styles.address, { color: theme.textSecondary }]} numberOfLines={1}>
                         {shortenAddress(item.source)} → {shortenAddress(item.destination)}
                     </Text>
                 ) : null}
-                <Text style={styles.date}>{formatDate(item.timestamp)}</Text>
+                <Text style={[styles.date, { color: theme.textMuted }]}>{formatDate(item.timestamp)}</Text>
             </View>
 
             {/* Right: amount */}
             <View style={styles.right}>
-                <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
+                <Text style={[styles.amount, { color: theme.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
                     {parseFloat(item.amount).toFixed(2)}
                 </Text>
-                <Text style={styles.assetCode}>{assetLabel}</Text>
+                <Text style={[styles.assetCode, { color: theme.textSecondary }]}>{assetLabel}</Text>
             </View>
         </View>
     );
@@ -94,14 +96,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 14,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E5E7EB',
-        backgroundColor: '#fff',
     },
     iconWrap: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 14,
@@ -109,7 +108,6 @@ const styles = StyleSheet.create({
     assetIcon: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#374151',
         letterSpacing: -0.5,
     },
     middle: {
@@ -119,25 +117,20 @@ const styles = StyleSheet.create({
     assetName: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#111827',
     },
     memo: {
         fontSize: 13,
-        color: '#6B7280',
     },
     txHash: {
         fontSize: 11,
-        color: '#9CA3AF',
         fontFamily: 'monospace',
     },
     address: {
         fontSize: 11,
-        color: '#6B7280',
         fontFamily: 'monospace',
     },
     date: {
         fontSize: 12,
-        color: '#9CA3AF',
         marginTop: 1,
     },
     right: {
@@ -148,11 +141,9 @@ const styles = StyleSheet.create({
     amount: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#111827',
     },
     assetCode: {
         fontSize: 12,
-        color: '#6B7280',
         marginTop: 2,
     },
 });

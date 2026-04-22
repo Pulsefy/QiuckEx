@@ -1,12 +1,11 @@
 import {
-  DarkTheme,
-  DefaultTheme,
   ThemeProvider,
+  type Theme as NavigationTheme,
 } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useColorScheme } from "react-native";
 // Ensure web build or Expo web uses the local backend during development
 if (typeof document !== "undefined" && !(global as any).API_BASE_URL) {
@@ -22,6 +21,9 @@ import NotificationCenter from "../components/notifications/NotificationCenter";
 import { usePaymentListener } from "../hooks/usePaymentListener";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
+
+// ── Theme System v2 ──────────────────────────────────────────────────────────
+import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
 
 function useDeepLinkHandler() {
   const router = useRouter();
@@ -64,10 +66,43 @@ function DevPoller() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  return (
+    <QuickExThemeProvider>
+      <ThemeBridge />
+    </QuickExThemeProvider>
+  );
+}
+
+/**
+ * Bridges our token-based theme into React Navigation's ThemeProvider
+ * so that Stack/Tab navigators inherit the correct colours.
+ */
+function ThemeBridge() {
+  const { theme, isDark } = useTheme();
+
+  const navTheme: NavigationTheme = useMemo(
+    () => ({
+      dark: isDark,
+      colors: {
+        primary: theme.primary,
+        background: theme.background,
+        card: theme.headerBg,
+        text: theme.textPrimary,
+        border: theme.border,
+        notification: theme.status.error,
+      },
+      fonts: {
+        regular: { fontFamily: 'System', fontWeight: '400' as const },
+        medium: { fontFamily: 'System', fontWeight: '500' as const },
+        bold: { fontFamily: 'System', fontWeight: '700' as const },
+        heavy: { fontFamily: 'System', fontWeight: '800' as const },
+      },
+    }),
+    [theme, isDark],
+  );
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <SecurityProvider>
         <NotificationProvider>
           {/* Dev-only global poller: ensures polling runs on web during development
@@ -81,7 +116,7 @@ export default function RootLayout() {
           <ToastNotification />
         </NotificationProvider>
       </SecurityProvider>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? "light" : "dark"} />
     </ThemeProvider>
   );
 }

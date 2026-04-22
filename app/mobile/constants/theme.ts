@@ -1,28 +1,32 @@
 /**
  * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ *
+ * DEPRECATED — prefer `src/theme/tokens.ts` and the `useTheme()` hook.
+ * Kept for backwards-compatibility with existing ThemedText / ThemedView.
  */
 
 import { Platform } from 'react-native';
+import { LightTheme, DarkTheme } from '../src/theme/tokens';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = LightTheme.tint;
+const tintColorDark = DarkTheme.tint;
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: LightTheme.textPrimary,
+    background: LightTheme.background,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: LightTheme.tabIconDefault,
+    tabIconDefault: LightTheme.tabIconDefault,
     tabIconSelected: tintColorLight,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: DarkTheme.textPrimary,
+    background: DarkTheme.background,
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: DarkTheme.tabIconDefault,
+    tabIconDefault: DarkTheme.tabIconDefault,
     tabIconSelected: tintColorDark,
   },
 };
