@@ -11,9 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { parsePaymentLink } from '@/utils/parse-payment-link';
+import { useTheme } from '../src/theme/ThemeContext';
 
 export default function ScanToPayScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const processingRef = useRef(false);
@@ -54,24 +56,24 @@ export default function ScanToPayScreen() {
 
   if (!permission) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </SafeAreaView>
     );
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.permTitle}>Camera Permission Required</Text>
-        <Text style={styles.permBody}>
+      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Camera Permission Required</Text>
+        <Text style={[styles.permBody, { color: theme.textSecondary }]}>
           QuickEx needs camera access to scan QR payment codes.
         </Text>
-        <Pressable style={styles.primaryBtn} onPress={requestPermission}>
-          <Text style={styles.primaryBtnText}>Grant Access</Text>
+        <Pressable style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={requestPermission}>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>Grant Access</Text>
         </Pressable>
         <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
-          <Text style={styles.secondaryBtnText}>Go Back</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -85,7 +87,7 @@ export default function ScanToPayScreen() {
         onBarcodeScanned={handleBarCodeScanned}
       />
 
-      {/* Overlay */}
+      {/* Overlay — intentionally uses white-on-transparent for camera readability */}
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <Text style={styles.title}>Scan to Pay</Text>
         <Text style={styles.hint}>
@@ -127,7 +129,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
     padding: 32,
   },
   overlay: {
@@ -136,6 +137,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
   },
+  // Camera overlay text — intentionally white for camera contrast
   title: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -187,9 +189,8 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   permTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  permBody: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
+  permBody: { fontSize: 16, textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   primaryBtn: {
-    backgroundColor: '#007AFF',
     paddingVertical: 14,
     paddingHorizontal: 36,
     borderRadius: 10,
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
-  secondaryBtnText: { color: '#666', fontSize: 16 },
+  secondaryBtnText: { fontSize: 16 },
 });

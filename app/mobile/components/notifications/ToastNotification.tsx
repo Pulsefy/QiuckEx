@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useNotifications } from "./NotificationContext";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 // Optional expo-av import will be attempted at runtime; if missing, sound is skipped.
 let playSoundOnce: (() => Promise<void>) | undefined = undefined;
@@ -45,6 +46,7 @@ try {
 
 export const ToastNotification: React.FC = () => {
   const { notifications, unreadCount, soundEnabled } = useNotifications();
+  const { theme } = useTheme();
   const latest = notifications.find((n) => !n.read) ?? notifications[0];
   const anim = useRef(new Animated.Value(0)).current;
   const [visible, setVisible] = useState(false);
@@ -91,10 +93,10 @@ export const ToastNotification: React.FC = () => {
         },
       ]}
     >
-      <TouchableOpacity style={styles.toast} activeOpacity={0.9}>
-        <Text style={styles.title}>💰 Payment Received</Text>
+      <TouchableOpacity style={[styles.toast, { backgroundColor: theme.buttonPrimaryBg }]} activeOpacity={0.9}>
+        <Text style={[styles.title, { color: theme.buttonPrimaryText }]}>💰 Payment Received</Text>
         <Text
-          style={styles.body}
+          style={[styles.body, { color: theme.textMuted }]}
         >{`${latest.amount} ${latest.asset ?? ""} from ${shorten(latest.sender ?? "")}`}</Text>
       </TouchableOpacity>
     </Animated.View>
@@ -117,22 +119,18 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   toast: {
-    backgroundColor: "#111827",
     padding: 12,
     borderRadius: 10,
     minWidth: "80%",
-    shadowColor: "#000",
+    shadowColor: "#000", // shadowColor is platform-native, not theme-sensitive
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
   title: {
-    color: "#fff",
     fontWeight: "700",
     marginBottom: 4,
   },
-  body: {
-    color: "#e5e7eb",
-  },
+  body: {},
 });
 
 export default ToastNotification;

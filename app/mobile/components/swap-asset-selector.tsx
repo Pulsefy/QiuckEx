@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { type PathPreviewRow } from '../services/link-metadata';
+import { useTheme } from '../src/theme/ThemeContext';
 
 interface SwapAssetSelectorProps {
   swapOptions: PathPreviewRow[];
@@ -26,6 +27,8 @@ export function SwapAssetSelector({
   onSelectSourceAsset,
   loading = false,
 }: SwapAssetSelectorProps) {
+  const { theme } = useTheme();
+
   // Group options by source asset
   const optionsBySourceAsset = swapOptions.reduce(
     (acc, option) => {
@@ -41,7 +44,6 @@ export function SwapAssetSelector({
 
   // For each source asset, pick the best path (lowest source amount / fewest hops)
   const bestPaths = Object.entries(optionsBySourceAsset).map(([sourceAsset, paths]) => {
-    // Sort by source amount (ascending) then by hop count (ascending)
     return paths.sort(
       (a, b) =>
         Number(a.sourceAmount) - Number(b.sourceAmount) ||
@@ -52,10 +54,10 @@ export function SwapAssetSelector({
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.heading}>Select Payment Asset</Text>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#000" />
-          <Text style={styles.loadingText}>Calculating exchange rates...</Text>
+        <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.surface }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Calculating exchange rates...</Text>
         </View>
       </View>
     );
@@ -64,9 +66,9 @@ export function SwapAssetSelector({
   if (!bestPaths || bestPaths.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.heading}>Select Payment Asset</Text>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
+        <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
+        <View style={[styles.emptyContainer, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
             Only direct payment with {destinationAsset} is available
           </Text>
         </View>
@@ -76,8 +78,8 @@ export function SwapAssetSelector({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Select Payment Asset</Text>
-      <Text style={styles.subheading}>
+      <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
+      <Text style={[styles.subheading, { color: theme.textSecondary }]}>
         You receive {destinationAmount} {destinationAsset}
       </Text>
 
@@ -101,33 +103,34 @@ export function SwapAssetSelector({
                 key={`${path.sourceAsset}-${index}`}
                 style={[
                   styles.optionCard,
-                  isSelected && styles.optionCardSelected,
+                  { backgroundColor: theme.surface, borderColor: 'transparent' },
+                  isSelected && { borderColor: theme.primary, backgroundColor: theme.surfaceElevated },
                 ]}
                 onPress={() => onSelectSourceAsset(path.sourceAsset, path)}
               >
                 <View style={styles.optionHeader}>
                   <View style={styles.assetInfo}>
-                    <Text style={styles.optionAsset}>{path.sourceAsset}</Text>
-                    <Text style={styles.optionHops}>{hopLabel}</Text>
+                    <Text style={[styles.optionAsset, { color: theme.textPrimary }]}>{path.sourceAsset}</Text>
+                    <Text style={[styles.optionHops, { color: theme.textMuted }]}>{hopLabel}</Text>
                   </View>
                   <View style={styles.amountInfo}>
-                    <Text style={styles.sourceAmount}>
+                    <Text style={[styles.sourceAmount, { color: theme.textPrimary }]}>
                       {path.sourceAmount}
                     </Text>
-                    <Text style={styles.sourceAssetLabel}>
+                    <Text style={[styles.sourceAssetLabel, { color: theme.textMuted }]}>
                       {path.sourceAsset}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.rateContainer}>
-                  <Text style={styles.rateLabel}>Rate:</Text>
-                  <Text style={styles.rateValue}>{path.rateDescription}</Text>
+                  <Text style={[styles.rateLabel, { color: theme.textMuted }]}>Rate:</Text>
+                  <Text style={[styles.rateValue, { color: theme.textPrimary }]}>{path.rateDescription}</Text>
                 </View>
 
                 {isSelected && (
-                  <View style={styles.selectedCheckmark}>
-                    <Text style={styles.checkmarkText}>✓</Text>
+                  <View style={[styles.selectedCheckmark, { backgroundColor: theme.primary }]}>
+                    <Text style={[styles.checkmarkText, { color: theme.primaryForeground }]}>✓</Text>
                   </View>
                 )}
               </Pressable>
@@ -146,16 +149,13 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000',
     marginBottom: 4,
   },
   subheading: {
     fontSize: 14,
-    color: '#888',
     marginBottom: 16,
   },
   loadingContainer: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 16,
     padding: 32,
     alignItems: 'center',
@@ -163,18 +163,15 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#888',
     marginTop: 12,
   },
   emptyContainer: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
   },
   emptyText: {
     fontSize: 14,
-    color: '#888',
     textAlign: 'center',
   },
   optionsScroll: {
@@ -184,15 +181,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   optionCard: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  optionCardSelected: {
-    borderColor: '#000',
-    backgroundColor: '#FAFAFA',
   },
   optionHeader: {
     flexDirection: 'row',
@@ -206,12 +197,10 @@ const styles = StyleSheet.create({
   optionAsset: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
     marginBottom: 4,
   },
   optionHops: {
     fontSize: 12,
-    color: '#888',
   },
   amountInfo: {
     alignItems: 'flex-end',
@@ -219,12 +208,10 @@ const styles = StyleSheet.create({
   sourceAmount: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
     marginBottom: 2,
   },
   sourceAssetLabel: {
     fontSize: 12,
-    color: '#888',
   },
   rateContainer: {
     flexDirection: 'row',
@@ -233,18 +220,15 @@ const styles = StyleSheet.create({
   },
   rateLabel: {
     fontSize: 12,
-    color: '#888',
   },
   rateValue: {
     fontSize: 12,
-    color: '#000',
     fontWeight: '500',
   },
   selectedCheckmark: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: '#000',
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -252,7 +236,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkmarkText: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: '700',
   },

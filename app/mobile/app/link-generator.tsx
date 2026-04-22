@@ -8,7 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Share,
-  useColorScheme,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +16,7 @@ import * as Clipboard from "expo-clipboard";
 import { StrKey } from "@stellar/stellar-base";
 
 import { QRPreviewModal } from "../components/QRPreviewModal";
+import { useTheme } from "../src/theme/ThemeContext";
 
 const API_BASE_URL =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
@@ -44,8 +44,7 @@ type LinkMetadataSuccess = {
 };
 
 export default function LinkGeneratorScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { theme } = useTheme();
 
   const [form, setForm] = useState({
     amount: "",
@@ -72,7 +71,6 @@ export default function LinkGeneratorScreen() {
         const json = await res.json();
         if (!cancelled) {
           setVerifiedAssets(json.assets ?? []);
-          // Default to USDC if available, else first asset
           if (json.assets?.length > 0) {
             const hasUSDC = json.assets.find((a: any) => a.code === "USDC");
             setRecipientAssetCode(hasUSDC ? "USDC" : json.assets[0].code);
@@ -161,27 +159,27 @@ export default function LinkGeneratorScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDark && styles.darkContainer]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, isDark && styles.darkText]}>Create Link</Text>
-        <Text style={[styles.subtitle, isDark && styles.darkText]}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Create Link</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Generate a payment request link instantly.
         </Text>
 
         {/* Amount Input */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, isDark && styles.darkText]}>Amount</Text>
-          <View style={[styles.rowInput, isDark && styles.darkInputGroup]}>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>Amount</Text>
+          <View style={[styles.rowInput, { backgroundColor: theme.inputBg }]}>
             <TextInput
-              style={[styles.inputLarge, isDark && styles.darkText]}
+              style={[styles.inputLarge, { color: theme.inputText }]}
               placeholder="0.00"
-              placeholderTextColor={isDark ? "#888" : "#ccc"}
+              placeholderTextColor={theme.inputPlaceholder}
               keyboardType="numeric"
               value={form.amount}
               onChangeText={(val) => setForm({ ...form, amount: val })}
             />
             {assetsLoading ? (
-              <ActivityIndicator size="small" color="#000" style={{ padding: 10 }} />
+              <ActivityIndicator size="small" color={theme.primary} style={{ padding: 10 }} />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.assetScroll}>
                 {verifiedAssets.map((a) => (
@@ -189,15 +187,16 @@ export default function LinkGeneratorScreen() {
                     key={a.code}
                     style={[
                       styles.assetPill,
-                      recipientAssetCode === a.code && styles.assetPillActive,
-                      isDark && recipientAssetCode === a.code && styles.darkAssetPillActive,
+                      { backgroundColor: theme.chipBg },
+                      recipientAssetCode === a.code && { backgroundColor: theme.chipActiveBg },
                     ]}
                     onPress={() => setRecipientAssetCode(a.code)}
                   >
                     <Text
                       style={[
                         styles.assetPillText,
-                        recipientAssetCode === a.code && styles.assetPillTextActive,
+                        { color: theme.chipText },
+                        recipientAssetCode === a.code && { color: theme.chipActiveText },
                       ]}
                     >
                       {a.code}
@@ -211,64 +210,68 @@ export default function LinkGeneratorScreen() {
 
         {/* Destination Address */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, isDark && styles.darkText]}>Destination</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>Destination</Text>
           <TextInput
-            style={[styles.input, isDark && styles.darkInput, isDark && styles.darkText]}
+            style={[styles.input, { backgroundColor: theme.inputBg, color: theme.inputText }]}
             placeholder="G..."
-            placeholderTextColor={isDark ? "#888" : "#ccc"}
+            placeholderTextColor={theme.inputPlaceholder}
             value={form.destination}
             onChangeText={(val) => setForm({ ...form, destination: val })}
             autoCapitalize="none"
             autoCorrect={false}
           />
           {form.destination !== "" && !isValidDestination && (
-            <Text style={styles.errorText}>Invalid Stellar Public Key</Text>
+            <Text style={[styles.errorText, { color: theme.status.error }]}>Invalid Stellar Public Key</Text>
           )}
         </View>
 
         {/* Memo */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, isDark && styles.darkText]}>Memo (Optional)</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>Memo (Optional)</Text>
           <TextInput
-            style={[styles.input, isDark && styles.darkInput, isDark && styles.darkText]}
+            style={[styles.input, { backgroundColor: theme.inputBg, color: theme.inputText }]}
             placeholder="What's this for?"
-            placeholderTextColor={isDark ? "#888" : "#ccc"}
+            placeholderTextColor={theme.inputPlaceholder}
             value={form.memo}
             onChangeText={(val) => setForm({ ...form, memo: val })}
           />
         </View>
 
         <TouchableOpacity
-          style={[styles.generateButton, (!isValidAmount || !isValidDestination) && styles.disabledButton]}
+          style={[
+            styles.generateButton,
+            { backgroundColor: theme.status.info },
+            (!isValidAmount || !isValidDestination) && { opacity: 0.5 },
+          ]}
           onPress={handleGenerate}
           disabled={loading || !isValidAmount || !isValidDestination}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.generateButtonText}>Generate Link</Text>
+            <Text style={[styles.generateButtonText, { color: theme.buttonPrimaryText }]}>Generate Link</Text>
           )}
         </TouchableOpacity>
 
         {canonicalData && (
-          <View style={[styles.resultCard, isDark && styles.darkResultCard]}>
-            <Text style={[styles.resultTitle, isDark && styles.darkText]}>Link Ready!</Text>
+          <View style={[styles.resultCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.resultTitle, { color: theme.textPrimary }]}>Link Ready!</Text>
             
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                <Text style={styles.actionButtonText}>Share Link</Text>
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.status.success }]} onPress={handleShare}>
+                <Text style={[styles.actionButtonText, { color: theme.buttonPrimaryText }]}>Share Link</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.actionButtonSecondary} onPress={handleCopy}>
-                <Text style={styles.actionButtonTextSecondary}>Copy Link</Text>
+              <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.chipBg }]} onPress={handleCopy}>
+                <Text style={[styles.actionButtonTextSecondary, { color: theme.textPrimary }]}>Copy Link</Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
-              style={styles.previewButton}
+              style={[styles.previewButton, { borderColor: theme.buttonSecondaryBorder }]}
               onPress={() => setQrModalVisible(true)}
             >
-              <Text style={styles.previewButtonText}>Preview QR Code</Text>
+              <Text style={[styles.previewButtonText, { color: theme.buttonSecondaryText }]}>Preview QR Code</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -287,10 +290,6 @@ export default function LinkGeneratorScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  darkContainer: {
-    backgroundColor: "#000000",
   },
   scrollContent: {
     padding: 24,
@@ -302,7 +301,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: "#666",
     marginBottom: 32,
   },
   inputGroup: {
@@ -312,18 +310,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
-    color: "#333",
     textTransform: "uppercase",
   },
   rowInput: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 16,
     paddingRight: 8,
-  },
-  darkInputGroup: {
-    backgroundColor: "#1c1c1e",
   },
   inputLarge: {
     flex: 1,
@@ -341,67 +334,37 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     marginRight: 8,
-    backgroundColor: "#e5e5ea",
     justifyContent: "center",
-  },
-  assetPillActive: {
-    backgroundColor: "#000",
-  },
-  darkAssetPillActive: {
-    backgroundColor: "#fff",
   },
   assetPillText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#000",
-  },
-  assetPillTextActive: {
-    color: "#fff",
   },
   input: {
-    backgroundColor: "#f5f5f5",
     borderRadius: 16,
     padding: 16,
     fontSize: 16,
   },
-  darkInput: {
-    backgroundColor: "#1c1c1e",
-  },
-  darkText: {
-    color: "#fff",
-  },
   errorText: {
-    color: "#ef4444",
     fontSize: 12,
     marginTop: 8,
   },
   generateButton: {
-    backgroundColor: "#2563EB",
     padding: 18,
     borderRadius: 16,
     alignItems: "center",
     marginTop: 16,
     marginBottom: 32,
   },
-  disabledButton: {
-    backgroundColor: "#93c5fd",
-  },
   generateButtonText: {
-    color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
   resultCard: {
-    backgroundColor: "#fdfdfd",
     borderWidth: 1,
-    borderColor: "#e5e5ea",
     borderRadius: 16,
     padding: 20,
     marginTop: 10,
-  },
-  darkResultCard: {
-    backgroundColor: "#1c1c1e",
-    borderColor: "#333",
   },
   resultTitle: {
     fontSize: 20,
@@ -416,27 +379,23 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    backgroundColor: "#10B981",
     padding: 14,
     borderRadius: 12,
     alignItems: "center",
     marginRight: 8,
   },
   actionButtonText: {
-    color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
   },
   actionButtonSecondary: {
     flex: 1,
-    backgroundColor: "#e5e5ea",
     padding: 14,
     borderRadius: 12,
     alignItems: "center",
     marginLeft: 8,
   },
   actionButtonTextSecondary: {
-    color: "#000",
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -444,13 +403,11 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 16,
     borderWidth: 2,
-    borderColor: "#000",
     borderRadius: 12,
     alignItems: "center",
   },
   previewButtonText: {
     fontWeight: "bold",
     fontSize: 16,
-    color: "#000",
   },
 });

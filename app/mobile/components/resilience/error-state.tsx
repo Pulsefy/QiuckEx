@@ -3,7 +3,7 @@ import { StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "../themed-text";
 import { ThemedView } from "../themed-view";
-import { useThemeColor } from "../../hooks/use-theme-color";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 interface ErrorStateProps {
   title?: string;
@@ -23,11 +23,11 @@ export function ErrorState({
   onRetry,
   retryLabel = "Try Again",
 }: ErrorStateProps) {
-  const tintColor = useThemeColor({}, "tint");
+  const { theme } = useTheme();
 
   return (
     <ThemedView style={styles.container}>
-      <Ionicons name={icon} size={64} color={tintColor} style={styles.icon} />
+      <Ionicons name={icon} size={64} color={theme.tint} style={styles.icon} />
       <ThemedText type="subtitle" style={styles.title}>
         {title}
       </ThemedText>
@@ -35,11 +35,11 @@ export function ErrorState({
 
       {onRetry && (
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: tintColor }]}
+          style={[styles.button, { backgroundColor: theme.tint }]}
           onPress={onRetry}
           activeOpacity={0.7}
         >
-          <ThemedText style={styles.buttonText}>{retryLabel}</ThemedText>
+          <ThemedText style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>{retryLabel}</ThemedText>
         </TouchableOpacity>
       )}
     </ThemedView>
@@ -73,13 +73,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: 12,
     elevation: 2,
-    shadowColor: "#000",
+    shadowColor: "#000", // Platform-native shadow, not theme-sensitive
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   buttonText: {
-    color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
   },

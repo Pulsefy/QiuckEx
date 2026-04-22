@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { WalletState } from "../../types/wallet";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 interface Props {
   wallet: WalletState;
@@ -15,18 +16,18 @@ export default function WalletStatus({
   onDisconnect,
   onToggleNetwork,
 }: Props) {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Wallet Status</Text>
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+      <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Wallet Status</Text>
 
       <View style={styles.row}>
-        <Text style={styles.label}>Network:</Text>
+        <Text style={[styles.label, { color: theme.textPrimary }]}>Network:</Text>
         <TouchableOpacity
           style={[
             styles.networkBadge,
-            wallet.network === "mainnet"
-              ? styles.mainnet
-              : styles.testnet,
+            { backgroundColor: wallet.network === "mainnet" ? theme.networkMainnet : theme.networkTestnet },
           ]}
           onPress={onToggleNetwork}
         >
@@ -37,25 +38,25 @@ export default function WalletStatus({
       </View>
 
       <View style={styles.row}>
-        <Text style={styles.label}>Connection:</Text>
-        <Text style={wallet.connected ? styles.connected : styles.disconnected}>
+        <Text style={[styles.label, { color: theme.textPrimary }]}>Connection:</Text>
+        <Text style={{ color: wallet.connected ? theme.status.success : theme.status.error, fontWeight: "600" }}>
           {wallet.connected ? "Connected" : "Not Connected"}
         </Text>
       </View>
 
       {wallet.connected && (
-        <Text style={styles.address}>
+        <Text style={[styles.address, { color: theme.textSecondary }]}>
           {wallet.publicKey}
         </Text>
       )}
 
       {!wallet.connected ? (
-        <TouchableOpacity style={styles.connectBtn} onPress={onConnect}>
-          <Text style={styles.btnText}>Connect Wallet</Text>
+        <TouchableOpacity style={[styles.connectBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={onConnect}>
+          <Text style={[styles.btnText, { color: theme.buttonPrimaryText }]}>Connect Wallet</Text>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={styles.disconnectBtn} onPress={onDisconnect}>
-          <Text style={styles.btnText}>Disconnect</Text>
+        <TouchableOpacity style={[styles.disconnectBtn, { backgroundColor: theme.buttonDangerBg }]} onPress={onDisconnect}>
+          <Text style={[styles.btnText, { color: theme.buttonDangerText }]}>Disconnect</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -67,7 +68,6 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 20,
     borderRadius: 12,
-    backgroundColor: "#f5f5f5",
   },
   sectionTitle: {
     fontSize: 20,
@@ -88,22 +88,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  mainnet: {
-    backgroundColor: "#10B981",
-  },
-  testnet: {
-    backgroundColor: "#F59E0B",
-  },
   networkText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  connected: {
-    color: "#10B981",
-    fontWeight: "600",
-  },
-  disconnected: {
-    color: "#EF4444",
+    color: "#fff", // Intentional: always white on coloured network badge
     fontWeight: "600",
   },
   address: {
@@ -111,19 +97,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   connectBtn: {
-    backgroundColor: "#000",
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
   },
   disconnectBtn: {
-    backgroundColor: "#EF4444",
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
   },
   btnText: {
-    color: "#fff",
     fontWeight: "600",
   },
 });
