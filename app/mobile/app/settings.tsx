@@ -34,7 +34,6 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Onboarding</Text>
           <OnboardingResetButton />
         </View>
-      </View>
       </ScrollView>
     </SafeAreaView>
   );
