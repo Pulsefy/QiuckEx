@@ -36,12 +36,16 @@ export default function PaymentConfirmationScreen() {
   // State for multi-asset swap
   const [selectedSourceAsset, setSelectedSourceAsset] = React.useState<string | null>(null);
   const [selectedSwapPath, setSelectedSwapPath] = React.useState<PathPreviewRow | null>(null);
+  const [slippageTolerance, setSlippageTolerance] = React.useState(1.0); // 1.0% default
 
   // Fetch swap options from backend (only if we have a valid destination asset)
   const {
     swapOptions,
     loading: swapLoading,
     error: swapError,
+    timeRemaining,
+    isExpired,
+    refetch,
   } = useSwapOptions(username || "", numAmount, asset || "", SWAPPABLE_ASSETS);
 
   // Filter swap options to exclude the destination asset itself
@@ -50,6 +54,15 @@ export default function PaymentConfirmationScreen() {
   );
 
   const handlePayWithWallet = async () => {
+    if (selectedSwapPath && isExpired) {
+      Alert.alert(
+        "Quote Expired",
+        "The exchange rate has expired. Please refresh the quote before paying.",
+        [{ text: "Refresh Now", onPress: () => void refetch() }, { text: "Cancel", style: "cancel" }]
+      );
+      return;
+    }
+
     const authorized = await authenticateForSensitiveAction(
       "payment_authorization",
     );
@@ -66,8 +79,12 @@ export default function PaymentConfirmationScreen() {
     
     if (selectedSwapPath && selectedSourceAsset) {
       // Path payment: user selected a different source asset
-      const strippedSendAmount = selectedSwapPath.sourceAmount.replace(/\.?0+$/, '');
-      stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ""}&sendAsset=${selectedSourceAsset}&sendAmount=${strippedSendAmount}`;
+      // Apply slippage tolerance to the source amount
+      const sourceAmountBase = parseFloat(selectedSwapPath.sourceAmount);
+      const sendMax = (sourceAmountBase * (1 + slippageTolerance / 100)).toFixed(7);
+      const strippedSendMax = sendMax.replace(/\.?0+$/, '');
+      
+      stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ""}&sendAsset=${selectedSourceAsset}&sendAmount=${strippedSendMax}`;
     } else {
       // Direct payment with destination asset
       stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ""}`;
@@ -159,11 +176,16 @@ export default function PaymentConfirmationScreen() {
           </View>
 
           {/* Multi-Asset Swap Section */}
-          {availableSwapOptions && availableSwapOptions.length > 0 && (
+          {(availableSwapOptions.length > 0 || swapError) && (
             <View style={styles.swapSection}>
               {swapError ? (
                 <View style={[styles.errorBanner, { backgroundColor: theme.status.errorBg }]}>
                   <Text style={[styles.errorBannerText, { color: theme.status.error }]}>⚠ {swapError}</Text>
+                  {swapError.includes('Liquidity') && (
+                    <Pressable style={{ marginTop: 8 }} onPress={() => void refetch()}>
+                      <Text style={{ color: theme.buttonPrimaryBg, fontWeight: '700', fontSize: 13 }}>Retry Search</Text>
+                    </Pressable>
+                  )}
                 </View>
               ) : (
                 <SwapAssetSelector
@@ -217,6 +239,11 @@ export default function PaymentConfirmationScreen() {
                 swapPath={selectedSwapPath}
                 destinationAsset={asset || ""}
                 destinationAmount={amount || "0"}
+                timeRemaining={timeRemaining}
+                isExpired={isExpired}
+                onRefresh={() => void refetch()}
+                slippageTolerance={slippageTolerance}
+                onSlippageChange={setSlippageTolerance}
               />
             </>
           )}
