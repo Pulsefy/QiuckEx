@@ -8,6 +8,7 @@ import { useNetworkStatus } from "../hooks/use-network-status";
 import { useSecurity } from "../hooks/use-security";
 import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
+import { useTheme } from "../src/theme/ThemeContext";
 
 type Network = "testnet" | "mainnet";
 
@@ -19,6 +20,7 @@ function generateMockSessionToken() {
 export default function WalletConnectScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ demo?: string }>();
+  const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
   const { trackOnboardingEvent } = useOnboarding();
   const {
@@ -103,10 +105,10 @@ export default function WalletConnectScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <Text style={styles.title}>Wallet Connection</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Wallet Connection</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Connect your Stellar wallet and protect sensitive wallet data with
           biometric security.
         </Text>
@@ -136,64 +138,76 @@ export default function WalletConnectScreen() {
                 <Ionicons name="lock-closed" size={12} color="#fff" style={{ marginLeft: 4 }} />
               )}
             </View>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Network</Text>
+            <Pressable
+              style={[
+                styles.networkBadge,
+                { backgroundColor: network === "mainnet" ? theme.networkMainnet : theme.networkTestnet },
+              ]}
+              onPress={toggleNetwork}
+            >
+              <Text style={styles.networkText}>{network.toUpperCase()}</Text>
+            </Pressable>
           </View>
 
           <View style={styles.row}>
-            <Text style={styles.label}>Status</Text>
-            <Text style={connected ? styles.connected : styles.disconnected}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Status</Text>
+            <Text style={{ color: connected ? theme.status.success : theme.status.error, fontWeight: "700" }}>
               {connected ? "Connected" : "Not Connected"}
             </Text>
           </View>
 
           {!isConnected ? (
-            <View style={styles.offlineAdvice}>
+            <View style={[styles.offlineAdvice, { backgroundColor: theme.status.errorBg, borderColor: theme.status.error }]}>
               <Ionicons
                 name="information-circle-outline"
                 size={18}
-                color="#991B1B"
+                color={theme.status.error}
               />
-              <Text style={styles.offlineAdviceText}>
+              <Text style={[styles.offlineAdviceText, { color: theme.status.error }]}>
                 Internet connection is required to link a new wallet.
               </Text>
             </View>
           ) : null}
 
           {connected && publicKey ? (
-            <Text style={styles.address}>{publicKey}</Text>
+            <Text style={[styles.address, { color: theme.textSecondary }]}>{publicKey}</Text>
           ) : null}
 
           {!connected ? (
-            <Pressable style={styles.connectButton} onPress={handleConnect}>
-              <Text style={styles.buttonText}>Connect Wallet</Text>
+            <Pressable style={[styles.connectButton, { backgroundColor: theme.buttonPrimaryBg }]} onPress={handleConnect}>
+              <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>Connect Wallet</Text>
             </Pressable>
           ) : (
             <>
               <Pressable
-                style={styles.secondaryButton}
+                style={[styles.secondaryButton, { borderColor: theme.buttonSecondaryBorder }]}
                 onPress={revealSessionToken}
               >
-                <Text style={styles.secondaryButtonText}>
+                <Text style={[styles.secondaryButtonText, { color: theme.buttonSecondaryText }]}>
                   Reveal Secure Session Token
                 </Text>
               </Pressable>
               {sessionTokenPreview ? (
-                <Text style={styles.tokenPreview}>
+                <Text style={[styles.tokenPreview, { color: theme.textSecondary }]}>
                   Token: {sessionTokenPreview}
                 </Text>
               ) : null}
 
               <Pressable
-                style={styles.disconnectButton}
+                style={[styles.disconnectButton, { backgroundColor: theme.buttonDangerBg }]}
                 onPress={handleDisconnect}
               >
-                <Text style={styles.buttonText}>Disconnect</Text>
+                <Text style={[styles.buttonText, { color: theme.buttonDangerText }]}>Disconnect</Text>
               </Pressable>
             </>
           )}
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={[styles.backButtonText, { color: theme.textMuted }]}>Go Back</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -203,7 +217,6 @@ export default function WalletConnectScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   content: {
     flex: 1,
@@ -214,19 +227,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 40,
     marginBottom: 12,
-    color: "#111827",
   },
   subtitle: {
     fontSize: 16,
-    color: "#6B7280",
     marginBottom: 28,
     lineHeight: 22,
   },
   card: {
-    backgroundColor: "#F9FAFB",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     padding: 16,
   },
   row: {
@@ -238,85 +247,60 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
   },
   networkBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  mainnet: {
-    backgroundColor: "#10B981",
-  },
-  testnet: {
-    backgroundColor: "#F59E0B",
-  },
   networkText: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-  connected: {
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  disconnected: {
-    color: "#EF4444",
+    color: "#fff", // Intentional: always white on coloured network badge
     fontWeight: "700",
   },
   offlineAdvice: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF2F2",
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     marginBottom: 16,
     gap: 8,
     borderWidth: 1,
-    borderColor: "#FECACA",
   },
   offlineAdviceText: {
-    color: "#991B1B",
     fontSize: 13,
     fontWeight: "500",
     flex: 1,
   },
   address: {
     fontSize: 12,
-    color: "#374151",
     marginBottom: 16,
   },
   connectButton: {
-    backgroundColor: "#111827",
     padding: 16,
     borderRadius: 10,
     alignItems: "center",
   },
   disconnectButton: {
-    backgroundColor: "#EF4444",
     padding: 16,
     borderRadius: 10,
     alignItems: "center",
     marginTop: 12,
   },
   secondaryButton: {
-    borderColor: "#111827",
     borderWidth: 1,
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
   },
   secondaryButtonText: {
-    color: "#111827",
     fontWeight: "700",
   },
   tokenPreview: {
     marginTop: 10,
     fontSize: 13,
-    color: "#4B5563",
   },
   buttonText: {
-    color: "#fff",
     fontWeight: "700",
     fontSize: 16,
   },
@@ -325,7 +309,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backButtonText: {
-    color: "#6B7280",
     fontSize: 16,
   },
   demoBanner: {

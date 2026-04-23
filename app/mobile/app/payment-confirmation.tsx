@@ -9,12 +9,14 @@ import { useSwapOptions } from "@/hooks/use-swap-options";
 import { SwapAssetSelector } from "@/components/swap-asset-selector";
 import { SwapRateDetails } from "@/components/swap-rate-details";
 import type { PathPreviewRow } from "@/services/link-metadata";
+import { useTheme } from "../src/theme/ThemeContext";
 
 // List of assets to attempt swaps from (hardcoded whitelist matching backend)
 const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
 
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const { authenticateForSensitiveAction } = useSecurity();
   const params = useLocalSearchParams<{
     username: string;
@@ -64,8 +66,6 @@ export default function PaymentConfirmationScreen() {
     
     if (selectedSwapPath && selectedSourceAsset) {
       // Path payment: user selected a different source asset
-      // The Stellar URI would delegate to the wallet to handle the path payment
-      // Format: web+stellar:pay?destination=...&amount=...&asset_code=...&sendAsset=...
       const strippedSendAmount = selectedSwapPath.sourceAmount.replace(/\.?0+$/, '');
       stellarUri = `web+stellar:pay?destination=${username}&amount=${amount}&asset_code=${asset}${memo ? `&memo=${encodeURIComponent(memo)}` : ""}&sendAsset=${selectedSourceAsset}&sendAmount=${strippedSendAmount}`;
     } else {
@@ -91,12 +91,12 @@ export default function PaymentConfirmationScreen() {
 
   if (!isValid) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={[styles.content, { justifyContent: "center", flex: 1 }]}>
-          <View style={styles.errorCard}>
-            <Text style={styles.errorIcon}>!</Text>
-            <Text style={styles.errorTitle}>Invalid Payment Link</Text>
-            <Text style={styles.errorBody}>
+          <View style={[styles.errorCard, { backgroundColor: theme.status.errorBg }]}>
+            <Text style={[styles.errorIcon, { color: theme.status.error, backgroundColor: theme.status.errorBg }]}>!</Text>
+            <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>Invalid Payment Link</Text>
+            <Text style={[styles.errorBody, { color: theme.textSecondary }]}>
               This payment link is missing required information. Please try
               scanning again or check the link.
             </Text>
@@ -105,7 +105,7 @@ export default function PaymentConfirmationScreen() {
             style={styles.secondaryBtn}
             onPress={() => router.replace("/")}
           >
-            <Text style={styles.secondaryBtnText}>Go Back</Text>
+            <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -132,27 +132,27 @@ export default function PaymentConfirmationScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={styles.heading}>Confirm Payment</Text>
-          <Text style={styles.subheading}>
+          <Text style={[styles.heading, { color: theme.textPrimary }]}>Confirm Payment</Text>
+          <Text style={[styles.subheading, { color: theme.textSecondary }]}>
             Review the details below before paying
           </Text>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Row label="Recipient" value={`@${username}`} />
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: theme.divider }]} />
             <Row label="Amount" value={`${amount} ${asset}`} highlight />
             {memo ? (
               <>
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: theme.divider }]} />
                 <Row label="Memo" value={memo} />
               </>
             ) : null}
             {isPrivate ? (
               <>
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: theme.divider }]} />
                 <Row label="Privacy" value="X-Ray enabled" />
               </>
             ) : null}
@@ -162,8 +162,8 @@ export default function PaymentConfirmationScreen() {
           {availableSwapOptions && availableSwapOptions.length > 0 && (
             <View style={styles.swapSection}>
               {swapError ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorBannerText}>⚠ {swapError}</Text>
+                <View style={[styles.errorBanner, { backgroundColor: theme.status.errorBg }]}>
+                  <Text style={[styles.errorBannerText, { color: theme.status.error }]}>⚠ {swapError}</Text>
                 </View>
               ) : (
                 <SwapAssetSelector
@@ -184,25 +184,25 @@ export default function PaymentConfirmationScreen() {
           {/* Show cost comparison if swap is selected */}
           {selectedSwapPath && (
             <>
-              <View style={styles.costComparisonCard}>
-                <Text style={styles.costComparisonTitle}>Payment Summary</Text>
+              <View style={[styles.costComparisonCard, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.costComparisonTitle, { color: theme.textPrimary }]}>Payment Summary</Text>
                 <View style={styles.costRow}>
-                  <Text style={styles.costLabel}>You pay:</Text>
-                  <Text style={styles.costValue}>
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]}>You pay:</Text>
+                  <Text style={[styles.costValue, { color: theme.textPrimary }]}>
                     {selectedSwapPath.sourceAmount} {selectedSwapPath.sourceAsset}
                   </Text>
                 </View>
-                <View style={styles.costDivider} />
+                <View style={[styles.costDivider, { backgroundColor: theme.divider }]} />
                 <View style={styles.costRow}>
-                  <Text style={styles.costLabel}>Exchange rate:</Text>
-                  <Text style={styles.costValue}>{selectedSwapPath.rateDescription}</Text>
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]}>Exchange rate:</Text>
+                  <Text style={[styles.costValue, { color: theme.textPrimary }]}>{selectedSwapPath.rateDescription}</Text>
                 </View>
                 {selectedSwapPath.hopCount > 0 && (
                   <>
-                    <View style={styles.costDivider} />
+                    <View style={[styles.costDivider, { backgroundColor: theme.divider }]} />
                     <View style={styles.costRow}>
-                      <Text style={styles.costLabel}>Path:</Text>
-                      <Text style={styles.costValue}>
+                      <Text style={[styles.costLabel, { color: theme.textSecondary }]}>Path:</Text>
+                      <Text style={[styles.costValue, { color: theme.textPrimary }]}>
                         {selectedSwapPath.hopCount === 1
                           ? "1 intermediary"
                           : `${selectedSwapPath.hopCount} intermediaries`}
@@ -224,21 +224,21 @@ export default function PaymentConfirmationScreen() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable style={styles.primaryBtn} onPress={handlePayWithWallet}>
-          <Text style={styles.primaryBtnText}>Pay with Wallet</Text>
+        <Pressable style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={handlePayWithWallet}>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>Pay with Wallet</Text>
         </Pressable>
         <Pressable
           style={styles.secondaryBtn}
           onPress={() => router.replace("/")}
         >
-          <Text style={styles.secondaryBtnText}>Cancel</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Cancel</Text>
         </Pressable>
         <Pressable
           style={[styles.secondaryBtn, { marginTop: 8 }]}
           onPress={handleSaveContact}
           disabled={savingContact}
         >
-          <Text style={styles.secondaryBtnText}>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>
             {savingContact ? "Saving..." : "Save Recipient as Contact"}
           </Text>
         </Pressable>
@@ -256,10 +256,11 @@ function Row({
   value: string;
   highlight?: boolean;
 }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, highlight && styles.rowValueHighlight]}>
+      <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[styles.rowValue, { color: theme.textPrimary }, highlight && styles.rowValueHighlight]}>
         {value}
       </Text>
     </View>
@@ -267,7 +268,7 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1 },
   scrollContent: {
     flex: 1,
   },
@@ -278,16 +279,13 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#000",
     marginBottom: 4,
   },
   subheading: {
     fontSize: 16,
-    color: "#888",
     marginBottom: 32,
   },
   card: {
-    backgroundColor: "#F5F5F5",
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -298,32 +296,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
   },
-  rowLabel: { fontSize: 15, color: "#888" },
+  rowLabel: { fontSize: 15 },
   rowValue: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#222",
     flexShrink: 1,
     textAlign: "right",
   },
-  rowValueHighlight: { fontSize: 20, fontWeight: "700", color: "#000" },
-  divider: { height: 1, backgroundColor: "#E5E5E5" },
+  rowValueHighlight: { fontSize: 20, fontWeight: "700" },
+  divider: { height: 1 },
   swapSection: {
     marginBottom: 20,
   },
   errorBanner: {
-    backgroundColor: "#FFF3F3",
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
   errorBannerText: {
     fontSize: 14,
-    color: "#FF3B30",
     fontWeight: "500",
   },
   costComparisonCard: {
-    backgroundColor: "#F5F5F5",
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
@@ -331,7 +325,6 @@ const styles = StyleSheet.create({
   costComparisonTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#000",
     marginBottom: 12,
   },
   costRow: {
@@ -342,16 +335,13 @@ const styles = StyleSheet.create({
   },
   costLabel: {
     fontSize: 14,
-    color: "#888",
   },
   costValue: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#000",
   },
   costDivider: {
     height: 1,
-    backgroundColor: "#E5E5E5",
     marginVertical: 8,
   },
   actions: { 
@@ -360,19 +350,17 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   primaryBtn: {
-    backgroundColor: "#000",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
   },
-  primaryBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  primaryBtnText: { fontSize: 18, fontWeight: "700" },
   secondaryBtn: {
     paddingVertical: 14,
     alignItems: "center",
   },
-  secondaryBtnText: { color: "#888", fontSize: 16, fontWeight: "500" },
+  secondaryBtnText: { fontSize: 16, fontWeight: "500" },
   errorCard: {
-    backgroundColor: "#FFF3F3",
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
@@ -381,8 +369,6 @@ const styles = StyleSheet.create({
   errorIcon: {
     fontSize: 36,
     fontWeight: "bold",
-    color: "#FF3B30",
-    backgroundColor: "#FFE5E5",
     width: 56,
     height: 56,
     lineHeight: 56,
@@ -394,12 +380,10 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#222",
     marginBottom: 8,
   },
   errorBody: {
     fontSize: 15,
-    color: "#888",
     textAlign: "center",
     lineHeight: 22,
   },

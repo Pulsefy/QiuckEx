@@ -8,6 +8,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 interface PinAuthModalProps {
   visible: boolean;
@@ -32,6 +33,8 @@ export function PinAuthModal({
   onSubmit,
   onCancel,
 }: PinAuthModalProps) {
+  const { theme } = useTheme();
+
   return (
     <Modal
       visible={visible}
@@ -39,44 +42,44 @@ export function PinAuthModal({
       animationType="fade"
       onRequestClose={onCancel}
     >
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.description}>{description}</Text>
+      <View style={[styles.backdrop, { backgroundColor: theme.overlayBg }]}>
+        <View style={[styles.card, { backgroundColor: theme.surfaceElevated }]}>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{title}</Text>
+          <Text style={[styles.description, { color: theme.textSecondary }]}>{description}</Text>
 
           <TextInput
             value={pin}
             onChangeText={onPinChange}
-            style={styles.input}
+            style={[styles.input, { borderColor: theme.inputBorder, color: theme.inputText }]}
             maxLength={6}
             keyboardType="number-pad"
             secureTextEntry
             placeholder="Enter 4-6 digit PIN"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={theme.inputPlaceholder}
             autoFocus
           />
 
           {errorMessage ? (
-            <Text style={styles.errorText}>{errorMessage}</Text>
+            <Text style={[styles.errorText, { color: theme.status.error }]}>{errorMessage}</Text>
           ) : null}
 
           <View style={styles.actions}>
             <Pressable
-              style={styles.cancelBtn}
+              style={[styles.cancelBtn, { backgroundColor: theme.surface }]}
               onPress={onCancel}
               disabled={submitting}
             >
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: theme.textSecondary }]}>Cancel</Text>
             </Pressable>
             <Pressable
-              style={styles.confirmBtn}
+              style={[styles.confirmBtn, { backgroundColor: theme.buttonPrimaryBg }]}
               onPress={onSubmit}
               disabled={submitting}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.buttonPrimaryText} />
               ) : (
-                <Text style={styles.confirmText}>Verify PIN</Text>
+                <Text style={[styles.confirmText, { color: theme.buttonPrimaryText }]}>Verify PIN</Text>
               )}
             </Pressable>
           </View>
@@ -89,30 +92,25 @@ export function PinAuthModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
     justifyContent: "center",
     padding: 24,
   },
   card: {
-    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 24,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#111827",
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: "#6B7280",
     lineHeight: 20,
     marginBottom: 20,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -120,7 +118,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   errorText: {
-    color: "#B91C1C",
     fontSize: 13,
     marginBottom: 8,
   },
@@ -134,22 +131,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    backgroundColor: "#F3F4F6",
   },
   cancelText: {
-    color: "#374151",
     fontWeight: "600",
   },
   confirmBtn: {
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: "#111827",
     minWidth: 100,
     alignItems: "center",
   },
   confirmText: {
-    color: "#fff",
     fontWeight: "700",
   },
 });

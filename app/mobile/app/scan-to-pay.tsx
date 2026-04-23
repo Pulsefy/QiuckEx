@@ -11,41 +11,64 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { parsePaymentLink } from '@/utils/parse-payment-link';
+import { useTheme } from '../src/theme/ThemeContext';
+
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ScanToPayScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const processingRef = useRef(false);
 
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
   const handleBarCodeScanned = useCallback(
-    ({ data }: { data: string }) => {
-      if (processingRef.current) return;
-      processingRef.current = true;
+  async ({ data }: { data: string }) => {
+    if (processingRef.current || scanned) return;
 
-      const result = parsePaymentLink(data);
+    processingRef.current = true;
+    setScanned(true);
 
-      if (result.valid) {
-        const { username, amount, asset, memo, privacy } = result.data;
-        router.replace({
-          pathname: '/payment-confirmation',
-          params: {
-            username,
-            amount,
-            asset,
-            ...(memo ? { memo } : {}),
-            privacy: String(privacy),
-          },
-        });
-      } else {
-        setError(result.error);
-        setTimeout(() => {
-          processingRef.current = false;
-        }, 2000);
-      }
-    },
-    [router],
-  );
+    const start = Date.now();
+
+    const result = parsePaymentLink(data);
+
+    if (result.valid) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const { username, amount, asset, memo, privacy } = result.data;
+
+      router.replace({
+        pathname: '/payment-confirmation',
+        params: {
+          username,
+          amount,
+          asset,
+          ...(memo ? { memo } : {}),
+          privacy: String(privacy),
+        },
+      });
+
+      // performance check
+      const duration = Date.now() - start;
+      console.log('Scan → confirm (ms):', duration);
+    } else {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+      setError(result.error || 'Invalid QR code');
+
+      setTimeout(() => {
+        processingRef.current = false;
+        setScanned(false);
+      }, 1500);
+    }
+  },
+  [router, scanned],
+);
 
   const dismissError = useCallback(() => {
     setError(null);
@@ -54,24 +77,24 @@ export default function ScanToPayScreen() {
 
   if (!permission) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </SafeAreaView>
     );
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.permTitle}>Camera Permission Required</Text>
-        <Text style={styles.permBody}>
+      <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Camera Permission Required</Text>
+        <Text style={[styles.permBody, { color: theme.textSecondary }]}>
           QuickEx needs camera access to scan QR payment codes.
         </Text>
-        <Pressable style={styles.primaryBtn} onPress={requestPermission}>
-          <Text style={styles.primaryBtnText}>Grant Access</Text>
+        <Pressable style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={requestPermission}>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>Grant Access</Text>
         </Pressable>
         <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
-          <Text style={styles.secondaryBtnText}>Go Back</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -80,12 +103,16 @@ export default function ScanToPayScreen() {
   return (
     <View style={styles.container}>
       <CameraView
-        style={StyleSheet.absoluteFill}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={handleBarCodeScanned}
-      />
+  style={StyleSheet.absoluteFillObject}
+  facing="back"
+  enableTorch={flashEnabled}
+  onBarcodeScanned={handleBarCodeScanned}
+  barcodeScannerSettings={{
+    barcodeTypes: ['qr'],
+  }}
+/>
 
-      {/* Overlay */}
+      {/* Overlay — intentionally uses white-on-transparent for camera readability */}
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <Text style={styles.title}>Scan to Pay</Text>
         <Text style={styles.hint}>
@@ -99,6 +126,19 @@ export default function ScanToPayScreen() {
           <View style={[styles.corner, styles.bottomLeft]} />
           <View style={[styles.corner, styles.bottomRight]} />
         </View>
+
+        <View style={styles.controls}>
+  <Pressable
+    onPress={() => setFlashEnabled((prev) => !prev)}
+    style={styles.controlButton}
+  >
+    <Ionicons
+      name={flashEnabled ? 'flash' : 'flash-off'}
+      size={24}
+      color="white"
+    />
+  </Pressable>
+</View>
 
         {/* Error banner */}
         {error && (
@@ -127,7 +167,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
     padding: 32,
   },
   overlay: {
@@ -136,6 +175,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
   },
+  // Camera overlay text — intentionally white for camera contrast
   title: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -187,9 +227,8 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   permTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  permBody: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
+  permBody: { fontSize: 16, textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   primaryBtn: {
-    backgroundColor: '#007AFF',
     paddingVertical: 14,
     paddingHorizontal: 36,
     borderRadius: 10,
@@ -197,7 +236,39 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  controls: {
+  position: 'absolute',
+  bottom: 40,
+  alignSelf: 'center',
+  flexDirection: 'row',
+},
+
+controlButton: {
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  padding: 12,
+  borderRadius: 50,
+},
+
+errorBox: {
+  position: 'absolute',
+  bottom: 120,
+  alignSelf: 'center',
+  backgroundColor: '#ff4444',
+  padding: 12,
+  borderRadius: 8,
+},
+
+errorText: {
+  color: '#fff',
+  fontWeight: 'bold',
+},
+
+errorHint: {
+  color: '#fff',
+  fontSize: 12,
+  marginTop: 4,
+},
+  primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
-  secondaryBtnText: { color: '#666', fontSize: 16 },
+  secondaryBtnText: { fontSize: 16 },
 });

@@ -1,6 +1,8 @@
 const QUICKEX_HOSTS = ['quickex.to', 'www.quickex.to'];
 const QUICKEX_SCHEME = 'quickex';
 
+const EXPIRES_PARAM = 'expires';
+
 const ASSET_WHITELIST = ['XLM', 'USDC', 'AQUA', 'yXLM'] as const;
 type AssetCode = (typeof ASSET_WHITELIST)[number];
 
@@ -22,6 +24,7 @@ export type ParseResult =
   | { valid: false; error: string };
 
 function extractParts(raw: string): { username: string; params: URLSearchParams } | null {
+  
   try {
     const url = new URL(raw);
 

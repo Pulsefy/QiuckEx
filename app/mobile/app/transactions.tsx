@@ -23,6 +23,7 @@ import { useTransactions } from '../hooks/use-transactions';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
 import { ErrorState } from '../components/resilience/error-state';
 import { EmptyState } from '../components/resilience/empty-state';
+import { useTheme } from '../src/theme/ThemeContext';
 
 /**
  * Placeholder account used when no accountId is passed via route params.
@@ -65,14 +66,15 @@ function escapeCsvValue(value: string): string {
 // ─── Loading Skeleton ────────────────────────────────────────────────────────
 
 function SkeletonRow() {
+    const { theme } = useTheme();
     return (
-        <View style={skeleton.row}>
-            <View style={skeleton.circle} />
+        <View style={[skeleton.row, { borderBottomColor: theme.border }]}>
+            <View style={[skeleton.circle, { backgroundColor: theme.skeleton }]} />
             <View style={skeleton.lines}>
-                <View style={[skeleton.line, { width: '55%' }]} />
-                <View style={[skeleton.line, { width: '35%', marginTop: 6 }]} />
+                <View style={[skeleton.line, { width: '55%', backgroundColor: theme.skeleton }]} />
+                <View style={[skeleton.line, { width: '35%', marginTop: 6, backgroundColor: theme.skeleton }]} />
             </View>
-            <View style={[skeleton.line, { width: 60, alignSelf: 'center' }]} />
+            <View style={[skeleton.line, { width: 60, alignSelf: 'center', backgroundColor: theme.skeleton }]} />
         </View>
     );
 }
@@ -84,20 +86,17 @@ const skeleton = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 14,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E5E7EB',
     },
     circle: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#E5E7EB',
         marginRight: 14,
     },
     lines: { flex: 1 },
     line: {
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#E5E7EB',
     },
 });
 
@@ -105,6 +104,7 @@ const skeleton = StyleSheet.create({
 
 export default function TransactionsScreen() {
     const router = useRouter();
+    const { theme } = useTheme();
     const params = useLocalSearchParams<{ accountId?: string }>();
     const accountId = (params.accountId ?? DEMO_ACCOUNT_ID).trim();
 
@@ -252,19 +252,19 @@ export default function TransactionsScreen() {
     const ListHeader = (
         <View style={styles.listHeader}>
             <View style={styles.headerRow}>
-                <Text style={styles.accountPill}>{shortAccount}</Text>
-                <Text style={styles.countLabel}>
+                <Text style={[styles.accountPill, { backgroundColor: theme.border, color: theme.textPrimary }]}>{shortAccount}</Text>
+                <Text style={[styles.countLabel, { color: theme.textMuted }]}>
                     {filteredTransactions.length} of {transactions.length}
                 </Text>
             </View>
 
-            <View style={styles.searchWrap}>
+            <View style={[styles.searchWrap, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
                 <TextInput
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     placeholder="Search memo, address, or hash"
-                    placeholderTextColor="#9CA3AF"
-                    style={styles.searchInput}
+                    placeholderTextColor={theme.inputPlaceholder}
+                    style={[styles.searchInput, { color: theme.inputText }]}
                     returnKeyType="search"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -273,7 +273,7 @@ export default function TransactionsScreen() {
             </View>
 
             <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Asset Type</Text>
+                <Text style={[styles.filterLabel, { color: theme.textPrimary }]}>Asset Type</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={styles.chipRow}>
                         {assetOptions.map(option => {
@@ -282,12 +282,17 @@ export default function TransactionsScreen() {
                                 <Pressable
                                     key={option}
                                     onPress={() => setAssetFilter(option)}
-                                    style={[styles.chip, isActive && styles.chipActive]}
+                                    style={[
+                                        styles.chip,
+                                        { backgroundColor: theme.chipBg, borderColor: theme.border },
+                                        isActive && { backgroundColor: theme.chipActiveBg, borderColor: theme.chipActiveBg },
+                                    ]}
                                 >
                                     <Text
                                         style={[
                                             styles.chipText,
-                                            isActive && styles.chipTextActive,
+                                            { color: theme.chipText },
+                                            isActive && { color: theme.chipActiveText },
                                         ]}
                                     >
                                         {option}
@@ -300,7 +305,7 @@ export default function TransactionsScreen() {
             </View>
 
             <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Status</Text>
+                <Text style={[styles.filterLabel, { color: theme.textPrimary }]}>Status</Text>
                 <View style={styles.chipRow}>
                     {STATUS_FILTERS.map(option => {
                         const isActive = option === statusFilter;
@@ -308,12 +313,17 @@ export default function TransactionsScreen() {
                             <Pressable
                                 key={option}
                                 onPress={() => setStatusFilter(option)}
-                                style={[styles.chip, isActive && styles.chipActive]}
+                                style={[
+                                    styles.chip,
+                                    { backgroundColor: theme.chipBg, borderColor: theme.border },
+                                    isActive && { backgroundColor: theme.chipActiveBg, borderColor: theme.chipActiveBg },
+                                ]}
                             >
                                 <Text
                                     style={[
                                         styles.chipText,
-                                        isActive && styles.chipTextActive,
+                                        { color: theme.chipText },
+                                        isActive && { color: theme.chipActiveText },
                                     ]}
                                 >
                                     {option}
@@ -325,35 +335,35 @@ export default function TransactionsScreen() {
             </View>
 
             <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Date Range</Text>
+                <Text style={[styles.filterLabel, { color: theme.textPrimary }]}>Date Range</Text>
                 <View style={styles.dateRow}>
                     <View style={styles.dateInputWrap}>
-                        <Text style={styles.dateLabel}>From</Text>
+                        <Text style={[styles.dateLabel, { color: theme.textMuted }]}>From</Text>
                         <TextInput
                             value={dateFrom}
                             onChangeText={setDateFrom}
                             placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#9CA3AF"
-                            style={styles.dateInput}
+                            placeholderTextColor={theme.inputPlaceholder}
+                            style={[styles.dateInput, { backgroundColor: theme.surfaceElevated, borderColor: theme.border, color: theme.inputText }]}
                             autoCapitalize="none"
                             autoCorrect={false}
                         />
                     </View>
                     <View style={styles.dateInputWrap}>
-                        <Text style={styles.dateLabel}>To</Text>
+                        <Text style={[styles.dateLabel, { color: theme.textMuted }]}>To</Text>
                         <TextInput
                             value={dateTo}
                             onChangeText={setDateTo}
                             placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#9CA3AF"
-                            style={styles.dateInput}
+                            placeholderTextColor={theme.inputPlaceholder}
+                            style={[styles.dateInput, { backgroundColor: theme.surfaceElevated, borderColor: theme.border, color: theme.inputText }]}
                             autoCapitalize="none"
                             autoCorrect={false}
                         />
                     </View>
                 </View>
                 {(dateFrom && fromMs === null) || (dateTo && toMs === null) ? (
-                    <Text style={styles.dateHint}>
+                    <Text style={[styles.dateHint, { color: theme.textMuted }]}>
                         Use the format YYYY-MM-DD (e.g. 2026-03-01).
                     </Text>
                 ) : null}
@@ -362,13 +372,13 @@ export default function TransactionsScreen() {
             <View style={styles.actionRow}>
                 {filtersActive ? (
                     <Pressable onPress={handleClearFilters} style={styles.ghostButton}>
-                        <Text style={styles.ghostButtonText}>Clear Filters</Text>
+                        <Text style={[styles.ghostButtonText, { color: theme.textMuted }]}>Clear Filters</Text>
                     </Pressable>
                 ) : (
                     <View />
                 )}
-                <Pressable onPress={handleExport} style={styles.exportButton}>
-                    <Text style={styles.exportButtonText}>Export to CSV</Text>
+                <Pressable onPress={handleExport} style={[styles.exportButton, { backgroundColor: theme.buttonPrimaryBg }]}>
+                    <Text style={[styles.exportButtonText, { color: theme.buttonPrimaryText }]}>Export to CSV</Text>
                 </Pressable>
             </View>
         </View>
@@ -401,22 +411,22 @@ export default function TransactionsScreen() {
 
     const ListFooter = hasMore ? (
         <View style={styles.footer}>
-            <ActivityIndicator size="small" color="#6B7280" />
+            <ActivityIndicator size="small" color={theme.textMuted} />
         </View>
     ) : null;
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.surface }]} edges={['top', 'bottom']}>
             {/* ── Header ── */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
                     style={styles.backBtn}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                    <Text style={styles.backChevron}>‹</Text>
+                    <Text style={[styles.backChevron, { color: theme.textPrimary }]}>‹</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Transaction History</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Transaction History</Text>
                 <View style={styles.backBtn} />
             </View>
 
@@ -432,7 +442,7 @@ export default function TransactionsScreen() {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={refresh}
-                        tintColor="#6B7280"
+                        tintColor={theme.textMuted}
                     />
                 }
                 onEndReached={loadMore}
@@ -454,7 +464,6 @@ export default function TransactionsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
 
     // Header
@@ -464,14 +473,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#fff',
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E5E7EB',
     },
     headerTitle: {
         fontSize: 17,
         fontWeight: '600',
-        color: '#111827',
     },
     backBtn: {
         width: 36,
@@ -479,7 +485,6 @@ const styles = StyleSheet.create({
     },
     backChevron: {
         fontSize: 28,
-        color: '#111827',
         lineHeight: 32,
     },
 
@@ -487,9 +492,7 @@ const styles = StyleSheet.create({
     errorBanner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FEF2F2',
         borderBottomWidth: 1,
-        borderBottomColor: '#FECACA',
         paddingHorizontal: 16,
         paddingVertical: 10,
         gap: 12,
@@ -497,17 +500,14 @@ const styles = StyleSheet.create({
     errorText: {
         flex: 1,
         fontSize: 13,
-        color: '#991B1B',
         lineHeight: 18,
     },
     retryBtn: {
-        backgroundColor: '#DC2626',
         borderRadius: 6,
         paddingHorizontal: 14,
         paddingVertical: 6,
     },
     retryText: {
-        color: '#fff',
         fontSize: 13,
         fontWeight: '600',
     },
@@ -526,8 +526,6 @@ const styles = StyleSheet.create({
     },
     accountPill: {
         alignSelf: 'flex-start',
-        backgroundColor: '#E5E7EB',
-        color: '#374151',
         fontSize: 12,
         fontWeight: '600',
         paddingHorizontal: 10,
@@ -538,20 +536,16 @@ const styles = StyleSheet.create({
     },
     countLabel: {
         fontSize: 12,
-        color: '#6B7280',
         fontWeight: '600',
     },
     searchWrap: {
-        backgroundColor: '#fff',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
         paddingHorizontal: 12,
         paddingVertical: 8,
     },
     searchInput: {
         fontSize: 14,
-        color: '#111827',
     },
     filterSection: {
         gap: 8,
@@ -559,7 +553,6 @@ const styles = StyleSheet.create({
     filterLabel: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#374151',
         textTransform: 'uppercase',
         letterSpacing: 0.6,
     },
@@ -572,20 +565,10 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
-        backgroundColor: '#fff',
-    },
-    chipActive: {
-        backgroundColor: '#111827',
-        borderColor: '#111827',
     },
     chipText: {
         fontSize: 12,
-        color: '#374151',
         fontWeight: '600',
-    },
-    chipTextActive: {
-        color: '#fff',
     },
     dateRow: {
         flexDirection: 'row',
@@ -597,22 +580,17 @@ const styles = StyleSheet.create({
     },
     dateLabel: {
         fontSize: 12,
-        color: '#6B7280',
         fontWeight: '600',
     },
     dateInput: {
-        backgroundColor: '#fff',
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
         paddingHorizontal: 12,
         paddingVertical: 8,
         fontSize: 13,
-        color: '#111827',
     },
     dateHint: {
         fontSize: 11,
-        color: '#9CA3AF',
     },
     actionRow: {
         flexDirection: 'row',
@@ -626,17 +604,14 @@ const styles = StyleSheet.create({
     },
     ghostButtonText: {
         fontSize: 12,
-        color: '#6B7280',
         fontWeight: '600',
     },
     exportButton: {
-        backgroundColor: '#111827',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 10,
     },
     exportButtonText: {
-        color: '#fff',
         fontSize: 12,
         fontWeight: '700',
     },
@@ -659,13 +634,11 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#111827',
         marginBottom: 8,
         textAlign: 'center',
     },
     emptySubtitle: {
         fontSize: 14,
-        color: '#6B7280',
         textAlign: 'center',
         lineHeight: 20,
     },
