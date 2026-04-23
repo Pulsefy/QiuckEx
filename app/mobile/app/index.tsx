@@ -7,6 +7,12 @@ import NotificationCenter from "../components/notifications/NotificationCenter";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { useTheme } from "../src/theme/ThemeContext";
+import { useTranslation } from 'react-i18next';
+
+export default function HomeScreen() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { hasCompletedOnboarding, isLoading } = useOnboarding();
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,6 +52,34 @@ export default function HomeScreen() {
               Notifications, badges, and recent activity stay fresh even when
               you are not actively using the app.
             </Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={{ position: "absolute", top: 12, right: 16, zIndex: 100 }}>
+        {/* Bell */}
+        <NotificationCenter />
+      </View>
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('appTitle')}</Text>
+
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          {t('appSubtitle')}
+        </Text>
+
+        {/* Pay Again Shortcut */}
+        {recentContacts.length > 0 && (
+          <View style={{ width: "100%", marginBottom: 20 }}>
+            <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8, color: theme.textPrimary }}>{t('payAgain')}</Text>
+            {recentContacts.map((contact) => (
+              <Link
+                key={contact.id}
+                href={{ pathname: "/payment-confirmation", params: { username: contact.address } }}
+                asChild
+              >
+                <TouchableOpacity style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 8, marginBottom: 8 }}>
+                  <Text style={{ fontWeight: "bold", fontSize: 16, color: theme.textPrimary }}>{contact.nickname || contact.address}</Text>
+                  <Text style={{ color: theme.textSecondary }}>{contact.address}</Text>
+                </TouchableOpacity>
+              </Link>
+            ))}
           </View>
           <NotificationCenter />
         </View>
@@ -58,6 +92,10 @@ export default function HomeScreen() {
         >
           <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
             Background Sync
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('instantPayments')}</Text>
+          <Text style={[styles.cardText, { color: theme.textSecondary }]}>
+            {t('instantPaymentsDesc')}
           </Text>
           <Text style={[styles.heroText, { color: theme.textSecondary }]}>
             {currentAccountId
@@ -174,6 +212,23 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+        <Link href="/scan-to-pay" asChild>
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('scanToPay')}</Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/wallet-connect" asChild>
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('connectWallet')}</Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/contacts" asChild>
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('contacts')}</Text>
+          </TouchableOpacity>
+        </Link>
 
 function NavButton({
   href,

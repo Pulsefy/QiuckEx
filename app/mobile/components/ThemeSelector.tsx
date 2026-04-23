@@ -21,8 +21,9 @@ import {
   BrandThemes,
   LightTheme,
   DarkTheme,
-} from '../src/theme/tokens';
-import { useTheme } from '../src/theme/ThemeContext';
+} from '../../src/theme/tokens';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 type BrandTheme = (typeof BrandThemes)[number];
 
@@ -38,20 +39,20 @@ interface ModeOption {
 const MODE_OPTIONS: readonly ModeOption[] = [
   {
     mode: 'light',
-    label: '☀️ Light',
-    description: 'Classic bright interface',
+    label: `☀️ ${t('lightMode')}`,
+    description: t('lightModeDesc'),
     preview: LightTheme,
   },
   {
     mode: 'dark',
-    label: '🌙 Dark',
-    description: 'Easy on the eyes',
+    label: `🌙 ${t('darkMode')}`,
+    description: t('darkModeDesc'),
     preview: DarkTheme,
   },
   {
     mode: 'system',
-    label: '⚙️ System',
-    description: 'Follows device setting',
+    label: `⚙️ ${t('systemMode')}`,
+    description: t('systemModeDesc'),
     preview: LightTheme, // placeholder, will adapt at runtime
   },
 ];
@@ -59,15 +60,16 @@ const MODE_OPTIONS: readonly ModeOption[] = [
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function ThemeSelector() {
+  const { t } = useTranslation();
   const { theme, mode, brandThemeId, setMode, setBrandTheme } = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Text style={[styles.heading, { color: theme.textPrimary }]}>
-        Appearance
+        {t('appearance')}
       </Text>
       <Text style={[styles.subheading, { color: theme.textSecondary }]}>
-        Choose how QuickEx looks on your device
+        {t('chooseAppearance')}
       </Text>
 
       {/* ── Standard modes ─────────────────────────────────────────── */}

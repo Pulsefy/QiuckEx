@@ -11,6 +11,7 @@ if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
   (globalThis as any).API_BASE_URL = "http://localhost:4000";
 }
+import "../../src/lib/i18n";
 import { OfflineBanner } from "../components/resilience/offline-banner";
 import { AppLockOverlay } from "../components/security/app-lock-overlay";
 import { SecurityProvider, useSecurity } from "../hooks/use-security";

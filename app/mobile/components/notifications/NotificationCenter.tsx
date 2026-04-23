@@ -7,12 +7,14 @@ import {
   Text,
   View,
 } from "react-native";
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "../../src/theme/ThemeContext";
 import { useNotifications } from "./NotificationContext";
 
 export const NotificationCenter: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const { theme } = useTheme();
   const [open, setOpen] = React.useState(false);
@@ -57,8 +59,10 @@ export const NotificationCenter: React.FC = () => {
           <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
             Notifications
           </Text>
+        <View style={[styles.modalHeader, { borderColor: theme.border, backgroundColor: theme.background }]}>
+          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('notificationsTitle')}</Text>
           <Pressable onPress={() => setOpen(false)}>
-            <Text style={[styles.close, { color: theme.link }]}>Close</Text>
+            <Text style={[styles.close, { color: theme.link }]}>{t('close')}</Text>
           </Pressable>
         </View>
 
@@ -85,6 +89,9 @@ export const NotificationCenter: React.FC = () => {
                 {item.direction === "outgoing" ? "To" : "From"}{" "}
                 {item.sender ? shorten(item.sender) : "Unknown"} •{" "}
                 {new Date(item.receivedAt).toLocaleString()}
+              <Text style={[styles.itemSubtitle, { color: theme.textSecondary }]}>
+                {item.sender ? `${shorten(item.sender)}` : ""} •{" "}
+                {new Date(item.receivedAt).toLocaleString(i18n.language || 'en')}
               </Text>
               {item.memo ? (
                 <Text style={[styles.itemMeta, { color: theme.textMuted }]}>
@@ -100,6 +107,7 @@ export const NotificationCenter: React.FC = () => {
               >
                 No notifications
               </Text>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>{t('noNotifications')}</Text>
             </View>
           )}
         />

@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import * as Clipboard from "expo-clipboard";
 import { StrKey } from "@stellar/stellar-base";
+import { useTranslation } from 'react-i18next';
 
 import { QRPreviewModal } from "../components/QRPreviewModal";
 import { useTheme } from "../src/theme/ThemeContext";
@@ -45,6 +46,7 @@ type LinkMetadataSuccess = {
 
 export default function LinkGeneratorScreen() {
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   const [form, setForm] = useState({
     amount: "",
@@ -161,18 +163,18 @@ export default function LinkGeneratorScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Create Link</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('createPayment')} {t('requestInstantly')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Generate a payment request link instantly.
+          {t('advancedModeDescription')}
         </Text>
 
         {/* Amount Input */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Amount</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('amountLabel')}</Text>
           <View style={[styles.rowInput, { backgroundColor: theme.inputBg }]}>
             <TextInput
               style={[styles.inputLarge, { color: theme.inputText }]}
-              placeholder="0.00"
+              placeholder={t('amountPlaceholder')}
               placeholderTextColor={theme.inputPlaceholder}
               keyboardType="numeric"
               value={form.amount}
@@ -210,10 +212,10 @@ export default function LinkGeneratorScreen() {
 
         {/* Destination Address */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Destination</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('destinationLabel')}</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.inputBg, color: theme.inputText }]}
-            placeholder="G..."
+            placeholder={t('destinationPlaceholder')}
             placeholderTextColor={theme.inputPlaceholder}
             value={form.destination}
             onChangeText={(val) => setForm({ ...form, destination: val })}
@@ -221,16 +223,16 @@ export default function LinkGeneratorScreen() {
             autoCorrect={false}
           />
           {form.destination !== "" && !isValidDestination && (
-            <Text style={[styles.errorText, { color: theme.status.error }]}>Invalid Stellar Public Key</Text>
+            <Text style={[styles.errorText, { color: theme.status.error }]}>{t('invalidPublicKey')}</Text>
           )}
         </View>
 
         {/* Memo */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Memo (Optional)</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('memoLabel')}</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.inputBg, color: theme.inputText }]}
-            placeholder="What's this for?"
+            placeholder={t('memoPlaceholder')}
             placeholderTextColor={theme.inputPlaceholder}
             value={form.memo}
             onChangeText={(val) => setForm({ ...form, memo: val })}
@@ -249,21 +251,21 @@ export default function LinkGeneratorScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={[styles.generateButtonText, { color: theme.buttonPrimaryText }]}>Generate Link</Text>
+            <Text style={[styles.generateButtonText, { color: theme.buttonPrimaryText }]}>{t('linkGenerator')}</Text>
           )}
         </TouchableOpacity>
 
         {canonicalData && (
           <View style={[styles.resultCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.resultTitle, { color: theme.textPrimary }]}>Link Ready!</Text>
+            <Text style={[styles.resultTitle, { color: theme.textPrimary }]}>{t('linkReady')}</Text>
             
             <View style={styles.actionRow}>
               <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.status.success }]} onPress={handleShare}>
-                <Text style={[styles.actionButtonText, { color: theme.buttonPrimaryText }]}>Share Link</Text>
+                <Text style={[styles.actionButtonText, { color: theme.buttonPrimaryText }]}>{t('shareLink')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.chipBg }]} onPress={handleCopy}>
-                <Text style={[styles.actionButtonTextSecondary, { color: theme.textPrimary }]}>Copy Link</Text>
+                <Text style={[styles.actionButtonTextSecondary, { color: theme.textPrimary }]}>{t('copyLink')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -271,7 +273,7 @@ export default function LinkGeneratorScreen() {
               style={[styles.previewButton, { borderColor: theme.buttonSecondaryBorder }]}
               onPress={() => setQrModalVisible(true)}
             >
-              <Text style={[styles.previewButtonText, { color: theme.buttonSecondaryText }]}>Preview QR Code</Text>
+              <Text style={[styles.previewButtonText, { color: theme.buttonSecondaryText }]}>{t('previewQR')}</Text>
             </TouchableOpacity>
           </View>
         )}

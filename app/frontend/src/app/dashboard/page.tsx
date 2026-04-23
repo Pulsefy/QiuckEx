@@ -5,6 +5,7 @@ import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
+import '@/lib/i18n';
 import {
   fetchUserBids,
   fetchUserListings,
@@ -13,12 +14,14 @@ import {
   formatCountdown,
 } from "@/hooks/marketplaceApi";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import { useTranslation } from 'react-i18next';
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { error, loading, callApi } = useApi<DashboardResponse>();
   const [userBids, setUserBids] = useState<UserBid[]>([]);
   const [userListings, setUserListings] = useState<UserListing[]>([]);
@@ -36,19 +39,19 @@ export default function Dashboard() {
   const handleExtend = async (id: string) => {
     console.log("Extending TTL for", id);
     await mockContractCall("extend", id);
-    alert("Storage TTL extended for 6 months!");
+    alert(t('extendTTL'));
   };
 
   const handleCleanup = async (id: string) => {
     console.log("Cleaning up", id);
     await mockContractCall("cleanup", id);
-    alert("Storage deposit reclaimed and record cleaned up!");
+    alert(t('cleanupDeposit'));
   };
 
-  if (loading) return <p>Loading dashboard...</p>;
+  if (loading) return <p>{t('loadingDashboard')}</p>;
   if (error) return <p>{error}</p>;
    if (!data || !data.items || data.items.length === 0) {
-    return <p>No transactions yet. Create your first payment link!</p>;
+    return <p>{t('noTransactionsYet')}</p>;
   }
 
   return (
@@ -66,13 +69,13 @@ export default function Dashboard() {
             href="/dashboard"
             className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold"
           >
-            <span className="text-indigo-400">📊</span> Dashboard
+            <span className="text-indigo-400">📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
           >
-            <span>⚡</span> Link Generator
+            <span>⚡</span> {t('linkGenerator')}
           </Link>
           <Link
             href="/marketplace"
@@ -84,7 +87,7 @@ export default function Dashboard() {
             href="/settings"
             className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
           >
-            <span>⚙️</span> Profile Settings
+            <span>⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
@@ -96,19 +99,19 @@ export default function Dashboard() {
           <div>
             <nav className="flex items-center gap-2 text-xs font-bold text-neutral-600 uppercase tracking-widest mb-2 md:mb-4">
               <span>QuickEx</span> /{" "}
-              <span className="text-neutral-400">Overview</span>
+              <span className="text-neutral-400">{t('dashboard')}</span>
             </nav>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-2">
-              Welcome back.
+              {t('welcomeBack')}
             </h1>
             <p className="text-neutral-500 font-medium text-sm sm:text-base md:text-lg">
-              Your global payments are scaling beautifully.
+              {t('paymentsScaling')}
             </p>
           </div>
 
           <button className="px-4 sm:px-6 py-3 bg-indigo-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition">
-            Withdraw Funds
+            {t('withdrawFunds')}
           </button>
         </header>
 
@@ -122,7 +125,7 @@ export default function Dashboard() {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">
-              Total Revenue
+              {t('totalRevenue')}
             </p>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl sm:text-5xl font-black">$1,240.50</p>
@@ -135,7 +138,7 @@ export default function Dashboard() {
           {/* Success rate */}
           <div className="p-6 sm:p-8 rounded-3xl bg-neutral-900/40 border border-white/5">
             <p className="text-xs sm:text-sm text-neutral-500 mb-1 font-bold uppercase">
-              Success Rate
+              {t('successRate')}
             </p>
             <p className="text-3xl sm:text-5xl font-black">98.2%</p>
             <div className="mt-3 w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
@@ -146,14 +149,14 @@ export default function Dashboard() {
           {/* Payout */}
           <div className="p-6 sm:p-8 rounded-3xl bg-indigo-500 border border-indigo-400 shadow-[0_20px_40px_-15px_rgba(99,102,241,0.3)]">
             <p className="text-xs sm:text-sm text-indigo-100/60 mb-1 font-bold uppercase">
-              Available Payout
+              {t('availablePayout')}
             </p>
             <p className="text-3xl sm:text-5xl font-black">
               850.00{" "}
               <span className="text-base sm:text-2xl opacity-60">USDC</span>
             </p>
             <p className="text-[10px] sm:text-xs text-indigo-100/40 mt-3 italic">
-              Estimated settlement: 3 seconds
+              {t('estimatedSettlement')}
             </p>
           </div>
         </div>
@@ -168,17 +171,17 @@ export default function Dashboard() {
           <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row justify-between gap-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-black mb-1">
-                Activity Feed
+                {t('activityFeed')}
               </h2>
               <p className="text-xs sm:text-sm text-neutral-500">
-                Synced with Stellar Horizon API
+                {t('syncedWithHorizon')}
               </p>
             </div>
 
             <div className="bg-white/5 p-2 rounded-xl border border-white/5">
               <select className="bg-transparent text-sm font-bold text-neutral-400 focus:outline-none">
-                <option>Last 30 Days</option>
-                <option>Yearly</option>
+                <option>{t('last30Days')}</option>
+                <option>{t('yearly')}</option>
               </select>
             </div>
           </div>
@@ -188,11 +191,11 @@ export default function Dashboard() {
             <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="text-[9px] sm:text-[10px] font-black text-neutral-600 uppercase tracking-widest border-b border-white/5">
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Transaction ID</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Asset</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Memo / Status</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6">Timestamp</th>
-                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">Actions</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">{t('transactionId')}</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">{t('asset')}</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">{t('memoStatus')}</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6">{t('timestamp')}</th>
+                  <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">{t('actions')}</th>
                 </tr>
               </thead>
 

@@ -13,6 +13,8 @@ import { ThemeSelector } from "../components/ThemeSelector";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 import { SYNC_INTERVALS_MINUTES, type SyncFrequency } from "../services/background-sync";
+import { ThemeSelector } from "../components/ThemeSelector";
+import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useTheme } from "../src/theme/ThemeContext";
 
 const FREQUENCY_OPTIONS: Array<{
@@ -152,6 +154,16 @@ export default function SettingsScreen() {
               <Text style={[styles.helper, { color: theme.textMuted }]}>
                 Skip background work on mobile data for better battery life.
               </Text>
+          {/* ── Locale Switcher ─────────────────────────────────── */}
+          <LocaleSwitcher />
+
+          <View style={styles.spacer} />
+
+          {/* ── Sound settings ─────────────────────────────────── */}
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>🔔 Sound Effects</Text>
+              <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
             </View>
             <Switch
               value={backgroundSyncSettings.wifiOnly}
