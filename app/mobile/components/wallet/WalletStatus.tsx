@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { WalletState } from "../../types/wallet";
 import { useTheme } from "../../src/theme/ThemeContext";
+import { SUPPORTED_WALLETS } from "../../hooks/useWalletContext";
 
 interface Props {
   wallet: WalletState;
@@ -18,16 +19,31 @@ export default function WalletStatus({
 }: Props) {
   const { theme } = useTheme();
 
+  const walletLabel =
+    wallet.walletType
+      ? SUPPORTED_WALLETS.find((w) => w.type === wallet.walletType)?.label ??
+        wallet.walletType
+      : null;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
-      <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Wallet Status</Text>
+      <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+        Wallet Status
+      </Text>
 
       <View style={styles.row}>
-        <Text style={[styles.label, { color: theme.textPrimary }]}>Network:</Text>
+        <Text style={[styles.label, { color: theme.textPrimary }]}>
+          Network:
+        </Text>
         <TouchableOpacity
           style={[
             styles.networkBadge,
-            { backgroundColor: wallet.network === "mainnet" ? theme.networkMainnet : theme.networkTestnet },
+            {
+              backgroundColor:
+                wallet.network === "mainnet"
+                  ? theme.networkMainnet
+                  : theme.networkTestnet,
+            },
           ]}
           onPress={onToggleNetwork}
         >
@@ -38,11 +54,29 @@ export default function WalletStatus({
       </View>
 
       <View style={styles.row}>
-        <Text style={[styles.label, { color: theme.textPrimary }]}>Connection:</Text>
-        <Text style={{ color: wallet.connected ? theme.status.success : theme.status.error, fontWeight: "600" }}>
+        <Text style={[styles.label, { color: theme.textPrimary }]}>
+          Connection:
+        </Text>
+        <Text
+          style={{
+            color: wallet.connected ? theme.status.success : theme.status.error,
+            fontWeight: "600",
+          }}
+        >
           {wallet.connected ? "Connected" : "Not Connected"}
         </Text>
       </View>
+
+      {wallet.connected && walletLabel ? (
+        <View style={styles.row}>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>
+            Wallet:
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontWeight: "600" }}>
+            {walletLabel}
+          </Text>
+        </View>
+      ) : null}
 
       {wallet.connected && (
         <Text style={[styles.address, { color: theme.textSecondary }]}>
@@ -50,13 +84,35 @@ export default function WalletStatus({
         </Text>
       )}
 
+      {wallet.error ? (
+        <Text style={[styles.errorText, { color: theme.status.error }]}>
+          {wallet.error.message}
+        </Text>
+      ) : null}
+
       {!wallet.connected ? (
-        <TouchableOpacity style={[styles.connectBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={onConnect}>
-          <Text style={[styles.btnText, { color: theme.buttonPrimaryText }]}>Connect Wallet</Text>
+        <TouchableOpacity
+          style={[
+            styles.connectBtn,
+            { backgroundColor: theme.buttonPrimaryBg },
+          ]}
+          onPress={onConnect}
+        >
+          <Text style={[styles.btnText, { color: theme.buttonPrimaryText }]}>
+            Connect Wallet
+          </Text>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={[styles.disconnectBtn, { backgroundColor: theme.buttonDangerBg }]} onPress={onDisconnect}>
-          <Text style={[styles.btnText, { color: theme.buttonDangerText }]}>Disconnect</Text>
+        <TouchableOpacity
+          style={[
+            styles.disconnectBtn,
+            { backgroundColor: theme.buttonDangerBg },
+          ]}
+          onPress={onDisconnect}
+        >
+          <Text style={[styles.btnText, { color: theme.buttonDangerText }]}>
+            Disconnect
+          </Text>
         </TouchableOpacity>
       )}
     </View>
@@ -94,6 +150,10 @@ const styles = StyleSheet.create({
   },
   address: {
     fontSize: 12,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 13,
     marginBottom: 12,
   },
   connectBtn: {

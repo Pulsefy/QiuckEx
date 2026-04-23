@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 
 import {
-  type ThemeId,
   type ThemeMode,
   type ThemeTokens,
   BrandThemes,
@@ -25,6 +24,8 @@ import {
 } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { useTranslation } from 'react-i18next';
+
+type BrandTheme = (typeof BrandThemes)[number];
 
 // ── Mode descriptions ───────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ export function ThemeSelector() {
       </Text>
 
       <View style={styles.brandsRow}>
-        {BrandThemes.map((brandTheme: any) => {
+        {BrandThemes.map((brandTheme: BrandTheme) => {
           const isActive =
             mode === 'brand' && brandThemeId === brandTheme.id;
           return (

@@ -11,6 +11,7 @@ export default function EditContactScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [nickname, setNickname] = useState("");
   const [address, setAddress] = useState("");
+  const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createdAt, setCreatedAt] = useState<number>(Date.now());
@@ -25,6 +26,7 @@ export default function EditContactScreen() {
     const contacts = await getContacts();
     const contact = contacts.find((c) => c.id === id);
     if (contact) {
+      setContact(contact);
       setNickname(contact.nickname || "");
       setAddress(contact.address);
       setCreatedAt(contact.createdAt);
@@ -39,7 +41,11 @@ export default function EditContactScreen() {
     }
     setSaving(true);
     try {
+      if (!contact) {
+        throw new Error("Contact not found");
+      }
       await updateContact({
+        ...contact,
         id: id!,
         address: address.trim(),
         nickname: nickname.trim(),

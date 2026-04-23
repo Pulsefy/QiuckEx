@@ -6,7 +6,6 @@ import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import { useColorScheme } from "react-native";
 // Ensure web build or Expo web uses the local backend during development
 if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
@@ -18,9 +17,10 @@ import { AppLockOverlay } from "../components/security/app-lock-overlay";
 import { SecurityProvider, useSecurity } from "../hooks/use-security";
 import { NotificationProvider } from "../components/notifications/NotificationContext";
 import ToastNotification from "../components/notifications/ToastNotification";
-import NotificationCenter from "../components/notifications/NotificationCenter";
 import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
+import { WalletProvider } from "../hooks/useWalletContext";
+import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
 
@@ -106,17 +106,20 @@ function ThemeBridge() {
   return (
     <ThemeProvider value={navTheme}>
       <SecurityProvider>
-        <NotificationProvider>
-          {/* Dev-only global poller: ensures polling runs on web during development
+        <WalletProvider>
+          <NotificationProvider>
+            <WalletSyncBridge />
+            {/* Dev-only global poller: ensures polling runs on web during development
               even if the wallet screen isn't active. */}
-          {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
-            // start polling for demo address used by send_test_payment.js
-            // eslint-disable-next-line react/jsx-no-useless-fragment
-            <DevPoller />
-          ) : null}
-          <AppShell />
-          <ToastNotification />
-        </NotificationProvider>
+            {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
+              // start polling for demo address used by send_test_payment.js
+              // eslint-disable-next-line react/jsx-no-useless-fragment
+              <DevPoller />
+            ) : null}
+            <AppShell />
+            <ToastNotification />
+          </NotificationProvider>
+        </WalletProvider>
       </SecurityProvider>
       <StatusBar style={isDark ? "light" : "dark"} />
     </ThemeProvider>
@@ -125,7 +128,7 @@ function ThemeBridge() {
 
 function AppShell() {
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
-  const { hasCompletedOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  const { isLoading: onboardingLoading } = useOnboarding();
   useDeepLinkHandler();
 
   if (onboardingLoading) {

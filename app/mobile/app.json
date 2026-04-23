@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "associatedDomains": ["applinks:quickex.to"]
+      "associatedDomains": ["applinks:quickex.to"],
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -54,6 +57,7 @@
           "cameraPermission": "QuickEx needs camera access to scan QR payment codes."
         }
       ],
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
