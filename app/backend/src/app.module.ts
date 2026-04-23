@@ -31,6 +31,7 @@ import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
 import { SentryModule } from "./sentry";
+import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 
 type AppImport =
   | Type<unknown>
@@ -68,6 +69,7 @@ type AppImport =
       IngestionModule,
       ApiKeysModule,
       MarketplaceModule,
+      FiatRampsModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't
