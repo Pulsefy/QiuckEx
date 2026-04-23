@@ -4,19 +4,7 @@ import CreateAPIKeyModal from "@/components/CreateAPIKeyModal";
 import { getQuickexApiBase } from "@/lib/api";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export const AVAILABLE_SCOPES = [
-  "links:read",
-  "links:write",
-  "transactions:read",
-  "usernames:read",
-] as const;
-
-export type ApiKeyScope = (typeof AVAILABLE_SCOPES)[number];
+import { NewKeyForm } from "@/types/api-keys";
 
 export type ApiKey = {
   id: string;
