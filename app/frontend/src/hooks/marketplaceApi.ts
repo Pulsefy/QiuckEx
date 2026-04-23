@@ -9,6 +9,7 @@ export type MarketplaceListing = {
   buyNowPrice: number | null;
   ownerAddress: string;
   endsAt: Date;
+  createdAt: Date; // Added for sorting by newest
   status: UsernameStatus;
   category: "trending" | "short" | "og" | "crypto" | "brand";
   bidCount: number;
@@ -44,6 +45,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 12000,
     ownerAddress: "GDRH...4T9F",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 2.5),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
     status: "auction",
     category: "og",
     bidCount: 34,
@@ -57,6 +59,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 8500,
     ownerAddress: "GCXY...8K3J",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 5),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
     status: "auction",
     category: "crypto",
     bidCount: 19,
@@ -70,6 +73,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 4000,
     ownerAddress: "GBXT...2R7K",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
     status: "auction",
     category: "brand",
     bidCount: 8,
@@ -83,6 +87,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: null,
     ownerAddress: "GDKL...5W1M",
     endsAt: new Date(Date.now() + 1000 * 60 * 47),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
     status: "auction",
     category: "trending",
     bidCount: 62,
@@ -96,6 +101,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 2000,
     ownerAddress: "GCMQ...9P2N",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 36),
+    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
     status: "auction",
     category: "short",
     bidCount: 5,
@@ -109,6 +115,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: null,
     ownerAddress: "GBKR...1Q0C",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
     status: "auction",
     category: "crypto",
     bidCount: 27,
@@ -122,6 +129,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 1500,
     ownerAddress: "GDXP...3F4G",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+    createdAt: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
     status: "listed",
     category: "brand",
     bidCount: 3,
@@ -135,6 +143,7 @@ const MOCK_LISTINGS: MarketplaceListing[] = [
     buyNowPrice: 6000,
     ownerAddress: "GBNH...7T5Q",
     endsAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
     status: "auction",
     category: "trending",
     bidCount: 15,

@@ -162,9 +162,24 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               {/* Wallet warning */}
               <div className="flex items-start gap-3 p-3 mb-5 bg-amber-500/5 border border-amber-500/15 rounded-2xl">
                 <span className="text-amber-400 mt-0.5">🔑</span>
-                <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                  Confirming will request a signature from your Stellar wallet (Freighter/Lobstr). No funds will be deducted until auction ends.
-                </p>
+                <div className="text-[11px] text-amber-400/80 leading-relaxed">
+                  <p className="font-bold mb-1">Wallet Connection Required</p>
+                  <p>Confirming will request a signature from your Stellar wallet (Freighter/Lobstr). No funds will be deducted until auction ends.</p>
+                </div>
+              </div>
+
+              {/* Bidding rules */}
+              <div className="flex items-start gap-3 p-3 mb-5 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl">
+                <span className="text-indigo-400 mt-0.5">📋</span>
+                <div className="text-[11px] text-indigo-400/80 leading-relaxed">
+                  <p className="font-bold mb-1">Bidding Rules</p>
+                  <ul className="space-y-0.5">
+                    <li>• Minimum increment: +1 USDC above current bid</li>
+                    <li>• Auction ends: {formatCountdown(listing.endsAt)}</li>
+                    <li>• Winner pays highest bid amount</li>
+                    <li>• Payment in USDC on Stellar network</li>
+                  </ul>
+                </div>
               </div>
 
               {/* CTA */}

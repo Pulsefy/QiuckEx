@@ -1,4 +1,4 @@
-import { NewKeyForm, AVAILABLE_SCOPES, ApiKeyScope } from "@/app/settings/developer/page";
+import { NewKeyForm, AVAILABLE_SCOPES, ApiKeyScope } from "@/types/api-keys";
 import React from "react";
 
 type Props = {

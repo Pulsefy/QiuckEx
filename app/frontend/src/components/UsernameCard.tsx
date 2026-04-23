@@ -1,6 +1,7 @@
 "use client";
 
 import { MarketplaceListing, formatCountdown } from "@/hooks/marketplaceApi";
+import { useWatchlist } from "@/contexts/WatchlistContext";
 
 type UsernameCardProps = {
   listing: MarketplaceListing;
@@ -45,10 +46,17 @@ function UrgencyBar({ endsAt }: { endsAt: Date }) {
 }
 
 export function UsernameCard({ listing, onBid }: UsernameCardProps) {
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
   const catColor = CATEGORY_COLORS[listing.category];
   const catLabel = CATEGORY_LABELS[listing.category];
   const countdown = formatCountdown(listing.endsAt);
   const isUrgent = listing.endsAt.getTime() - Date.now() < 1000 * 60 * 90;
+  const isWatched = isInWatchlist(listing.id);
+
+  const handleWatchlistClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleWatchlist(listing.id, listing.username);
+  };
 
   return (
     <div className="group relative flex flex-col bg-neutral-900/50 border border-white/5 rounded-3xl overflow-hidden hover:border-indigo-500/30 transition-all duration-300 hover:shadow-[0_0_40px_-15px_rgba(99,102,241,0.25)] hover:-translate-y-1">
@@ -56,21 +64,34 @@ export function UsernameCard({ listing, onBid }: UsernameCardProps) {
       <div className="h-[2px] w-full bg-gradient-to-r from-indigo-500/0 via-indigo-500/60 to-indigo-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
       <div className="p-6 flex flex-col flex-1 gap-4">
-        {/* Top row: category + verified */}
+        {/* Top row: category + verified + watchlist */}
         <div className="flex items-center justify-between">
           <span
             className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border ${catColor}`}
           >
             {catLabel}
           </span>
-          {listing.verified && (
-            <span
-              title="Verified"
-              className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-1 rounded-lg"
+          <div className="flex items-center gap-2">
+            {listing.verified && (
+              <span
+                title="Verified"
+                className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-1 rounded-lg"
+              >
+                ✓ Verified
+              </span>
+            )}
+            <button
+              onClick={handleWatchlistClick}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
+                isWatched
+                  ? 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
+                  : 'bg-white/5 border border-white/10 text-neutral-400 hover:text-red-400 hover:bg-red-500/10'
+              }`}
+              title={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
             >
-              ✓ Verified
-            </span>
-          )}
+              {isWatched ? '❤️' : '🤍'}
+            </button>
+          </div>
         </div>
 
         {/* Username */}

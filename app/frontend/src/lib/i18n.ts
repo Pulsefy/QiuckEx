@@ -298,7 +298,7 @@ i18n
           invalidPublicKey: 'Entrez une clé publique Stellar valide de 56 caractères (G…).',
           preflightUnavailable: 'Le pré-vol Soroban n\'est pas configuré sur ce serveur.',
           preflightFailed: 'La demande de pré-vol a échoué.',
-          homeNetworkError: "Erreur réseau lors de l'appel du pré-vol.",
+          homeNetworkError: 'Erreur réseau lors de l\'appel du pré-vol.',
 
           // Dashboard
           loadingDashboard: 'Chargement du tableau de bord',

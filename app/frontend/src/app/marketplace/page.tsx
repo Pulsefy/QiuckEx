@@ -2,13 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo } from "react";
-import { NetworkBadge } from "@/components/NetworkBadge";
 import { UsernameCard } from "@/components/UsernameCard";
 import {
   fetchListings,
   MarketplaceListing,
 } from "@/hooks/marketplaceApi";
+import { useWatchlist } from "@/contexts/WatchlistContext";
+import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import Link from "next/link";
+import { WatchlistProvider } from "@/contexts/WatchlistContext";
 
 const BidModal = dynamic(
   () => import("@/components/BidModal").then((mod) => mod.BidModal),
@@ -35,8 +37,9 @@ const CATEGORIES: { key: Category; label: string; icon: string }[] = [
 
 const SORT_OPTIONS = [
   { key: "ending", label: "Ending Soon" },
-  { key: "bid_desc", label: "Highest Bid" },
-  { key: "bid_asc", label: "Lowest Bid" },
+  { key: "newest", label: "Newest First" },
+  { key: "price_asc", label: "Price: Low to High" },
+  { key: "price_desc", label: "Price: High to Low" },
   { key: "bids", label: "Most Bids" },
 ];
 
@@ -69,13 +72,17 @@ function StatsBar({ listings }: { listings: MarketplaceListing[] }) {
   );
 }
 
-export default function MarketplacePage() {
+function MarketplacePageContent() {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [sortKey, setSortKey] = useState("ending");
   const [activeListing, setActiveListing] = useState<MarketplaceListing | null>(null);
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+
+  const { watchlist, isInWatchlist } = useWatchlist();
+  const { isConnected, lastUpdate, subscribeToListing, unsubscribeFromListing, onBidUpdate } = useRealtimeUpdates();
 
   useEffect(() => {
     fetchListings().then((data) => {
@@ -83,6 +90,35 @@ export default function MarketplacePage() {
       setLoading(false);
     });
   }, []);
+
+  // Subscribe to real-time updates for all listings
+  useEffect(() => {
+    if (listings.length > 0) {
+      listings.forEach(listing => subscribeToListing(listing.id));
+      return () => {
+        listings.forEach(listing => unsubscribeFromListing(listing.id));
+      };
+    }
+  }, [listings, subscribeToListing, unsubscribeFromListing]);
+
+  // Handle real-time bid updates
+  useEffect(() => {
+    const unsubscribe = onBidUpdate((update) => {
+      setListings(prev =>
+        prev.map(listing =>
+          listing.id === update.listingId
+            ? {
+                ...listing,
+                currentBid: Math.max(listing.currentBid, update.newBid),
+                bidCount: listing.bidCount + 1
+              }
+            : listing
+        )
+      );
+    });
+
+    return unsubscribe;
+  }, [onBidUpdate]);
 
   function handleBidSuccess(username: string, amount: number) {
     setListings((prev) =>
@@ -97,24 +133,35 @@ export default function MarketplacePage() {
   const filtered = useMemo(() => {
     let result = listings;
 
+    // Filter by watchlist if enabled
+    if (showWatchlistOnly) {
+      result = result.filter(listing => isInWatchlist(listing.id));
+    }
+
+    // Filter by category
     if (activeCategory !== "all") {
       result = result.filter((l) => l.category === activeCategory);
     }
 
+    // Filter by search
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter((l) => l.username.includes(q));
     }
 
+    // Sort results
     switch (sortKey) {
       case "ending":
         result = [...result].sort((a, b) => a.endsAt.getTime() - b.endsAt.getTime());
         break;
-      case "bid_desc":
-        result = [...result].sort((a, b) => b.currentBid - a.currentBid);
+      case "newest":
+        result = [...result].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
         break;
-      case "bid_asc":
+      case "price_asc":
         result = [...result].sort((a, b) => a.currentBid - b.currentBid);
+        break;
+      case "price_desc":
+        result = [...result].sort((a, b) => b.currentBid - a.currentBid);
         break;
       case "bids":
         result = [...result].sort((a, b) => b.bidCount - a.bidCount);
@@ -122,7 +169,7 @@ export default function MarketplacePage() {
     }
 
     return result;
-  }, [listings, search, activeCategory, sortKey]);
+  }, [listings, search, activeCategory, sortKey, showWatchlistOnly, isInWatchlist]);
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -197,8 +244,19 @@ export default function MarketplacePage() {
 
           {/* Filters row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Category pills */}
+            {/* Category pills and watchlist toggle */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setShowWatchlistOnly(!showWatchlistOnly)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all ${
+                  showWatchlistOnly
+                    ? "bg-red-500 text-white shadow-[0_4px_20px_-8px_rgba(239,68,68,0.8)]"
+                    : "bg-white/5 border border-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span>❤️</span>
+                Watchlist ({watchlist.length})
+              </button>
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.key}
@@ -230,6 +288,24 @@ export default function MarketplacePage() {
               ))}
             </select>
           </div>
+
+          {/* Real-time status */}
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+              <span className="text-neutral-500 font-bold">
+                {isConnected ? 'Live Updates Active' : 'Connection Lost'}
+              </span>
+              {lastUpdate && (
+                <span className="text-neutral-600">
+                  • Last update: {lastUpdate.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            <span className="text-neutral-600">
+              {watchlist.length} in watchlist
+            </span>
+          </div>
         </div>
 
         {/* ── RESULTS COUNT ─────────────────────────── */}
@@ -251,18 +327,63 @@ export default function MarketplacePage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-32 text-center">
-            <p className="text-5xl mb-6">🔍</p>
-            <h3 className="text-xl font-black mb-2">No results</h3>
-            <p className="text-neutral-500 text-sm">
-              Try a different search term or category.
-            </p>
-            <button
-              onClick={() => { setSearch(""); setActiveCategory("all"); }}
-              className="mt-6 px-6 py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-sm hover:bg-white/10 transition"
-            >
-              Clear Filters
-            </button>
+          <div className="py-32 text-center space-y-6">
+            <div className="text-6xl mb-4">
+              {showWatchlistOnly ? '❤️' : search ? '🔍' : '📦'}
+            </div>
+            <div>
+              <h3 className="text-2xl font-black mb-2">
+                {showWatchlistOnly
+                  ? 'Your watchlist is empty'
+                  : search
+                  ? 'No results found'
+                  : 'No listings match your filters'
+                }
+              </h3>
+              <p className="text-neutral-500 text-sm max-w-md mx-auto leading-relaxed">
+                {showWatchlistOnly
+                  ? 'Add usernames to your watchlist by clicking the heart icon on any listing. You\'ll get notified of new bids and can easily revisit your favorites.'
+                  : search
+                  ? `Try a different search term or browse all listings.`
+                  : 'Try adjusting your category filter or check back later for new auctions.'
+                }
+              </p>
+            </div>
+
+            {/* Bidding rules explanation */}
+            {!showWatchlistOnly && !search && (
+              <div className="max-w-lg mx-auto">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left">
+                  <h4 className="font-black text-sm mb-3 text-indigo-400">💡 How Bidding Works</h4>
+                  <ul className="space-y-2 text-xs text-neutral-400 leading-relaxed">
+                    <li>• <strong>Minimum bid:</strong> Must be at least 1 USDC higher than current bid</li>
+                    <li>• <strong>Auction duration:</strong> 7 days from listing creation</li>
+                    <li>• <strong>Buy Now:</strong> Instantly purchase at seller&apos;s set price (optional)</li>
+                    <li>• <strong>Winner:</strong> Highest bidder when auction ends</li>
+                    <li>• <strong>Payment:</strong> USDC on Stellar network</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-center">
+              {showWatchlistOnly && (
+                <button
+                  onClick={() => setShowWatchlistOnly(false)}
+                  className="px-6 py-3 bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/30 hover:border-indigo-500 text-indigo-300 hover:text-white font-bold rounded-xl transition"
+                >
+                  Browse All Listings
+                </button>
+              )}
+              {search && (
+                <button
+                  onClick={() => { setSearch(""); setActiveCategory("all"); }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-sm hover:bg-white/10 transition"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -287,5 +408,13 @@ export default function MarketplacePage() {
         }}
       />
     </div>
+  );
+}
+
+export default function MarketplacePage() {
+  return (
+    <WatchlistProvider>
+      <MarketplacePageContent />
+    </WatchlistProvider>
   );
 }

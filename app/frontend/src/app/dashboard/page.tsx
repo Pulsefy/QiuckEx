@@ -65,6 +65,12 @@ export default function Dashboard() {
     fetchUserListings().then(setUserListings);
   }, [callApi]);
 
+  const mockContractCall = async (action: string, id: string) => {
+    // Simulate contract call delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`${action} called for ${id}`);
+  };
+
   const handleExtend = async (id: string) => {
     console.log("Extending TTL for", id);
     await mockContractCall("extend", id);
