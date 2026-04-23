@@ -32,6 +32,10 @@ export type UserListing = {
   endsAt: Date;
 };
 
+let cachedListings: MarketplaceListing[] | null = null;
+let cachedUserBids: UserBid[] | null = null;
+let cachedUserListings: UserListing[] | null = null;
+
 const MOCK_LISTINGS: MarketplaceListing[] = [
   {
     id: "1",
@@ -167,20 +171,41 @@ const MOCK_USER_LISTINGS: UserListing[] = [
 ];
 
 export async function fetchListings(): Promise<MarketplaceListing[]> {
+  if (cachedListings) {
+    return Promise.resolve(cachedListings);
+  }
+
   return new Promise((resolve) =>
-    setTimeout(() => resolve(MOCK_LISTINGS), 900)
+    setTimeout(() => {
+      cachedListings = MOCK_LISTINGS;
+      resolve(MOCK_LISTINGS);
+    }, 900),
   );
 }
 
 export async function fetchUserBids(): Promise<UserBid[]> {
+  if (cachedUserBids) {
+    return Promise.resolve(cachedUserBids);
+  }
+
   return new Promise((resolve) =>
-    setTimeout(() => resolve(MOCK_USER_BIDS), 700)
+    setTimeout(() => {
+      cachedUserBids = MOCK_USER_BIDS;
+      resolve(MOCK_USER_BIDS);
+    }, 700),
   );
 }
 
 export async function fetchUserListings(): Promise<UserListing[]> {
+  if (cachedUserListings) {
+    return Promise.resolve(cachedUserListings);
+  }
+
   return new Promise((resolve) =>
-    setTimeout(() => resolve(MOCK_USER_LISTINGS), 700)
+    setTimeout(() => {
+      cachedUserListings = MOCK_USER_LISTINGS;
+      resolve(MOCK_USER_LISTINGS);
+    }, 700),
   );
 }
 

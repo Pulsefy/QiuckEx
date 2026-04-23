@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
-import { mockFetch } from "@/hooks/mockApi";
+import { mockContractCall, mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
 import '@/lib/i18n';
 import {
@@ -13,12 +14,39 @@ import {
   UserListing,
   formatCountdown,
 } from "@/hooks/marketplaceApi";
-import AnalyticsDashboard from "@/components/AnalyticsDashboard";
-import { useTranslation } from 'react-i18next';
+
+const AnalyticsDashboard = dynamic(
+  () => import("@/components/AnalyticsDashboard"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] rounded-3xl bg-white/5 animate-pulse" />
+    ),
+  },
+);
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
+
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen text-white selection:bg-indigo-500/30">
+      <div className="space-y-8">
+        <div className="h-6 w-1/3 rounded-full bg-white/5 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-44 rounded-3xl bg-white/5 border border-white/5 animate-pulse"
+            />
+          ))}
+        </div>
+        <div className="h-96 rounded-3xl bg-white/5 border border-white/5 animate-pulse" />
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -48,11 +76,8 @@ export default function Dashboard() {
     alert(t('cleanupDeposit'));
   };
 
-  if (loading) return <p>{t('loadingDashboard')}</p>;
+  if (loading) return <DashboardSkeleton />;
   if (error) return <p>{error}</p>;
-   if (!data || !data.items || data.items.length === 0) {
-    return <p>{t('noTransactionsYet')}</p>;
-  }
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">
@@ -206,21 +231,24 @@ export default function Dashboard() {
                     amount: "50.00 USDC",
                     memo: "Project Milestone #1",
                     date: "2 mins ago",
-                    status: "Privacy Enabled",
+                    status: "Pending",
+                    privacy: "Enabled",
                   },
                   {
                     id: "GD1R...3K9L",
                     amount: "125.00 XLM",
                     memo: "Frontend Consulting",
                     date: "Jan 20, 14:32",
-                    status: "Public",
+                    status: "Spent",
+                    privacy: "Public",
                   },
                   {
                     id: "GC8T...9Q0M",
                     amount: "20.00 USDC",
                     memo: "Subscription Renewal",
                     date: "Jan 19, 09:12",
-                    status: "Privacy Enabled",
+                    status: "Expired",
+                    privacy: "Enabled",
                   },
                 ].map((tx, i) => (
                   <tr key={i} className="hover:bg-white/[0.03] transition">

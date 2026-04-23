@@ -1,14 +1,26 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo } from "react";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { UsernameCard } from "@/components/UsernameCard";
-import { BidModal } from "@/components/BidModal";
 import {
   fetchListings,
   MarketplaceListing,
 } from "@/hooks/marketplaceApi";
 import Link from "next/link";
+
+const BidModal = dynamic(
+  () => import("@/components/BidModal").then((mod) => mod.BidModal),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="h-72 w-[90%] max-w-3xl rounded-3xl bg-white/5 animate-pulse" />
+      </div>
+    ),
+  },
+);
 
 type Category = "all" | "trending" | "short" | "og" | "crypto" | "brand";
 
