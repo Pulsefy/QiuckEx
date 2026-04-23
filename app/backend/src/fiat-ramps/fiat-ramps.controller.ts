@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { FiatRampsService } from './fiat-ramps.service';
 
@@ -30,13 +30,13 @@ export class FiatRampsController {
 
   @Post('kyc/callback')
   @ApiOperation({ summary: 'Handle KYC redirects and updates' })
-  async handleKycCallback(@Body() callbackData: any) {
+  async handleKycCallback(@Body() callbackData: unknown) {
     return this.fiatRampsService.handleKycCallback(callbackData);
   }
 
   @Post('transaction/status')
   @ApiOperation({ summary: 'Securely handle transaction status updates' })
-  async updateTransactionStatus(@Body() statusData: any) {
+  async updateTransactionStatus(@Body() statusData: unknown) {
     return this.fiatRampsService.updateTransactionStatus(statusData);
   }
 }
