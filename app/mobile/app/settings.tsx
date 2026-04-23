@@ -2,6 +2,7 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Switch, ScrollView } from "react-native";
 import { useNotifications } from "../components/notifications/NotificationContext";
+import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 import { ThemeSelector } from "../components/ThemeSelector";
 import { useTheme } from "../src/theme/ThemeContext";
 
@@ -28,6 +29,12 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Onboarding</Text>
+          <OnboardingResetButton />
+        </View>
+      </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -51,4 +58,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   label: { fontSize: 16 },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: "#374151",
+  },
 });

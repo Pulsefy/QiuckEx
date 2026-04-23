@@ -1,14 +1,28 @@
-import { Link } from "expo-router";
-import React from "react";
+import { Link, useRouter } from "expo-router";
+import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import NotificationCenter from "../components/notifications/NotificationCenter";
+import { useOnboarding } from "../hooks/useOnboarding";
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const { hasCompletedOnboarding, isLoading } = useOnboarding();
+  
 import { useTheme } from "../src/theme/ThemeContext";
 
 export default function HomeScreen() {
   const { theme } = useTheme();
   // Pay Again shortcut logic
   const [recentContacts, setRecentContacts] = React.useState<any[]>([]);
+  
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (!isLoading && !hasCompletedOnboarding) {
+      router.replace('/onboarding');
+    }
+  }, [isLoading, hasCompletedOnboarding, router]);
+
   React.useEffect(() => {
     async function loadContacts() {
       try {
@@ -19,6 +33,10 @@ export default function HomeScreen() {
     }
     loadContacts();
   }, []);
+
+  if (isLoading || !hasCompletedOnboarding) {
+    return null; // Show loading while checking onboarding status
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>

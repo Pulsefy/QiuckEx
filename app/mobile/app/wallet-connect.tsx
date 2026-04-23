@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import React, { useState, useEffect } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useNetworkStatus } from "../hooks/use-network-status";
 import { useSecurity } from "../hooks/use-security";
 import { usePaymentListener } from "../hooks/usePaymentListener";
+import { useOnboarding } from "../hooks/useOnboarding";
 import { useTheme } from "../src/theme/ThemeContext";
 
 type Network = "testnet" | "mainnet";
@@ -18,8 +19,10 @@ function generateMockSessionToken() {
 
 export default function WalletConnectScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ demo?: string }>();
   const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
+  const { trackOnboardingEvent } = useOnboarding();
   const {
     authenticateForSensitiveAction,
     clearSensitiveSessionToken,
@@ -33,15 +36,34 @@ export default function WalletConnectScreen() {
   const [sessionTokenPreview, setSessionTokenPreview] = useState<string | null>(
     null,
   );
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  useEffect(() => {
+    const demo = params.demo === 'true';
+    setIsDemoMode(demo);
+    if (demo) {
+      setNetwork("testnet");
+    }
+  }, [params.demo]);
 
   const handleConnect = async () => {
-    const mockPublicKey = "GABCD1234MOCKPUBLICKEY5678XYZ";
+    const demoPublicKey = "GAMOSFOKEYHFDGMXIEFEYBUYK3ZMFYN3PFLOTBRXFGBFGRKBKLQSLGLP";
+    const realPublicKey = "GABCD1234MOCKPUBLICKEY5678XYZ";
+    const mockPublicKey = isDemoMode ? demoPublicKey : realPublicKey;
+    
     setConnected(true);
     setPublicKey(mockPublicKey);
 
     // Store wallet session token in secure storage, never in AsyncStorage/plain files.
     await saveSensitiveSessionToken(generateMockSessionToken());
     setSessionTokenPreview(null);
+
+    // Track wallet connection
+    trackOnboardingEvent('wallet_connected', {
+      demo_mode: isDemoMode,
+      network,
+      timestamp: Date.now(),
+    });
   };
 
   // Start polling for payments when publicKey is available
@@ -55,7 +77,7 @@ export default function WalletConnectScreen() {
   };
 
   const toggleNetwork = () => {
-    setNetwork((prev) => (prev === "testnet" ? "mainnet" : "testnet"));
+    setNetwork((prev: Network) => (prev === "testnet" ? "mainnet" : "testnet"));
   };
 
   const revealSessionToken = async () => {
@@ -91,6 +113,31 @@ export default function WalletConnectScreen() {
           biometric security.
         </Text>
 
+        {isDemoMode && (
+          <View style={styles.demoBanner}>
+            <Ionicons name="school-outline" size={20} color="#2563EB" />
+            <Text style={styles.demoBannerText}>
+              Demo Mode - Using testnet with practice funds
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Network</Text>
+            <View style={[
+              styles.networkBadge,
+              network === "mainnet" ? styles.mainnet : styles.testnet,
+              isDemoMode && styles.disabledNetworkBadge,
+            ]}>
+              <Text style={styles.networkText}>
+                {network.toUpperCase()}
+                {isDemoMode && ' (Demo)'}
+              </Text>
+              {isDemoMode && (
+                <Ionicons name="lock-closed" size={12} color="#fff" style={{ marginLeft: 4 }} />
+              )}
+            </View>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.row}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>Network</Text>
@@ -263,5 +310,26 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
+  },
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  demoBannerText: {
+    color: "#1E40AF",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+    flex: 1,
+  },
+  disabledNetworkBadge: {
+    opacity: 0.7,
   },
 });
