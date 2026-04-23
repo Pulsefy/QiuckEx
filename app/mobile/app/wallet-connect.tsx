@@ -1,27 +1,58 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useNotifications } from "../components/notifications/NotificationContext";
 import { useNetworkStatus } from "../hooks/use-network-status";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { useSecurity } from "../hooks/use-security";
-import {
-  clearWalletSession,
-  saveWalletSession,
-  type WalletNetwork,
-} from "../services/wallet-session";
 import { useTheme } from "../src/theme/ThemeContext";
+import {
+  SUPPORTED_WALLETS,
+  useWalletContext,
+} from "../hooks/useWalletContext";
+import type { WalletType, StellarNetwork, WalletErrorCode } from "../types/wallet";
 
-function generateMockSessionToken() {
-  return `qex_session_${Math.random().toString(36).slice(2, 14)}`;
-}
+// ── Error banner config ──────────────────────────────────────────────────────
 
-const DEMO_PUBLIC_KEY =
-  "GAMOSFOKEYHFDGMXIEFEYBUYK3ZMFYN3PFLOTBRXFGBFGRKBKLQSLGLP";
-const MOCK_PUBLIC_KEY = DEMO_PUBLIC_KEY;
+const ERROR_BANNER: Record<
+  WalletErrorCode,
+  { icon: keyof typeof Ionicons.glyphMap; title: string }
+> = {
+  wallet_locked: {
+    icon: "lock-closed-outline",
+    title: "Wallet Locked",
+  },
+  wrong_network: {
+    icon: "git-network-outline",
+    title: "Wrong Network",
+  },
+  signature_rejected: {
+    icon: "close-circle-outline",
+    title: "Signature Rejected",
+  },
+  connection_failed: {
+    icon: "alert-circle-outline",
+    title: "Connection Failed",
+  },
+  session_expired: {
+    icon: "time-outline",
+    title: "Session Expired",
+  },
+  wallet_not_found: {
+    icon: "search-outline",
+    title: "Wallet Not Found",
+  },
+};
 
 export default function WalletConnectScreen() {
   const router = useRouter();
@@ -34,57 +65,105 @@ export default function WalletConnectScreen() {
     authenticateForSensitiveAction,
     clearSensitiveSessionToken,
     getSensitiveSessionToken,
-    saveSensitiveSessionToken,
   } = useSecurity();
 
-  const [connected, setConnected] = useState(false);
-  const [network, setNetwork] = useState<WalletNetwork>("testnet");
-  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const {
+    wallet,
+    connect,
+    disconnect,
+    switchAccount,
+    switchNetwork,
+    clearError,
+  } = useWalletContext();
+
   const [sessionTokenPreview, setSessionTokenPreview] = useState<string | null>(
     null,
   );
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(
+    wallet.walletType ?? null,
+  );
 
+  // Sync demo mode from navigation params
   useEffect(() => {
     const nextDemoMode = params.demo === "true";
     setIsDemoMode(nextDemoMode);
     if (nextDemoMode) {
-      setNetwork("testnet");
+      setSelectedWallet("demo");
     }
   }, [params.demo]);
 
-  const toggleNetwork = () => {
-    setNetwork((current) => (current === "mainnet" ? "testnet" : "mainnet"));
-  };
+  // Auto-select the last-used wallet type once wallet context is hydrated
+  useEffect(() => {
+    if (!wallet.isRestoring && wallet.walletType && !selectedWallet) {
+      setSelectedWallet(wallet.walletType);
+    }
+  }, [wallet.isRestoring, wallet.walletType, selectedWallet]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────
 
   const handleConnect = async () => {
-    const nextPublicKey = isDemoMode ? DEMO_PUBLIC_KEY : MOCK_PUBLIC_KEY;
+    const walletType = isDemoMode ? "demo" : (selectedWallet ?? "demo");
+    setIsConnecting(true);
+    clearError();
 
-    setConnected(true);
-    setPublicKey(nextPublicKey);
-    await saveSensitiveSessionToken(generateMockSessionToken());
-    await saveWalletSession({
-      publicKey: nextPublicKey,
-      network,
-      connectedAt: Date.now(),
-    });
+    await connect(walletType, wallet.network as StellarNetwork);
 
+    setIsConnecting(false);
+
+    // Trigger sync + onboarding tracking regardless — syncNow is idempotent
+    // and onboarding tracking should fire even if the connect eventually
+    // resolved with an error (for analytics).
     await trackOnboardingEvent("wallet_connected", {
-      demo_mode: isDemoMode,
-      network,
+      wallet_type: walletType,
+      network: wallet.network,
       timestamp: Date.now(),
     });
-
     await syncNow();
   };
 
   const handleDisconnect = async () => {
-    setConnected(false);
-    setPublicKey(null);
+    setIsDisconnecting(true);
     setSessionTokenPreview(null);
+    await disconnect();
     await clearSensitiveSessionToken();
-    await clearWalletSession();
     await syncNow();
+    setIsDisconnecting(false);
+  };
+
+  const handleSwitchAccount = () => {
+    // Fallback for platforms where Alert.prompt is not available (most RN platforms)
+    if (typeof Alert.prompt !== "function") {
+      Alert.alert(
+        "Switch Account",
+        "Account switching is available through your wallet extension. Change the active account in your wallet, then reconnect.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Reconnect",
+            onPress: () => {
+              void handleDisconnect();
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    Alert.prompt?.("Switch Account", "Enter new public key", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Switch",
+        onPress: async (value?: string) => {
+          if (value) {
+            await switchAccount(value.trim());
+            await syncNow();
+          }
+        },
+      },
+    ]);
   };
 
   const revealSessionToken = async () => {
@@ -109,19 +188,46 @@ export default function WalletConnectScreen() {
     setSessionTokenPreview(`${token.slice(0, 8)}...${token.slice(-4)}`);
   };
 
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  const errorConfig = wallet.error
+    ? ERROR_BANNER[wallet.error.code as WalletErrorCode]
+    : null;
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  if (wallet.isRestoring) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View style={styles.content}>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>
+            Restoring session…
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           Wallet Connection
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Connect a wallet once and QuickEx will use that account for recent
-          activity sync, notification badges, and transaction history.
+          {wallet.connected
+            ? "Your wallet is connected. You can switch accounts, change networks, or disconnect below."
+            : "Connect a wallet once and QuickEx will remember it for next time."}
         </Text>
 
+        {/* ── Demo banner ──────────────────────────────────────────────── */}
         {isDemoMode ? (
           <View
             style={[
@@ -144,12 +250,57 @@ export default function WalletConnectScreen() {
           </View>
         ) : null}
 
+        {/* ── Error banner ─────────────────────────────────────────────── */}
+        {wallet.error && errorConfig ? (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: theme.status.errorBg,
+                borderColor: theme.status.error,
+              },
+            ]}
+          >
+            <Ionicons
+              name={errorConfig.icon}
+              size={20}
+              color={theme.status.error}
+            />
+            <View style={styles.errorBannerCopy}>
+              <Text
+                style={[styles.errorBannerTitle, { color: theme.status.error }]}
+              >
+                {errorConfig.title}
+              </Text>
+              <Text
+                style={[
+                  styles.errorBannerMessage,
+                  { color: theme.status.error },
+                ]}
+              >
+                {wallet.error.message}
+              </Text>
+            </View>
+            {wallet.error.recoverable ? (
+              <Pressable onPress={clearError} style={styles.errorDismiss}>
+                <Ionicons
+                  name="close-outline"
+                  size={18}
+                  color={theme.status.error}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* ── Connection card ──────────────────────────────────────────── */}
         <View
           style={[
             styles.card,
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
+          {/* Network row */}
           <View style={styles.row}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>
               Network
@@ -158,19 +309,21 @@ export default function WalletConnectScreen() {
               style={[
                 styles.networkBadge,
                 {
-                backgroundColor:
-                    network === "mainnet"
+                  backgroundColor:
+                    wallet.network === "mainnet"
                       ? theme.networkMainnet
                       : theme.networkTestnet,
                   ...(isDemoMode ? styles.disabledNetworkBadge : null),
                 },
               ]}
-              onPress={isDemoMode ? undefined : toggleNetwork}
+              onPress={
+                isDemoMode ? undefined : () => switchNetwork(wallet.network === "testnet" ? "mainnet" : "testnet")
+              }
               disabled={isDemoMode}
             >
               <View style={styles.networkBadgeContent}>
                 <Text style={styles.networkText}>
-                  {network.toUpperCase()}
+                  {wallet.network.toUpperCase()}
                   {isDemoMode ? " (Demo)" : ""}
                 </Text>
                 {isDemoMode ? (
@@ -185,20 +338,43 @@ export default function WalletConnectScreen() {
             </Pressable>
           </View>
 
+          {/* Status row */}
           <View style={styles.row}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>
               Status
             </Text>
             <Text
               style={{
-                color: connected ? theme.status.success : theme.status.error,
+                color: wallet.connected
+                  ? theme.status.success
+                  : theme.status.error,
                 fontWeight: "700",
               }}
             >
-              {connected ? "Connected" : "Not Connected"}
+              {wallet.connected ? "Connected" : "Not Connected"}
             </Text>
           </View>
 
+          {/* Wallet type row (when connected) */}
+          {wallet.connected && wallet.walletType ? (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>
+                Wallet
+              </Text>
+              <Text
+                style={{
+                  color: theme.textSecondary,
+                  fontWeight: "600",
+                  textTransform: "capitalize",
+                }}
+              >
+                {SUPPORTED_WALLETS.find((w) => w.type === wallet.walletType)
+                  ?.label ?? wallet.walletType}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Offline warning */}
           {!isConnected ? (
             <View
               style={[
@@ -226,30 +402,124 @@ export default function WalletConnectScreen() {
             </View>
           ) : null}
 
-          {connected && publicKey ? (
+          {/* Public key (when connected) */}
+          {wallet.connected && wallet.publicKey ? (
             <Text style={[styles.address, { color: theme.textSecondary }]}>
-              {publicKey}
+              {wallet.publicKey}
             </Text>
           ) : null}
 
-          {!connected ? (
-            <Pressable
-              style={[
-                styles.primaryButton,
-                { backgroundColor: theme.buttonPrimaryBg },
-              ]}
-              onPress={() => {
-                void handleConnect();
-              }}
-            >
-              <Text
-                style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}
-              >
-                Connect Wallet
-              </Text>
-            </Pressable>
-          ) : (
+          {/* ── Not connected: wallet selector + connect button ────── */}
+          {!wallet.connected ? (
             <>
+              {/* Wallet picker */}
+              {!isDemoMode ? (
+                <View style={styles.walletPicker}>
+                  <Text
+                    style={[
+                      styles.pickerLabel,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Select a wallet provider
+                  </Text>
+                  {SUPPORTED_WALLETS.map((w) => (
+                    <Pressable
+                      key={w.type}
+                      style={[
+                        styles.walletOption,
+                        {
+                          backgroundColor:
+                            selectedWallet === w.type
+                              ? theme.chipActiveBg
+                              : theme.background,
+                          borderColor:
+                            selectedWallet === w.type
+                              ? theme.buttonPrimaryBg
+                              : theme.border,
+                        },
+                      ]}
+                      onPress={() => setSelectedWallet(w.type)}
+                    >
+                      <View style={styles.walletOptionCopy}>
+                        <Text
+                          style={[
+                            styles.walletOptionLabel,
+                            { color: theme.textPrimary },
+                          ]}
+                        >
+                          {w.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.walletOptionDesc,
+                            { color: theme.textMuted },
+                          ]}
+                        >
+                          {w.description}
+                        </Text>
+                      </View>
+                      {selectedWallet === w.type ? (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={theme.buttonPrimaryBg}
+                        />
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: theme.buttonPrimaryBg },
+                  isConnecting ? styles.buttonDisabled : null,
+                ]}
+                disabled={isConnecting || !isConnected}
+                onPress={() => {
+                  void handleConnect();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: theme.buttonPrimaryText },
+                  ]}
+                >
+                  {isConnecting ? "Connecting…" : "Connect Wallet"}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            /* ── Connected: actions ─────────────────────────────────── */
+            <>
+              {/* Switch account */}
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  { borderColor: theme.buttonSecondaryBorder },
+                ]}
+                onPress={handleSwitchAccount}
+              >
+                <Ionicons
+                  name="swap-horizontal-outline"
+                  size={18}
+                  color={theme.buttonSecondaryText}
+                  style={styles.actionIcon}
+                />
+                <Text
+                  style={[
+                    styles.secondaryButtonText,
+                    { color: theme.buttonSecondaryText },
+                  ]}
+                >
+                  Switch Account
+                </Text>
+              </Pressable>
+
+              {/* Reveal session token */}
               <Pressable
                 style={[
                   styles.secondaryButton,
@@ -259,6 +529,12 @@ export default function WalletConnectScreen() {
                   void revealSessionToken();
                 }}
               >
+                <Ionicons
+                  name="key-outline"
+                  size={18}
+                  color={theme.buttonSecondaryText}
+                  style={styles.actionIcon}
+                />
                 <Text
                   style={[
                     styles.secondaryButtonText,
@@ -270,24 +546,40 @@ export default function WalletConnectScreen() {
               </Pressable>
 
               {sessionTokenPreview ? (
-                <Text style={[styles.tokenPreview, { color: theme.textSecondary }]}>
+                <Text
+                  style={[styles.tokenPreview, { color: theme.textSecondary }]}
+                >
                   Token: {sessionTokenPreview}
                 </Text>
               ) : null}
 
+              {/* Disconnect */}
               <Pressable
                 style={[
                   styles.dangerButton,
-                  { backgroundColor: theme.buttonDangerBg },
+                  {
+                    backgroundColor: theme.buttonDangerBg,
+                    opacity: isDisconnecting ? 0.6 : 1,
+                  },
                 ]}
+                disabled={isDisconnecting}
                 onPress={() => {
                   void handleDisconnect();
                 }}
               >
+                <Ionicons
+                  name="log-out-outline"
+                  size={18}
+                  color={theme.buttonDangerText}
+                  style={styles.actionIcon}
+                />
                 <Text
-                  style={[styles.primaryButtonText, { color: theme.buttonDangerText }]}
+                  style={[
+                    styles.primaryButtonText,
+                    { color: theme.buttonDangerText },
+                  ]}
                 >
-                  Disconnect
+                  {isDisconnecting ? "Disconnecting…" : "Disconnect"}
                 </Text>
               </Pressable>
             </>
@@ -299,7 +591,7 @@ export default function WalletConnectScreen() {
             Go Back
           </Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -308,8 +600,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     padding: 24,
   },
   title: {
@@ -338,6 +629,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+    marginBottom: 18,
+  },
+  errorBannerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  errorBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  errorBannerMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  errorDismiss: {
+    padding: 4,
   },
   card: {
     borderRadius: 18,
@@ -392,16 +708,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 16,
   },
+  walletPicker: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  pickerLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  walletOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  walletOptionCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  walletOptionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  walletOptionDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   primaryButton: {
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   dangerButton: {
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "center",
   },
   primaryButtonText: {
     fontSize: 16,
@@ -413,6 +766,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  actionIcon: {
+    marginRight: 8,
   },
   secondaryButtonText: {
     fontWeight: "700",
