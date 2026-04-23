@@ -13,6 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { parsePaymentLink } from '@/utils/parse-payment-link';
 import { useTheme } from '../src/theme/ThemeContext';
 
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
+
 export default function ScanToPayScreen() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -20,34 +23,52 @@ export default function ScanToPayScreen() {
   const [error, setError] = useState<string | null>(null);
   const processingRef = useRef(false);
 
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
   const handleBarCodeScanned = useCallback(
-    ({ data }: { data: string }) => {
-      if (processingRef.current) return;
-      processingRef.current = true;
+  async ({ data }: { data: string }) => {
+    if (processingRef.current || scanned) return;
 
-      const result = parsePaymentLink(data);
+    processingRef.current = true;
+    setScanned(true);
 
-      if (result.valid) {
-        const { username, amount, asset, memo, privacy } = result.data;
-        router.replace({
-          pathname: '/payment-confirmation',
-          params: {
-            username,
-            amount,
-            asset,
-            ...(memo ? { memo } : {}),
-            privacy: String(privacy),
-          },
-        });
-      } else {
-        setError(result.error);
-        setTimeout(() => {
-          processingRef.current = false;
-        }, 2000);
-      }
-    },
-    [router],
-  );
+    const start = Date.now();
+
+    const result = parsePaymentLink(data);
+
+    if (result.valid) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const { username, amount, asset, memo, privacy } = result.data;
+
+      router.replace({
+        pathname: '/payment-confirmation',
+        params: {
+          username,
+          amount,
+          asset,
+          ...(memo ? { memo } : {}),
+          privacy: String(privacy),
+        },
+      });
+
+      // performance check
+      const duration = Date.now() - start;
+      console.log('Scan → confirm (ms):', duration);
+    } else {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+      setError(result.error || 'Invalid QR code');
+
+      setTimeout(() => {
+        processingRef.current = false;
+        setScanned(false);
+      }, 1500);
+    }
+  },
+  [router, scanned],
+);
 
   const dismissError = useCallback(() => {
     setError(null);
@@ -82,10 +103,14 @@ export default function ScanToPayScreen() {
   return (
     <View style={styles.container}>
       <CameraView
-        style={StyleSheet.absoluteFill}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={handleBarCodeScanned}
-      />
+  style={StyleSheet.absoluteFillObject}
+  facing="back"
+  enableTorch={flashEnabled}
+  onBarcodeScanned={handleBarCodeScanned}
+  barcodeScannerSettings={{
+    barcodeTypes: ['qr'],
+  }}
+/>
 
       {/* Overlay — intentionally uses white-on-transparent for camera readability */}
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
@@ -101,6 +126,19 @@ export default function ScanToPayScreen() {
           <View style={[styles.corner, styles.bottomLeft]} />
           <View style={[styles.corner, styles.bottomRight]} />
         </View>
+
+        <View style={styles.controls}>
+  <Pressable
+    onPress={() => setFlashEnabled((prev) => !prev)}
+    style={styles.controlButton}
+  >
+    <Ionicons
+      name={flashEnabled ? 'flash' : 'flash-off'}
+      size={24}
+      color="white"
+    />
+  </Pressable>
+</View>
 
         {/* Error banner */}
         {error && (
@@ -198,6 +236,38 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
+  controls: {
+  position: 'absolute',
+  bottom: 40,
+  alignSelf: 'center',
+  flexDirection: 'row',
+},
+
+controlButton: {
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  padding: 12,
+  borderRadius: 50,
+},
+
+errorBox: {
+  position: 'absolute',
+  bottom: 120,
+  alignSelf: 'center',
+  backgroundColor: '#ff4444',
+  padding: 12,
+  borderRadius: 8,
+},
+
+errorText: {
+  color: '#fff',
+  fontWeight: 'bold',
+},
+
+errorHint: {
+  color: '#fff',
+  fontSize: 12,
+  marginTop: 4,
+},
   primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
   secondaryBtnText: { fontSize: 16 },
