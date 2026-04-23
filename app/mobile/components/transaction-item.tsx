@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     Clipboard,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
 import { useTheme } from '../src/theme/ThemeContext';
 
@@ -15,15 +16,22 @@ interface Props {
     accountId: string;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
     const d = new Date(iso);
-    return d.toLocaleString('en-US', {
+    return d.toLocaleString(locale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+function formatNumber(value: number, locale: string): string {
+    return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(value);
 }
 
 function formatAsset(asset: string): string {
@@ -42,9 +50,11 @@ function shortenAddress(address: string): string {
 }
 
 export default function TransactionItem({ item }: Props) {
+    const { i18n } = useTranslation();
     const { theme } = useTheme();
     const assetLabel = formatAsset(item.asset);
     const hasAddresses = Boolean(item.source || item.destination);
+    const formattedAmount = formatNumber(parseFloat(item.amount), i18n.language || 'en');
 
     const handleCopyHash = () => {
         Clipboard.setString(item.txHash);
@@ -75,13 +85,13 @@ export default function TransactionItem({ item }: Props) {
                         {shortenAddress(item.source)} → {shortenAddress(item.destination)}
                     </Text>
                 ) : null}
-                <Text style={[styles.date, { color: theme.textMuted }]}>{formatDate(item.timestamp)}</Text>
+                <Text style={[styles.date, { color: theme.textMuted }]}>{formatDate(item.timestamp, i18n.language || 'en')}</Text>
             </View>
 
             {/* Right: amount */}
             <View style={styles.right}>
                 <Text style={[styles.amount, { color: theme.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
-                    {parseFloat(item.amount).toFixed(2)}
+                    {formattedAmount}
                 </Text>
                 <Text style={[styles.assetCode, { color: theme.textSecondary }]}>{assetLabel}</Text>
             </View>

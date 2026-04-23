@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Switch, ScrollView } from "react-native";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 import { ThemeSelector } from "../components/ThemeSelector";
+import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useTheme } from "../src/theme/ThemeContext";
 
 export default function SettingsScreen() {
@@ -18,6 +19,11 @@ export default function SettingsScreen() {
 
           {/* ── Theme Selector ─────────────────────────────────── */}
           <ThemeSelector />
+
+          <View style={styles.spacer} />
+
+          {/* ── Locale Switcher ─────────────────────────────────── */}
+          <LocaleSwitcher />
 
           <View style={styles.spacer} />
 

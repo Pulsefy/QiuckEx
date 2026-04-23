@@ -1,3 +1,5 @@
+import i18n from 'i18next';
+
 /**
  * analyticsApi.ts
  *
@@ -70,20 +72,23 @@ function makeData(range: DateRange): Omit<AnalyticsData, "summary"> {
     volume = buildSeries(7, (i) => {
       const d = new Date(now);
       d.setDate(d.getDate() - (6 - i));
-      return d.toLocaleDateString("en-US", { weekday: "short" });
+      return d.toLocaleDateString(i18n.language || "en", { weekday: "short" });
     });
   } else if (range === "30d") {
     volume = buildSeries(30, (i) => {
       const d = new Date(now);
       d.setDate(d.getDate() - (29 - i));
-      return `${d.getMonth() + 1}/${d.getDate()}`;
+      return d.toLocaleDateString(i18n.language || "en", {
+        month: "numeric",
+        day: "numeric",
+      });
     });
   } else {
     // all time — 12 months
     volume = buildSeries(12, (i) => {
       const d = new Date(now);
       d.setMonth(d.getMonth() - (11 - i));
-      return d.toLocaleDateString("en-US", { month: "short" });
+      return d.toLocaleDateString(i18n.language || "en", { month: "short" });
     });
   }
 
