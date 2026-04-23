@@ -5,6 +5,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import NotificationCenter from "../components/notifications/NotificationCenter";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { useTheme } from "../src/theme/ThemeContext";
+import { useTranslation } from 'react-i18next';
+
+export default function HomeScreen() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { hasCompletedOnboarding, isLoading } = useOnboarding();
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -42,16 +48,16 @@ export default function HomeScreen() {
         <NotificationCenter />
       </View>
       <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>QuickEx</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('appTitle')}</Text>
 
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Fast, privacy-focused payment link platform built on Stellar.
+          {t('appSubtitle')}
         </Text>
 
         {/* Pay Again Shortcut */}
         {recentContacts.length > 0 && (
           <View style={{ width: "100%", marginBottom: 20 }}>
-            <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8, color: theme.textPrimary }}>Pay Again</Text>
+            <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8, color: theme.textPrimary }}>{t('payAgain')}</Text>
             {recentContacts.map((contact) => (
               <Link
                 key={contact.id}
@@ -68,28 +74,27 @@ export default function HomeScreen() {
         )}
 
         <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Instant Payments</Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('instantPayments')}</Text>
           <Text style={[styles.cardText, { color: theme.textSecondary }]}>
-            Receive USDC, XLM, or any Stellar asset directly to your
-            self-custody wallet.
+            {t('instantPaymentsDesc')}
           </Text>
         </View>
 
         <Link href="/scan-to-pay" asChild>
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>Scan to Pay</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('scanToPay')}</Text>
           </TouchableOpacity>
         </Link>
 
         <Link href="/wallet-connect" asChild>
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>Connect Wallet</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('connectWallet')}</Text>
           </TouchableOpacity>
         </Link>
 
         <Link href="/contacts" asChild>
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>Contacts</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('contacts')}</Text>
           </TouchableOpacity>
         </Link>
 

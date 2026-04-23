@@ -7,11 +7,13 @@ import {
   View,
   FlatList,
 } from "react-native";
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from "@expo/vector-icons";
 import { useNotifications } from "./NotificationContext";
 import { useTheme } from "../../src/theme/ThemeContext";
 
 export const NotificationCenter: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const { theme } = useTheme();
   const [open, setOpen] = React.useState(false);
@@ -38,9 +40,9 @@ export const NotificationCenter: React.FC = () => {
         onRequestClose={() => setOpen(false)}
       >
         <View style={[styles.modalHeader, { borderColor: theme.border, backgroundColor: theme.background }]}>
-          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Notifications</Text>
+          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('notificationsTitle')}</Text>
           <Pressable onPress={() => setOpen(false)}>
-            <Text style={[styles.close, { color: theme.link }]}>Close</Text>
+            <Text style={[styles.close, { color: theme.link }]}>{t('close')}</Text>
           </Pressable>
         </View>
 
@@ -56,13 +58,13 @@ export const NotificationCenter: React.FC = () => {
               </Text>
               <Text style={[styles.itemSubtitle, { color: theme.textSecondary }]}>
                 {item.sender ? `${shorten(item.sender)}` : ""} •{" "}
-                {new Date(item.receivedAt).toLocaleString()}
+                {new Date(item.receivedAt).toLocaleString(i18n.language || 'en')}
               </Text>
             </View>
           )}
           ListEmptyComponent={() => (
             <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No notifications</Text>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>{t('noNotifications')}</Text>
             </View>
           )}
         />
