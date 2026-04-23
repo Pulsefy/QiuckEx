@@ -11,7 +11,11 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { hasCompletedOnboarding, isLoading } = useOnboarding();
+
+export default function HomeScreen() {
+  const router = useRouter();
   const { theme } = useTheme();
+  const { hasCompletedOnboarding, isLoading } = useOnboarding();
   // Pay Again shortcut logic
   const [recentContacts, setRecentContacts] = React.useState<any[]>([]);
   

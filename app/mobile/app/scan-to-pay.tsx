@@ -249,25 +249,6 @@ controlButton: {
   borderRadius: 50,
 },
 
-errorBox: {
-  position: 'absolute',
-  bottom: 120,
-  alignSelf: 'center',
-  backgroundColor: '#ff4444',
-  padding: 12,
-  borderRadius: 8,
-},
-
-errorText: {
-  color: '#fff',
-  fontWeight: 'bold',
-},
-
-errorHint: {
-  color: '#fff',
-  fontSize: 12,
-  marginTop: 4,
-},
   primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
   secondaryBtnText: { fontSize: 16 },

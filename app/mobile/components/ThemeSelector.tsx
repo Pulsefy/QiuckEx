@@ -114,7 +114,7 @@ export function ThemeSelector() {
       </Text>
 
       <View style={styles.brandsRow}>
-        {BrandThemes.map((brandTheme) => {
+        {BrandThemes.map((brandTheme: any) => {
           const isActive =
             mode === 'brand' && brandThemeId === brandTheme.id;
           return (
@@ -131,7 +131,7 @@ export function ThemeSelector() {
             >
               {/* Swatch preview */}
               <View style={styles.swatchRow}>
-                {brandTheme.swatchPreview.map((color, i) => (
+                {brandTheme.swatchPreview.map((color: string, i: number) => (
                   <View
                     key={i}
                     style={[
