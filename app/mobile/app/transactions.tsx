@@ -183,7 +183,7 @@ export default function TransactionsScreen() {
 
     const shortAccount = `${accountId.slice(0, 6)}…${accountId.slice(-4)}`;
 
-    const renderItem = ({ item }: ListRenderItemInfo<TransactionItemType>) => (
+    const renderItem = ({ item }: any) => (
         <TransactionItem item={item} accountId={accountId} />
     );
 

@@ -5,6 +5,7 @@ import {
   Networks,
   Asset,
   BASE_FEE,
+  Account,
 } from 'stellar-sdk';
 import type { PathPreviewRow } from './link-metadata';
 
@@ -84,11 +85,7 @@ export function buildPathPaymentTransaction(
     options.network === 'public' ? Networks.PUBLIC : Networks.TESTNET;
 
   const transaction = new TransactionBuilder(
-    {
-      accountId: () => userAccount.accountId,
-      sequenceNumber: () => String(userAccount.sequenceNumber),
-      incrementSequenceNumber: () => undefined,
-    } as never,
+    new Account(userAccount.accountId, String(userAccount.sequenceNumber)),
     {
       fee: String(BASE_FEE),
       networkPassphrase,

@@ -14,6 +14,7 @@ export default function EditContactScreen() {
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [createdAt, setCreatedAt] = useState<number>(Date.now());
   const router = useRouter();
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function EditContactScreen() {
       setContact(contact);
       setNickname(contact.nickname || "");
       setAddress(contact.address);
+      setCreatedAt(contact.createdAt);
     }
     setLoading(false);
   }
@@ -47,6 +49,7 @@ export default function EditContactScreen() {
         id: id!,
         address: address.trim(),
         nickname: nickname.trim(),
+        createdAt,
         updatedAt: Date.now(),
       });
       router.replace("/contacts");

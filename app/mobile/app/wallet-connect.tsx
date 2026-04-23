@@ -53,6 +53,10 @@ export default function WalletConnectScreen() {
     }
   }, [params.demo]);
 
+  const toggleNetwork = () => {
+    setNetwork((current) => (current === "mainnet" ? "testnet" : "mainnet"));
+  };
+
   const handleConnect = async () => {
     const nextPublicKey = isDemoMode ? DEMO_PUBLIC_KEY : MOCK_PUBLIC_KEY;
 
@@ -154,23 +158,30 @@ export default function WalletConnectScreen() {
               style={[
                 styles.networkBadge,
                 {
-                  backgroundColor:
+                backgroundColor:
                     network === "mainnet"
                       ? theme.networkMainnet
                       : theme.networkTestnet,
+                  ...(isDemoMode ? styles.disabledNetworkBadge : null),
                 },
               ]}
-              onPress={() =>
-                setNetwork((current) =>
-                  current === "mainnet" ? "testnet" : "mainnet",
-                )
-              }
+              onPress={isDemoMode ? undefined : toggleNetwork}
               disabled={isDemoMode}
             >
-              <Text style={styles.networkText}>
-                {network.toUpperCase()}
-                {isDemoMode ? " (Demo)" : ""}
-              </Text>
+              <View style={styles.networkBadgeContent}>
+                <Text style={styles.networkText}>
+                  {network.toUpperCase()}
+                  {isDemoMode ? " (Demo)" : ""}
+                </Text>
+                {isDemoMode ? (
+                  <Ionicons
+                    name="lock-closed"
+                    size={12}
+                    color="#fff"
+                    style={styles.networkLockIcon}
+                  />
+                ) : null}
+              </View>
             </Pressable>
           </View>
 
@@ -348,9 +359,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
+  disabledNetworkBadge: {
+    opacity: 0.85,
+  },
+  networkBadgeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   networkText: {
     color: "#fff",
     fontWeight: "700",
+  },
+  networkLockIcon: {
+    marginLeft: 4,
   },
   offlineAdvice: {
     flexDirection: "row",
@@ -391,6 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+    marginTop: 12,
   },
   secondaryButtonText: {
     fontWeight: "700",

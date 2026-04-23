@@ -19,7 +19,6 @@ export default function HomeScreen() {
     recentActivity,
     syncNow,
   } = useNotifications();
-
   useEffect(() => {
     if (!isLoading && !hasCompletedOnboarding) {
       router.replace("/onboarding");
