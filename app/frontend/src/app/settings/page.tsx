@@ -3,8 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import '@/lib/i18n';
+import { useTranslation } from "react-i18next";
 
 export default function Settings() {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     username: "john_doe",
     primaryColor: "#6366f1",
@@ -39,7 +43,7 @@ export default function Settings() {
           >
             ← Back
           </Link>
-          <h1 className="text-lg font-black">Settings</h1>
+          <h1 className="text-lg font-black">{t('settingsTitle')}</h1>
           <div className="w-16" /> {/* Spacer for centering */}
         </div>
       </div>
@@ -73,18 +77,17 @@ export default function Settings() {
         {/* Header - Hidden on mobile, shown on desktop */}
         <header className="hidden md:block mb-10">
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-2">
-            Profile Customization
+            {t('profileCustomization')}
           </h1>
           <p className="text-neutral-500 font-medium text-sm sm:text-base">
-            Customize your public payment page at quickex.to/{form.username}
+            {t('profileCustomizationDescription', { username: form.username })}
           </p>
         </header>
 
         {/* Mobile subheader */}
         <div className="md:hidden mb-6">
           <p className="text-neutral-400 text-sm">
-            Customize quickex.to/
-            <span className="text-white font-bold">{form.username}</span>
+            {t('profileCustomizationDescription', { username: form.username })}
           </p>
         </div>
 
@@ -93,13 +96,13 @@ export default function Settings() {
             href="/settings"
             className="px-4 py-2 rounded-xl border border-white/10 bg-white/10 text-sm font-semibold hover:bg-white/20"
           >
-            General
+            {t('generalTab')}
           </Link>
           <Link
             href="/settings/developer"
             className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5"
           >
-            Developer
+            {t('developerTab')}
           </Link>
         </nav>
 
@@ -109,13 +112,13 @@ export default function Settings() {
             {/* Theme Settings Card */}
             <div className="rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
               <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
-                Theme Settings
+                {t('themeSettings')}
               </h2>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    Primary Color
+                    {t('primaryColor')}
                   </label>
                   <div className="flex gap-2 sm:gap-3">
                     <input
@@ -140,7 +143,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    Avatar URL
+                    {t('avatarUrl')}
                   </label>
                   <input
                     type="url"
@@ -155,7 +158,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    Bio (max 160 characters)
+                    {t('bioLabel')}
                   </label>
                   <textarea
                     value={form.bio}
@@ -172,6 +175,16 @@ export default function Settings() {
               </div>
             </div>
 
+            <div className="rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
+                {t('languageLabel')}
+              </h2>
+              <p className="text-sm text-neutral-400 mb-4">
+                {t('changeLanguage')}
+              </p>
+              <LocaleSwitcher />
+            </div>
+
             {/* Social Links Card */}
             <div className="rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
               <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
@@ -181,7 +194,7 @@ export default function Settings() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    Twitter/X Handle
+                    {t('twitterHandleLabel')}
                   </label>
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500 text-sm sm:text-base">
@@ -202,7 +215,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    Discord Username
+                    {t('discordUsernameLabel')}
                   </label>
                   <input
                     type="text"
@@ -218,7 +231,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-xs sm:text-sm font-bold text-neutral-400 mb-2">
-                    GitHub Username
+                    {t('githubHandleLabel')}
                   </label>
                   <input
                     type="text"
@@ -240,13 +253,13 @@ export default function Settings() {
                 onClick={handleSave}
                 className="flex-1 px-4 sm:px-6 py-3 sm:py-4 bg-indigo-500 text-white font-bold rounded-xl hover:scale-105 active:scale-95 transition text-sm sm:text-base"
               >
-                Save Changes
+                {t('saveChanges')}
               </button>
               <button
                 onClick={() => setShowPreview(!showPreview)}
                 className="px-4 sm:px-6 py-3 sm:py-4 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition text-sm sm:text-base whitespace-nowrap"
               >
-                {showPreview ? "Hide" : "Show"} Preview
+                {showPreview ? t('hide') : t('show')} {t('preview')}
               </button>
             </div>
           </div>
@@ -255,7 +268,7 @@ export default function Settings() {
           {showPreview && (
             <div className="hidden lg:block lg:sticky lg:top-12 h-fit">
               <div className="rounded-3xl bg-black/40 border border-white/5 p-8">
-                <h2 className="text-xl font-bold mb-6">Live Preview</h2>
+                <h2 className="text-xl font-bold mb-6">{t('livePreview')}</h2>
                 <div className="rounded-2xl border border-white/10 overflow-hidden bg-neutral-950">
                   <ProfilePreview {...form} />
                 </div>
@@ -267,7 +280,7 @@ export default function Settings() {
           {showPreview && (
             <div className="lg:hidden rounded-2xl sm:rounded-3xl bg-black/40 border border-white/5 p-5 sm:p-6 md:p-8">
               <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
-                Live Preview
+                {t('livePreview')}
               </h2>
               <div className="rounded-2xl border border-white/10 overflow-hidden bg-neutral-950">
                 <ProfilePreview {...form} />
@@ -284,13 +297,13 @@ export default function Settings() {
             onClick={handleSave}
             className="flex-1 px-4 py-3 bg-indigo-500 text-white font-bold rounded-xl active:scale-95 transition"
           >
-            Save Changes
+            {t('saveChanges')}
           </button>
           <button
             onClick={() => setShowPreview(!showPreview)}
             className="px-4 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl active:scale-95 transition"
           >
-            {showPreview ? "Hide" : "Preview"}
+            {showPreview ? t('hide') : t('show')} {t('preview')}
           </button>
         </div>
       </div>

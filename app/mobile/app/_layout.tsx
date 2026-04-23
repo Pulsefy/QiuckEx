@@ -6,18 +6,17 @@ import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import { useColorScheme } from "react-native";
 // Ensure web build or Expo web uses the local backend during development
 if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
   (globalThis as any).API_BASE_URL = "http://localhost:4000";
 }
+import "../../src/lib/i18n";
 import { OfflineBanner } from "../components/resilience/offline-banner";
 import { AppLockOverlay } from "../components/security/app-lock-overlay";
 import { SecurityProvider, useSecurity } from "../hooks/use-security";
 import { NotificationProvider } from "../components/notifications/NotificationContext";
 import ToastNotification from "../components/notifications/ToastNotification";
-import NotificationCenter from "../components/notifications/NotificationCenter";
 import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
 
@@ -124,7 +123,7 @@ function ThemeBridge() {
 
 function AppShell() {
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
-  const { hasCompletedOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  const { isLoading: onboardingLoading } = useOnboarding();
   useDeepLinkHandler();
 
   if (onboardingLoading) {

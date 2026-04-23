@@ -6,6 +6,8 @@ import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { getQuickexApiBase } from "@/lib/api";
+import '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 type ValidationErrors = Partial<
   Record<"amount" | "asset" | "destination", string>
@@ -64,6 +66,7 @@ type ComposeError = {
 };
 
 export default function Generator() {
+  const { t } = useTranslation();
   const apiBase = useMemo(() => getQuickexApiBase(), []);
   const { error, loading, callApi, data } = useApi<LinkMetadataSuccess>();
 
@@ -114,7 +117,7 @@ export default function Generator() {
         }
       } catch {
         if (!cancelled) {
-          setAssetsError("Could not load verified assets.");
+          setAssetsError(t('couldNotLoadAssets'));
           setVerifiedAssets([]);
         }
       } finally {
@@ -211,15 +214,15 @@ export default function Generator() {
   const validate = () => {
     const newErrors: ValidationErrors = {};
     if (!form.amount) {
-      newErrors.amount = "Amount is required.";
+      newErrors.amount = t('amountRequired');
     } else if (Number.isNaN(Number(form.amount))) {
-      newErrors.amount = "Enter a valid number.";
+      newErrors.amount = t('enterValidNumber');
     }
     if (!form.destination) {
-      newErrors.destination = "Destination address is required.";
+      newErrors.destination = t('destinationRequired');
     }
     if (!recipientAssetCode) {
-      newErrors.asset = "Select a recipient asset.";
+      newErrors.asset = t('selectRecipientAsset');
     }
     return newErrors;
   };
@@ -294,7 +297,7 @@ export default function Generator() {
     if (!/^G[A-Z0-9]{55}$/.test(pk)) {
       setPreflightResult({
         success: false,
-        userMessage: "Enter a valid 56-character Stellar public key (G…).",
+        userMessage: t('invalidPublicKey'),
       });
       return;
     }
@@ -315,7 +318,7 @@ export default function Generator() {
         setPreflightUnavailable(
           typeof json?.message === "string"
             ? json.message
-            : "Soroban preflight is not configured on this server.",
+            : t('preflightUnavailable'),
         );
         return;
       }
@@ -325,7 +328,7 @@ export default function Generator() {
           userMessage:
             typeof json?.message === "string"
               ? json.message
-              : "Preflight request failed.",
+              : t('preflightFailed'),
         });
         return;
       }
@@ -333,7 +336,7 @@ export default function Generator() {
     } catch {
       setPreflightResult({
         success: false,
-        userMessage: "Network error calling preflight.",
+        userMessage: t('networkError'),
       });
     } finally {
       setPreflightLoading(false);
@@ -371,16 +374,16 @@ export default function Generator() {
             href="/dashboard"
             className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
           >
-            <span>📊</span> Dashboard
+            <span>📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             className="flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner"
           >
-            <span className="text-indigo-400">⚡</span> Link Generator
+            <span className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
           <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
-            <span>⚙️</span> Profile Settings
+            <span>⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
@@ -388,21 +391,20 @@ export default function Generator() {
       <main className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
         <header className="mb-10 sm:mb-16 max-w-3xl">
           <nav className="flex items-center gap-2 text-xs font-black text-neutral-600 uppercase tracking-widest mb-4">
-            <span>Services</span>
+            <span>{t('services')}</span>
             <span>/</span>
-            <span className="text-neutral-400">Link Generator</span>
+            <span className="text-neutral-400">{t('linkGenerator')}</span>
           </nav>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-4">
-            Create a payment <br />
+            {t('createPayment')} <br />
             <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              request instantly.
+              {t('requestInstantly')}
             </span>
           </h1>
 
           <p className="text-neutral-500 text-lg max-w-xl">
-            Advanced mode supports path payments: choose what you receive and
-            let payers settle in multiple assets.
+            {t('advancedModeDescription')}
           </p>
         </header>
 
@@ -411,7 +413,7 @@ export default function Generator() {
             <section className="space-y-6">
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Amount (recipient receives)
+                  {t('amountLabel')}
                 </label>
 
                 <div className="relative group mt-2">
@@ -420,7 +422,7 @@ export default function Generator() {
                   <div className="relative bg-neutral-900/50 border border-white/10 rounded-3xl p-1 shadow-2xl">
                     <input
                       type="number"
-                      placeholder="0.00"
+                      placeholder={t('amountPlaceholder')}
                       value={form.amount}
                       onChange={(e) =>
                         setForm({ ...form, amount: e.target.value })
@@ -431,7 +433,7 @@ export default function Generator() {
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex bg-black/40 p-2 rounded-2xl border border-white/5 backdrop-blur-xl gap-1 max-w-[50%] flex-wrap justify-end">
                       {assetsLoading ? (
                         <span className="px-3 py-2 text-xs text-neutral-500">
-                          Loading assets…
+                          {t('loadingAssets')}
                         </span>
                       ) : (
                         verifiedAssets.map((a) => (
@@ -466,11 +468,11 @@ export default function Generator() {
 
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Destination
+                  {t('destinationLabel')}
                 </label>
                 <input
                   type="text"
-                  placeholder="Receiver public key"
+                  placeholder={t('destinationPlaceholder')}
                   value={form.destination}
                   onChange={(e) =>
                     setForm({ ...form, destination: e.target.value })
@@ -486,11 +488,11 @@ export default function Generator() {
 
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Memo (optional)
+                  {t('memoLabel')}
                 </label>
                 <input
                   type="text"
-                  placeholder="What's this payment for?"
+                  placeholder={t('memoPlaceholder')}
                   value={form.memo}
                   onChange={(e) => setForm({ ...form, memo: e.target.value })}
                   className="w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 focus:outline-none placeholder:text-neutral-700"
@@ -504,10 +506,10 @@ export default function Generator() {
                   className="flex w-full items-center justify-between text-left"
                 >
                   <span className="text-sm font-black uppercase tracking-widest text-indigo-300">
-                    Advanced settings
+                    {t('advancedSettings')}
                   </span>
                   <span className="text-neutral-500 text-sm">
-                    {advancedOpen ? "Hide" : "Show"} path payments
+                    {advancedOpen ? t('hide') : t('show')} path payments
                   </span>
                 </button>
 
@@ -515,11 +517,10 @@ export default function Generator() {
                   <div className="space-y-6 pt-2 border-t border-white/5">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                        Recipient asset
+                        {t('recipientAsset')}
                       </p>
                       <p className="text-sm text-neutral-400 mb-3">
-                        Same as the amount currency above — what lands in the
-                        receiver&apos;s account after the path executes.
+                        {t('recipientAssetDescription')}
                       </p>
                       <select
                         value={recipientAssetCode}
@@ -546,11 +547,10 @@ export default function Generator() {
 
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                        Allowed source assets (payers)
+                        {t('allowedSourceAssets')}
                       </p>
                       <p className="text-sm text-neutral-400 mb-3">
-                        Payers may use any of the selected assets; Horizon
-                        suggests paths and send amounts.
+                        {t('allowedSourceAssetsDescription')}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {verifiedAssets.map((a) => {
@@ -576,11 +576,11 @@ export default function Generator() {
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
-                          Path preview
+                          {t('pathPreview')}
                         </h3>
                         {pathLoading && (
                           <span className="text-xs text-indigo-300 animate-pulse">
-                            Fetching estimates…
+                            {t('fetchingEstimates')}
                           </span>
                         )}
                       </div>
@@ -592,9 +592,7 @@ export default function Generator() {
                         pathData &&
                         pathData.paths.length === 0 && (
                           <p className="text-neutral-500 text-sm">
-                            No paths found for this combination on{" "}
-                            {pathData.horizonUrl}. Try other source assets or a
-                            smaller amount.
+                            {t('noPathsFound', { horizonUrl: pathData.horizonUrl })}
                           </p>
                         )}
                       {pathData && pathData.paths.length > 0 && (
@@ -605,18 +603,15 @@ export default function Generator() {
                               className="rounded-xl bg-black/40 border border-white/5 p-3 text-sm"
                             >
                               <div className="font-mono text-neutral-300">
-                                Pay{" "}
-                                <span className="text-white font-bold">
-                                  {p.sourceAmount}
-                                </span>{" "}
-                                ({p.sourceAsset}) → receive{" "}
-                                <span className="text-white font-bold">
-                                  {p.destinationAmount}
-                                </span>{" "}
-                                ({p.destinationAsset})
+                                {t('payReceive', {
+                                  sourceAmount: p.sourceAmount,
+                                  sourceAsset: p.sourceAsset,
+                                  destinationAmount: p.destinationAmount,
+                                  destinationAsset: p.destinationAsset
+                                })}
                               </div>
                               <div className="text-xs text-neutral-500 mt-1">
-                                Hops: {p.hopCount}
+                                {t('hops', { hopCount: p.hopCount })}
                                 {p.pathHops.length > 0
                                   ? ` · ${p.pathHops.join(" → ")}`
                                   : ""}
@@ -632,19 +627,14 @@ export default function Generator() {
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
-                        Soroban preflight (composer)
+                        {t('sorobanPreflight')}
                       </h3>
                       <p className="text-xs text-neutral-500">
-                        Runs the same simulation as{" "}
-                        <code className="text-neutral-400">
-                          POST /transactions/compose
-                        </code>{" "}
-                        with <code className="text-neutral-400">health_check</code>{" "}
-                        on <code className="text-neutral-400">QUICKEX_CONTRACT_ID</code>.
+                        {t('sorobanPreflightDescription')}
                       </p>
                       <input
                         type="text"
-                        placeholder="Source account G… (funded, for sequence)"
+                        placeholder={t('sourceAccountPlaceholder')}
                         value={preflightAccount}
                         onChange={(e) => setPreflightAccount(e.target.value)}
                         className="w-full bg-neutral-900/80 border border-white/10 rounded-xl p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
@@ -656,8 +646,8 @@ export default function Generator() {
                         className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-bold disabled:opacity-50"
                       >
                         {preflightLoading
-                          ? "Simulating…"
-                          : "Run preflight simulation"}
+                          ? t('simulating')
+                          : t('runPreflight')}
                       </button>
                       {preflightUnavailable && (
                         <p className="text-amber-500 text-sm">
@@ -668,22 +658,21 @@ export default function Generator() {
                         <p className="text-red-400 text-sm">
                           {preflightResult.userMessage ??
                             preflightResult.error ??
-                            "Simulation failed"}
+                            t('simulationFailed')}
                         </p>
                       )}
                       {preflightResult && preflightResult.success === true && (
                         <div className="text-sm text-emerald-400 space-y-1">
-                          <p>Simulation OK — fees estimated.</p>
+                          <p>{t('simulationOk')}</p>
                           {preflightResult.feeEstimate?.totalFeeXLM && (
                             <p className="font-mono text-neutral-300">
-                              Total fee (incl. resource):{" "}
-                              {preflightResult.feeEstimate.totalFeeXLM} XLM
+                              {t('totalFee', { totalFee: preflightResult.feeEstimate.totalFeeXLM })}
                             </p>
                           )}
                           {typeof preflightResult.simulationLatencyMs ===
                             "number" && (
                             <p className="text-xs text-neutral-500">
-                              Latency {preflightResult.simulationLatencyMs} ms
+                              {t('latency', { latency: preflightResult.simulationLatencyMs })}
                             </p>
                           )}
                         </div>
