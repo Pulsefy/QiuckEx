@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { NetworkBadge } from "@/components/NetworkBadge";
 import { UsernameCard } from "@/components/UsernameCard";
 import { BidModal } from "@/components/BidModal";
 import {

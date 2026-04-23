@@ -22,7 +22,7 @@ export default function PublicProfile() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
