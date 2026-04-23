@@ -8,9 +8,9 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
 import { useColorScheme } from "react-native";
 // Ensure web build or Expo web uses the local backend during development
-if (typeof document !== "undefined" && !(global as any).API_BASE_URL) {
+if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
-  (global as any).API_BASE_URL = "http://localhost:4000";
+  (globalThis as any).API_BASE_URL = "http://localhost:4000";
 }
 import { OfflineBanner } from "../components/resilience/offline-banner";
 import { AppLockOverlay } from "../components/security/app-lock-overlay";
@@ -50,7 +50,7 @@ function useDeepLinkHandler() {
     const subscription = Linking.addEventListener("url", handleURL);
 
     // Handle cold-start deep link
-    Linking.getInitialURL().then((url) => {
+    Linking.getInitialURL().then((url: string | null) => {
       if (url) handleURL({ url });
     });
 
@@ -108,7 +108,7 @@ function ThemeBridge() {
         <NotificationProvider>
           {/* Dev-only global poller: ensures polling runs on web during development
               even if the wallet screen isn't active. */}
-          {process.env.NODE_ENV !== "production" ? (
+          {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
             // start polling for demo address used by send_test_payment.js
             // eslint-disable-next-line react/jsx-no-useless-fragment
             <DevPoller />
@@ -142,6 +142,7 @@ function AppShell() {
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
+        <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />

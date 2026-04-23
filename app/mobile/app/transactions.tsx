@@ -175,7 +175,7 @@ export default function TransactionsScreen() {
 
     const shortAccount = `${accountId.slice(0, 6)}…${accountId.slice(-4)}`;
 
-    const renderItem = ({ item }: ListRenderItemInfo<TransactionItemType>) => (
+    const renderItem = ({ item }: any) => (
         <TransactionItem item={item} accountId={accountId} />
     );
 
@@ -215,10 +215,10 @@ export default function TransactionsScreen() {
 
         try {
             const fileName = `quickex-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-            const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+            const fileUri = `${(FileSystem as any).cacheDirectory}${fileName}`;
 
             await FileSystem.writeAsStringAsync(fileUri, csv, {
-                encoding: FileSystem.EncodingType.UTF8,
+                encoding: (FileSystem as any).EncodingType.UTF8,
             });
 
             const canShare = await Sharing.isAvailableAsync();
@@ -449,9 +449,9 @@ export default function TransactionsScreen() {
                 onEndReachedThreshold={0.8}
                 estimatedItemSize={88}
                 contentContainerStyle={
-                    (filteredTransactions.length === 0 || error) && !loading
+                    ((filteredTransactions.length === 0 || error) && !loading
                         ? styles.emptyFill
-                        : undefined
+                        : undefined) as any
                 }
                 showsVerticalScrollIndicator={false}
             />

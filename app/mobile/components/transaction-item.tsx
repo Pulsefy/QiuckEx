@@ -7,6 +7,8 @@ import {
     Clipboard,
 } from 'react-native';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/theme/ThemeContext';
 
 interface Props {
@@ -43,15 +45,33 @@ function shortenAddress(address: string): string {
 
 export default function TransactionItem({ item }: Props) {
     const { theme } = useTheme();
+    const router = useRouter();
     const assetLabel = formatAsset(item.asset);
     const hasAddresses = Boolean(item.source || item.destination);
 
-    const handleCopyHash = () => {
-        Clipboard.setString(item.txHash);
+    const handlePress = () => {
+        router.push({
+            pathname: `/transaction/${item.pagingToken}`,
+            params: {
+                id: item.pagingToken,
+                amount: item.amount,
+                asset: item.asset,
+                memo: item.memo || '',
+                timestamp: item.timestamp,
+                txHash: item.txHash,
+                source: item.source || '',
+                destination: item.destination || '',
+                status: item.status || 'Success',
+            }
+        });
     };
 
     return (
-        <View style={[styles.row, { borderBottomColor: theme.border, backgroundColor: theme.surfaceElevated }]}>
+        <TouchableOpacity 
+            onPress={handlePress}
+            activeOpacity={0.7}
+            style={[styles.row, { borderBottomColor: theme.border, backgroundColor: theme.surfaceElevated }]}
+        >
             {/* Left: icon + asset */}
             <View style={[styles.iconWrap, { backgroundColor: theme.surface }]}>
                 <Text style={[styles.assetIcon, { color: theme.textPrimary }]}>{assetLabel.slice(0, 3)}</Text>
@@ -67,9 +87,7 @@ export default function TransactionItem({ item }: Props) {
                         {item.memo}
                     </Text>
                 ) : null}
-                <TouchableOpacity onPress={handleCopyHash} activeOpacity={0.6}>
-                    <Text style={[styles.txHash, { color: theme.textMuted }]}>{shortenHash(item.txHash)}</Text>
-                </TouchableOpacity>
+                <Text style={[styles.txHash, { color: theme.textMuted }]}>{shortenHash(item.txHash)}</Text>
                 {hasAddresses ? (
                     <Text style={[styles.address, { color: theme.textSecondary }]} numberOfLines={1}>
                         {shortenAddress(item.source)} → {shortenAddress(item.destination)}
@@ -84,8 +102,9 @@ export default function TransactionItem({ item }: Props) {
                     {parseFloat(item.amount).toFixed(2)}
                 </Text>
                 <Text style={[styles.assetCode, { color: theme.textSecondary }]}>{assetLabel}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} style={{ marginTop: 4 }} />
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 

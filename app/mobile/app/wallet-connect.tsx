@@ -122,22 +122,6 @@ export default function WalletConnectScreen() {
           </View>
         )}
 
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Network</Text>
-            <View style={[
-              styles.networkBadge,
-              network === "mainnet" ? styles.mainnet : styles.testnet,
-              isDemoMode && styles.disabledNetworkBadge,
-            ]}>
-              <Text style={styles.networkText}>
-                {network.toUpperCase()}
-                {isDemoMode && ' (Demo)'}
-              </Text>
-              {isDemoMode && (
-                <Ionicons name="lock-closed" size={12} color="#fff" style={{ marginLeft: 4 }} />
-              )}
-            </View>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.row}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>Network</Text>
@@ -145,10 +129,19 @@ export default function WalletConnectScreen() {
               style={[
                 styles.networkBadge,
                 { backgroundColor: network === "mainnet" ? theme.networkMainnet : theme.networkTestnet },
+                isDemoMode && styles.disabledNetworkBadge,
               ]}
-              onPress={toggleNetwork}
+              onPress={isDemoMode ? undefined : toggleNetwork}
             >
-              <Text style={styles.networkText}>{network.toUpperCase()}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.networkText}>
+                  {network.toUpperCase()}
+                  {isDemoMode && ' (Demo)'}
+                </Text>
+                {isDemoMode && (
+                  <Ionicons name="lock-closed" size={12} color="#fff" style={{ marginLeft: 4 }} />
+                )}
+              </View>
             </Pressable>
           </View>
 
@@ -183,7 +176,7 @@ export default function WalletConnectScreen() {
           ) : (
             <>
               <Pressable
-                style={[styles.secondaryButton, { borderColor: theme.buttonSecondaryBorder }]}
+                style={[styles.secondaryButton, { borderColor: theme.buttonSecondaryBorder, marginTop: 12 }]}
                 onPress={revealSessionToken}
               >
                 <Text style={[styles.secondaryButtonText, { color: theme.buttonSecondaryText }]}>
