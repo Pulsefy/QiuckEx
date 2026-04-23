@@ -32,7 +32,7 @@ export interface PathPaymentRoute {
  */
 export function buildPathPaymentOperation(
   options: PathPaymentOptions,
-): any {
+): ReturnType<typeof Operation.pathPaymentStrictReceive> {
   const {
     sourceAsset,
     sourceAmount,
@@ -87,7 +87,7 @@ export function buildPathPaymentTransaction(
   const transaction = new TransactionBuilder(
     new Account(userAccount.accountId, String(userAccount.sequenceNumber)),
     {
-      fee: BASE_FEE,
+      fee: String(BASE_FEE),
       networkPassphrase,
     },
   )
