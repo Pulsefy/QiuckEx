@@ -316,7 +316,7 @@ export default function Generator() {
       };
       if (res.status === 503) {
         setPreflightUnavailable(
-          typeof json?.message === "string"
+          'message' in json && typeof json.message === "string"
             ? json.message
             : t('preflightUnavailable'),
         );
@@ -326,7 +326,7 @@ export default function Generator() {
         setPreflightResult({
           success: false,
           userMessage:
-            typeof json?.message === "string"
+            'message' in json && typeof json.message === "string"
               ? json.message
               : t('preflightFailed'),
         });
