@@ -45,3 +45,23 @@ jest.mock("expo-secure-store", () => {
     }),
   };
 });
+
+jest.mock("expo-notifications", () => ({
+  getPermissionsAsync: jest.fn(async () => ({ granted: true, ios: { allowsBadge: true } })),
+  requestPermissionsAsync: jest.fn(async () => ({ granted: true, ios: { allowsBadge: true } })),
+  setBadgeCountAsync: jest.fn(async () => true),
+}));
+
+jest.mock("expo-background-task", () => ({
+  BackgroundTaskResult: {
+    Success: "Success",
+    Failed: "Failed",
+  },
+  registerTaskAsync: jest.fn(async () => undefined),
+  unregisterTaskAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock("expo-task-manager", () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(async () => false),
+}));

@@ -143,7 +143,7 @@ export default function ScanToPayScreen() {
         {/* Error banner */}
         {error && (
           <Pressable style={styles.errorBanner} onPress={dismissError}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorBannerText}>{error}</Text>
             <Text style={styles.errorDismiss}>Tap to dismiss</Text>
           </Pressable>
         )}
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     maxWidth: 320,
   },
-  errorText: { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  errorBannerText: { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   errorDismiss: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
   footer: {
     position: 'absolute',
@@ -237,18 +237,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   controls: {
-  position: 'absolute',
-  bottom: 40,
-  alignSelf: 'center',
-  flexDirection: 'row',
-},
-
-controlButton: {
-  backgroundColor: 'rgba(0,0,0,0.6)',
-  padding: 12,
-  borderRadius: 50,
-},
-
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    flexDirection: 'row',
+  },
+  controlButton: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 12,
+    borderRadius: 50,
+  },
   primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
   secondaryBtnText: { fontSize: 16 },

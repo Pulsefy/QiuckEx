@@ -41,6 +41,8 @@ export interface AnalyticsData {
   };
 }
 
+const analyticsCache: Partial<Record<DateRange, AnalyticsData>> = {};
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function randomBetween(lo: number, hi: number) {
@@ -106,6 +108,10 @@ function makeData(range: DateRange): Omit<AnalyticsData, "summary"> {
 // ─── public API ───────────────────────────────────────────────────────────────
 
 export async function fetchAnalytics(range: DateRange): Promise<AnalyticsData> {
+  if (analyticsCache[range]) {
+    return Promise.resolve(analyticsCache[range] as AnalyticsData);
+  }
+
   // Simulates network latency; replace body with real fetch when backend is ready:
   // const res = await fetch(`/api/analytics?range=${range}`);
   // const json = await res.json();
@@ -117,7 +123,7 @@ export async function fetchAnalytics(range: DateRange): Promise<AnalyticsData> {
   const totalVolume = volume.reduce((s, d) => s + d.total, 0);
   const totalTx = txCount.reduce((s, d) => s + d.count, 0);
 
-  return {
+  const result = {
     volume,
     txCount,
     assetDist,
@@ -128,4 +134,7 @@ export async function fetchAnalytics(range: DateRange): Promise<AnalyticsData> {
       changeVolumePercent: parseFloat((Math.random() * 40 - 10).toFixed(1)),
     },
   };
+
+  analyticsCache[range] = result;
+  return result;
 }
