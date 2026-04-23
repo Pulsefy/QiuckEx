@@ -1,7 +1,27 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import Link from "next/link";
+import { fetchListings } from "@/hooks/marketplaceApi";
+import { fetchAnalytics } from "@/hooks/analyticsApi";
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handlePrefetch = () => {
+      router.prefetch("/dashboard");
+      router.prefetch("/marketplace");
+      fetchListings();
+      fetchAnalytics("30d");
+    };
+
+    const id = window.setTimeout(handlePrefetch, 250);
+    return () => window.clearTimeout(id);
+  }, [router]);
+
   return (
     <div className="selection:bg-indigo-500/30">
       <NetworkBadge />

@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
-import { mockFetch } from "@/hooks/mockApi";
+import { mockContractCall, mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
 import {
   fetchUserBids,
@@ -12,11 +13,39 @@ import {
   UserListing,
   formatCountdown,
 } from "@/hooks/marketplaceApi";
-import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+
+const AnalyticsDashboard = dynamic(
+  () => import("@/components/AnalyticsDashboard"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] rounded-3xl bg-white/5 animate-pulse" />
+    ),
+  },
+);
 
 type DashboardResponse = {
   items: Array<Record<string, unknown>>;
 };
+
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen text-white selection:bg-indigo-500/30">
+      <div className="space-y-8">
+        <div className="h-6 w-1/3 rounded-full bg-white/5 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-44 rounded-3xl bg-white/5 border border-white/5 animate-pulse"
+            />
+          ))}
+        </div>
+        <div className="h-96 rounded-3xl bg-white/5 border border-white/5 animate-pulse" />
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { error, loading, callApi } = useApi<DashboardResponse>();
@@ -45,11 +74,8 @@ export default function Dashboard() {
     alert("Storage deposit reclaimed and record cleaned up!");
   };
 
-  if (loading) return <p>Loading dashboard...</p>;
+  if (loading) return <DashboardSkeleton />;
   if (error) return <p>{error}</p>;
-   if (!data || !data.items || data.items.length === 0) {
-    return <p>No transactions yet. Create your first payment link!</p>;
-  }
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30">

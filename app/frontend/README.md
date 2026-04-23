@@ -47,3 +47,9 @@ NEXT_PUBLIC_STELLAR_NETWORK=testnet  # 'testnet' or 'mainnet'
 - `build`: Build production bundle
 - `lint`: Run ESLint
 - `type-check`: Run TypeScript compilation check
+
+## Performance notes
+
+- Added route-based skeleton loaders for `/dashboard` and `/marketplace`.
+- Prefetched likely next routes and mock data from the landing page to improve time-to-interactive.
+- Added memoized mock caches for analytics and marketplace calls to reduce repeated client work during navigation.
