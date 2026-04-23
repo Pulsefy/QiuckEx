@@ -1,5 +1,4 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import * as StellarSdk from '@stellar/stellar-sdk';
 
 @Injectable()
 export class FiatRampsService {
@@ -66,13 +65,13 @@ export class FiatRampsService {
     }
   }
 
-  async handleKycCallback(callbackData: any) {
+  async handleKycCallback(callbackData: unknown) {
     this.logger.log(`Received KYC callback update: ${JSON.stringify(callbackData)}`);
     // Process KYC status updates from anchors
     return { status: 'acknowledged' };
   }
 
-  async updateTransactionStatus(statusData: any) {
+  async updateTransactionStatus(statusData: unknown) {
     this.logger.log(`Received transaction status update: ${JSON.stringify(statusData)}`);
     // Process SEP-24 transaction status changes (e.g., pending_user_transfer_start -> completed)
     return { status: 'acknowledged' };
