@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
+import { mockFetch, mockContractCall } from "@/hooks/mockApi";
 import { mockContractCall, mockFetch } from "@/hooks/mockApi";
 import { useEffect, useState } from "react";
 import '@/lib/i18n';
@@ -50,7 +51,7 @@ function DashboardSkeleton() {
 
 export default function Dashboard() {
   const { t } = useTranslation();
-  const { error, loading, callApi } = useApi<DashboardResponse>();
+  const { error, loading, callApi, data } = useApi<DashboardResponse>();
   const [userBids, setUserBids] = useState<UserBid[]>([]);
   const [userListings, setUserListings] = useState<UserListing[]>([]);
 
@@ -226,6 +227,30 @@ export default function Dashboard() {
 
               <tbody className="divide-y divide-white/5">
                 {[
+                    {
+                      id: "GD2P...5H2W",
+                      amount: "50.00 USDC",
+                      memo: "Project Milestone #1",
+                      date: "2 mins ago",
+                      status: "Privacy Enabled",
+                      privacy: "Enabled",
+                    },
+                    {
+                      id: "GD1R...3K9L",
+                      amount: "125.00 XLM",
+                      memo: "Frontend Consulting",
+                      date: "Jan 20, 14:32",
+                      status: "Public",
+                      privacy: "Disabled",
+                    },
+                    {
+                      id: "GC8T...9Q0M",
+                      amount: "20.00 USDC",
+                      memo: "Subscription Renewal",
+                      date: "Jan 19, 09:12",
+                      status: "Privacy Enabled",
+                      privacy: "Enabled",
+                    },
                   {
                     id: "GD2P...5H2W",
                     amount: "50.00 USDC",
