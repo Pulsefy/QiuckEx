@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
-import Link from "next/link";
-import { fetchListings } from "@/hooks/marketplaceApi";
 import { fetchAnalytics } from "@/hooks/analyticsApi";
+import { fetchListings } from "@/hooks/marketplaceApi";
 
 export default function Home() {
   const router = useRouter();

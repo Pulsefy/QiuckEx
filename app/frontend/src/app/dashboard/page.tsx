@@ -229,21 +229,24 @@ export default function Dashboard() {
                     amount: "50.00 USDC",
                     memo: "Project Milestone #1",
                     date: "2 mins ago",
-                    status: "Privacy Enabled",
+                    status: "Pending",
+                    privacy: "Enabled",
                   },
                   {
                     id: "GD1R...3K9L",
                     amount: "125.00 XLM",
                     memo: "Frontend Consulting",
                     date: "Jan 20, 14:32",
-                    status: "Public",
+                    status: "Spent",
+                    privacy: "Public",
                   },
                   {
                     id: "GC8T...9Q0M",
                     amount: "20.00 USDC",
                     memo: "Subscription Renewal",
                     date: "Jan 19, 09:12",
-                    status: "Privacy Enabled",
+                    status: "Expired",
+                    privacy: "Enabled",
                   },
                 ].map((tx, i) => (
                   <tr key={i} className="hover:bg-white/[0.03] transition">
