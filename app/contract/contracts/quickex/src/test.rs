@@ -537,6 +537,7 @@ fn test_canonical_error_code_ranges() {
     // Auth/admin failures (200-299)
     assert_eq!(QuickexError::Unauthorized as u32, 200);
     assert_eq!(QuickexError::AlreadyInitialized as u32, 201);
+    assert_eq!(QuickexError::InsufficientRole as u32, 202);
 
     // State/escrow/commitment violations (300-399)
     assert_eq!(QuickexError::ContractPaused as u32, 300);
@@ -977,7 +978,7 @@ fn test_set_paused_by_non_admin_fails() {
 
     // Non-admin tries to pause - should fail
     let result = client.try_set_paused(&non_admin, &true);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 #[test]
@@ -1037,7 +1038,7 @@ fn test_set_admin_by_non_admin_fails() {
 
     // Non-admin tries to transfer admin rights - should fail
     let result = client.try_set_admin(&non_admin, &new_admin);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 #[test]
@@ -1054,7 +1055,7 @@ fn test_old_admin_cannot_pause_after_transfer() {
 
     // Old admin tries to pause - should fail
     let result = client.try_set_paused(&admin, &true);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 #[test]
@@ -1414,7 +1415,7 @@ fn test_upgrade_by_non_admin_fails() {
 
     // Non-admin tries to upgrade - should fail with Unauthorized
     let result = client.try_upgrade(&non_admin, &new_wasm_hash);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 #[test]
@@ -1427,7 +1428,7 @@ fn test_upgrade_without_admin_initialized_fails() {
 
     // Try to upgrade without admin set - should fail with Unauthorized
     let result = client.try_upgrade(&caller, &new_wasm_hash);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 // ============================================================================
@@ -1691,7 +1692,14 @@ fn test_dispute_fails_on_non_pending_status() {
     // Create and immediately withdraw escrow
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
     client.withdraw(&token, &amount, &commitment, &owner, &salt);
 
     // Attempt dispute on spent escrow should fail
@@ -1714,7 +1722,14 @@ fn test_resolve_dispute_for_owner() {
     // Create escrow with arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -1725,7 +1740,7 @@ fn test_resolve_dispute_for_owner() {
 
     // Resolve dispute in favor of owner
     let recipient = Address::generate(&env); // This should be ignored
-    client.resolve_dispute(&commitment, &true, &recipient);
+    client.resolve_dispute(&arbiter, &commitment, &true, &recipient);
 
     // Verify final state and owner got funds
     assert_eq!(
@@ -1749,7 +1764,14 @@ fn test_resolve_dispute_for_recipient() {
     // Create escrow with arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -1759,7 +1781,7 @@ fn test_resolve_dispute_for_recipient() {
     );
 
     // Resolve dispute in favor of recipient
-    client.resolve_dispute(&commitment, &false, &recipient);
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
 
     // Verify final state and recipient got funds
     assert_eq!(
@@ -1783,14 +1805,21 @@ fn test_resolve_dispute_fails_for_non_arbiter() {
     // Create escrow with arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
 
     // For this test, we'll just verify the dispute resolution logic works
     // The authorization check is tested in the integration tests
-    let res = client.try_resolve_dispute(&commitment, &true, &owner);
+    let res = client.try_resolve_dispute(&arbiter, &commitment, &true, &owner);
     // Note: With mock_all_auths, this will succeed, but the logic is still tested
     assert_eq!(res, Ok(Ok(())));
 }
@@ -1807,10 +1836,17 @@ fn test_resolve_dispute_fails_on_non_disputed_status() {
     // Create escrow with arbiter but don't dispute
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
 
     // Attempt resolution without dispute should fail
-    let res = client.try_resolve_dispute(&commitment, &true, &owner);
+    let res = client.try_resolve_dispute(&arbiter, &commitment, &true, &owner);
     assert_eq!(
         res,
         Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
@@ -1829,7 +1865,14 @@ fn test_withdraw_fails_during_dispute() {
     // Create escrow with arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -1854,7 +1897,7 @@ fn test_refund_fails_during_dispute() {
     // Create escrow with arbiter and set expiry
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1, &Some(arbiter)); // 1 second expiry
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1, &Some(arbiter.clone())); // 1 second expiry
 
     // Fast forward past expiry
     env.ledger().set_timestamp(env.ledger().timestamp() + 2);
@@ -2132,7 +2175,7 @@ fn test_cross_asset_dispute_resolution_multi_token() {
     );
 
     // Resolve for recipient
-    client.resolve_dispute(&commitment, &false, &recipient);
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
 
     // Verify resolution
     assert_eq!(usdc_client.balance(&recipient), amount);
