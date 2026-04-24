@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Link } from "expo-router";
 
 import { ThemeSelector } from "../components/ThemeSelector";
 import { LocaleSwitcher } from "../components/LocaleSwitcher";
@@ -213,6 +215,26 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Onboarding</Text>
           <OnboardingResetButton />
         </View>
+
+        {Platform.OS !== "web" ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Debug
+            </Text>
+            <Link href="/notification-debug" asChild>
+              <Pressable
+                style={[
+                  styles.debugButton,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.debugButtonText, { color: theme.textPrimary }]}>
+                  Open Notification Simulator
+                </Text>
+              </Pressable>
+            </Link>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -301,6 +323,16 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
+    fontWeight: "600",
+  },
+  debugButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  debugButtonText: {
+    fontSize: 14,
     fontWeight: "600",
   },
 });
