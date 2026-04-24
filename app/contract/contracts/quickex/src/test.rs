@@ -1448,7 +1448,7 @@ fn test_migrate_by_non_admin_fails() {
     client.initialize(&admin);
 
     let result = client.try_migrate(&non_admin);
-    assert_contract_error(result, QuickexError::Unauthorized);
+    assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
 #[test]

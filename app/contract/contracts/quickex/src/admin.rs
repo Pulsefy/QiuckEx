@@ -143,9 +143,26 @@ pub fn get_version(env: &Env) -> u32 {
 }
 
 pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
-    require_admin(env, caller)?;
-
     let from_version = get_version(env);
+    if from_version == storage::LEGACY_CONTRACT_VERSION {
+        caller.require_auth();
+
+        let admin = storage::get_admin(env).ok_or(QuickexError::Unauthorized)?;
+        if admin != *caller {
+            return Err(QuickexError::InsufficientRole);
+        }
+
+        // Legacy deployments may not have role assignments. Seed Admin role so
+        // post-migration admin checks continue to work.
+        let mut roles = storage::get_roles(env, caller);
+        if !roles.contains(Role::Admin) {
+            roles.push_back(Role::Admin);
+            storage::set_roles(env, caller, &roles);
+        }
+    } else {
+        require_admin(env, caller)?;
+    }
+
     if from_version > storage::CURRENT_CONTRACT_VERSION {
         return Err(QuickexError::InvalidContractVersion);
     }
