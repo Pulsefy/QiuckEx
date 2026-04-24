@@ -1,8 +1,8 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { WalletState } from "../../types/wallet";
-import { useTheme } from "../../src/theme/ThemeContext";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SUPPORTED_WALLETS } from "../../hooks/useWalletContext";
+import { useTheme } from "../../src/theme/ThemeContext";
+import { WalletState } from "../../types/wallet";
 
 interface Props {
   wallet: WalletState;
@@ -19,11 +19,10 @@ export default function WalletStatus({
 }: Props) {
   const { theme } = useTheme();
 
-  const walletLabel =
-    wallet.walletType
-      ? SUPPORTED_WALLETS.find((w) => w.type === wallet.walletType)?.label ??
-        wallet.walletType
-      : null;
+  const walletLabel = wallet.walletType
+    ? (SUPPORTED_WALLETS.find((w) => w.type === wallet.walletType)?.label ??
+      wallet.walletType)
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
@@ -47,7 +46,7 @@ export default function WalletStatus({
           ]}
           onPress={onToggleNetwork}
         >
-          <Text style={styles.networkText}>
+          <Text style={[styles.networkText, { color: theme.qrBackground }]}>
             {wallet.network.toUpperCase()}
           </Text>
         </TouchableOpacity>
@@ -145,7 +144,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   networkText: {
-    color: "#fff", // Intentional: always white on coloured network badge
     fontWeight: "600",
   },
   address: {

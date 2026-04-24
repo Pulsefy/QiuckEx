@@ -1,11 +1,11 @@
 import React from "react";
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
+    Modal,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useTheme } from "../src/theme/ThemeContext";
@@ -16,7 +16,11 @@ interface QRPreviewModalProps {
   onClose: () => void;
 }
 
-export function QRPreviewModal({ visible, value, onClose }: QRPreviewModalProps) {
+export function QRPreviewModal({
+  visible,
+  value,
+  onClose,
+}: QRPreviewModalProps) {
   const { theme } = useTheme();
 
   return (
@@ -26,14 +30,24 @@ export function QRPreviewModal({ visible, value, onClose }: QRPreviewModalProps)
       animationType="fade"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.overlay, { backgroundColor: theme.overlayBg }]}>
+      <SafeAreaView
+        style={[styles.overlay, { backgroundColor: theme.overlayBg }]}
+      >
         <View style={styles.content}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: theme.qrBackground }]}>
             Scan to Pay
           </Text>
 
           {/* QR codes must always be black-on-white for scanner readability */}
-          <View style={[styles.qrWrapper, { backgroundColor: theme.qrBackground }]}>
+          <View
+            style={[
+              styles.qrWrapper,
+              {
+                backgroundColor: theme.qrBackground,
+                shadowColor: theme.qrForeground,
+              },
+            ]}
+          >
             <QRCode
               value={value}
               size={280}
@@ -43,10 +57,17 @@ export function QRPreviewModal({ visible, value, onClose }: QRPreviewModalProps)
           </View>
 
           <TouchableOpacity
-            style={[styles.closeButton, { backgroundColor: theme.surfaceElevated }]}
+            style={[
+              styles.closeButton,
+              { backgroundColor: theme.surfaceElevated },
+            ]}
             onPress={onClose}
           >
-            <Text style={[styles.closeButtonText, { color: theme.textPrimary }]}>Close</Text>
+            <Text
+              style={[styles.closeButtonText, { color: theme.textPrimary }]}
+            >
+              Close
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -69,13 +90,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     marginBottom: 40,
-    color: "#ffffff", // Intentional: always white over dark overlay
   },
   qrWrapper: {
     padding: 24,
     borderRadius: 24,
     marginBottom: 60,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,

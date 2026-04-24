@@ -2,25 +2,26 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useNotifications } from "../components/notifications/NotificationContext";
 import { useNetworkStatus } from "../hooks/use-network-status";
-import { useOnboarding } from "../hooks/useOnboarding";
 import { useSecurity } from "../hooks/use-security";
+import { useOnboarding } from "../hooks/useOnboarding";
+import { SUPPORTED_WALLETS, useWalletContext } from "../hooks/useWalletContext";
 import { useTheme } from "../src/theme/ThemeContext";
-import {
-  SUPPORTED_WALLETS,
-  useWalletContext,
-} from "../hooks/useWalletContext";
-import type { WalletType, StellarNetwork, WalletErrorCode } from "../types/wallet";
+import type {
+    StellarNetwork,
+    WalletErrorCode,
+    WalletType,
+} from "../types/wallet";
 
 // ── Error banner config ──────────────────────────────────────────────────────
 
@@ -181,7 +182,10 @@ export default function WalletConnectScreen() {
 
     const token = await getSensitiveSessionToken();
     if (!token) {
-      Alert.alert("No token found", "No secure session token is currently stored.");
+      Alert.alert(
+        "No token found",
+        "No secure session token is currently stored.",
+      );
       return;
     }
 
@@ -317,12 +321,19 @@ export default function WalletConnectScreen() {
                 },
               ]}
               onPress={
-                isDemoMode ? undefined : () => switchNetwork(wallet.network === "testnet" ? "mainnet" : "testnet")
+                isDemoMode
+                  ? undefined
+                  : () =>
+                      switchNetwork(
+                        wallet.network === "testnet" ? "mainnet" : "testnet",
+                      )
               }
               disabled={isDemoMode}
             >
               <View style={styles.networkBadgeContent}>
-                <Text style={styles.networkText}>
+                <Text
+                  style={[styles.networkText, { color: theme.qrBackground }]}
+                >
                   {wallet.network.toUpperCase()}
                   {isDemoMode ? " (Demo)" : ""}
                 </Text>
@@ -330,7 +341,7 @@ export default function WalletConnectScreen() {
                   <Ionicons
                     name="lock-closed"
                     size={12}
-                    color="#fff"
+                    color={theme.qrBackground}
                     style={styles.networkLockIcon}
                   />
                 ) : null}
@@ -416,10 +427,7 @@ export default function WalletConnectScreen() {
               {!isDemoMode ? (
                 <View style={styles.walletPicker}>
                   <Text
-                    style={[
-                      styles.pickerLabel,
-                      { color: theme.textSecondary },
-                    ]}
+                    style={[styles.pickerLabel, { color: theme.textSecondary }]}
                   >
                     Select a wallet provider
                   </Text>
@@ -683,7 +691,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   networkText: {
-    color: "#fff",
     fontWeight: "700",
   },
   networkLockIcon: {

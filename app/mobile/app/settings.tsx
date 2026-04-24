@@ -10,11 +10,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemeSelector } from "../components/ThemeSelector";
+import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
-import { SYNC_INTERVALS_MINUTES, type SyncFrequency } from "../services/background-sync";
-import { ThemeSelector } from "../components/ThemeSelector";
-import { LocaleSwitcher } from "../components/LocaleSwitcher";
+import {
+  SYNC_INTERVALS_MINUTES,
+  type SyncFrequency,
+} from "../services/background-sync";
 import { useTheme } from "../src/theme/ThemeContext";
 
 const FREQUENCY_OPTIONS: Array<{
@@ -61,11 +63,10 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: theme.textPrimary }]}>
-          Settings
-        </Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Settings</Text>
 
         <ThemeSelector />
+        <LocaleSwitcher />
 
         <View
           style={[
@@ -73,30 +74,20 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-            Notifications
-          </Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Notifications</Text>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Sound Effects
-              </Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>
-                Play a short tone when a new synced notification appears.
-              </Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Sound Effects</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>Play a short tone when a new synced notification appears.</Text>
             </View>
             <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
           </View>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                App Badge
-              </Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>
-                Keep the launcher badge aligned with unread notifications.
-              </Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>App Badge</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>Keep the launcher badge aligned with unread notifications.</Text>
             </View>
             <Switch
               value={backgroundSyncSettings.badgeEnabled}
@@ -116,24 +107,13 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-            Background Sync
-          </Text>
-          <Text style={[styles.helper, { color: theme.textMuted }]}>
-            Uses Expo background tasks when available and falls back to
-            foreground refreshes when the platform does not support periodic
-            work.
-          </Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Background Sync</Text>
+          <Text style={[styles.helper, { color: theme.textMuted }]}>Uses Expo background tasks when available and falls back to foreground refreshes when periodic work is unavailable.</Text>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Periodic Sync
-              </Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>
-                Refresh notifications and recent activity without opening the
-                app.
-              </Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Periodic Sync</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>Refresh notifications and recent activity without opening the app.</Text>
             </View>
             <Switch
               value={backgroundSyncSettings.enabled}
@@ -148,22 +128,8 @@ export default function SettingsScreen() {
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Wi-Fi Only
-              </Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>
-                Skip background work on mobile data for better battery life.
-              </Text>
-          {/* ── Locale Switcher ─────────────────────────────────── */}
-          <LocaleSwitcher />
-
-          <View style={styles.spacer} />
-
-          {/* ── Sound settings ─────────────────────────────────── */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.row}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>🔔 Sound Effects</Text>
-              <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Wi-Fi Only</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>Skip background work on mobile data for better battery life.</Text>
             </View>
             <Switch
               value={backgroundSyncSettings.wifiOnly}
@@ -176,9 +142,7 @@ export default function SettingsScreen() {
             />
           </View>
 
-          <Text style={[styles.subheading, { color: theme.textPrimary }]}>
-            Sync Frequency
-          </Text>
+          <Text style={[styles.subheading, { color: theme.textPrimary }]}>Sync Frequency</Text>
           <View style={styles.optionGroup}>
             {FREQUENCY_OPTIONS.map((option) => {
               const active = option.value === backgroundSyncSettings.frequency;
@@ -188,12 +152,8 @@ export default function SettingsScreen() {
                   style={[
                     styles.optionCard,
                     {
-                      borderColor: active
-                        ? theme.buttonPrimaryBg
-                        : theme.border,
-                      backgroundColor: active
-                        ? theme.chipActiveBg
-                        : theme.background,
+                      borderColor: active ? theme.buttonPrimaryBg : theme.border,
+                      backgroundColor: active ? theme.chipActiveBg : theme.background,
                     },
                   ]}
                   onPress={() => {
@@ -203,12 +163,15 @@ export default function SettingsScreen() {
                     }));
                   }}
                 >
-                  <Text style={[styles.optionTitle, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.optionTitle,
+                      { color: active ? theme.chipActiveText : theme.textPrimary },
+                    ]}
+                  >
                     {option.label}
                   </Text>
-                  <Text style={[styles.optionHelper, { color: theme.textMuted }]}>
-                    {option.helper}
-                  </Text>
+                  <Text style={[styles.optionHelper, { color: theme.textMuted }]}>{option.helper}</Text>
                 </Pressable>
               );
             })}
@@ -236,30 +199,18 @@ export default function SettingsScreen() {
                   : "No successful sync recorded yet."}
             </Text>
             <Pressable
-              style={[
-                styles.syncNowButton,
-                { backgroundColor: theme.buttonPrimaryBg },
-              ]}
+              style={[styles.syncNowButton, { backgroundColor: theme.buttonPrimaryBg }]}
               onPress={() => {
                 void syncNow();
               }}
             >
-              <Text
-                style={[
-                  styles.syncNowButtonText,
-                  { color: theme.buttonPrimaryText },
-                ]}
-              >
-                Sync Now
-              </Text>
+              <Text style={[styles.syncNowButtonText, { color: theme.buttonPrimaryText }]}>Sync Now</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Onboarding
-          </Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Onboarding</Text>
           <OnboardingResetButton />
         </View>
       </ScrollView>
