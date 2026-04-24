@@ -19,7 +19,6 @@ import {
 import { HorizonService } from "./horizon.service";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 import { ComposeTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
 
@@ -29,7 +28,7 @@ import { TransactionsService } from "./transaction.service";
   description: "Optional API key for higher rate limits",
   required: false,
 })
-@UseGuards(ApiKeyGuard, CustomThrottlerGuard)
+@UseGuards(ApiKeyGuard)
 @Controller("transactions")
 export class TransactionsController {
   constructor(

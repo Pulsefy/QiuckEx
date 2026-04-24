@@ -10,15 +10,9 @@ import {
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
-import {
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-  import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 import { AssetMetadataService } from "../asset-metadata/asset-metadata.service";
 import { AssetListResponseDto } from "../asset-metadata/dto/asset-metadata.dto";
 import { AppConfigService } from "../config/app-config.service";
@@ -36,7 +30,7 @@ import { PathPreviewService } from "./path-preview.service";
   description: "Optional API key for higher rate limits",
   required: false,
 })
-@UseGuards(ApiKeyGuard, CustomThrottlerGuard)
+@UseGuards(ApiKeyGuard)
 @Controller("stellar")
 export class StellarController {
   constructor(
@@ -49,10 +43,11 @@ export class StellarController {
   @Get("verified-assets")
   @ApiOperation({
     summary: "List verified assets for payment links and path swaps",
-    description: "Returns all verified assets with branding metadata including logos and descriptions from TOML files.",
+    description:
+      "Returns all verified assets with branding metadata including logos and descriptions from TOML files.",
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: "List of verified assets with metadata",
     type: AssetListResponseDto,
   })
