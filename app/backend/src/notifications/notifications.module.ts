@@ -18,6 +18,7 @@ import { TelegramNotificationProvider } from "./telegram/telegram.provider";
 import { TelegramController } from "./telegram/telegram.controller";
 import { WebhookService } from "./webhook.service";
 import { WebhooksController } from "./webhooks.controller";
+import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
 
 /**
  * Notification engine module.
@@ -43,6 +44,7 @@ import { WebhooksController } from "./webhooks.controller";
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookRetryScheduler,
     WebhookService,
     {
       provide: NOTIFICATION_PROVIDERS,

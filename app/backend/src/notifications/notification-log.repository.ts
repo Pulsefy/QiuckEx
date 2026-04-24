@@ -120,12 +120,13 @@ export class NotificationLogRepository {
       eventType: NotificationEventType;
       eventId: string;
       attempts: number;
+      lastFailedAt?: string;
     }>
   > {
     const { data, error } = await this.supabase
       .getClient()
       .from("notification_log")
-      .select("public_key, channel, event_type, event_id, attempts")
+      .select("public_key, channel, event_type, event_id, attempts, updated_at")
       .eq("status", "failed")
       .lt("attempts", maxAttempts)
       .order("created_at", { ascending: true })
@@ -142,7 +143,30 @@ export class NotificationLogRepository {
       eventType: r.event_type as NotificationEventType,
       eventId: r.event_id,
       attempts: r.attempts,
+      lastFailedAt: r.updated_at ?? undefined,
     }));
+  }
+
+  /** Move a log entry to DLQ status after exhausting all retries. */
+  async markDlq(
+    publicKey: string,
+    channel: NotificationChannel,
+    eventType: NotificationEventType,
+    eventId: string,
+    lastError: string,
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .update({ status: "dlq", last_error: lastError })
+      .eq("public_key", publicKey)
+      .eq("channel", channel)
+      .eq("event_type", eventType)
+      .eq("event_id", eventId);
+
+    if (error) {
+      this.logger.warn(`Failed to mark notification as DLQ: ${error.message}`);
+    }
   }
 
   async isAlreadySent(
