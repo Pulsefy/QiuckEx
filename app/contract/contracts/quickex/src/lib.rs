@@ -461,7 +461,7 @@ impl QuickexContract {
         admin::set_paused(&env, caller, new_state)
     }
 
-    /// Check if the functiom is currently paused.
+    /// Check if the function is currently paused.
     ///
     /// Returns `true` if paused, `false` otherwise.
     pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
@@ -470,7 +470,7 @@ impl QuickexContract {
 
     /// Pause a function in the contract (**Admin only**).
     ///
-    /// When paused, the particular operations isblocked. Caller must equal the stored admin.
+    /// When paused, the particular operations is blocked. Caller must equal the stored admin.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -686,6 +686,9 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
         stealth::register_ephemeral_key(&env, params)
     }
 
@@ -719,6 +722,9 @@ impl QuickexContract {
     ) -> Result<bool, QuickexError> {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Withdrawal) {
+            return Err(QuickexError::OperationPaused);
         }
         stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address)
     }

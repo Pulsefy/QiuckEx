@@ -87,7 +87,6 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
-    Pause,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -187,7 +186,6 @@ pub fn set_paused(env: &Env, paused: bool) {
     env.storage().persistent().set(&key, &paused);
 }
 
-/// Set pause flags (granular pause control – caller already verified by admin module).
 /// Set pause flags (granular pause control – caller already verified by admin module).
 pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
     let key = DataKey::PauseFlags;

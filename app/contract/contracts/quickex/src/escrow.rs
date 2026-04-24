@@ -11,7 +11,7 @@
 //! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 //! ```
 //!
-//! //! # Time-lock Invariants
+//! # Time-lock Invariants
 //!
 //! These invariants are strictly enforced and must hold at all times:
 //!
