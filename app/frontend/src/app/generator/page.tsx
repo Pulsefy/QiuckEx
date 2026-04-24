@@ -36,6 +36,9 @@ type PathPreviewResponse = {
   horizonUrl: string;
 };
 
+const QUOTE_TTL_SECONDS = 25;
+const BASE_PATH_OPERATION_FEE_XLM = 0.00001;
+
 type LinkMetadataSuccess = {
   success: true;
   data: {
@@ -89,6 +92,9 @@ export default function Generator() {
   const [pathLoading, setPathLoading] = useState(false);
   const [pathError, setPathError] = useState<string | null>(null);
   const [pathData, setPathData] = useState<PathPreviewResponse | null>(null);
+  const [quoteFetchedAt, setQuoteFetchedAt] = useState<number | null>(null);
+  const [quoteNow, setQuoteNow] = useState<number>(() => Date.now());
+  const [slippagePct, setSlippagePct] = useState("0.50");
 
   const [preflightAccount, setPreflightAccount] = useState("");
   const [preflightLoading, setPreflightLoading] = useState(false);
@@ -164,6 +170,7 @@ export default function Generator() {
       sourceRefsForPreview.length === 0
     ) {
       setPathData(null);
+      setQuoteFetchedAt(null);
       return;
     }
     setPathLoading(true);
@@ -187,9 +194,11 @@ export default function Generator() {
         throw new Error(msg);
       }
       setPathData(json as PathPreviewResponse);
+      setQuoteFetchedAt(Date.now());
     } catch (e) {
       setPathError(e instanceof Error ? e.message : "Path preview failed.");
       setPathData(null);
+      setQuoteFetchedAt(null);
     } finally {
       setPathLoading(false);
     }
@@ -210,6 +219,16 @@ export default function Generator() {
     }, 450);
     return () => window.clearTimeout(t);
   }, [advancedOpen, fetchPathPreview]);
+
+  useEffect(() => {
+    if (!advancedOpen || !quoteFetchedAt) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setQuoteNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [advancedOpen, quoteFetchedAt]);
 
   const validate = () => {
     const newErrors: ValidationErrors = {};
@@ -266,6 +285,13 @@ export default function Generator() {
     const validation = validate();
     setErrors(validation);
     if (Object.keys(validation).length > 0) {
+      return;
+    }
+    if (advancedOpen && Number(slippagePct) >= 5) {
+      setErrors((prev) => ({
+        ...prev,
+        amount: t('lowerSlippageToContinue'),
+      }));
       return;
     }
 
@@ -362,6 +388,45 @@ export default function Generator() {
 
   const canonicalPreview =
     data?.success === true ? data.data.canonical : null;
+
+  const slippageValue = Number(slippagePct);
+  const slippageWarningLevel =
+    slippageValue >= 5 ? "block" : slippageValue >= 2 ? "warn" : "safe";
+  const slippageWarningText =
+    slippageWarningLevel === "block"
+      ? t('slippageTooHigh')
+      : slippageWarningLevel === "warn"
+        ? t('slippageWarning')
+        : null;
+
+  const quoteExpiresAt = quoteFetchedAt
+    ? quoteFetchedAt + QUOTE_TTL_SECONDS * 1000
+    : null;
+  const quoteSecondsRemaining = quoteExpiresAt
+    ? Math.max(0, Math.ceil((quoteExpiresAt - quoteNow) / 1000))
+    : null;
+  const quoteExpired =
+    quoteSecondsRemaining !== null && quoteSecondsRemaining <= 0;
+
+  const pathErrorType = useMemo(() => {
+    const txt = pathError?.toLowerCase() ?? "";
+    if (txt.includes("liquidity")) {
+      return "liquidity";
+    }
+    if (txt.includes("no path") || txt.includes("strict-receive")) {
+      return "path";
+    }
+    return "generic";
+  }, [pathError]);
+
+  const getPathLegs = (path: PathRow) => {
+    const route = [path.sourceAsset, ...path.pathHops, path.destinationAsset];
+    return route.slice(0, -1).map((fromAsset, idx) => ({
+      fromAsset,
+      toAsset: route[idx + 1],
+      poolLabel: `Pool ${idx + 1}`,
+    }));
+  };
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
@@ -580,14 +645,47 @@ export default function Generator() {
                         <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
                           {t('pathPreview')}
                         </h3>
-                        {pathLoading && (
-                          <span className="text-xs text-indigo-300 animate-pulse">
-                            {t('fetchingEstimates')}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {quoteSecondsRemaining !== null && (
+                            <span
+                              className={`text-xs font-mono ${
+                                quoteExpired ? "text-amber-300" : "text-emerald-300"
+                              }`}
+                            >
+                              {quoteExpired
+                                ? t('quoteExpired')
+                                : t('quoteExpiresIn', { seconds: quoteSecondsRemaining })}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void fetchPathPreview()}
+                            disabled={pathLoading}
+                            className="text-xs px-2 py-1 rounded-md border border-white/10 text-neutral-300 hover:text-white hover:bg-white/5 disabled:opacity-50"
+                          >
+                            {pathLoading ? t('fetchingEstimates') : t('refreshQuote')}
+                          </button>
+                        </div>
                       </div>
+                      {slippageWarningText && (
+                        <p
+                          className={`text-xs ${
+                            slippageWarningLevel === "block"
+                              ? "text-red-400"
+                              : "text-amber-300"
+                          }`}
+                        >
+                          {slippageWarningText}
+                        </p>
+                      )}
                       {pathError && (
-                        <p className="text-amber-500 text-sm">{pathError}</p>
+                        <p className="text-amber-500 text-sm">
+                          {pathErrorType === "liquidity"
+                            ? t('insufficientLiquidityState')
+                            : pathErrorType === "path"
+                              ? t('noPathState')
+                              : pathError}
+                        </p>
                       )}
                       {!pathLoading &&
                         !pathError &&
@@ -597,6 +695,11 @@ export default function Generator() {
                             {t('noPathsFound', { horizonUrl: pathData.horizonUrl })}
                           </p>
                         )}
+                      {!pathLoading && !pathError && !pathData && (
+                        <p className="text-neutral-600 text-xs">
+                          {t('pathPreviewHint')}
+                        </p>
+                      )}
                       {pathData && pathData.paths.length > 0 && (
                         <ul className="space-y-3 max-h-64 overflow-y-auto pr-1">
                           {pathData.paths.map((p, i) => (
@@ -621,10 +724,70 @@ export default function Generator() {
                               <div className="text-xs text-neutral-600 mt-1">
                                 {p.rateDescription}
                               </div>
+                              <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] p-2 space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">
+                                  {t('pathBreakdown')}
+                                </p>
+                                {getPathLegs(p).map((leg) => (
+                                  <div
+                                    key={`${leg.poolLabel}-${leg.fromAsset}-${leg.toAsset}`}
+                                    className="flex items-center justify-between text-xs text-neutral-400"
+                                  >
+                                    <span>{leg.poolLabel}</span>
+                                    <span className="font-mono">
+                                      {leg.fromAsset} → {leg.toAsset}
+                                    </span>
+                                  </div>
+                                ))}
+                                <p className="text-xs text-neutral-500">
+                                  {t('estimatedNetworkFee', {
+                                    fee: ((p.hopCount + 1) * BASE_PATH_OPERATION_FEE_XLM).toFixed(5),
+                                  })}
+                                </p>
+                              </div>
                             </li>
                           ))}
                         </ul>
                       )}
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                          {t('slippageTolerance')}
+                        </h3>
+                        <span className="text-sm font-mono text-neutral-300">
+                          {slippageValue.toFixed(2)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-500">
+                        {t('slippageDescription')}
+                      </p>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={5}
+                        step={0.1}
+                        value={slippagePct}
+                        onChange={(e) => setSlippagePct(e.target.value)}
+                        className="w-full accent-indigo-400"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {["0.50", "1.00", "2.00"].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setSlippagePct(preset)}
+                            className={`px-3 py-1 text-xs rounded-lg border ${
+                              slippagePct === preset
+                                ? "border-indigo-400/60 text-indigo-200 bg-indigo-500/10"
+                                : "border-white/10 text-neutral-400"
+                            }`}
+                          >
+                            {preset}%
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
