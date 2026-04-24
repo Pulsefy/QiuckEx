@@ -201,7 +201,7 @@ export class WebhookProvider implements INotificationProvider {
 
     const webhookPayload = this.buildWebhookPayload(payload);
     const body = JSON.stringify(webhookPayload);
-    const signature = this.signPayload(body, preference.webhookSecret);
+    const signature = this.signPayload(body, webhookPayload.sentAt, preference.webhookSecret);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -262,7 +262,7 @@ export class WebhookProvider implements INotificationProvider {
     };
   }
 
-  private signPayload(body: string, secret?: string): string {
+  private signPayload(body: string, timestamp: string, secret?: string): string {
     if (!secret) {
       this.logger.warn(
         "Webhook secret not configured - payload will not be signed",
@@ -270,30 +270,51 @@ export class WebhookProvider implements INotificationProvider {
       return "";
     }
 
+    // Sign timestamp + "." + body to prevent replay attacks
     const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(body);
+    hmac.update(`${timestamp}.${body}`);
     const digest = hmac.digest("hex");
     return `sha256=${digest}`;
   }
 
+  /**
+   * Verify an incoming webhook signature.
+   * @param body Raw request body string
+   * @param signature Value of X-QuickEx-Signature header
+   * @param timestamp Value of X-QuickEx-Timestamp header
+   * @param secret Shared webhook secret
+   * @param toleranceMs Replay window in ms (default 5 minutes)
+   */
   static verifySignature(
     body: string,
     signature: string,
+    timestamp: string,
     secret: string,
+    toleranceMs = 5 * 60 * 1000,
   ): boolean {
     if (!signature.startsWith("sha256=")) {
       return false;
     }
 
+    // Reject stale timestamps to prevent replay attacks
+    const ts = new Date(timestamp).getTime();
+    if (isNaN(ts) || Math.abs(Date.now() - ts) > toleranceMs) {
+      return false;
+    }
+
     const expectedDigest = signature.slice(7);
     const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(body);
+    hmac.update(`${timestamp}.${body}`);
     const actualDigest = hmac.digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedDigest, "hex"),
-      Buffer.from(actualDigest, "hex"),
-    );
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(expectedDigest, "hex"),
+        Buffer.from(actualDigest, "hex"),
+      );
+    } catch {
+      return false;
+    }
   }
 }
 

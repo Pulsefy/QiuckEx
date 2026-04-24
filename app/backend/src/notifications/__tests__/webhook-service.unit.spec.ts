@@ -40,7 +40,11 @@ describe("WebhookService", () => {
       getWebhookStats: jest.fn(),
     };
 
-    service = new WebhookService(mockPrefsRepo, mockLogRepo);
+    const mockRetryScheduler = {
+      redeliver: jest.fn().mockResolvedValue(true),
+    };
+
+    service = new WebhookService(mockPrefsRepo, mockLogRepo, mockRetryScheduler as never);
   });
 
   describe("createWebhook", () => {

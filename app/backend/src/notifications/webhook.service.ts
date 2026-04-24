@@ -3,6 +3,7 @@ import * as crypto from "crypto";
 
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
+import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
 import type { NotificationPreference } from "./types/notification.types";
 import type {
   CreateWebhookDto,
@@ -19,6 +20,7 @@ export class WebhookService {
   constructor(
     private readonly prefsRepo: NotificationPreferencesRepository,
     private readonly logRepo: NotificationLogRepository,
+    private readonly retryScheduler: WebhookRetryScheduler,
   ) {}
 
   async createWebhook(
@@ -136,6 +138,18 @@ export class WebhookService {
       lastDeliveryAt: stats.lastDeliveryAt,
       lastError: stats.lastError,
     };
+  }
+
+  /**
+   * Trigger immediate redelivery of a specific event via the retry scheduler.
+   * Returns true if at least one webhook delivery succeeded.
+   */
+  async redeliverEvent(
+    publicKey: string,
+    eventId: string,
+    eventType: string,
+  ): Promise<boolean> {
+    return this.retryScheduler.redeliver(publicKey, eventId, eventType);
   }
 
   private generateSecret(): string {

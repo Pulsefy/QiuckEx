@@ -179,3 +179,20 @@ export class WebhookStatsDto {
   @ApiPropertyOptional() lastDeliveryAt?: string;
   @ApiPropertyOptional() lastError?: string;
 }
+
+export class RedeliverWebhookDto {
+  @ApiProperty({
+    description: "The event ID to redeliver",
+    example: "tx_abc123",
+  })
+  @IsString()
+  eventId!: string;
+
+  @ApiProperty({
+    description: "The event type to redeliver",
+    enum: WEBHOOK_EVENTS,
+    example: "payment.received",
+  })
+  @IsIn(WEBHOOK_EVENTS)
+  eventType!: string;
+}
