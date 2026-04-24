@@ -4,12 +4,12 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ApiKeysService } from '../../api-keys/api-keys.service';
-import { ApiKeyScope } from '../../api-keys/api-keys.types';
-import { RATE_LIMITS } from '../../common/constants/rate-limit.constants';
-import { REQUIRED_SCOPES_KEY } from '../decorators/require-scopes.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { ApiKeysService } from "../../api-keys/api-keys.service";
+import { ApiKeyScope } from "../../api-keys/api-keys.types";
+import { throttlerConfig } from "../../config/rate-limit.config";
+import { REQUIRED_SCOPES_KEY } from "../decorators/require-scopes.decorator";
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -20,7 +20,7 @@ export class ApiKeyGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const rawKey: string | undefined = request.headers['x-api-key'];
+    const rawKey: string | undefined = request.headers["x-api-key"];
 
     if (!rawKey) return true; // public access allowed
 
@@ -28,8 +28,8 @@ export class ApiKeyGuard implements CanActivate {
 
     if (!result) {
       throw new UnauthorizedException({
-        error: 'INVALID_API_KEY',
-        message: 'API key is invalid',
+        error: "INVALID_API_KEY",
+        message: "API key is invalid",
       });
     }
 
@@ -37,8 +37,8 @@ export class ApiKeyGuard implements CanActivate {
 
     if (this.apiKeysService.isOverQuota(record)) {
       throw new ForbiddenException({
-        error: 'QUOTA_EXCEEDED',
-        message: 'Monthly request quota exceeded',
+        error: "QUOTA_EXCEEDED",
+        message: "Monthly request quota exceeded",
       });
     }
 
@@ -52,7 +52,7 @@ export class ApiKeyGuard implements CanActivate {
     for (const scope of requiredScopes) {
       if (!hasScope(scope)) {
         throw new ForbiddenException({
-          error: 'INSUFFICIENT_SCOPE',
+          error: "INSUFFICIENT_SCOPE",
           message: `API key missing required scope: ${scope}`,
         });
       }
@@ -62,7 +62,7 @@ export class ApiKeyGuard implements CanActivate {
       id: record.id,
       name: record.name,
       scopes: record.scopes,
-      rateLimit: RATE_LIMITS.API_KEY.limit,
+      rateLimit: throttlerConfig.groups.authenticated.sustained.limit,
     };
 
     return true;

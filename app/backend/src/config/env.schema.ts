@@ -101,6 +101,76 @@ export const envSchema = Joi.object({
         "Valid keys receive higher rate limits (120 req/min vs 20 req/min).",
     ),
 
+  // Global HTTP rate-limiting profiles (all optional; defaults applied)
+  RATE_LIMIT_PUBLIC_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(10)
+    .description("Public traffic burst request limit"),
+  RATE_LIMIT_PUBLIC_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Public traffic burst window in milliseconds"),
+  RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(20)
+    .description("Public traffic sustained request limit"),
+  RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Public traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_AUTHENTICATED_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(40)
+    .description("Authenticated traffic burst request limit"),
+  RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Authenticated traffic burst window in milliseconds"),
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(120)
+    .description("Authenticated traffic sustained request limit"),
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Authenticated traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_WEBHOOKS_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(20)
+    .description("Webhook traffic burst request limit"),
+  RATE_LIMIT_WEBHOOKS_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Webhook traffic burst window in milliseconds"),
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(60)
+    .description("Webhook traffic sustained request limit"),
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Webhook traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_KEY_ORDER: Joi.string()
+    .default("user_id,api_key,ip")
+    .description(
+      "Preferred key order for rate-limit identity. Allowed values: user_id,api_key,ip",
+    ),
+
   // ---------------------------------------------------------------------------
   // Sentry Error Monitoring (optional; omit to disable)
   // ---------------------------------------------------------------------------
@@ -118,9 +188,7 @@ export const envSchema = Joi.object({
 
   SENTRY_RELEASE: Joi.string()
     .optional()
-    .description(
-      "Sentry release identifier (e.g. quickex-backend@1.2.3)",
-    ),
+    .description("Sentry release identifier (e.g. quickex-backend@1.2.3)"),
 
   SENTRY_TRACES_SAMPLE_RATE: Joi.number()
     .min(0)
@@ -136,9 +204,7 @@ export const envSchema = Joi.object({
     .max(1)
     .optional()
     .default(1.0)
-    .description(
-      "Sentry profiling sample rate (0.0 to 1.0). Default: 1.0",
-    ),
+    .description("Sentry profiling sample rate (0.0 to 1.0). Default: 1.0"),
 });
 
 /**
@@ -159,6 +225,19 @@ export interface EnvConfig {
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
   API_KEYS?: string;
+  RATE_LIMIT_PUBLIC_BURST_LIMIT: number;
+  RATE_LIMIT_PUBLIC_BURST_TTL_MS: number;
+  RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_AUTHENTICATED_BURST_LIMIT: number;
+  RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS: number;
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_WEBHOOKS_BURST_LIMIT: number;
+  RATE_LIMIT_WEBHOOKS_BURST_TTL_MS: number;
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_KEY_ORDER: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;
