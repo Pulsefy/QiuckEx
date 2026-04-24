@@ -10,12 +10,13 @@
 //! - **Privacy toggle:** `test_set_privacy_toggle_cycle_succeeds`, `test_set_and_get_privacy`
 //! - **Refunds:** `test_refund_successful`
 //! - **Single full-flow smoke test:** `regression_golden_path_full_flow`
+//! - **Upgrade migration:** `test_upgrade_migration_preserves_legacy_escrow_data`
 //!
 //! How to re-run only the regression suite:
 //!
 //! ```sh
 //! cargo test regression_
-//! cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle
+//! cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle test_upgrade_migration_preserves_legacy_escrow_data
 //! ```
 //!
 //! Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
@@ -23,15 +24,52 @@
 
 use crate::{
     errors::QuickexError,
-    storage::{put_escrow, PauseFlag},
+    storage::{put_escrow, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION},
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
+    contract, contractimpl,
     testutils::{Address as _, Events as _, Ledger},
     token,
     xdr::ToXdr,
     Address, Bytes, BytesN, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
+
+#[contract]
+pub struct LegacyQuickexContract;
+
+#[contractimpl]
+impl LegacyQuickexContract {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
+        if crate::storage::get_admin(&env).is_some() {
+            return Err(QuickexError::AlreadyInitialized);
+        }
+
+        crate::storage::set_admin(&env, &admin);
+        crate::storage::set_paused(&env, false);
+
+        Ok(())
+    }
+
+    pub fn deposit(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiter: Option<Address>,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if crate::admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if crate::storage::is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
+
+        crate::escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
+    }
+}
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
     let env = Env::default();
@@ -1398,6 +1436,63 @@ fn test_upgrade_by_admin() {
             // The important thing is the auth check passed
         }
     }
+}
+
+#[test]
+fn test_migrate_by_non_admin_fails() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let result = client.try_migrate(&non_admin);
+    assert_contract_error(result, QuickexError::Unauthorized);
+}
+
+#[test]
+fn test_upgrade_migration_preserves_legacy_escrow_data() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LegacyQuickexContract, ());
+    let legacy_client = LegacyQuickexContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let token = create_test_token(&env);
+    let amount: i128 = 4_200;
+    let salt = Bytes::from_slice(&env, b"legacy_upgrade_salt");
+
+    legacy_client.initialize(&admin);
+    token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
+
+    let commitment = legacy_client.deposit(&token, &amount, &owner, &salt, &300, &None);
+
+    env.register_at(&contract_id, QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    assert_eq!(client.get_version(), LEGACY_CONTRACT_VERSION);
+
+    let migrated_version = client.migrate(&admin);
+    assert_eq!(migrated_version, CURRENT_CONTRACT_VERSION);
+    assert_eq!(client.get_version(), CURRENT_CONTRACT_VERSION);
+
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.token, token);
+    assert_eq!(details.amount, Some(amount));
+    assert_eq!(details.owner, Some(owner.clone()));
+    assert_eq!(details.status, EscrowStatus::Pending);
+
+    let commitment_state = client.get_commitment_state(&commitment);
+    assert_eq!(commitment_state, Some(EscrowStatus::Pending));
+
+    let withdrew = client.withdraw(&token, &amount, &commitment, &owner, &salt);
+    assert!(withdrew);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Spent)
+    );
 }
 
 #[test]

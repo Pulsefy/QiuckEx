@@ -10,6 +10,7 @@
 //! |------------------------|----------------|-------------|
 //! | [`Escrow`](DataKey::Escrow) | `EscrowEntry`  | Escrow entry keyed by commitment hash (32 bytes). One entry per unique deposit. |
 //! | [`EscrowCounter`](DataKey::EscrowCounter) | `u64`       | Global monotonic counter for escrow creation. |
+//! | [`ContractVersion`](DataKey::ContractVersion) | `u32` | Stored schema/version marker for upgrade migrations. |
 //! | [`Admin`](DataKey::Admin) | `Address`     | Contract admin address. Set during initialisation, transferable by admin. |
 //! | [`Paused`](DataKey::Paused) | `bool`       | Global pause flag. When true, critical operations may be blocked. |
 //! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Numeric privacy level per account (0 = off). Used by `enable_privacy`. |
@@ -51,6 +52,9 @@ use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
 /// See [`crate::privacy`] module.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
+pub const LEGACY_CONTRACT_VERSION: u32 = 0;
+pub const CURRENT_CONTRACT_VERSION: u32 = 1;
+
 pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
 pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
 
@@ -83,6 +87,8 @@ pub enum DataKey {
     Escrow(Bytes),
     /// Global escrow counter (singleton).
     EscrowCounter,
+    /// Current contract schema version (singleton).
+    ContractVersion,
     /// Admin address (singleton).
     Admin,
     /// Paused state (singleton).
@@ -162,6 +168,16 @@ pub fn increment_escrow_counter(env: &Env) -> u64 {
     count += 1;
     env.storage().persistent().set(&key, &count);
     count
+}
+
+pub fn get_contract_version(env: &Env) -> Option<u32> {
+    env.storage().persistent().get(&DataKey::ContractVersion)
+}
+
+pub fn set_contract_version(env: &Env, version: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::ContractVersion, &version);
 }
 
 // -----------------------------------------------------------------------------

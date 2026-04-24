@@ -1,5 +1,5 @@
 use crate::errors::QuickexError;
-use crate::events::{publish_admin_changed, publish_contract_paused};
+use crate::events::{publish_admin_changed, publish_contract_migrated, publish_contract_paused};
 use crate::storage;
 use crate::types::FeeConfig; // Added this import for FeeConfig
 use soroban_sdk::{Address, Env};
@@ -16,6 +16,7 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
     // Seed admin and paused flags in persistent storage.
     storage::set_admin(env, &admin);
     storage::set_paused(env, false);
+    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
 
     Ok(())
 }
@@ -76,6 +77,38 @@ pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), Qui
 /// Check if the contract is paused.
 pub fn is_paused(env: &Env) -> bool {
     storage::is_paused(env)
+}
+
+pub fn get_version(env: &Env) -> u32 {
+    storage::get_contract_version(env).unwrap_or(storage::LEGACY_CONTRACT_VERSION)
+}
+
+pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
+    require_admin(env, caller)?;
+
+    let from_version = get_version(env);
+    if from_version > storage::CURRENT_CONTRACT_VERSION {
+        return Err(QuickexError::InvalidContractVersion);
+    }
+
+    let mut version = from_version;
+    while version < storage::CURRENT_CONTRACT_VERSION {
+        version = match version {
+            storage::LEGACY_CONTRACT_VERSION => migrate_legacy_to_v1(env),
+            _ => return Err(QuickexError::InvalidContractVersion),
+        };
+    }
+
+    if version != from_version {
+        publish_contract_migrated(env, caller, from_version, version);
+    }
+
+    Ok(version)
+}
+
+fn migrate_legacy_to_v1(env: &Env) -> u32 {
+    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
+    storage::CURRENT_CONTRACT_VERSION
 }
 
 /// Require that the contract is not paused.

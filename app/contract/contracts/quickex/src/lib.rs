@@ -441,6 +441,21 @@ impl QuickexContract {
         admin::initialize(&env, admin)
     }
 
+    /// Get the stored contract schema version.
+    ///
+    /// Returns `0` for legacy deployments created before version tracking existed.
+    pub fn get_version(env: Env) -> u32 {
+        admin::get_version(&env)
+    }
+
+    /// Run any pending data migrations for the current contract code (**Admin only**).
+    ///
+    /// This entrypoint is intended to be called immediately after upgrading the contract WASM
+    /// whenever the new release introduces storage or schema changes.
+    pub fn migrate(env: Env, caller: Address) -> Result<u32, QuickexError> {
+        admin::migrate(&env, &caller)
+    }
+
     /// Pause or unpause the contract (**Admin only**).
     ///
     /// When paused, certain operations may be blocked. Caller must equal the stored admin.
@@ -743,7 +758,8 @@ impl QuickexContract {
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     ///
     /// # Security
-    /// Updates the contract's executable code. Use with care in production.
+    /// Updates the contract's executable code. Call [`migrate`](QuickexContract::migrate)
+    /// afterwards if the new release requires storage migration.
     pub fn upgrade(
         env: Env,
         caller: Address,
