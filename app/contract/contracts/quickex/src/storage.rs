@@ -40,7 +40,7 @@
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
+use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -100,6 +100,8 @@ pub enum DataKey {
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
     PlatformWallet,
+    /// Roles assigned to an address.
+    UserRole(Address),
 }
 
 // -----------------------------------------------------------------------------
@@ -287,6 +289,26 @@ pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<Ste
 pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
     let key = DataKey::StealthEscrow(stealth_address.clone());
     env.storage().persistent().set(&key, entry);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+// -----------------------------------------------------------------------------
+// Role helpers
+// -----------------------------------------------------------------------------
+
+pub fn get_roles(env: &Env, address: &Address) -> Vec<Role> {
+    let key = DataKey::UserRole(address.clone());
+    env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn set_roles(env: &Env, address: &Address, roles: &Vec<Role>) {
+    let key = DataKey::UserRole(address.clone());
+    env.storage().persistent().set(&key, roles);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);

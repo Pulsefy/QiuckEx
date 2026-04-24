@@ -63,14 +63,14 @@
 use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
 use crate::{
-    commitment,
+    admin, commitment,
     errors::QuickexError,
     events, fee,
     storage::{
         get_escrow, get_platform_wallet, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD,
         SIX_MONTHS_IN_LEDGERS,
     },
-    types::{EscrowEntry, EscrowStatus},
+    types::{EscrowEntry, EscrowStatus, Role},
 };
 
 // ---------------------------------------------------------------------------
@@ -533,6 +533,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 /// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
 pub fn resolve_dispute(
     env: &Env,
+    caller: Address,
     commitment: BytesN<32>,
     resolve_for_owner: bool,
     recipient: Address,
@@ -541,9 +542,21 @@ pub fn resolve_dispute(
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    // Guard: caller must be the assigned arbiter
-    let arbiter = entry.arbiter.as_ref().ok_or(QuickexError::NoArbiter)?;
-    arbiter.require_auth();
+    // Guard: caller must be either the assigned arbiter OR have the global Arbiter role.
+    caller.require_auth();
+    let mut is_authorized = admin::has_role(env, &caller, Role::Arbiter);
+
+    if !is_authorized {
+        if let Some(assigned_arbiter) = &entry.arbiter {
+            if *assigned_arbiter == caller {
+                is_authorized = true;
+            }
+        }
+    }
+
+    if !is_authorized {
+        return Err(QuickexError::NotArbiter);
+    }
 
     // Guard: escrow must be in Disputed state
     if entry.status != EscrowStatus::Disputed {

@@ -14,6 +14,8 @@ mod fee;
 #[cfg(test)]
 mod fee_test;
 mod privacy;
+#[cfg(test)]
+mod role_test;
 mod stealth;
 #[cfg(test)]
 mod stealth_test;
@@ -28,7 +30,9 @@ mod types;
 
 use errors::QuickexError;
 use storage::*;
-use types::{EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, StealthDepositParams};
+use types::{
+    EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+};
 
 /// QuickEx Privacy Contract
 ///
@@ -385,6 +389,7 @@ impl QuickexContract {
     /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
     pub fn resolve_dispute(
         env: Env,
+        caller: Address,
         commitment: BytesN<32>,
         resolve_for_owner: bool,
         recipient: Address,
@@ -392,7 +397,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        escrow::resolve_dispute(&env, commitment, resolve_for_owner, recipient)
+        escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
     }
 
     /// Initialize the contract with an admin address (one-time only).
@@ -699,36 +704,48 @@ impl QuickexContract {
 
     /// Upgrade the contract to a new WASM implementation (**Admin only**).
     ///
-    /// Caller must equal admin and authorize. The new WASM must be pre-uploaded to the network.
-    /// Emits an upgrade event for audit.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `caller` - Caller address (must equal admin; must authorize)
-    /// * `new_wasm_hash` - 32-byte hash of the new WASM code
-    ///
-    /// # Errors
-    /// * `Unauthorized` - Caller is not the admin, or admin not set
-    ///
-    /// # Security
-    /// Updates the contract's executable code. Use with care in production.
+    /// Caller must have the [`Role::Admin`] role and authorize.
     pub fn upgrade(
         env: Env,
         caller: Address,
         new_wasm_hash: BytesN<32>,
     ) -> Result<(), QuickexError> {
-        let admin = admin::get_admin(&env).ok_or(QuickexError::Unauthorized)?;
-        if caller != admin {
-            return Err(QuickexError::Unauthorized);
-        }
-
-        caller.require_auth();
+        admin::require_admin(&env, &caller)?;
 
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
 
-        events::publish_contract_upgraded(&env, new_wasm_hash, &admin);
+        events::publish_contract_upgraded(&env, new_wasm_hash, &caller);
 
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Role Management (**Admin only**)
+    // -----------------------------------------------------------------------
+
+    /// Grant a role to an account.
+    pub fn grant_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: Role,
+    ) -> Result<(), QuickexError> {
+        admin::grant_role(&env, caller, target, role)
+    }
+
+    /// Revoke a role from an account.
+    pub fn revoke_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: Role,
+    ) -> Result<(), QuickexError> {
+        admin::revoke_role(&env, caller, target, role)
+    }
+
+    /// Get all roles assigned to an account.
+    pub fn get_roles(env: Env, account: Address) -> Vec<Role> {
+        storage::get_roles(&env, &account)
     }
 }
