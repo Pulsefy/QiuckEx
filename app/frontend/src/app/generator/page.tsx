@@ -129,7 +129,7 @@ export default function Generator() {
     return () => {
       cancelled = true;
     };
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const recipientRef = useMemo(() => {
     const a = verifiedAssets.find(
@@ -314,21 +314,23 @@ export default function Generator() {
         message?: string;
         code?: string;
       };
+      const message =
+        typeof json === "object" &&
+        json !== null &&
+        "message" in json &&
+        typeof json.message === "string"
+          ? json.message
+          : null;
       if (res.status === 503) {
         setPreflightUnavailable(
-          'message' in json && typeof json.message === "string"
-            ? json.message
-            : t('preflightUnavailable'),
+          message ?? t('preflightUnavailable'),
         );
         return;
       }
       if (!res.ok) {
         setPreflightResult({
           success: false,
-          userMessage:
-            'message' in json && typeof json.message === "string"
-              ? json.message
-              : t('preflightFailed'),
+          userMessage: message ?? t('preflightFailed'),
         });
         return;
       }
