@@ -29,8 +29,10 @@ import {
   WebhookDeliveryLogDto,
   WebhookStatsDto,
 } from "./dto/webhook.dto";
+import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 
 @ApiTags("Webhooks")
+@RateLimitGroupTag("webhooks")
 @Controller("webhooks")
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);

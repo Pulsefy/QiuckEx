@@ -41,7 +41,7 @@
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
+use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -93,7 +93,6 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
-    Pause,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -110,6 +109,8 @@ pub enum DataKey {
     /// to the commitment key of the escrow it identifies. Enables
     /// idempotent deduplication of identical creation requests.
     EscrowIdMap(BytesN<32>),
+    /// Roles assigned to an address.
+    UserRole(Address),
 }
 
 // -----------------------------------------------------------------------------
@@ -205,7 +206,6 @@ pub fn set_paused(env: &Env, paused: bool) {
     env.storage().persistent().set(&key, &paused);
 }
 
-/// Set pause flags (granular pause control – caller already verified by admin module).
 /// Set pause flags (granular pause control – caller already verified by admin module).
 pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
     let key = DataKey::PauseFlags;
@@ -307,6 +307,26 @@ pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<Ste
 pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
     let key = DataKey::StealthEscrow(stealth_address.clone());
     env.storage().persistent().set(&key, entry);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+// -----------------------------------------------------------------------------
+// Role helpers
+// -----------------------------------------------------------------------------
+
+pub fn get_roles(env: &Env, address: &Address) -> Vec<Role> {
+    let key = DataKey::UserRole(address.clone());
+    env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn set_roles(env: &Env, address: &Address, roles: &Vec<Role>) {
+    let key = DataKey::UserRole(address.clone());
+    env.storage().persistent().set(&key, roles);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);

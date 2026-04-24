@@ -18,7 +18,6 @@ import { LinksService } from "./links.service";
 import { LinkMetadataRequestDto, LinkMetadataResponseDto } from "../dto";
 import { LinkValidationError } from "./errors";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 
 @ApiTags("links")
 @ApiHeader({
@@ -27,7 +26,7 @@ import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
     "Optional API key for higher rate limits (120 req/min vs 20 req/min)",
   required: false,
 })
-@UseGuards(ApiKeyGuard, CustomThrottlerGuard)
+@UseGuards(ApiKeyGuard)
 @Controller("links")
 export class LinksController {
   constructor(private readonly linksService: LinksService) {}

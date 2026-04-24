@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Contact } from '../types/contact';
 import * as Crypto from 'expo-crypto';
+
 let supabase: any = null;
 try {
   supabase = require('./supabase').supabase;
