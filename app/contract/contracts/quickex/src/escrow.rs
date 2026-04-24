@@ -65,10 +65,10 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 use crate::{
     commitment,
     errors::QuickexError,
-    events, fee,
+    escrow_id, events, fee,
     storage::{
-        get_escrow, get_platform_wallet, has_escrow, put_escrow, remove_escrow, LEDGER_THRESHOLD,
-        SIX_MONTHS_IN_LEDGERS,
+        get_escrow, get_escrow_id_mapping, get_platform_wallet, has_escrow, put_escrow,
+        put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
     },
     types::{EscrowEntry, EscrowStatus},
 };
@@ -158,6 +158,15 @@ pub fn deposit(
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
 
+    // Issue #304: deterministic escrow id over the full creation payload.
+    // If an identical request has already been recorded, return the
+    // existing commitment instead of creating a duplicate escrow.
+    let escrow_id =
+        escrow_id::derive_escrow_id(env, &token, amount, &owner, &salt, timeout_secs, &arbiter)?;
+    if let Some(existing) = get_escrow_id_mapping(env, &escrow_id) {
+        return Ok(existing);
+    }
+
     let commitment = commitment::create_amount_commitment(env, owner.clone(), amount, salt)?;
     let now = env.ledger().timestamp();
 
@@ -196,6 +205,7 @@ pub fn deposit(
     };
 
     put_escrow(env, &commitment_bytes, &entry);
+    put_escrow_id_mapping(env, &escrow_id, &commitment);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
 
     events::publish_escrow_deposited(
