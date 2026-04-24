@@ -17,6 +17,7 @@ This document describes the **regression test suite** used to future-proof Quick
 | Withdrawals | `test_successful_withdrawal` | `src/test.rs` |
 | Refunds | `test_refund_successful` | `src/test.rs` |
 | Full flow (single smoke test) | `regression_golden_path_full_flow` | `src/test.rs` |
+| Upgrade migration | `test_upgrade_migration_preserves_legacy_escrow_data` | `src/test.rs` |
 | Commitment creation/verification | `test_create_and_verify_commitment_success` | `src/commitment_test.rs` |
 
 ## How to run the regression suite
@@ -31,7 +32,7 @@ cargo test regression_golden_path_full_flow
 cargo test regression_
 
 # Run the full set of golden path tests by name
-cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle regression_golden_path_full_flow
+cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle test_upgrade_migration_preserves_legacy_escrow_data regression_golden_path_full_flow
 
 # Run all contract tests (includes regression and others)
 cargo test

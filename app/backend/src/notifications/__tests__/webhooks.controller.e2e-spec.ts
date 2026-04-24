@@ -48,7 +48,13 @@ describe("WebhooksController (e2e)", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
@@ -215,7 +221,7 @@ describe("WebhooksController (e2e)", () => {
 
       return request(app.getHttpServer())
         .post(`/webhooks/${PUBLIC_KEY}/${WEBHOOK_ID}/regenerate-secret`)
-        .expect(201)
+        .expect(200)
         .expect((res) => {
           expect(res.body.secret).toBe("whsec_newsecret123");
         });

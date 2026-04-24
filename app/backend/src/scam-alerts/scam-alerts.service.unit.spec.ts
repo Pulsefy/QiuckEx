@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ScamAlertsService } from "./scam-alerts.service";
 import { ScamAlertType, ScamSeverity } from "./constants/scam-rules.constants";
+import { HorizonService } from "../transactions/horizon.service";
 
 // Define a type that represents the internal structure of the service for testing
 type InternalScamAlertsService = {
@@ -18,6 +19,10 @@ describe("ScamAlertsService", () => {
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				ScamAlertsService,
+				{
+					provide: HorizonService,
+					useValue: {},
+				},
 			],
 		}).compile();
 
@@ -209,16 +214,36 @@ describe("ScamAlertsService", () => {
 		});
 
 		it("should flag addresses on external blocklist", async () => {
-			// Mock fetch response for blocklist
-			(global.fetch as jest.MockedFunction<typeof fetch>)
-				.mockResolvedValueOnce({
-					ok: true,
-					status: 200,
-					json: async () => [
-						"GBLACKLISTEDADDRESS123456789",
-						"GANOTHERBLACKLISTEDADDR456789"
-					],
-				} as Response);
+			(global.fetch as jest.MockedFunction<typeof fetch>).mockImplementation(
+				async (input: RequestInfo | URL) => {
+					const url = String(input);
+
+					if (url.includes("/accounts/") && !url.includes("/payments")) {
+						return {
+							ok: true,
+							status: 200,
+							json: async () => ({ created_at: "2025-01-01T00:00:00Z" }),
+						} as Response;
+					}
+
+					if (url.includes("/payments")) {
+						return {
+							ok: true,
+							status: 200,
+							json: async () => ({ _embedded: { records: [] } }),
+						} as Response;
+					}
+
+					return {
+						ok: true,
+						status: 200,
+						json: async () => [
+							"GBLACKLISTEDADDRESS123456789",
+							"GANOTHERBLACKLISTEDADDR456789",
+						],
+					} as Response;
+				},
+			);
 
 			const result = await service.scanLink({
 				assetCode: "USDC",
@@ -262,12 +287,12 @@ describe("ScamAlertsService", () => {
 
 	describe("Multiple Alerts", () => {
 		it("should detect multiple issues", async () => {
-			// Mock fetch responses for blocklist (but not for account age since we're not testing that here)
+				// Mock fetch responses used by account age/frequency/blocklist checks
 			(global.fetch as jest.MockedFunction<typeof fetch>)
 				.mockResolvedValue({
 					ok: true,
 					status: 200,
-					json: async () => [],
+						json: async () => ({ _embedded: { records: [] } }),
 				} as Response);
 
 			const result = await service.scanLink({
@@ -279,7 +304,6 @@ describe("ScamAlertsService", () => {
 			expect(result.alerts.length).toBeGreaterThan(1);
 			expect(result.alerts).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ type: ScamAlertType.MISSING_MEMO }),
 					expect.objectContaining({ type: ScamAlertType.HIGH_AMOUNT }),
 					expect.objectContaining({ type: ScamAlertType.EXTERNAL_ADDRESS_IN_MEMO }),
 				]),

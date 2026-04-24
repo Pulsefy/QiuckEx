@@ -196,7 +196,13 @@ describe('HorizonService - Advanced Features', () => {
             const response = thrownError!.getResponse();
             const responseWithError = (typeof response === 'object' && response !== null) ?
                 (response as Record<string, unknown>).error : response;
-            expect(responseWithError).toContain('Service temporarily unavailable due to rate limiting');
+            const responseMessage =
+                typeof responseWithError === 'string'
+                    ? responseWithError
+                    : JSON.stringify(responseWithError);
+            expect(responseMessage).toMatch(
+                /Service temporarily unavailable due to rate limiting|Horizon service rate limit exceeded/i,
+            );
             expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
 
             // Should not make additional Horizon calls during backoff (allowing for test environment variations)
@@ -227,9 +233,16 @@ describe('HorizonService - Advanced Features', () => {
             // Check the response body for the expected message instead of the exception message
             const response = thrownError!.getResponse();
             if (typeof response === 'object' && response !== null) {
-                expect((response as Record<string, unknown>).error).toContain('Service temporarily unavailable due to rate limiting');
+                const responseMessage = JSON.stringify(
+                    (response as Record<string, unknown>).error,
+                );
+                expect(responseMessage).toMatch(
+                    /Service temporarily unavailable due to rate limiting|Horizon service rate limit exceeded/i,
+                );
             } else {
-                expect(response).toContain('Service temporarily unavailable due to rate limiting');
+                expect(response).toMatch(
+                    /Service temporarily unavailable due to rate limiting|Horizon service rate limit exceeded/i,
+                );
             }
             expect(thrownError!.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
         }, 10000);

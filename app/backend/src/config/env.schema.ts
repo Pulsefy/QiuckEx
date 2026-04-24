@@ -57,6 +57,7 @@ export const envSchema = Joi.object({
 
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Soroban contract ID to stream events from (enables Stellar ingestion service)",
@@ -68,15 +69,18 @@ export const envSchema = Joi.object({
 
   // SendGrid email channel
   SENDGRID_API_KEY: Joi.string()
+    .empty("")
     .optional()
     .description("SendGrid API key — enables email notification channel"),
 
   SENDGRID_FROM_EMAIL: Joi.string()
+    .empty("")
     .optional()
     .description("From address for SendGrid emails (e.g. noreply@quickex.to)"),
 
   // Expo push channel
   EXPO_ACCESS_TOKEN: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Expo server access token — enhances push notification delivery priority",
@@ -95,6 +99,7 @@ export const envSchema = Joi.object({
   // Rate limiting — optional bcrypt-hashed API keys (comma-separated)
   // Generate a hash: node -e "require('bcrypt').hash('MY_KEY', 10).then(console.log)"
   API_KEYS: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Comma-separated list of bcrypt-hashed API keys for trusted clients. " +
@@ -177,16 +182,19 @@ export const envSchema = Joi.object({
 
   SENTRY_DSN: Joi.string()
     .uri({ scheme: ["http", "https"] })
+    .empty("")
     .optional()
     .description("Sentry DSN for error reporting — omit to disable Sentry"),
 
   SENTRY_ENVIRONMENT: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Sentry environment tag (e.g. production, staging). Falls back to NODE_ENV.",
     ),
 
   SENTRY_RELEASE: Joi.string()
+    .empty("")
     .optional()
     .description("Sentry release identifier (e.g. quickex-backend@1.2.3)"),
 

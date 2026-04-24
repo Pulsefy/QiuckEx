@@ -114,6 +114,32 @@ pub(crate) fn publish_contract_upgraded(env: &Env, new_wasm_hash: BytesN<32>, ad
     .publish(env);
 }
 
+#[contractevent(topics = ["TOPIC_ADMIN", "ContractMigrated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractMigratedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub from_version: u32,
+    pub to_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_contract_migrated(
+    env: &Env,
+    admin: &Address,
+    from_version: u32,
+    to_version: u32,
+) {
+    ContractMigratedEvent {
+        admin: admin.clone(),
+        from_version,
+        to_version,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 pub(crate) fn publish_escrow_withdrawn(
     env: &Env,
     commitment: BytesN<32>,

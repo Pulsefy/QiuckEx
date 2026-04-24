@@ -101,7 +101,7 @@ describe('TelegramNotificationProvider', () => {
         123456789,
         'Payment Received',
         expect.stringContaining('You received 10 XLM'),
-        expect.any(Object),
+        undefined,
       );
       expect(mockTelegramRepository.updateLastNotification).toHaveBeenCalledWith(123456789);
       expect(mockTelegramRepository.logNotification).toHaveBeenCalledWith(
@@ -208,8 +208,11 @@ describe('TelegramNotificationProvider', () => {
       expect(mockTelegramBotService.sendNotification).toHaveBeenCalledWith(
         123456789,
         expect.any(String),
-        expect.stringContaining('Transaction: `abc123d...`'),
-        expect.any(Object),
+        expect.stringContaining('Transaction: `abc123de...`'),
+        expect.objectContaining({
+          txHash: 'abc123def456',
+          sender: 'GABC123DEF456',
+        }),
       );
     });
   });

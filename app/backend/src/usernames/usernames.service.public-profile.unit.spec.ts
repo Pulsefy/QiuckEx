@@ -43,6 +43,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
       ];
 
       supabaseMock.searchPublicUsernames!.mockResolvedValue(mockResults);
+      supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       const res = await service.searchPublicUsernames('alice', 10);
       expect(res).toHaveLength(2);
