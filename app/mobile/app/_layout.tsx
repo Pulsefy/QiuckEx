@@ -3,6 +3,7 @@ import {
   type Theme as NavigationTheme,
 } from "@react-navigation/native";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
@@ -23,6 +24,7 @@ import { WalletProvider } from "../hooks/useWalletContext";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
+import { routeFromNotificationResponse } from "../services/notification-routing";
 
 // ── Theme System v2 ──────────────────────────────────────────────────────────
 import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
@@ -54,6 +56,26 @@ function useDeepLinkHandler() {
     Linking.getInitialURL().then((url: string | null) => {
       if (url) handleURL({ url });
     });
+
+    return () => subscription.remove();
+  }, [router]);
+}
+
+function useNotificationTapRouting() {
+  const router = useRouter();
+
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        routeFromNotificationResponse(router, response);
+      })
+      .catch(() => {});
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        routeFromNotificationResponse(router, response);
+      },
+    );
 
     return () => subscription.remove();
   }, [router]);
@@ -130,6 +152,7 @@ function AppShell() {
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
   const { isLoading: onboardingLoading } = useOnboarding();
   useDeepLinkHandler();
+  useNotificationTapRouting();
 
   if (onboardingLoading) {
     return null; // Show loading screen while checking onboarding status
@@ -147,6 +170,9 @@ function AppShell() {
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
         <Stack.Screen name="transaction/[id]" />
+        <Stack.Screen name="escrow/[id]" />
+        <Stack.Screen name="listing/[id]" />
+        <Stack.Screen name="notification-debug" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
