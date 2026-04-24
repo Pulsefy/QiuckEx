@@ -37,6 +37,7 @@ export class CreateWebhookDto {
   @IsUrl(
     {
       protocols: ["http", "https"],
+      require_protocol: true,
       require_tld: false, // Allow localhost for development
     },
     { message: "webhookUrl must be a valid URL" },
@@ -96,6 +97,7 @@ export class UpdateWebhookDto {
   @IsUrl(
     {
       protocols: ["http", "https"],
+      require_protocol: true,
       require_tld: false,
     },
     { message: "webhookUrl must be a valid URL" },

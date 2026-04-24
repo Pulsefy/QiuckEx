@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseService } from '../supabase/supabase.service';
 import {
   FrequencyType,
   RecurringStatus,
@@ -51,8 +52,11 @@ export type DbRecurringPaymentExecution = {
 @Injectable()
 export class RecurringPaymentsRepository {
   private readonly logger = new Logger(RecurringPaymentsRepository.name);
+  private readonly supabase: SupabaseClient;
 
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly supabaseService: SupabaseService) {
+    this.supabase = this.supabaseService.getClient();
+  }
 
   // ---------------------------------------------------------------------------
   // Recurring Payment Links CRUD

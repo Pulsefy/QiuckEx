@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsernamesController } from './usernames.controller';
 import { UsernamesService } from './usernames.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -6,7 +7,13 @@ import { UsernameValidationError, UsernameErrorCode } from './errors';
 
 describe('UsernamesController - Public Profile Discovery (Integration)', () => {
   let controller: UsernamesController;
-  let serviceMock: Partial<UsernamesService>;
+  let serviceMock: {
+    searchPublicUsernames: jest.Mock;
+    getTrendingCreators: jest.Mock;
+    togglePublicProfile: jest.Mock;
+    listByPublicKey: jest.Mock;
+    create: jest.Mock;
+  };
   let eventEmitterMock: Partial<EventEmitter2>;
 
   beforeEach(async () => {
@@ -57,7 +64,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.searchPublicUsernames!.mockResolvedValue(mockResults);
+      serviceMock.searchPublicUsernames.mockResolvedValue(mockResults);
 
       const result = await controller.searchUsernames({
         query: 'alice',
@@ -83,7 +90,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.searchPublicUsernames!.mockResolvedValue(mockResults);
+      serviceMock.searchPublicUsernames.mockResolvedValue(mockResults);
 
       const result = await controller.searchUsernames({
         query: 'bob',
@@ -126,7 +133,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.getTrendingCreators!.mockResolvedValue(mockCreators);
+      serviceMock.getTrendingCreators.mockResolvedValue(mockCreators);
 
       const result = await controller.getTrendingCreators({
         timeWindowHours: 24,
@@ -155,7 +162,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.getTrendingCreators!.mockResolvedValue(mockCreators);
+      serviceMock.getTrendingCreators.mockResolvedValue(mockCreators);
 
       const result = await controller.getTrendingCreators({
         timeWindowHours: 48,
@@ -170,7 +177,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
 
   describe('POST /username/toggle-public', () => {
     it('should toggle public profile successfully', async () => {
-      serviceMock.togglePublicProfile!.mockResolvedValue();
+      serviceMock.togglePublicProfile.mockResolvedValue(undefined);
 
       const result = await controller.togglePublicProfile({
         username: 'alice',
@@ -193,7 +200,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         'username',
       );
 
-      serviceMock.togglePublicProfile!.mockRejectedValue(error);
+      serviceMock.togglePublicProfile.mockRejectedValue(error);
 
       await expect(
         controller.togglePublicProfile({
@@ -201,7 +208,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
           publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
           isPublic: true,
         }),
-      ).rejects.toThrow('NotFoundException');
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should handle validation error', async () => {
@@ -211,7 +218,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         'username',
       );
 
-      serviceMock.togglePublicProfile!.mockRejectedValue(error);
+      serviceMock.togglePublicProfile.mockRejectedValue(error);
 
       await expect(
         controller.togglePublicProfile({
@@ -219,7 +226,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
           publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
           isPublic: true,
         }),
-      ).rejects.toThrow('BadRequestException');
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
