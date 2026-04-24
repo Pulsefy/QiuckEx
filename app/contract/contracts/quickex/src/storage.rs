@@ -100,6 +100,10 @@ pub enum DataKey {
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
     PlatformWallet,
+    /// Maps a deterministic 32-byte `escrow_id` (see [`crate::escrow_id`])
+    /// to the commitment key of the escrow it identifies. Enables
+    /// idempotent deduplication of identical creation requests.
+    EscrowIdMap(BytesN<32>),
 }
 
 // -----------------------------------------------------------------------------
@@ -287,6 +291,27 @@ pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<Ste
 pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
     let key = DataKey::StealthEscrow(stealth_address.clone());
     env.storage().persistent().set(&key, entry);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+// -----------------------------------------------------------------------------
+// Escrow-id map helpers (Issue #304)
+// -----------------------------------------------------------------------------
+
+/// Look up the 32-byte commitment associated with a deterministic `escrow_id`.
+pub fn get_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>) -> Option<BytesN<32>> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::EscrowIdMap(escrow_id.clone()))
+}
+
+/// Record the mapping `escrow_id → commitment` so future identical creates
+/// can be recognized and deduplicated.
+pub fn put_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>, commitment: &BytesN<32>) {
+    let key = DataKey::EscrowIdMap(escrow_id.clone());
+    env.storage().persistent().set(&key, commitment);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);

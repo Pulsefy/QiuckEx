@@ -9,6 +9,9 @@ mod commitment;
 mod commitment_test;
 mod errors;
 mod escrow;
+mod escrow_id;
+#[cfg(test)]
+mod escrow_id_test;
 mod events;
 mod fee;
 #[cfg(test)]
@@ -196,6 +199,35 @@ impl QuickexContract {
             return Err(QuickexError::OperationPaused);
         }
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
+    }
+
+    /// Derive a deterministic 32-byte escrow id from the full creation payload.
+    ///
+    /// Issue #304: enables duplicate detection and idempotent re-submission.
+    /// Same inputs always yield the same id; any change to `token`, `amount`,
+    /// `owner`, `salt`, `timeout_secs`, or `arbiter` yields a different id
+    /// (see [`escrow_id`] module for the canonical serialization).
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Amount is negative
+    /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    pub fn derive_escrow_id(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiter: Option<Address>,
+    ) -> Result<BytesN<32>, QuickexError> {
+        escrow_id::derive_escrow_id(&env, &token, amount, &owner, &salt, timeout_secs, &arbiter)
+    }
+
+    /// Look up the escrow commitment associated with a deterministic `escrow_id`.
+    ///
+    /// Returns `None` if no escrow has been created for this id yet.
+    pub fn get_escrow_id_commitment(env: Env, escrow_id: BytesN<32>) -> Option<BytesN<32>> {
+        storage::get_escrow_id_mapping(&env, &escrow_id)
     }
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
