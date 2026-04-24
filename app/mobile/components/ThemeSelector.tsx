@@ -7,74 +7,82 @@
  * Designed for the Settings / Profile page.
  */
 
-import React from 'react';
+import React from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme,
+} from "react-native";
 
+import { useTranslation } from "react-i18next";
+import { useTheme } from "../../src/theme/ThemeContext";
 import {
-  type ThemeMode,
-  type ThemeTokens,
-  BrandThemes,
-  LightTheme,
-  DarkTheme,
-} from '../../src/theme/tokens';
-import { useTheme } from '../../src/theme/ThemeContext';
-import { useTranslation } from 'react-i18next';
+    type ThemeMode,
+    type ThemeTokens,
+    BrandThemes,
+    DarkTheme,
+    LightTheme,
+} from "../../src/theme/tokens";
 
 type BrandTheme = (typeof BrandThemes)[number];
-
-// ── Mode descriptions ───────────────────────────────────────────────────────
 
 interface ModeOption {
   mode: ThemeMode;
   label: string;
   description: string;
-  preview: ThemeTokens; // used for the mini-swatch
+  preview: ThemeTokens;
 }
-
-const MODE_OPTIONS: readonly ModeOption[] = [
-  {
-    mode: 'light',
-    label: `☀️ ${t('lightMode')}`,
-    description: t('lightModeDesc'),
-    preview: LightTheme,
-  },
-  {
-    mode: 'dark',
-    label: `🌙 ${t('darkMode')}`,
-    description: t('darkModeDesc'),
-    preview: DarkTheme,
-  },
-  {
-    mode: 'system',
-    label: `⚙️ ${t('systemMode')}`,
-    description: t('systemModeDesc'),
-    preview: LightTheme, // placeholder, will adapt at runtime
-  },
-];
 
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function ThemeSelector() {
   const { t } = useTranslation();
   const { theme, mode, brandThemeId, setMode, setBrandTheme } = useTheme();
+  const systemScheme = useColorScheme();
+
+  const modeOptions: readonly ModeOption[] = [
+    {
+      mode: "light",
+      label: t("lightMode", "Light"),
+      description: t("lightModeDesc", "Always use the light appearance."),
+      preview: LightTheme,
+    },
+    {
+      mode: "dark",
+      label: t("darkMode", "Dark"),
+      description: t("darkModeDesc", "Always use the dark appearance."),
+      preview: DarkTheme,
+    },
+    {
+      mode: "system",
+      label: t("systemMode", "System"),
+      description: t(
+        "systemModeDesc",
+        "Match your device setting automatically.",
+      ),
+      preview: systemScheme === "dark" ? DarkTheme : LightTheme,
+    },
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.heading, { color: theme.textPrimary }]}>
-        {t('appearance')}
+        {t("appearance")}
       </Text>
       <Text style={[styles.subheading, { color: theme.textSecondary }]}>
-        {t('chooseAppearance')}
+        {t("chooseAppearance")}
       </Text>
 
       {/* ── Standard modes ─────────────────────────────────────────── */}
       <View style={styles.modesRow}>
-        {MODE_OPTIONS.map((opt) => {
+        {modeOptions.map((opt) => {
           const isActive = mode === opt.mode;
           return (
             <Pressable
@@ -82,7 +90,10 @@ export function ThemeSelector() {
               onPress={() => setMode(opt.mode)}
               style={[
                 styles.modeCard,
-                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: theme.border,
+                },
                 isActive && { borderColor: theme.primary, borderWidth: 2 },
               ]}
               accessibilityLabel={`Select ${opt.label} theme`}
@@ -93,16 +104,28 @@ export function ThemeSelector() {
                 style={[
                   styles.modeLabel,
                   { color: theme.textPrimary },
-                  isActive && { fontWeight: '800' },
+                  isActive && { fontWeight: "800" },
                 ]}
               >
-                {opt.label}
+                {opt.mode === "light"
+                  ? `☀️ ${opt.label}`
+                  : opt.mode === "dark"
+                    ? `🌙 ${opt.label}`
+                    : `⚙️ ${opt.label}`}
               </Text>
-              <Text style={[styles.modeDesc, { color: theme.textMuted }]} numberOfLines={1}>
+              <Text
+                style={[styles.modeDesc, { color: theme.textMuted }]}
+                numberOfLines={1}
+              >
                 {opt.description}
               </Text>
               {isActive && (
-                <View style={[styles.activeIndicator, { backgroundColor: theme.primary }]} />
+                <View
+                  style={[
+                    styles.activeIndicator,
+                    { backgroundColor: theme.primary },
+                  ]}
+                />
               )}
             </Pressable>
           );
@@ -111,20 +134,22 @@ export function ThemeSelector() {
 
       {/* ── Brand themes ───────────────────────────────────────────── */}
       <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-        Brand Themes
+        {t("brandThemes", "Brand Themes")}
       </Text>
 
       <View style={styles.brandsRow}>
         {BrandThemes.map((brandTheme: BrandTheme) => {
-          const isActive =
-            mode === 'brand' && brandThemeId === brandTheme.id;
+          const isActive = mode === "brand" && brandThemeId === brandTheme.id;
           return (
             <Pressable
               key={brandTheme.id}
               onPress={() => setBrandTheme(brandTheme.id)}
               style={[
                 styles.brandCard,
-                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: theme.border,
+                },
                 isActive && { borderColor: brandTheme.primary, borderWidth: 2 },
               ]}
               accessibilityLabel={`Select ${brandTheme.name} brand theme`}
@@ -147,13 +172,18 @@ export function ThemeSelector() {
                 style={[
                   styles.brandName,
                   { color: theme.textPrimary },
-                  isActive && { color: brandTheme.primary, fontWeight: '800' },
+                  isActive && { color: brandTheme.primary, fontWeight: "800" },
                 ]}
               >
                 {brandTheme.name}
               </Text>
               {isActive && (
-                <View style={[styles.activeIndicator, { backgroundColor: brandTheme.primary }]} />
+                <View
+                  style={[
+                    styles.activeIndicator,
+                    { backgroundColor: brandTheme.primary },
+                  ]}
+                />
               )}
             </Pressable>
           );
@@ -165,7 +195,11 @@ export function ThemeSelector() {
 
 // ── Mini swatch (used inside the mode cards) ────────────────────────────────
 
-function MiniSwatch({ colors }: { colors: readonly [string, string, string, string] }) {
+function MiniSwatch({
+  colors,
+}: {
+  colors: readonly [string, string, string, string];
+}) {
   return (
     <View style={styles.miniSwatchRow}>
       {colors.map((c, i) => (
@@ -185,7 +219,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 4,
   },
   subheading: {
@@ -193,7 +227,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modesRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginBottom: 24,
   },
@@ -202,26 +236,26 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 6,
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   modeLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   modeDesc: {
     fontSize: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
   },
   brandsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   brandCard: {
@@ -229,13 +263,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 10,
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   swatchRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
   },
   swatchCircle: {
@@ -245,11 +279,11 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   activeIndicator: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -258,7 +292,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 14,
   },
   miniSwatchRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
   },
   miniSwatchDot: {
