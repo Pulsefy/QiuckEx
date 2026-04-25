@@ -34,7 +34,7 @@ export interface MarketplaceListing {
   username: string;
   seller_public_key: string;
   asking_price: number;
-  status: 'active' | 'sold' | 'cancelled';
+  status: "active" | "sold" | "cancelled";
   created_at: string;
   updated_at: string;
   sold_at: string | null;
@@ -47,7 +47,7 @@ export interface MarketplaceBid {
   listing_id: string;
   bidder_public_key: string;
   bid_amount: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  status: "pending" | "accepted" | "rejected" | "cancelled";
   created_at: string;
   updated_at: string;
 }
@@ -239,20 +239,22 @@ export class SupabaseService {
     limit: number = 10,
   ): Promise<SearchProfileResult[]> {
     const normalizedQuery = query.trim().toLowerCase();
-    
+
     // Use PostgreSQL word_similarity for fuzzy matching
     // This requires the pg_trgm extension to be enabled
-    const { data, error } = await this.client.rpc('search_usernames', {
+    const { data, error } = await this.client.rpc("search_usernames", {
       search_query: normalizedQuery,
       result_limit: limit,
     });
-    
+
     if (error) {
-      this.logger.warn(`PostgreSQL function search_usernames not available, using fallback: ${error.message}`);
+      this.logger.warn(
+        `PostgreSQL function search_usernames not available, using fallback: ${error.message}`,
+      );
       // Fallback: simple LIKE query with wildcards
       return this.searchUsernamesFallback(normalizedQuery, limit);
     }
-    
+
     return data ?? [];
   }
 
@@ -264,24 +266,29 @@ export class SupabaseService {
     limit: number,
   ): Promise<SearchProfileResult[]> {
     // Escape special characters for LIKE query
-    const escapedQuery = query.replace(/[%_]/g, '\\$&');
+    const escapedQuery = query.replace(/[%_]/g, "\\$&");
     const pattern = `%${escapedQuery}%`;
-    
+
     const { data, error } = await this.client
-      .from('usernames')
-      .select('id, username, public_key, created_at, last_active_at, is_public')
-      .eq('is_public', true)
-      .ilike('username', pattern)
-      .order('last_active_at', { ascending: false })
+      .from("usernames")
+      .select("id, username, public_key, created_at, last_active_at, is_public")
+      .eq("is_public", true)
+      .ilike("username", pattern)
+      .order("last_active_at", { ascending: false })
       .limit(limit);
-    
+
     if (error) this.handleError(error);
-    
+
     // Calculate simple similarity score based on position and length
-    return (data ?? []).map((row: SearchProfileResult) => ({
-      ...row,
-      similarity_score: this.calculateSimpleSimilarity(row.username, query),
-    })).sort((a: SearchProfileResult, b: SearchProfileResult) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0));
+    return (data ?? [])
+      .map((row: SearchProfileResult) => ({
+        ...row,
+        similarity_score: this.calculateSimpleSimilarity(row.username, query),
+      }))
+      .sort(
+        (a: SearchProfileResult, b: SearchProfileResult) =>
+          (b.similarity_score ?? 0) - (a.similarity_score ?? 0),
+      );
   }
 
   /**
@@ -290,18 +297,20 @@ export class SupabaseService {
   private calculateSimpleSimilarity(username: string, query: string): number {
     const lowerUsername = username.toLowerCase();
     const lowerQuery = query.toLowerCase();
-    
+
     // Exact match
     if (lowerUsername === lowerQuery) return 100;
-    
+
     // Starts with query
     if (lowerUsername.startsWith(lowerQuery)) return 90;
-    
+
     // Contains query
     if (lowerUsername.includes(lowerQuery)) return 75;
-    
+
     // Partial match with some character overlap
-    const commonChars = lowerUsername.split('').filter(c => lowerQuery.includes(c)).length;
+    const commonChars = lowerUsername
+      .split("")
+      .filter((c) => lowerQuery.includes(c)).length;
     const maxLen = Math.max(lowerUsername.length, lowerQuery.length);
     return Math.round((commonChars / maxLen) * 100);
   }
@@ -315,67 +324,80 @@ export class SupabaseService {
   ): Promise<TrendingCreatorResult[]> {
     const cutoffTime = new Date();
     cutoffTime.setHours(cutoffTime.getHours() - timeWindowHours);
-    
+
     // Query payment_records and escrow_records for volume calculation
     const { data: payments, error: paymentsError } = await this.client
-      .from('payment_records')
-      .select('sender_public_key, receiver_public_key, amount_usd, created_at')
-      .gte('created_at', cutoffTime.toISOString())
-      .in('status', ['completed', 'pending']);
-    
+      .from("payment_records")
+      .select("sender_public_key, receiver_public_key, amount_usd, created_at")
+      .gte("created_at", cutoffTime.toISOString())
+      .in("status", ["completed", "pending"]);
+
     if (paymentsError) {
-      this.logger.warn(`Failed to fetch payment records: ${paymentsError.message}`);
+      this.logger.warn(
+        `Failed to fetch payment records: ${paymentsError.message}`,
+      );
     }
-    
+
     // Aggregate volumes by public key
     const volumeMap = new Map<string, { volume: number; count: number }>();
-    
+
     const processTransaction = (publicKey: string, amountUsd: number) => {
       if (!publicKey || amountUsd == null) return;
-      
+
       const current = volumeMap.get(publicKey) || { volume: 0, count: 0 };
       current.volume += Number(amountUsd) || 0;
       current.count += 1;
       volumeMap.set(publicKey, current);
     };
-    
-    (payments ?? []).forEach((payment: { sender_public_key: string; receiver_public_key: string; amount_usd: number }) => {
-      processTransaction(payment.sender_public_key, payment.amount_usd);
-      processTransaction(payment.receiver_public_key, payment.amount_usd);
-    });
-    
+
+    (payments ?? []).forEach(
+      (payment: {
+        sender_public_key: string;
+        receiver_public_key: string;
+        amount_usd: number;
+      }) => {
+        processTransaction(payment.sender_public_key, payment.amount_usd);
+        processTransaction(payment.receiver_public_key, payment.amount_usd);
+      },
+    );
+
     // Get top creators by volume
     const topCreators = Array.from(volumeMap.entries())
       .sort((a, b) => b[1].volume - a[1].volume)
       .slice(0, limit);
-    
+
     // Fetch public profiles for these creators
     if (topCreators.length === 0) {
       return [];
     }
-    
+
     const publicKeys = topCreators.map(([key]) => key);
     const { data: profiles, error: profilesError } = await this.client
-      .from('usernames')
-      .select('id, username, public_key, created_at, last_active_at, is_public')
-      .in('public_key', publicKeys)
-      .eq('is_public', true);
-    
+      .from("usernames")
+      .select("id, username, public_key, created_at, last_active_at, is_public")
+      .in("public_key", publicKeys)
+      .eq("is_public", true);
+
     if (profilesError) {
       this.logger.warn(`Failed to fetch profiles: ${profilesError.message}`);
       return [];
     }
-    
+
     // Merge volume data with profile data
-    return (profiles ?? []).map((profile: SearchProfileResult) => {
-      const found = topCreators.find(([key]) => key === profile.public_key);
-      const stats = found ? found[1] : { volume: 0, count: 0 };
-      return {
-        ...profile,
-        transaction_volume: stats.volume,
-        transaction_count: stats.count,
-      } as TrendingCreatorResult;
-    }).sort((a: TrendingCreatorResult, b: TrendingCreatorResult) => (b.transaction_volume || 0) - (a.transaction_volume || 0));
+    return (profiles ?? [])
+      .map((profile: SearchProfileResult) => {
+        const found = topCreators.find(([key]) => key === profile.public_key);
+        const stats = found ? found[1] : { volume: 0, count: 0 };
+        return {
+          ...profile,
+          transaction_volume: stats.volume,
+          transaction_count: stats.count,
+        } as TrendingCreatorResult;
+      })
+      .sort(
+        (a: TrendingCreatorResult, b: TrendingCreatorResult) =>
+          (b.transaction_volume || 0) - (a.transaction_volume || 0),
+      );
   }
 
   /**
@@ -383,11 +405,121 @@ export class SupabaseService {
    */
   async updateUsernameActivity(username: string): Promise<void> {
     const { error } = await this.client
-      .from('usernames')
+      .from("usernames")
       .update({ last_active_at: new Date().toISOString() })
-      .eq('username', username);
-    
+      .eq("username", username);
+
     if (error) this.handleError(error);
+  }
+
+  /**
+   * Get recently active users based on payment activity and profile updates
+   */
+  async getRecentlyActiveUsers(
+    timeWindowHours: number,
+    limit: number = 10,
+  ): Promise<SearchProfileResult[]> {
+    const cutoffTime = new Date();
+    cutoffTime.setHours(cutoffTime.getHours() - timeWindowHours);
+
+    // Query payment_records for recent activity
+    const { data: payments, error: paymentsError } = await this.client
+      .from("payment_records")
+      .select("sender_public_key, receiver_public_key, created_at")
+      .gte("created_at", cutoffTime.toISOString())
+      .in("status", ["completed", "pending"]);
+
+    if (paymentsError) {
+      this.logger.warn(
+        `Failed to fetch payment records for recently active: ${paymentsError.message}`,
+      );
+    }
+
+    // Collect all active public keys from payments
+    const activePublicKeys = new Set<string>();
+    (payments ?? []).forEach(
+      (payment: { sender_public_key: string; receiver_public_key: string }) => {
+        if (payment.sender_public_key)
+          activePublicKeys.add(payment.sender_public_key);
+        if (payment.receiver_public_key)
+          activePublicKeys.add(payment.receiver_public_key);
+      },
+    );
+
+    // Also include users with recent profile activity
+    const { data: profileActivity, error: profileError } = await this.client
+      .from("usernames")
+      .select("public_key")
+      .gte("last_active_at", cutoffTime.toISOString())
+      .eq("is_public", true);
+
+    if (profileError) {
+      this.logger.warn(
+        `Failed to fetch profile activity: ${profileError.message}`,
+      );
+    }
+
+    (profileActivity ?? []).forEach((profile: { public_key: string }) => {
+      activePublicKeys.add(profile.public_key);
+    });
+
+    if (activePublicKeys.size === 0) {
+      return [];
+    }
+
+    // Fetch public profiles for these active users
+    const { data: profiles, error: profilesError } = await this.client
+      .from("usernames")
+      .select("id, username, public_key, created_at, last_active_at, is_public")
+      .in("public_key", Array.from(activePublicKeys))
+      .eq("is_public", true)
+      .order("last_active_at", { ascending: false })
+      .limit(limit);
+
+    if (profilesError) {
+      this.logger.warn(`Failed to fetch profiles: ${profilesError.message}`);
+      return [];
+    }
+
+    // Get the most recent activity timestamp for each user
+    const activityMap = new Map<string, string>();
+
+    // Process payment activity
+    (payments ?? []).forEach(
+      (payment: {
+        sender_public_key: string;
+        receiver_public_key: string;
+        created_at: string;
+      }) => {
+        const timestamp = payment.created_at;
+        if (payment.sender_public_key) {
+          const current = activityMap.get(payment.sender_public_key);
+          if (!current || timestamp > current) {
+            activityMap.set(payment.sender_public_key, timestamp);
+          }
+        }
+        if (payment.receiver_public_key) {
+          const current = activityMap.get(payment.receiver_public_key);
+          if (!current || timestamp > current) {
+            activityMap.set(payment.receiver_public_key, timestamp);
+          }
+        }
+      },
+    );
+
+    // Merge with profile data and sort by activity
+    return (profiles ?? [])
+      .map((profile: SearchProfileResult) => ({
+        ...profile,
+        last_active_at:
+          activityMap.get(profile.public_key) || profile.last_active_at,
+      }))
+      .sort((a: SearchProfileResult, b: SearchProfileResult) => {
+        const aTime = new Date(a.last_active_at || a.created_at).getTime();
+        const bTime = new Date(b.last_active_at || b.created_at).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, limit);
   }
 
   /**
@@ -398,12 +530,12 @@ export class SupabaseService {
     isPublic: boolean,
   ): Promise<void> {
     const { error } = await this.client
-      .from('usernames')
+      .from("usernames")
       .update({
         is_public: isPublic,
         last_active_at: new Date().toISOString(),
       })
-      .eq('username', username);
+      .eq("username", username);
 
     if (error) this.handleError(error);
   }
@@ -414,41 +546,53 @@ export class SupabaseService {
     askingPrice: number,
   ): Promise<MarketplaceListing> {
     const { data, error } = await this.client
-      .from('username_marketplace')
-      .insert({ username, seller_public_key: sellerPublicKey, asking_price: askingPrice })
+      .from("username_marketplace")
+      .insert({
+        username,
+        seller_public_key: sellerPublicKey,
+        asking_price: askingPrice,
+      })
       .select()
       .single();
     if (error) this.handleError(error);
     return data as MarketplaceListing;
   }
 
-  async getActiveListings(limit: number, offset: number): Promise<{ listings: MarketplaceListing[]; total: number }> {
+  async getActiveListings(
+    limit: number,
+    offset: number,
+  ): Promise<{ listings: MarketplaceListing[]; total: number }> {
     const { data, error, count } = await this.client
-      .from('username_marketplace')
-      .select('*', { count: 'exact' })
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+      .from("username_marketplace")
+      .select("*", { count: "exact" })
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) this.handleError(error);
-    return { listings: (data ?? []) as MarketplaceListing[], total: count ?? 0 };
+    return {
+      listings: (data ?? []) as MarketplaceListing[],
+      total: count ?? 0,
+    };
   }
 
   async getListingById(listingId: string): Promise<MarketplaceListing | null> {
     const { data, error } = await this.client
-      .from('username_marketplace')
-      .select('*')
-      .eq('id', listingId)
+      .from("username_marketplace")
+      .select("*")
+      .eq("id", listingId)
       .maybeSingle();
     if (error) this.handleError(error);
     return data as MarketplaceListing | null;
   }
 
-  async getActiveListingByUsername(username: string): Promise<MarketplaceListing | null> {
+  async getActiveListingByUsername(
+    username: string,
+  ): Promise<MarketplaceListing | null> {
     const { data, error } = await this.client
-      .from('username_marketplace')
-      .select('*')
-      .eq('username', username)
-      .eq('status', 'active')
+      .from("username_marketplace")
+      .select("*")
+      .eq("username", username)
+      .eq("status", "active")
       .maybeSingle();
     if (error) this.handleError(error);
     return data as MarketplaceListing | null;
@@ -456,16 +600,24 @@ export class SupabaseService {
 
   async cancelListing(listingId: string): Promise<void> {
     const { error } = await this.client
-      .from('username_marketplace')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', listingId);
+      .from("username_marketplace")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", listingId);
     if (error) this.handleError(error);
   }
 
-  async placeBid(listingId: string, bidderPublicKey: string, bidAmount: number): Promise<MarketplaceBid> {
+  async placeBid(
+    listingId: string,
+    bidderPublicKey: string,
+    bidAmount: number,
+  ): Promise<MarketplaceBid> {
     const { data, error } = await this.client
-      .from('username_bids')
-      .insert({ listing_id: listingId, bidder_public_key: bidderPublicKey, bid_amount: bidAmount })
+      .from("username_bids")
+      .insert({
+        listing_id: listingId,
+        bidder_public_key: bidderPublicKey,
+        bid_amount: bidAmount,
+      })
       .select()
       .single();
     if (error) this.handleError(error);
@@ -474,26 +626,30 @@ export class SupabaseService {
 
   async getBidsByListingId(listingId: string): Promise<MarketplaceBid[]> {
     const { data, error } = await this.client
-      .from('username_bids')
-      .select('*')
-      .eq('listing_id', listingId)
-      .order('bid_amount', { ascending: false });
+      .from("username_bids")
+      .select("*")
+      .eq("listing_id", listingId)
+      .order("bid_amount", { ascending: false });
     if (error) this.handleError(error);
     return (data ?? []) as MarketplaceBid[];
   }
 
   async getBidById(bidId: string): Promise<MarketplaceBid | null> {
     const { data, error } = await this.client
-      .from('username_bids')
-      .select('*')
-      .eq('id', bidId)
+      .from("username_bids")
+      .select("*")
+      .eq("id", bidId)
       .maybeSingle();
     if (error) this.handleError(error);
     return data as MarketplaceBid | null;
   }
 
-  async acceptBid(listingId: string, bidId: string, sellerPublicKey: string): Promise<void> {
-    const { error } = await this.client.rpc('accept_username_bid', {
+  async acceptBid(
+    listingId: string,
+    bidId: string,
+    sellerPublicKey: string,
+  ): Promise<void> {
+    const { error } = await this.client.rpc("accept_username_bid", {
       p_listing_id: listingId,
       p_bid_id: bidId,
       p_seller_public_key: sellerPublicKey,
