@@ -4,6 +4,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RecurringPaymentsService } from './recurring-payments.service';
 import { RecurringPaymentsRepository, DbRecurringPaymentLink, DbRecurringPaymentExecution } from './recurring-payments.repository';
 import { RecurringPaymentProcessor } from '../stellar/recurring-payment-processor';
+import { JobQueueService } from '../job-queue/job-queue.service';
+import { JobType } from '../job-queue/types';
+import { RecurringPaymentPayload } from '../job-queue/types/job-payloads.types';
 
 @Injectable()
 export class RecurringPaymentsScheduler implements OnModuleInit {
@@ -17,6 +20,7 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
     private readonly repository: RecurringPaymentsRepository,
     private readonly paymentProcessor: RecurringPaymentProcessor,
     private readonly eventEmitter: EventEmitter2,
+    private readonly jobQueueService: JobQueueService,
   ) {
     this.maxRetries = parseInt(process.env.RECURRING_PAYMENT_MAX_RETRY || '3');
     this.retryBackoffMs = parseInt(process.env.RECURRING_PAYMENT_RETRY_BACKOFF_MS || '60000');
@@ -122,7 +126,7 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
     const executionId = execution.id;
 
     try {
-      this.logger.log(`Executing payment for execution: ${executionId}`);
+      this.logger.log(`Enqueuing payment job for execution: ${executionId}`);
 
       // Determine recipient
       const recipientAddress = link.destination || (await this.resolveUsernameToAddress(link.username!));
@@ -131,39 +135,31 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
         throw new Error('Could not resolve recipient address');
       }
 
-      // Submit payment via Stellar
-      const transactionHash = await this.paymentProcessor.submitRecurringPayment({
+      // Enqueue payment job via JobQueueService
+      const payload: RecurringPaymentPayload = {
+        recurringLinkId: link.id,
+        executionId: executionId,
         recipientAddress,
-        amount: link.amount,
-        assetCode: link.asset,
+        amount: link.amount.toString(),
+        asset: link.asset,
         assetIssuer: link.asset_issuer || undefined,
         memo: link.memo || undefined,
-        memoType: link.memo_type || 'text',
-        referenceId: link.reference_id || undefined,
-      });
+        memoType: link.memo_type || undefined,
+      };
 
-      this.logger.log(`Payment successful: ${transactionHash}`);
+      const jobId = await this.jobQueueService.enqueue(
+        JobType.RECURRING_PAYMENT,
+        payload,
+      );
 
-      // Mark as successful
-      await this.schedulerService.markPaymentSuccess(executionId, transactionHash);
-
-      // Emit success event
-      this.eventEmitter.emit('recurring.payment.executed', {
-        executionId,
-        linkId: link.id,
-        transactionHash,
-        periodNumber: execution.period_number,
-      });
-
-      // Send notification
-      await this.notifyUser(link, execution, 'success', transactionHash);
+      this.logger.log(`Payment job enqueued: ${jobId} for execution: ${executionId}`);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Payment execution failed: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`Failed to enqueue payment job: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
 
       const currentRetryCount = execution.retry_count + 1;
 
-      // Mark as failed (with retry logic)
+      // Mark as failed
       await this.schedulerService.markPaymentFailure(
         executionId,
         errorMessage,

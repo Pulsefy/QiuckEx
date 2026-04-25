@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { LinksController } from './links.controller';
 import { LinksService } from './links.service';
 import { BulkPaymentLinksController } from './bulk-payment-links.controller';
@@ -11,6 +11,7 @@ import { RecurringPaymentProcessor } from '../stellar/recurring-payment-processo
 import { SupabaseModule } from '../supabase/supabase.module';
 import { StellarModule } from '../stellar/stellar.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { JobQueueModule } from '../job-queue/job-queue.module';
 
 @Module({
   controllers: [LinksController, BulkPaymentLinksController, RecurringPaymentsController],
@@ -22,7 +23,13 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
     RecurringPaymentsRepository,
     RecurringPaymentProcessor,
   ],
-  exports: [LinksService, RecurringPaymentsService, BulkPaymentLinksService],
-  imports: [SupabaseModule, StellarModule, ApiKeysModule],
+  exports: [
+    LinksService,
+    RecurringPaymentsService,
+    BulkPaymentLinksService,
+    RecurringPaymentsRepository,
+    RecurringPaymentProcessor,
+  ],
+  imports: [SupabaseModule, StellarModule, ApiKeysModule, forwardRef(() => JobQueueModule)],
 })
 export class LinksModule {}
