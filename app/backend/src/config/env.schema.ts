@@ -29,6 +29,25 @@ export const envSchema = Joi.object({
     .required()
     .description("Supabase anonymous key"),
 
+  SUPABASE_SERVICE_ROLE_KEY: Joi.string()
+    .optional()
+    .description("Supabase service role key for admin operations"),
+
+  // Stellar Horizon configuration (required for blockchain operations)
+  HORIZON_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Custom Horizon URL (overrides network default)"),
+
+  // Stellar signing keys (required for payment operations)
+  STELLAR_SECRET_KEY: Joi.string()
+    .optional()
+    .description("Stellar account secret key for signing transactions (starts with S)"),
+
+  STELLAR_PUBLIC_KEY: Joi.string()
+    .optional()
+    .description("Stellar account public key (starts with G)"),
+
   // Node environment
   NODE_ENV: Joi.string()
     .valid("development", "production", "test")
@@ -223,6 +242,10 @@ export interface EnvConfig {
   NETWORK: "testnet" | "mainnet";
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  HORIZON_URL?: string;
+  STELLAR_SECRET_KEY?: string;
+  STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
