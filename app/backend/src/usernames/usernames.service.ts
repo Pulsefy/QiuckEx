@@ -1,18 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { SupabaseService, SearchProfileResult, TrendingCreatorResult } from '../supabase/supabase.service';
-import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
-import { AppConfigService } from '../config';
+import { Injectable } from "@nestjs/common";
+import {
+  SupabaseService,
+  SearchProfileResult,
+  TrendingCreatorResult,
+} from "../supabase/supabase.service";
+import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
+import { AppConfigService } from "../config";
+import { DiscoveryCacheService } from "./cache/discovery-cache.service";
 import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
   USERNAME_PATTERN,
-} from './constants';
+} from "./constants";
 import {
   UsernameConflictError,
   UsernameLimitExceededError,
   UsernameValidationError,
   UsernameErrorCode,
-} from './errors';
+} from "./errors";
 
 export interface UsernameRow {
   id: string;
@@ -26,7 +31,8 @@ export class UsernamesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly config: AppConfigService,
-  ) { }
+    private readonly cache: DiscoveryCacheService,
+  ) {}
 
   /**
    * Normalize username for storage (lowercase).
@@ -40,18 +46,21 @@ export class UsernamesService {
    */
   validateFormat(username: string): void {
     const normalized = this.normalizeUsername(username);
-    if (normalized.length < USERNAME_MIN_LENGTH || normalized.length > USERNAME_MAX_LENGTH) {
+    if (
+      normalized.length < USERNAME_MIN_LENGTH ||
+      normalized.length > USERNAME_MAX_LENGTH
+    ) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
         `Username must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`,
-        'username',
+        "username",
       );
     }
     if (!USERNAME_PATTERN.test(normalized)) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
         `Username must contain only lowercase letters, numbers, and underscores`,
-        'username',
+        "username",
       );
     }
   }
@@ -61,7 +70,7 @@ export class UsernamesService {
     this.validateFormat(username);
 
     const maxPerWallet = this.config.maxUsernamesPerWallet;
-    if (typeof maxPerWallet === 'number' && maxPerWallet > 0) {
+    if (typeof maxPerWallet === "number" && maxPerWallet > 0) {
       const count = await this.countByPublicKey(publicKey);
       if (count >= maxPerWallet) {
         throw new UsernameLimitExceededError(publicKey, maxPerWallet);
@@ -91,7 +100,9 @@ export class UsernamesService {
    * List usernames for a wallet.
    */
   async listByPublicKey(publicKey: string): Promise<UsernameRow[]> {
-    return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<UsernameRow[]>;
+    return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<
+      UsernameRow[]
+    >;
   }
 
   /**
@@ -107,12 +118,24 @@ export class UsernamesService {
     if (!normalizedQuery || normalizedQuery.length < 2) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
-        'Search query must be at least 2 characters',
-        'query',
+        "Search query must be at least 2 characters",
+        "query",
       );
     }
 
-    const results = await this.supabase.searchPublicUsernames(normalizedQuery, limit);
+    // Try cache first
+    const cachedResults = this.cache.getSearchResults(normalizedQuery, limit);
+    if (cachedResults) {
+      return cachedResults;
+    }
+
+    const results = await this.supabase.searchPublicUsernames(
+      normalizedQuery,
+      limit,
+    );
+
+    // Cache the results
+    this.cache.setSearchResults(normalizedQuery, limit, results);
 
     // Update activity timestamp for clicked results (async, non-blocking)
     if (results.length > 0) {
@@ -135,12 +158,62 @@ export class UsernamesService {
     if (timeWindowHours < 1 || timeWindowHours > 720) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
-        'Time window must be between 1 and 720 hours',
-        'timeWindowHours',
+        "Time window must be between 1 and 720 hours",
+        "timeWindowHours",
       );
     }
 
-    return this.supabase.getTrendingCreators(timeWindowHours, limit);
+    // Try cache first
+    const cachedResults = this.cache.getTrendingResults(timeWindowHours, limit);
+    if (cachedResults) {
+      return cachedResults;
+    }
+
+    const results = await this.supabase.getTrendingCreators(
+      timeWindowHours,
+      limit,
+    );
+
+    // Cache results
+    this.cache.setTrendingResults(timeWindowHours, limit, results);
+
+    return results;
+  }
+
+  /**
+   * Get recently active users based on payment activity and profile updates.
+   * Defaults to last 24 hours, configurable via timeWindowHours.
+   */
+  async getRecentlyActiveUsers(
+    timeWindowHours: number = 24,
+    limit: number = 10,
+  ): Promise<SearchProfileResult[]> {
+    if (timeWindowHours < 1 || timeWindowHours > 168) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.INVALID_FORMAT,
+        "Time window must be between 1 and 168 hours",
+        "timeWindowHours",
+      );
+    }
+
+    // Try cache first
+    const cachedResults = this.cache.getRecentlyActiveResults(
+      timeWindowHours,
+      limit,
+    );
+    if (cachedResults) {
+      return cachedResults;
+    }
+
+    const results = await this.supabase.getRecentlyActiveUsers(
+      timeWindowHours,
+      limit,
+    );
+
+    // Cache results
+    this.cache.setRecentlyActiveResults(timeWindowHours, limit, results);
+
+    return results;
   }
 
   /**
@@ -155,13 +228,13 @@ export class UsernamesService {
 
     // Verify ownership
     const usernames = await this.listByPublicKey(publicKey);
-    const owned = usernames.find(u => u.username === normalized);
+    const owned = usernames.find((u) => u.username === normalized);
 
     if (!owned) {
       throw new UsernameValidationError(
         UsernameErrorCode.NOT_FOUND,
-        'Username not found or does not belong to this wallet',
-        'username',
+        "Username not found or does not belong to this wallet",
+        "username",
       );
     }
 
