@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { Text, View } from 'react-native';
 
 // ── Theme imports ────────────────────────────────────────────────────────────
@@ -201,21 +201,31 @@ describe('Theme System v2', () => {
   });
 
   describe('ThemeProvider snapshots', () => {
-    it('renders Light theme correctly', () => {
-      const tree = create(
-        <QuickExThemeProvider>
-          <ThemePreview />
-        </QuickExThemeProvider>,
-      );
+    it('renders Light theme correctly', async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(
+          <QuickExThemeProvider>
+            <ThemePreview />
+          </QuickExThemeProvider>,
+        );
+      });
+
       expect(tree.toJSON()).toMatchSnapshot();
+      await act(async () => {
+        tree.unmount();
+      });
     });
 
-    it('renders with wrapped provider', () => {
-      const tree = create(
-        <QuickExThemeProvider profileId="test-user">
-          <ThemePreview />
-        </QuickExThemeProvider>,
-      );
+    it('renders with wrapped provider', async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(
+          <QuickExThemeProvider profileId="test-user">
+            <ThemePreview />
+          </QuickExThemeProvider>,
+        );
+      });
 
       const root = tree.root;
       const themePreviewRoot = root.findByProps({ testID: 'theme-preview-root' });
@@ -224,6 +234,9 @@ describe('Theme System v2', () => {
       // Default mode is 'system' which resolves to light in test env
       const modeText = root.findByProps({ testID: 'theme-mode' });
       expect(modeText.props.children).toContain('system');
+      await act(async () => {
+        tree.unmount();
+      });
     });
   });
 

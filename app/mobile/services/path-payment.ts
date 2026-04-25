@@ -5,6 +5,7 @@ import {
   Networks,
   Asset,
   BASE_FEE,
+  Account,
 } from 'stellar-sdk';
 import type { PathPreviewRow } from './link-metadata';
 
@@ -31,7 +32,7 @@ export interface PathPaymentRoute {
  */
 export function buildPathPaymentOperation(
   options: PathPaymentOptions,
-): Operation.PathPaymentStrictReceive {
+): ReturnType<typeof Operation.pathPaymentStrictReceive> {
   const {
     sourceAsset,
     sourceAmount,
@@ -42,14 +43,14 @@ export function buildPathPaymentOperation(
 
   // Create Asset objects for source and destination
   const srcAsset = sourceAsset === 'XLM'
-    ? new Asset.native()
+    ? Asset.native()
     : new Asset(sourceAsset, 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTWYV2KY2H5YMWUT6YFPQQSTVY'); // TODO: Get correct issuer from whitelist
 
   const dstAsset = destinationAsset === 'XLM'
-    ? new Asset.native()
+    ? Asset.native()
     : new Asset(destinationAsset, 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTWYV2KY2H5YMWUT6YFPQQSTVY'); // TODO: Get correct issuer from whitelist
 
-  return new Operation.PathPaymentStrictReceive({
+  return Operation.pathPaymentStrictReceive({
     destination: destinationAccount,
     destAmount: destinationAmount,
     destAsset: dstAsset,
@@ -81,15 +82,12 @@ export function buildPathPaymentTransaction(
   }
 
   const networkPassphrase =
-    options.network === 'public' ? Networks.PUBLIC_NETWORK : Networks.TEST_NETWORK;
+    options.network === 'public' ? Networks.PUBLIC : Networks.TESTNET;
 
   const transaction = new TransactionBuilder(
+    new Account(userAccount.accountId, String(userAccount.sequenceNumber)),
     {
-      accountId: userAccount.accountId,
-      sequenceNumber: String(userAccount.sequenceNumber),
-    },
-    {
-      fee: BASE_FEE,
+      fee: String(BASE_FEE),
       networkPassphrase,
     },
   )

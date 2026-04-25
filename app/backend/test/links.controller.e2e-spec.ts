@@ -4,6 +4,8 @@ import {
   INestApplication,
   ValidationPipe,
 } from "@nestjs/common";
+import { EventEmitterModule } from "@nestjs/event-emitter";
+import { ThrottlerModule } from "@nestjs/throttler";
 import * as request from "supertest";
 import { LinksModule } from "../src/links/links.module";
 import { mapValidationErrors } from "../src/common/utils/validation-error.mapper";
@@ -15,7 +17,16 @@ describe("LinksController (e2e)", () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [LinksModule],
+      imports: [
+        EventEmitterModule.forRoot(),
+        ThrottlerModule.forRoot([
+          {
+            ttl: 60000,
+            limit: 20,
+          },
+        ]),
+        LinksModule,
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -45,7 +56,9 @@ describe("LinksController (e2e)", () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   describe("POST /links/metadata", () => {

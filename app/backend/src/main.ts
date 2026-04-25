@@ -19,6 +19,49 @@ import { AppConfigService } from "./config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 import { SentryExceptionFilter, SentryService } from "./sentry";
+import { MetricsService } from "./metrics/metrics.service";
+import { 
+  sanitizeErrorMessage,
+  createConfigSummary 
+} from "./common/utils/redaction.util";
+
+/**
+ * Validates critical configuration at startup.
+ * Fails fast if required settings are missing.
+ */
+function validateCriticalConfig(
+  config: AppConfigService,
+  logger: Logger,
+): void {
+  const errors: string[] = [];
+
+  // Database is required
+  if (!config.supabaseUrl) {
+    errors.push('SUPABASE_URL is required');
+  }
+  if (!config.supabaseAnonKey) {
+    errors.push('SUPABASE_ANON_KEY is required');
+  }
+
+  // Network is required
+  if (!config.network) {
+    errors.push('NETWORK is required (must be "testnet" or "mainnet")');
+  }
+
+  // If there are critical errors, fail fast
+  if (errors.length > 0) {
+    const errorMessage = `Critical configuration errors:\n${errors.map(e => `  - ${e}`).join('\n')}`;
+    logger.error(errorMessage);
+    throw new Error(sanitizeErrorMessage(errorMessage));
+  }
+
+  // Log warnings for optional but important configurations
+  if (!config.isPaymentSigningConfigured) {
+    logger.warn('STELLAR_SECRET_KEY not configured - payment signing disabled (read-only mode)');
+  }
+
+  logger.log('Critical configuration validated successfully');
+}
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -28,6 +71,20 @@ async function bootstrap() {
   });
 
   const configService = app.get(AppConfigService);
+
+  // Validate critical configuration at startup
+  validateCriticalConfig(configService, logger);
+
+  // Log configuration summary (safe, no secrets)
+  const envSummary = createConfigSummary({
+    SUPABASE_URL: configService.supabaseUrl,
+    SUPABASE_ANON_KEY: configService.supabaseAnonKey,
+    NETWORK: configService.network,
+    HORIZON_URL: configService.horizonUrl,
+    STELLAR_SECRET_KEY: configService.stellarSecretKey,
+    STELLAR_PUBLIC_KEY: configService.stellarPublicKey,
+  });
+  logger.log(envSummary);
 
   // Use Helmet for security headers
   app.use(helmet());
@@ -63,7 +120,6 @@ async function bootstrap() {
         "x-correlation-id",
         "X-API-Key",
       ],
-
     });
   }
 
@@ -89,9 +145,10 @@ async function bootstrap() {
   // Register Sentry exception filter FIRST so it captures errors,
   // then the existing HTTP exception filter handles the response.
   const sentryService = app.get(SentryService);
+  const metricsService = app.get(MetricsService);
   app.useGlobalFilters(
     new SentryExceptionFilter(sentryService, configService),
-    new GlobalHttpExceptionFilter(configService),
+    new GlobalHttpExceptionFilter(configService, metricsService),
   );
 
   // Swagger setup

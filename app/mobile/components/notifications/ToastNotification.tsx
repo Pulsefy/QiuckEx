@@ -1,29 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  StyleSheet,
 } from "react-native";
-import { useNotifications } from "./NotificationContext";
-import { useTheme } from "../../src/theme/ThemeContext";
 
-// Optional expo-av import will be attempted at runtime; if missing, sound is skipped.
-let playSoundOnce: (() => Promise<void>) | undefined = undefined;
+import { useTheme } from "../../src/theme/ThemeContext";
+import { useNotifications } from "./NotificationContext";
+
+let playSoundOnce: (() => Promise<void>) | undefined;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
   const { Audio } = require("expo-av");
 
-  // Try a local asset first (mobile assets path). If it doesn't exist, fall back
-  // to a small public chime hosted by Google Actions sounds as a safe fallback.
   const localSound = (() => {
     try {
-      // correct relative path from this file to app/mobile/assets/sounds
-      // components/notifications -> ../../assets/sounds
       // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
       return require("../../assets/sounds/notification.mp3");
-    } catch (e) {
+    } catch {
       return undefined;
     }
   })();
@@ -33,26 +28,27 @@ try {
       const source = localSound ?? {
         uri: "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg",
       };
-      const { sound } = await Audio.Sound.createAsync(source as any);
+      const { sound } = await Audio.Sound.createAsync(source as never);
       await sound.playAsync();
       sound.unloadAsync().catch(() => {});
-    } catch (e) {
-      // ignore playback errors
+    } catch {
+      // Best-effort sound playback only.
     }
   };
-} catch (e) {
-  // expo-av not installed — ignore sound
+} catch {
+  playSoundOnce = undefined;
 }
 
 export const ToastNotification: React.FC = () => {
-  const { notifications, unreadCount, soundEnabled } = useNotifications();
+  const { notifications, soundEnabled } = useNotifications();
   const { theme } = useTheme();
-  const latest = notifications.find((n) => !n.read) ?? notifications[0];
+  const latest = notifications.find((item) => !item.read) ?? notifications[0];
   const anim = useRef(new Animated.Value(0)).current;
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!latest) return;
+    if (!latest || latest.read) return;
+
     setVisible(true);
     Animated.timing(anim, {
       toValue: 1,
@@ -64,7 +60,7 @@ export const ToastNotification: React.FC = () => {
       void playSoundOnce();
     }
 
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       Animated.timing(anim, {
         toValue: 0,
         duration: 300,
@@ -72,8 +68,8 @@ export const ToastNotification: React.FC = () => {
       }).start(() => setVisible(false));
     }, 4000);
 
-    return () => clearTimeout(t);
-  }, [latest?.id]);
+    return () => clearTimeout(timeoutId);
+  }, [anim, latest, soundEnabled]);
 
   if (!latest || !visible) return null;
 
@@ -93,20 +89,27 @@ export const ToastNotification: React.FC = () => {
         },
       ]}
     >
-      <TouchableOpacity style={[styles.toast, { backgroundColor: theme.buttonPrimaryBg }]} activeOpacity={0.9}>
-        <Text style={[styles.title, { color: theme.buttonPrimaryText }]}>💰 Payment Received</Text>
-        <Text
-          style={[styles.body, { color: theme.textMuted }]}
-        >{`${latest.amount} ${latest.asset ?? ""} from ${shorten(latest.sender ?? "")}`}</Text>
+      <TouchableOpacity
+        style={[styles.toast, { backgroundColor: theme.buttonPrimaryBg }]}
+        activeOpacity={0.9}
+      >
+        <Text style={[styles.title, { color: theme.buttonPrimaryText }]}>
+          {latest.direction === "outgoing" ? "Payment Sent" : "Payment Received"}
+        </Text>
+        <Text style={[styles.body, { color: theme.buttonPrimaryText }]}>
+          {`${latest.amount} ${latest.asset ?? ""} ${
+            latest.direction === "outgoing" ? "to" : "from"
+          } ${shorten(latest.sender ?? "")}`}
+        </Text>
       </TouchableOpacity>
     </Animated.View>
   );
 };
 
-function shorten(s: string) {
-  if (!s) return "";
-  if (s.length <= 10) return s;
-  return `${s.slice(0, 6)}...${s.slice(-4)}`;
+function shorten(value: string) {
+  if (!value) return "";
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 const styles = StyleSheet.create({
@@ -122,7 +125,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     minWidth: "80%",
-    shadowColor: "#000", // shadowColor is platform-native, not theme-sensitive
+    shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },

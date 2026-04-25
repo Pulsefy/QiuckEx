@@ -6,7 +6,10 @@ import {
     TouchableOpacity,
     Clipboard,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/theme/ThemeContext';
 
 interface Props {
@@ -15,15 +18,22 @@ interface Props {
     accountId: string;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
     const d = new Date(iso);
-    return d.toLocaleString('en-US', {
+    return d.toLocaleString(locale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+function formatNumber(value: number, locale: string): string {
+    return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(value);
 }
 
 function formatAsset(asset: string): string {
@@ -42,16 +52,36 @@ function shortenAddress(address: string): string {
 }
 
 export default function TransactionItem({ item }: Props) {
+    const { i18n } = useTranslation();
     const { theme } = useTheme();
+    const router = useRouter();
     const assetLabel = formatAsset(item.asset);
     const hasAddresses = Boolean(item.source || item.destination);
+    const formattedAmount = formatNumber(parseFloat(item.amount), i18n.language || 'en');
 
-    const handleCopyHash = () => {
-        Clipboard.setString(item.txHash);
+    const handlePress = () => {
+        router.push({
+            pathname: `/transaction/${item.pagingToken}`,
+            params: {
+                id: item.pagingToken,
+                amount: item.amount,
+                asset: item.asset,
+                memo: item.memo || '',
+                timestamp: item.timestamp,
+                txHash: item.txHash,
+                source: item.source || '',
+                destination: item.destination || '',
+                status: item.status || 'Success',
+            }
+        });
     };
 
     return (
-        <View style={[styles.row, { borderBottomColor: theme.border, backgroundColor: theme.surfaceElevated }]}>
+        <TouchableOpacity 
+            onPress={handlePress}
+            activeOpacity={0.7}
+            style={[styles.row, { borderBottomColor: theme.border, backgroundColor: theme.surfaceElevated }]}
+        >
             {/* Left: icon + asset */}
             <View style={[styles.iconWrap, { backgroundColor: theme.surface }]}>
                 <Text style={[styles.assetIcon, { color: theme.textPrimary }]}>{assetLabel.slice(0, 3)}</Text>
@@ -67,25 +97,24 @@ export default function TransactionItem({ item }: Props) {
                         {item.memo}
                     </Text>
                 ) : null}
-                <TouchableOpacity onPress={handleCopyHash} activeOpacity={0.6}>
-                    <Text style={[styles.txHash, { color: theme.textMuted }]}>{shortenHash(item.txHash)}</Text>
-                </TouchableOpacity>
+                <Text style={[styles.txHash, { color: theme.textMuted }]}>{shortenHash(item.txHash)}</Text>
                 {hasAddresses ? (
                     <Text style={[styles.address, { color: theme.textSecondary }]} numberOfLines={1}>
                         {shortenAddress(item.source)} → {shortenAddress(item.destination)}
                     </Text>
                 ) : null}
-                <Text style={[styles.date, { color: theme.textMuted }]}>{formatDate(item.timestamp)}</Text>
+                <Text style={[styles.date, { color: theme.textMuted }]}>{formatDate(item.timestamp, i18n.language || 'en')}</Text>
             </View>
 
             {/* Right: amount */}
             <View style={styles.right}>
                 <Text style={[styles.amount, { color: theme.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
-                    {parseFloat(item.amount).toFixed(2)}
+                    {formattedAmount}
                 </Text>
                 <Text style={[styles.assetCode, { color: theme.textSecondary }]}>{assetLabel}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} style={{ marginTop: 4 }} />
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 

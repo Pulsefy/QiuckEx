@@ -7,23 +7,30 @@ import {
     RefreshControl,
     TouchableOpacity,
     ActivityIndicator,
-    ListRenderItemInfo,
     TextInput,
     ScrollView,
     Pressable,
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import TransactionItem from '../components/transaction-item';
+import { useNotifications } from '../components/notifications/NotificationContext';
 import { useTransactions } from '../hooks/use-transactions';
 import type { TransactionItem as TransactionItemType } from '../types/transaction';
 import { ErrorState } from '../components/resilience/error-state';
 import { EmptyState } from '../components/resilience/empty-state';
 import { useTheme } from '../src/theme/ThemeContext';
+
+const fileSystemCompat = FileSystem as typeof FileSystem & {
+    cacheDirectory?: string | null;
+    EncodingType?: {
+        UTF8: string;
+    };
+};
 
 /**
  * Placeholder account used when no accountId is passed via route params.
@@ -105,8 +112,9 @@ const skeleton = StyleSheet.create({
 export default function TransactionsScreen() {
     const router = useRouter();
     const { theme } = useTheme();
+    const { currentAccountId } = useNotifications();
     const params = useLocalSearchParams<{ accountId?: string }>();
-    const accountId = (params.accountId ?? DEMO_ACCOUNT_ID).trim();
+    const accountId = (params.accountId ?? currentAccountId ?? DEMO_ACCOUNT_ID).trim();
 
     const { transactions, loading, refreshing, error, hasMore, refresh, loadMore } =
         useTransactions(accountId);
@@ -175,7 +183,7 @@ export default function TransactionsScreen() {
 
     const shortAccount = `${accountId.slice(0, 6)}…${accountId.slice(-4)}`;
 
-    const renderItem = ({ item }: ListRenderItemInfo<TransactionItemType>) => (
+    const renderItem = ({ item }: any) => (
         <TransactionItem item={item} accountId={accountId} />
     );
 
@@ -215,10 +223,11 @@ export default function TransactionsScreen() {
 
         try {
             const fileName = `quickex-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-            const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+            const cacheDirectory = fileSystemCompat.cacheDirectory ?? '';
+            const fileUri = `${cacheDirectory}${fileName}`;
 
             await FileSystem.writeAsStringAsync(fileUri, csv, {
-                encoding: FileSystem.EncodingType.UTF8,
+                encoding: 'utf8',
             });
 
             const canShare = await Sharing.isAvailableAsync();
@@ -450,7 +459,7 @@ export default function TransactionsScreen() {
                 estimatedItemSize={88}
                 contentContainerStyle={
                     (filteredTransactions.length === 0 || error) && !loading
-                        ? styles.emptyFill
+                        ? (styles.emptyFill as never)
                         : undefined
                 }
                 showsVerticalScrollIndicator={false}

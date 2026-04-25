@@ -4,21 +4,16 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   ServiceUnavailableException,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
-import {
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-  import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 import { AssetMetadataService } from "../asset-metadata/asset-metadata.service";
 import { AssetListResponseDto } from "../asset-metadata/dto/asset-metadata.dto";
 import { AppConfigService } from "../config/app-config.service";
@@ -27,8 +22,10 @@ import {
   PathPreviewRequestDto,
   StrictSendPathPreviewRequestDto,
 } from "./dto/path-preview.dto";
+import { CreateQuoteDto, QuoteResponseDto } from "./dto/quote.dto";
 import { SorobanPreflightDto } from "./dto/soroban-preflight.dto";
 import { PathPreviewService } from "./path-preview.service";
+import { QuoteService } from "./quote.service";
 
 @ApiTags("stellar")
 @ApiHeader({
@@ -36,7 +33,7 @@ import { PathPreviewService } from "./path-preview.service";
   description: "Optional API key for higher rate limits",
   required: false,
 })
-@UseGuards(ApiKeyGuard, CustomThrottlerGuard)
+@UseGuards(ApiKeyGuard)
 @Controller("stellar")
 export class StellarController {
   constructor(
@@ -44,15 +41,17 @@ export class StellarController {
     private readonly transactionsService: TransactionsService,
     private readonly appConfig: AppConfigService,
     private readonly assetMetadataService: AssetMetadataService,
+    private readonly quoteService: QuoteService,
   ) {}
 
   @Get("verified-assets")
   @ApiOperation({
     summary: "List verified assets for payment links and path swaps",
-    description: "Returns all verified assets with branding metadata including logos and descriptions from TOML files.",
+    description:
+      "Returns all verified assets with branding metadata including logos and descriptions from TOML files.",
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: "List of verified assets with metadata",
     type: AssetListResponseDto,
   })
@@ -108,5 +107,33 @@ export class StellarController {
       params: [],
       sourceAccount: body.sourceAccount,
     });
+  }
+
+  @Post("quote")
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({
+    summary: "Create a path payment quote",
+    description:
+      "Computes path payment routes with slippage tolerance and a TTL. " +
+      "Returns a quote ID that can be retrieved until expiry.",
+  })
+  @ApiResponse({ status: 200, description: "Quote created", type: QuoteResponseDto })
+  @ApiResponse({ status: 400, description: "No path found or invalid parameters" })
+  async createQuote(@Body() body: CreateQuoteDto): Promise<QuoteResponseDto> {
+    return this.quoteService.createQuote(body);
+  }
+
+  @Get("quote/:quoteId")
+  @ApiOperation({
+    summary: "Retrieve a quote by ID",
+    description: "Returns the stored quote. Returns 410 Gone if the quote has expired.",
+  })
+  @ApiParam({ name: "quoteId", description: "Quote ID returned by POST /stellar/quote" })
+  @ApiResponse({ status: 200, description: "Quote details", type: QuoteResponseDto })
+  @ApiResponse({ status: 404, description: "Quote not found" })
+  @ApiResponse({ status: 410, description: "Quote expired" })
+  getQuote(@Param("quoteId") quoteId: string): QuoteResponseDto {
+    return this.quoteService.getQuote(quoteId);
   }
 }

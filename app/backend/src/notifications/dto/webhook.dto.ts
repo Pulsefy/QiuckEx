@@ -37,6 +37,7 @@ export class CreateWebhookDto {
   @IsUrl(
     {
       protocols: ["http", "https"],
+      require_protocol: true,
       require_tld: false, // Allow localhost for development
     },
     { message: "webhookUrl must be a valid URL" },
@@ -96,6 +97,7 @@ export class UpdateWebhookDto {
   @IsUrl(
     {
       protocols: ["http", "https"],
+      require_protocol: true,
       require_tld: false,
     },
     { message: "webhookUrl must be a valid URL" },
@@ -176,4 +178,21 @@ export class WebhookStatsDto {
   @ApiProperty() pendingRetries!: number;
   @ApiPropertyOptional() lastDeliveryAt?: string;
   @ApiPropertyOptional() lastError?: string;
+}
+
+export class RedeliverWebhookDto {
+  @ApiProperty({
+    description: "The event ID to redeliver",
+    example: "tx_abc123",
+  })
+  @IsString()
+  eventId!: string;
+
+  @ApiProperty({
+    description: "The event type to redeliver",
+    enum: WEBHOOK_EVENTS,
+    example: "payment.received",
+  })
+  @IsIn(WEBHOOK_EVENTS)
+  eventType!: string;
 }

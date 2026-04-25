@@ -3,24 +3,28 @@ import {
   type Theme as NavigationTheme,
 } from "@react-navigation/native";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import { useColorScheme } from "react-native";
 // Ensure web build or Expo web uses the local backend during development
-if (typeof document !== "undefined" && !(global as any).API_BASE_URL) {
+if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
-  (global as any).API_BASE_URL = "http://localhost:4000";
+  (globalThis as any).API_BASE_URL = "http://localhost:4000";
 }
+import "../../src/lib/i18n";
 import { OfflineBanner } from "../components/resilience/offline-banner";
 import { AppLockOverlay } from "../components/security/app-lock-overlay";
 import { SecurityProvider, useSecurity } from "../hooks/use-security";
 import { NotificationProvider } from "../components/notifications/NotificationContext";
 import ToastNotification from "../components/notifications/ToastNotification";
-import NotificationCenter from "../components/notifications/NotificationCenter";
 import { usePaymentListener } from "../hooks/usePaymentListener";
+import { useOnboarding } from "../hooks/useOnboarding";
+import { WalletProvider } from "../hooks/useWalletContext";
+import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
+import { routeFromNotificationResponse } from "../services/notification-routing";
 
 // ── Theme System v2 ──────────────────────────────────────────────────────────
 import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
@@ -49,9 +53,29 @@ function useDeepLinkHandler() {
     const subscription = Linking.addEventListener("url", handleURL);
 
     // Handle cold-start deep link
-    Linking.getInitialURL().then((url) => {
+    Linking.getInitialURL().then((url: string | null) => {
       if (url) handleURL({ url });
     });
+
+    return () => subscription.remove();
+  }, [router]);
+}
+
+function useNotificationTapRouting() {
+  const router = useRouter();
+
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        routeFromNotificationResponse(router, response);
+      })
+      .catch(() => {});
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        routeFromNotificationResponse(router, response);
+      },
+    );
 
     return () => subscription.remove();
   }, [router]);
@@ -104,17 +128,20 @@ function ThemeBridge() {
   return (
     <ThemeProvider value={navTheme}>
       <SecurityProvider>
-        <NotificationProvider>
-          {/* Dev-only global poller: ensures polling runs on web during development
+        <WalletProvider>
+          <NotificationProvider>
+            <WalletSyncBridge />
+            {/* Dev-only global poller: ensures polling runs on web during development
               even if the wallet screen isn't active. */}
-          {process.env.NODE_ENV !== "production" ? (
-            // start polling for demo address used by send_test_payment.js
-            // eslint-disable-next-line react/jsx-no-useless-fragment
-            <DevPoller />
-          ) : null}
-          <AppShell />
-          <ToastNotification />
-        </NotificationProvider>
+            {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
+              // start polling for demo address used by send_test_payment.js
+              // eslint-disable-next-line react/jsx-no-useless-fragment
+              <DevPoller />
+            ) : null}
+            <AppShell />
+            <ToastNotification />
+          </NotificationProvider>
+        </WalletProvider>
       </SecurityProvider>
       <StatusBar style={isDark ? "light" : "dark"} />
     </ThemeProvider>
@@ -123,18 +150,29 @@ function ThemeBridge() {
 
 function AppShell() {
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
+  const { isLoading: onboardingLoading } = useOnboarding();
   useDeepLinkHandler();
+  useNotificationTapRouting();
+
+  if (onboardingLoading) {
+    return null; // Show loading screen while checking onboarding status
+  }
 
   return (
     <>
       <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="index" />
         <Stack.Screen name="security" />
         <Stack.Screen name="wallet-connect" />
         <Stack.Screen name="scan-to-pay" />
         <Stack.Screen name="payment-confirmation" />
         <Stack.Screen name="transactions" />
+        <Stack.Screen name="transaction/[id]" />
+        <Stack.Screen name="escrow/[id]" />
+        <Stack.Screen name="listing/[id]" />
+        <Stack.Screen name="notification-debug" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />

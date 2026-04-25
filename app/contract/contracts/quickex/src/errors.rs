@@ -18,6 +18,7 @@ pub enum QuickexError {
     // Auth/admin failures (200-299)
     Unauthorized = 200,
     AlreadyInitialized = 201,
+    InsufficientRole = 202,
     // State, escrow, and commitment violations (300-399)
     ContractPaused = 300,
     PrivacyAlreadySet = 301,
@@ -40,6 +41,8 @@ pub enum QuickexError {
     NotArbiter = 312,
     /// The requested operation is paused via granular pause flags.
     OperationPaused = 313,
+    /// The stored contract version cannot be migrated by this release.
+    InvalidContractVersion = 314,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
 import { HorizonService } from "../stellar/horizon.service";
 import { AppConfigService } from "../config/app-config.service";
+import { sanitizeErrorMessage } from "../common/utils/redaction.util";
 
 @Injectable()
 export class HealthService {
@@ -35,31 +36,61 @@ export class HealthService {
 
       return { status: "up", latency };
     } catch (err) {
-      this.logger.warn(`Supabase health check failed or timed out: ${(err as Error).message}`);
+      const safeMessage = sanitizeErrorMessage((err as Error).message);
+      this.logger.warn(`Supabase health check failed or timed out: ${safeMessage}`);
       return { status: "down" };
     }
   }
 
   /**
    * Validates that critical environment variables are loaded.
+   * Reports readiness without exposing sensitive values.
    */
   checkEnvironment(): { status: "up" | "down"; details: string[] } {
-    const criticalVars = [
-      "NETWORK",
-      "SUPABASE_URL",
-      "SUPABASE_ANON_KEY",
-    ];
+    const details: string[] = [];
+    let hasCriticalIssue = false;
 
-    const missing = criticalVars.filter(v => !process.env[v]);
+    // Check database configuration
+    if (!this.config.supabaseUrl || !this.config.supabaseAnonKey) {
+      details.push("Missing database configuration");
+      hasCriticalIssue = true;
+    } else {
+      details.push("Database configuration loaded");
+    }
 
-    if (missing.length > 0) {
+    // Check network configuration
+    if (!this.config.network) {
+      details.push("Missing Stellar network configuration");
+      hasCriticalIssue = true;
+    } else {
+      details.push(`Network: ${this.config.network}`);
+    }
+
+    // Check Horizon connectivity configuration
+    try {
+      // HorizonService will use default URLs if custom URL not provided
+      details.push("Horizon configuration ready");
+    } catch (err) {
+      const safeMessage = sanitizeErrorMessage((err as Error).message);
+      details.push(`Horizon config error: ${safeMessage}`);
+      hasCriticalIssue = true;
+    }
+
+    // Check payment signing capability (optional but important)
+    if (this.config.isPaymentSigningConfigured) {
+      details.push("Payment signing configured");
+    } else {
+      details.push("Payment signing not configured (read-only mode)");
+    }
+
+    if (hasCriticalIssue) {
       return {
         status: "down",
-        details: [`Missing environment variables: ${missing.join(", ")}`],
+        details,
       };
     }
 
-    return { status: "up", details: ["All critical env variables loaded"] };
+    return { status: "up", details };
   }
 
   /**

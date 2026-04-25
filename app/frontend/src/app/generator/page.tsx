@@ -6,6 +6,8 @@ import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { getQuickexApiBase } from "@/lib/api";
+import '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 type ValidationErrors = Partial<
   Record<"amount" | "asset" | "destination", string>
@@ -33,6 +35,9 @@ type PathPreviewResponse = {
   paths: PathRow[];
   horizonUrl: string;
 };
+
+const QUOTE_TTL_SECONDS = 25;
+const BASE_PATH_OPERATION_FEE_XLM = 0.00001;
 
 type LinkMetadataSuccess = {
   success: true;
@@ -64,6 +69,7 @@ type ComposeError = {
 };
 
 export default function Generator() {
+  const { t } = useTranslation();
   const apiBase = useMemo(() => getQuickexApiBase(), []);
   const { error, loading, callApi, data } = useApi<LinkMetadataSuccess>();
 
@@ -86,6 +92,9 @@ export default function Generator() {
   const [pathLoading, setPathLoading] = useState(false);
   const [pathError, setPathError] = useState<string | null>(null);
   const [pathData, setPathData] = useState<PathPreviewResponse | null>(null);
+  const [quoteFetchedAt, setQuoteFetchedAt] = useState<number | null>(null);
+  const [quoteNow, setQuoteNow] = useState<number>(() => Date.now());
+  const [slippagePct, setSlippagePct] = useState("0.50");
 
   const [preflightAccount, setPreflightAccount] = useState("");
   const [preflightLoading, setPreflightLoading] = useState(false);
@@ -114,7 +123,7 @@ export default function Generator() {
         }
       } catch {
         if (!cancelled) {
-          setAssetsError("Could not load verified assets.");
+          setAssetsError(t('couldNotLoadAssets'));
           setVerifiedAssets([]);
         }
       } finally {
@@ -126,7 +135,7 @@ export default function Generator() {
     return () => {
       cancelled = true;
     };
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const recipientRef = useMemo(() => {
     const a = verifiedAssets.find(
@@ -161,6 +170,7 @@ export default function Generator() {
       sourceRefsForPreview.length === 0
     ) {
       setPathData(null);
+      setQuoteFetchedAt(null);
       return;
     }
     setPathLoading(true);
@@ -184,9 +194,11 @@ export default function Generator() {
         throw new Error(msg);
       }
       setPathData(json as PathPreviewResponse);
+      setQuoteFetchedAt(Date.now());
     } catch (e) {
       setPathError(e instanceof Error ? e.message : "Path preview failed.");
       setPathData(null);
+      setQuoteFetchedAt(null);
     } finally {
       setPathLoading(false);
     }
@@ -208,18 +220,28 @@ export default function Generator() {
     return () => window.clearTimeout(t);
   }, [advancedOpen, fetchPathPreview]);
 
+  useEffect(() => {
+    if (!advancedOpen || !quoteFetchedAt) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setQuoteNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [advancedOpen, quoteFetchedAt]);
+
   const validate = () => {
     const newErrors: ValidationErrors = {};
     if (!form.amount) {
-      newErrors.amount = "Amount is required.";
+      newErrors.amount = t('amountRequired');
     } else if (Number.isNaN(Number(form.amount))) {
-      newErrors.amount = "Enter a valid number.";
+      newErrors.amount = t('enterValidNumber');
     }
     if (!form.destination) {
-      newErrors.destination = "Destination address is required.";
+      newErrors.destination = t('destinationRequired');
     }
     if (!recipientAssetCode) {
-      newErrors.asset = "Select a recipient asset.";
+      newErrors.asset = t('selectRecipientAsset');
     }
     return newErrors;
   };
@@ -265,6 +287,13 @@ export default function Generator() {
     if (Object.keys(validation).length > 0) {
       return;
     }
+    if (advancedOpen && Number(slippagePct) >= 5) {
+      setErrors((prev) => ({
+        ...prev,
+        amount: t('lowerSlippageToContinue'),
+      }));
+      return;
+    }
 
     callApi(async () => {
       const res = await fetch(`${apiBase}/links/metadata`, {
@@ -294,7 +323,7 @@ export default function Generator() {
     if (!/^G[A-Z0-9]{55}$/.test(pk)) {
       setPreflightResult({
         success: false,
-        userMessage: "Enter a valid 56-character Stellar public key (G…).",
+        userMessage: t('invalidPublicKey'),
       });
       return;
     }
@@ -311,21 +340,23 @@ export default function Generator() {
         message?: string;
         code?: string;
       };
+      const message =
+        typeof json === "object" &&
+        json !== null &&
+        "message" in json &&
+        typeof json.message === "string"
+          ? json.message
+          : null;
       if (res.status === 503) {
         setPreflightUnavailable(
-          typeof json?.message === "string"
-            ? json.message
-            : "Soroban preflight is not configured on this server.",
+          message ?? t('preflightUnavailable'),
         );
         return;
       }
       if (!res.ok) {
         setPreflightResult({
           success: false,
-          userMessage:
-            typeof json?.message === "string"
-              ? json.message
-              : "Preflight request failed.",
+          userMessage: message ?? t('preflightFailed'),
         });
         return;
       }
@@ -333,7 +364,7 @@ export default function Generator() {
     } catch {
       setPreflightResult({
         success: false,
-        userMessage: "Network error calling preflight.",
+        userMessage: t('networkError'),
       });
     } finally {
       setPreflightLoading(false);
@@ -358,6 +389,45 @@ export default function Generator() {
   const canonicalPreview =
     data?.success === true ? data.data.canonical : null;
 
+  const slippageValue = Number(slippagePct);
+  const slippageWarningLevel =
+    slippageValue >= 5 ? "block" : slippageValue >= 2 ? "warn" : "safe";
+  const slippageWarningText =
+    slippageWarningLevel === "block"
+      ? t('slippageTooHigh')
+      : slippageWarningLevel === "warn"
+        ? t('slippageWarning')
+        : null;
+
+  const quoteExpiresAt = quoteFetchedAt
+    ? quoteFetchedAt + QUOTE_TTL_SECONDS * 1000
+    : null;
+  const quoteSecondsRemaining = quoteExpiresAt
+    ? Math.max(0, Math.ceil((quoteExpiresAt - quoteNow) / 1000))
+    : null;
+  const quoteExpired =
+    quoteSecondsRemaining !== null && quoteSecondsRemaining <= 0;
+
+  const pathErrorType = useMemo(() => {
+    const txt = pathError?.toLowerCase() ?? "";
+    if (txt.includes("liquidity")) {
+      return "liquidity";
+    }
+    if (txt.includes("no path") || txt.includes("strict-receive")) {
+      return "path";
+    }
+    return "generic";
+  }, [pathError]);
+
+  const getPathLegs = (path: PathRow) => {
+    const route = [path.sourceAsset, ...path.pathHops, path.destinationAsset];
+    return route.slice(0, -1).map((fromAsset, idx) => ({
+      fromAsset,
+      toAsset: route[idx + 1],
+      poolLabel: `Pool ${idx + 1}`,
+    }));
+  };
+
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
       <NetworkBadge />
@@ -371,16 +441,16 @@ export default function Generator() {
             href="/dashboard"
             className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
           >
-            <span>📊</span> Dashboard
+            <span>📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             className="flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner"
           >
-            <span className="text-indigo-400">⚡</span> Link Generator
+            <span className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
           <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
-            <span>⚙️</span> Profile Settings
+            <span>⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
@@ -388,21 +458,20 @@ export default function Generator() {
       <main className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
         <header className="mb-10 sm:mb-16 max-w-3xl">
           <nav className="flex items-center gap-2 text-xs font-black text-neutral-600 uppercase tracking-widest mb-4">
-            <span>Services</span>
+            <span>{t('services')}</span>
             <span>/</span>
-            <span className="text-neutral-400">Link Generator</span>
+            <span className="text-neutral-400">{t('linkGenerator')}</span>
           </nav>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-4">
-            Create a payment <br />
+            {t('createPayment')} <br />
             <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              request instantly.
+              {t('requestInstantly')}
             </span>
           </h1>
 
           <p className="text-neutral-500 text-lg max-w-xl">
-            Advanced mode supports path payments: choose what you receive and
-            let payers settle in multiple assets.
+            {t('advancedModeDescription')}
           </p>
         </header>
 
@@ -411,7 +480,7 @@ export default function Generator() {
             <section className="space-y-6">
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Amount (recipient receives)
+                  {t('amountLabel')}
                 </label>
 
                 <div className="relative group mt-2">
@@ -420,7 +489,7 @@ export default function Generator() {
                   <div className="relative bg-neutral-900/50 border border-white/10 rounded-3xl p-1 shadow-2xl">
                     <input
                       type="number"
-                      placeholder="0.00"
+                      placeholder={t('amountPlaceholder')}
                       value={form.amount}
                       onChange={(e) =>
                         setForm({ ...form, amount: e.target.value })
@@ -431,7 +500,7 @@ export default function Generator() {
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex bg-black/40 p-2 rounded-2xl border border-white/5 backdrop-blur-xl gap-1 max-w-[50%] flex-wrap justify-end">
                       {assetsLoading ? (
                         <span className="px-3 py-2 text-xs text-neutral-500">
-                          Loading assets…
+                          {t('loadingAssets')}
                         </span>
                       ) : (
                         verifiedAssets.map((a) => (
@@ -466,11 +535,11 @@ export default function Generator() {
 
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Destination
+                  {t('destinationLabel')}
                 </label>
                 <input
                   type="text"
-                  placeholder="Receiver public key"
+                  placeholder={t('destinationPlaceholder')}
                   value={form.destination}
                   onChange={(e) =>
                     setForm({ ...form, destination: e.target.value })
@@ -486,11 +555,11 @@ export default function Generator() {
 
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
-                  Memo (optional)
+                  {t('memoLabel')}
                 </label>
                 <input
                   type="text"
-                  placeholder="What's this payment for?"
+                  placeholder={t('memoPlaceholder')}
                   value={form.memo}
                   onChange={(e) => setForm({ ...form, memo: e.target.value })}
                   className="w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 focus:outline-none placeholder:text-neutral-700"
@@ -504,10 +573,10 @@ export default function Generator() {
                   className="flex w-full items-center justify-between text-left"
                 >
                   <span className="text-sm font-black uppercase tracking-widest text-indigo-300">
-                    Advanced settings
+                    {t('advancedSettings')}
                   </span>
                   <span className="text-neutral-500 text-sm">
-                    {advancedOpen ? "Hide" : "Show"} path payments
+                    {advancedOpen ? t('hide') : t('show')} path payments
                   </span>
                 </button>
 
@@ -515,11 +584,10 @@ export default function Generator() {
                   <div className="space-y-6 pt-2 border-t border-white/5">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                        Recipient asset
+                        {t('recipientAsset')}
                       </p>
                       <p className="text-sm text-neutral-400 mb-3">
-                        Same as the amount currency above — what lands in the
-                        receiver&apos;s account after the path executes.
+                        {t('recipientAssetDescription')}
                       </p>
                       <select
                         value={recipientAssetCode}
@@ -546,11 +614,10 @@ export default function Generator() {
 
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
-                        Allowed source assets (payers)
+                        {t('allowedSourceAssets')}
                       </p>
                       <p className="text-sm text-neutral-400 mb-3">
-                        Payers may use any of the selected assets; Horizon
-                        suggests paths and send amounts.
+                        {t('allowedSourceAssetsDescription')}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {verifiedAssets.map((a) => {
@@ -576,27 +643,63 @@ export default function Generator() {
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
-                          Path preview
+                          {t('pathPreview')}
                         </h3>
-                        {pathLoading && (
-                          <span className="text-xs text-indigo-300 animate-pulse">
-                            Fetching estimates…
-                          </span>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {quoteSecondsRemaining !== null && (
+                            <span
+                              className={`text-xs font-mono ${
+                                quoteExpired ? "text-amber-300" : "text-emerald-300"
+                              }`}
+                            >
+                              {quoteExpired
+                                ? t('quoteExpired')
+                                : t('quoteExpiresIn', { seconds: quoteSecondsRemaining })}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void fetchPathPreview()}
+                            disabled={pathLoading}
+                            className="text-xs px-2 py-1 rounded-md border border-white/10 text-neutral-300 hover:text-white hover:bg-white/5 disabled:opacity-50"
+                          >
+                            {pathLoading ? t('fetchingEstimates') : t('refreshQuote')}
+                          </button>
+                        </div>
                       </div>
+                      {slippageWarningText && (
+                        <p
+                          className={`text-xs ${
+                            slippageWarningLevel === "block"
+                              ? "text-red-400"
+                              : "text-amber-300"
+                          }`}
+                        >
+                          {slippageWarningText}
+                        </p>
+                      )}
                       {pathError && (
-                        <p className="text-amber-500 text-sm">{pathError}</p>
+                        <p className="text-amber-500 text-sm">
+                          {pathErrorType === "liquidity"
+                            ? t('insufficientLiquidityState')
+                            : pathErrorType === "path"
+                              ? t('noPathState')
+                              : pathError}
+                        </p>
                       )}
                       {!pathLoading &&
                         !pathError &&
                         pathData &&
                         pathData.paths.length === 0 && (
                           <p className="text-neutral-500 text-sm">
-                            No paths found for this combination on{" "}
-                            {pathData.horizonUrl}. Try other source assets or a
-                            smaller amount.
+                            {t('noPathsFound', { horizonUrl: pathData.horizonUrl })}
                           </p>
                         )}
+                      {!pathLoading && !pathError && !pathData && (
+                        <p className="text-neutral-600 text-xs">
+                          {t('pathPreviewHint')}
+                        </p>
+                      )}
                       {pathData && pathData.paths.length > 0 && (
                         <ul className="space-y-3 max-h-64 overflow-y-auto pr-1">
                           {pathData.paths.map((p, i) => (
@@ -605,24 +708,42 @@ export default function Generator() {
                               className="rounded-xl bg-black/40 border border-white/5 p-3 text-sm"
                             >
                               <div className="font-mono text-neutral-300">
-                                Pay{" "}
-                                <span className="text-white font-bold">
-                                  {p.sourceAmount}
-                                </span>{" "}
-                                ({p.sourceAsset}) → receive{" "}
-                                <span className="text-white font-bold">
-                                  {p.destinationAmount}
-                                </span>{" "}
-                                ({p.destinationAsset})
+                                {t('payReceive', {
+                                  sourceAmount: p.sourceAmount,
+                                  sourceAsset: p.sourceAsset,
+                                  destinationAmount: p.destinationAmount,
+                                  destinationAsset: p.destinationAsset
+                                })}
                               </div>
                               <div className="text-xs text-neutral-500 mt-1">
-                                Hops: {p.hopCount}
+                                {t('hops', { hopCount: p.hopCount })}
                                 {p.pathHops.length > 0
                                   ? ` · ${p.pathHops.join(" → ")}`
                                   : ""}
                               </div>
                               <div className="text-xs text-neutral-600 mt-1">
                                 {p.rateDescription}
+                              </div>
+                              <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] p-2 space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">
+                                  {t('pathBreakdown')}
+                                </p>
+                                {getPathLegs(p).map((leg) => (
+                                  <div
+                                    key={`${leg.poolLabel}-${leg.fromAsset}-${leg.toAsset}`}
+                                    className="flex items-center justify-between text-xs text-neutral-400"
+                                  >
+                                    <span>{leg.poolLabel}</span>
+                                    <span className="font-mono">
+                                      {leg.fromAsset} → {leg.toAsset}
+                                    </span>
+                                  </div>
+                                ))}
+                                <p className="text-xs text-neutral-500">
+                                  {t('estimatedNetworkFee', {
+                                    fee: ((p.hopCount + 1) * BASE_PATH_OPERATION_FEE_XLM).toFixed(5),
+                                  })}
+                                </p>
                               </div>
                             </li>
                           ))}
@@ -631,20 +752,54 @@ export default function Generator() {
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                          {t('slippageTolerance')}
+                        </h3>
+                        <span className="text-sm font-mono text-neutral-300">
+                          {slippageValue.toFixed(2)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-500">
+                        {t('slippageDescription')}
+                      </p>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={5}
+                        step={0.1}
+                        value={slippagePct}
+                        onChange={(e) => setSlippagePct(e.target.value)}
+                        className="w-full accent-indigo-400"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {["0.50", "1.00", "2.00"].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setSlippagePct(preset)}
+                            className={`px-3 py-1 text-xs rounded-lg border ${
+                              slippagePct === preset
+                                ? "border-indigo-400/60 text-indigo-200 bg-indigo-500/10"
+                                : "border-white/10 text-neutral-400"
+                            }`}
+                          >
+                            {preset}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
-                        Soroban preflight (composer)
+                        {t('sorobanPreflight')}
                       </h3>
                       <p className="text-xs text-neutral-500">
-                        Runs the same simulation as{" "}
-                        <code className="text-neutral-400">
-                          POST /transactions/compose
-                        </code>{" "}
-                        with <code className="text-neutral-400">health_check</code>{" "}
-                        on <code className="text-neutral-400">QUICKEX_CONTRACT_ID</code>.
+                        {t('sorobanPreflightDescription')}
                       </p>
                       <input
                         type="text"
-                        placeholder="Source account G… (funded, for sequence)"
+                        placeholder={t('sourceAccountPlaceholder')}
                         value={preflightAccount}
                         onChange={(e) => setPreflightAccount(e.target.value)}
                         className="w-full bg-neutral-900/80 border border-white/10 rounded-xl p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
@@ -656,8 +811,8 @@ export default function Generator() {
                         className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-bold disabled:opacity-50"
                       >
                         {preflightLoading
-                          ? "Simulating…"
-                          : "Run preflight simulation"}
+                          ? t('simulating')
+                          : t('runPreflight')}
                       </button>
                       {preflightUnavailable && (
                         <p className="text-amber-500 text-sm">
@@ -668,22 +823,21 @@ export default function Generator() {
                         <p className="text-red-400 text-sm">
                           {preflightResult.userMessage ??
                             preflightResult.error ??
-                            "Simulation failed"}
+                            t('simulationFailed')}
                         </p>
                       )}
                       {preflightResult && preflightResult.success === true && (
                         <div className="text-sm text-emerald-400 space-y-1">
-                          <p>Simulation OK — fees estimated.</p>
+                          <p>{t('simulationOk')}</p>
                           {preflightResult.feeEstimate?.totalFeeXLM && (
                             <p className="font-mono text-neutral-300">
-                              Total fee (incl. resource):{" "}
-                              {preflightResult.feeEstimate.totalFeeXLM} XLM
+                              {t('totalFee', { totalFee: preflightResult.feeEstimate.totalFeeXLM })}
                             </p>
                           )}
                           {typeof preflightResult.simulationLatencyMs ===
                             "number" && (
                             <p className="text-xs text-neutral-500">
-                              Latency {preflightResult.simulationLatencyMs} ms
+                              {t('latency', { latency: preflightResult.simulationLatencyMs })}
                             </p>
                           )}
                         </div>
