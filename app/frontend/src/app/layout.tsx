@@ -4,6 +4,7 @@ import "./globals.css";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { SearchBar } from "@/components/SearchBar";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -35,6 +36,7 @@ export default function RootLayout({
               <span className="text-xl font-bold tracking-tight">QuickEx</span>
             </Link>
             <NetworkBadge />
+            <WorkspaceSwitcher />
             <div className="hidden md:flex gap-8 text-sm text-neutral-400 font-medium">
               <Link href="/dashboard" className="hover:text-white transition">
                 Dashboard
