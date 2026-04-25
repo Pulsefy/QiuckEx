@@ -1,12 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
 import { BulkPaymentLinksService } from './bulk-payment-links.service';
 import { LinksService } from './links.service';
 import { BulkPaymentLinkItemDto } from './dto/bulk-payment-link.dto';
 
 describe('BulkPaymentLinksService', () => {
   let service: BulkPaymentLinksService;
-  let linksService: LinksService;
 
   const mockLinksService = {
     generateMetadata: jest.fn(),
@@ -24,7 +22,6 @@ describe('BulkPaymentLinksService', () => {
     }).compile();
 
     service = module.get<BulkPaymentLinksService>(BulkPaymentLinksService);
-    linksService = module.get<LinksService>(LinksService);
   });
 
   afterEach(() => {

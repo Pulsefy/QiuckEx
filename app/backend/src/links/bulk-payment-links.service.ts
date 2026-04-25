@@ -99,8 +99,6 @@ export class BulkPaymentLinksService {
    * @returns Bulk response with all generated links
    */
   async generateFromCSV(csvContent: string): Promise<BulkPaymentLinkResponseDto> {
-    const startTime = Date.now();
-
     this.logger.log('Parsing CSV for bulk payment link generation');
 
     // Parse CSV

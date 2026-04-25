@@ -21,7 +21,6 @@ import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 import { SentryExceptionFilter, SentryService } from "./sentry";
 import { MetricsService } from "./metrics/metrics.service";
 import { 
-  redactSensitiveValues, 
   sanitizeErrorMessage,
   createConfigSummary 
 } from "./common/utils/redaction.util";

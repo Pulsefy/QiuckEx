@@ -8,13 +8,18 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiConsumes, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BulkPaymentLinksService } from './bulk-payment-links.service';
 import {
   BulkPaymentLinkRequestDto,
   BulkPaymentLinkResponseDto,
 } from './dto/bulk-payment-link.dto';
+
+interface UploadedFile {
+  originalname: string;
+  buffer: Buffer;
+}
 
 @ApiTags('links')
 @Controller('links/bulk')
@@ -52,11 +57,6 @@ export class BulkPaymentLinksController {
       'Upload a CSV file to generate payment links. CSV must have an "amount" column. Supports: amount, asset, memo, memoType, username, destination, referenceId, privacy, expirationDays, acceptedAssets (pipe-separated).',
   })
   @ApiConsumes('multipart/form-data')
-  @ApiProperty({
-    type: 'string',
-    format: 'binary',
-    description: 'CSV file with payment link data',
-  })
   @ApiResponse({
     status: 200,
     description: 'Payment links generated successfully from CSV',
@@ -68,7 +68,7 @@ export class BulkPaymentLinksController {
   })
   @UseInterceptors(FileInterceptor('file'))
   async generateFromCSV(
-    @UploadedFile() file: any,
+    @UploadedFile() file: UploadedFile,
   ): Promise<BulkPaymentLinkResponseDto> {
     if (!file) {
       throw new BadRequestException('CSV file is required');
