@@ -4,13 +4,16 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AppConfigService } from '../config/app-config.service';
 import { ReconciliationService } from './reconciliation.service';
 import { ReconciliationReport } from './types/reconciliation.types';
+import { JobQueueService } from '../job-queue/job-queue.service';
+import { JobType } from '../job-queue/types';
+import { ReconciliationPayload } from '../job-queue/types/job-payloads.types';
 
 /**
  * ReconciliationWorkerService
  *
  * Runs on a configurable cron schedule (default: every 5 minutes).
- * Delegates to ReconciliationService for the actual comparison logic
- * and logs a structured summary report after each run.
+ * Enqueues reconciliation jobs via the unified job queue system.
+ * The visibility timeout prevents concurrent reconciliation jobs.
  *
  * The worker is self-serialising: if a previous run is still in progress
  * when the next tick fires, the new tick is skipped to prevent thundering
@@ -25,6 +28,7 @@ export class ReconciliationWorkerService {
   constructor(
     private readonly reconciliationService: ReconciliationService,
     private readonly config: AppConfigService,
+    private readonly jobQueueService: JobQueueService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -45,14 +49,30 @@ export class ReconciliationWorkerService {
     }
 
     this.isRunning = true;
-    this.logger.log('Reconciliation cron tick started');
+    this.logger.log('Reconciliation cron tick started - enqueuing job');
 
     try {
       const batchSize = this.config.reconciliationBatchSize;
-      this.lastReport = await this.reconciliationService.runReconciliation(batchSize);
+      
+      // Enqueue reconciliation job via JobQueueService
+      // Requirements: 10.2, 10.4
+      const payload: ReconciliationPayload = {
+        batchSize,
+        // startLedger and endLedger are optional - not used in current implementation
+      };
+
+      const jobId = await this.jobQueueService.enqueue(
+        JobType.RECONCILIATION,
+        payload,
+      );
+
+      this.logger.log(`Reconciliation job enqueued: ${jobId} (batchSize: ${batchSize})`);
+      
+      // Note: The actual reconciliation execution is now handled by the job queue system.
+      // The visibility timeout (5 minutes) prevents concurrent reconciliation jobs.
     } catch (err) {
       this.logger.error(
-        `Unhandled error in reconciliation worker: ${(err as Error).message}`,
+        `Failed to enqueue reconciliation job: ${(err as Error).message}`,
         (err as Error).stack,
       );
     } finally {

@@ -15,6 +15,9 @@ import {
 } from "./soroban-event.parser";
 import { CursorRepository } from "./cursor.repository";
 import { EscrowEventRepository } from "./escrow-event.repository";
+import { JobQueueService } from "../job-queue/job-queue.service";
+import { JobType } from "../job-queue/types";
+import { StellarReconnectPayload } from "../job-queue/types/job-payloads.types";
 import type {
   EscrowEvent,
   QuickExContractEvent,
@@ -48,6 +51,7 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
   private destroyed = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private currentBackoffMs = INITIAL_BACKOFF_MS;
+  private currentContractId: string | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -55,6 +59,7 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
     private readonly escrowRepo: EscrowEventRepository,
     private readonly parser: SorobanEventParser,
     private readonly eventEmitter: EventEmitter2,
+    private readonly jobQueueService: JobQueueService,
   ) {}
 
   onModuleInit(): void {
@@ -81,6 +86,7 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
    * Safe to call multiple times; previous stream is closed first.
    */
   async startStreaming(contractId: string): Promise<void> {
+    this.currentContractId = contractId;
     this.stopCurrentStream();
     await this.openStream(contractId);
   }
@@ -192,24 +198,79 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private scheduleReconnect(contractId: string): void {
+  private async scheduleReconnect(contractId: string): Promise<void> {
     if (this.destroyed) return;
 
-    this.logger.warn(
-      `Reconnecting stream for contract ${contractId} in ${this.currentBackoffMs}ms`,
-    );
+    // Get the last cursor for this contract
+    const streamId = `contract:${contractId}`;
+    const lastCursor = await this.cursorRepo.getCursor(streamId);
 
-    this.reconnectTimer = setTimeout(() => {
-      if (!this.destroyed) {
-        void this.openStream(contractId);
-      }
-    }, this.currentBackoffMs);
+    if (!lastCursor) {
+      this.logger.warn(
+        `No cursor found for contract ${contractId} - cannot enqueue reconnect job`,
+      );
+      // Fall back to in-process reconnection
+      this.logger.warn(
+        `Reconnecting stream for contract ${contractId} in ${this.currentBackoffMs}ms (in-process fallback)`,
+      );
 
-    // Exponential back-off with cap
-    this.currentBackoffMs = Math.min(
-      this.currentBackoffMs * BACKOFF_MULTIPLIER,
-      MAX_BACKOFF_MS,
-    );
+      this.reconnectTimer = setTimeout(() => {
+        if (!this.destroyed) {
+          void this.openStream(contractId);
+        }
+      }, this.currentBackoffMs);
+
+      // Exponential back-off with cap
+      this.currentBackoffMs = Math.min(
+        this.currentBackoffMs * BACKOFF_MULTIPLIER,
+        MAX_BACKOFF_MS,
+      );
+      return;
+    }
+
+    // Enqueue stellar_reconnect job via JobQueueService
+    // Requirements: 11.2, 11.5
+    try {
+      const payload: StellarReconnectPayload = {
+        contractId,
+        lastCursor,
+      };
+
+      const jobId = await this.jobQueueService.enqueue(
+        JobType.STELLAR_RECONNECT,
+        payload,
+      );
+
+      this.logger.log(
+        `SSE stream disconnected - reconnect job enqueued: ${jobId} ` +
+        `(contractId: ${contractId}, lastCursor: ${lastCursor})`,
+      );
+
+      // Reset backoff since we successfully enqueued the job
+      this.currentBackoffMs = INITIAL_BACKOFF_MS;
+    } catch (err) {
+      this.logger.error(
+        `Failed to enqueue reconnect job for contract ${contractId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+
+      // Fall back to in-process reconnection
+      this.logger.warn(
+        `Reconnecting stream for contract ${contractId} in ${this.currentBackoffMs}ms (in-process fallback)`,
+      );
+
+      this.reconnectTimer = setTimeout(() => {
+        if (!this.destroyed) {
+          void this.openStream(contractId);
+        }
+      }, this.currentBackoffMs);
+
+      // Exponential back-off with cap
+      this.currentBackoffMs = Math.min(
+        this.currentBackoffMs * BACKOFF_MULTIPLIER,
+        MAX_BACKOFF_MS,
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------

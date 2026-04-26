@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 
 import { SupabaseModule } from "../supabase/supabase.module";
 import { MetricsModule } from "../metrics/metrics.module";
@@ -21,6 +21,7 @@ import { TelegramController } from "./telegram/telegram.controller";
 import { WebhookService } from "./webhook.service";
 import { WebhooksController } from "./webhooks.controller";
 import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
+import { JobQueueModule } from "../job-queue/job-queue.module";
 
 /**
  * Notification engine module.
@@ -34,7 +35,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule, MetricsModule],
+  imports: [SupabaseModule, MetricsModule, forwardRef(() => JobQueueModule)],
   controllers: [
     NotificationPreferencesController,
     TelegramController,
@@ -93,6 +94,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
   exports: [
     NotificationService,
     NotificationPreferencesRepository,
+    NotificationLogRepository,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
