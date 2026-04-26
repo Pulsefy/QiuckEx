@@ -108,7 +108,39 @@ describe("MetricsService", () => {
         help: "Number of active connections",
       });
 
-      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(4);
+      expect(client.Gauge).toHaveBeenCalledWith({
+        name: "ingestion_lag_seconds",
+        help: "Lag between current ledger and last ingested ledger in seconds",
+        labelNames: ["contract_id"],
+      });
+
+      expect(client.Counter).toHaveBeenCalledWith({
+        name: "webhook_retry_total",
+        help: "Total number of webhook retry attempts",
+        labelNames: ["event_type", "status"],
+      });
+
+      expect(client.Histogram).toHaveBeenCalledWith({
+        name: "webhook_delivery_duration_seconds",
+        help: "Duration of webhook delivery attempts in seconds",
+        labelNames: ["event_type", "status"],
+        buckets: [0.1, 0.5, 1, 2, 5, 10],
+      });
+
+      expect(client.Histogram).toHaveBeenCalledWith({
+        name: "external_call_duration_seconds",
+        help: "Duration of external API calls in seconds",
+        labelNames: ["service", "operation"],
+        buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+      });
+
+      expect(client.Counter).toHaveBeenCalledWith({
+        name: "error_total",
+        help: "Total number of errors",
+        labelNames: ["service", "error_type"],
+      });
+
+      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(9);
     });
 
     it("should handle initialization errors gracefully", () => {

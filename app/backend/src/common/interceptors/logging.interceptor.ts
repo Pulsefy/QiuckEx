@@ -43,9 +43,11 @@ export class LoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
-    const { method, url, body } = request;
+    const { method, url, body, route } = request;
     const correlationId =
       (request as Record<string, unknown>)['correlationId'] || 'N/A';
+    const userId = this.extractUserId(request);
+    const routePath = route?.path || url;
     const now = Date.now();
 
     const sanitizedBody = this.sanitise(body);
@@ -57,6 +59,8 @@ export class LoggingInterceptor implements NestInterceptor {
           this.logger.log(
             JSON.stringify({
               correlationId,
+              userId,
+              route: routePath,
               method,
               url,
               duration: `${duration}ms`,
@@ -72,6 +76,8 @@ export class LoggingInterceptor implements NestInterceptor {
           this.logger.error(
             JSON.stringify({
               correlationId,
+              userId,
+              route: routePath,
               method,
               url,
               duration: `${duration}ms`,
@@ -83,6 +89,28 @@ export class LoggingInterceptor implements NestInterceptor {
         },
       }),
     );
+  }
+
+  /**
+   * Extract user_id from request if available (from auth context, API key, etc.)
+   */
+  private extractUserId(request: Record<string, unknown>): string | undefined {
+    // Try to get from user object (if authenticated)
+    const user = request.user as { id?: string } | undefined;
+    if (user?.id) {
+      return user.id;
+    }
+    // Try to get from API key context
+    const apiKey = request.apiKey as { userId?: string } | undefined;
+    if (apiKey?.userId) {
+      return apiKey.userId;
+    }
+    // Try to get from public key (Stellar wallet)
+    const publicKey = request.publicKey as string | undefined;
+    if (publicKey) {
+      return publicKey;
+    }
+    return undefined;
   }
 
   /**

@@ -16,6 +16,6 @@ import { IngestionBootstrapService } from "./ingestion-bootstrap.service";
     StellarIngestionService,
     IngestionBootstrapService,
   ],
-  exports: [StellarIngestionService],
+  exports: [StellarIngestionService, SorobanEventParser, CursorRepository, EscrowEventRepository],
 })
 export class IngestionModule {}

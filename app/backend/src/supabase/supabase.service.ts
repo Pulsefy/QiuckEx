@@ -165,6 +165,16 @@ export class SupabaseService {
     return (data as PaymentRecord[]) ?? [];
   }
 
+  async fetchPaidPayments(): Promise<PaymentRecord[]> {
+    const { data, error } = await this.client
+      .from("payment_records")
+      .select("*")
+      .eq("status", PaymentDbStatus.Paid)
+      .order("created_at", { ascending: false });
+    if (error) this.handleError(error);
+    return (data as PaymentRecord[]) ?? [];
+  }
+
   async updateEscrowStatus(id: string, status: EscrowDbStatus): Promise<void> {
     const { error } = await this.client
       .from("escrow_records")

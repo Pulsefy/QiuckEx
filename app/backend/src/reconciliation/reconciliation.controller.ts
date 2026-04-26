@@ -5,10 +5,12 @@ import {
   HttpCode,
   HttpStatus,
   ConflictException,
+  Body,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ReconciliationWorkerService } from './reconciliation-worker.service';
+import { BackfillService, BackfillConfig, BackfillProgress, BackfillResult } from './backfill.service';
 import { ReconciliationReport } from './types/reconciliation.types';
 
 /**
@@ -18,7 +20,10 @@ import { ReconciliationReport } from './types/reconciliation.types';
 @ApiTags('reconciliation')
 @Controller('reconciliation')
 export class ReconciliationController {
-  constructor(private readonly worker: ReconciliationWorkerService) {}
+  constructor(
+    private readonly worker: ReconciliationWorkerService,
+    private readonly backfill: BackfillService,
+  ) {}
 
   @Get('status')
   @ApiOperation({ summary: 'Return the status and last report of the reconciliation worker' })
@@ -44,5 +49,28 @@ export class ReconciliationController {
       }
       throw err;
     }
+  }
+
+  @Post('backfill')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Trigger a backfill job for a ledger range (admin only)' })
+  @ApiResponse({ status: 200, description: 'Backfill job completed' })
+  @ApiResponse({ status: 409, description: 'A backfill job is already running' })
+  async startBackfill(@Body() config: BackfillConfig): Promise<BackfillResult> {
+    try {
+      return await this.backfill.startBackfill(config);
+    } catch (err) {
+      if ((err as Error).message === 'A backfill job is already running') {
+        throw new ConflictException('A backfill job is already running');
+      }
+      throw err;
+    }
+  }
+
+  @Get('backfill/status')
+  @ApiOperation({ summary: 'Get the current backfill job progress' })
+  @ApiResponse({ status: 200, description: 'Backfill progress' })
+  getBackfillStatus(): BackfillProgress | null {
+    return this.backfill.getBackfillProgress();
   }
 }
