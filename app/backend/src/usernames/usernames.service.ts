@@ -4,6 +4,7 @@ import {
   SearchProfileResult,
   TrendingCreatorResult,
 } from "../supabase/supabase.service";
+import { decodeCursor } from "../common/pagination/cursor.util";
 import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
 import { AppConfigService } from "../config";
 import { DiscoveryCacheService } from "./cache/discovery-cache.service";
@@ -112,8 +113,14 @@ export class UsernamesService {
   async searchPublicUsernames(
     query: string,
     limit: number = 10,
-  ): Promise<SearchProfileResult[]> {
+    cursor?: string,
+  ): Promise<{ data: SearchProfileResult[]; next_cursor: string | null; has_more: boolean }> {
     const normalizedQuery = this.normalizeUsername(query);
+
+    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
+    if (cursor) {
+      decodeCursor(cursor);
+    }
 
     if (!normalizedQuery || normalizedQuery.length < 2) {
       throw new UsernameValidationError(
@@ -123,28 +130,33 @@ export class UsernamesService {
       );
     }
 
-    // Try cache first
-    const cachedResults = this.cache.getSearchResults(normalizedQuery, limit);
-    if (cachedResults) {
-      return cachedResults;
-    }
-
+    // For search endpoints, fetch limit+1 results to detect has_more
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
     const results = await this.supabase.searchPublicUsernames(
       normalizedQuery,
-      limit,
+      effectiveLimit + 1,
     );
 
-    // Cache the results
-    this.cache.setSearchResults(normalizedQuery, limit, results);
+    const hasMore = results.length > effectiveLimit;
+    const data = hasMore ? results.slice(0, effectiveLimit) : results;
+
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        "utf-8",
+      ).toString("base64url");
+    }
 
     // Update activity timestamp for clicked results (async, non-blocking)
-    if (results.length > 0) {
-      this.supabase.updateUsernameActivity(results[0].username).catch(() => {
+    if (data.length > 0) {
+      this.supabase.updateUsernameActivity(data[0].username).catch(() => {
         // Ignore errors - activity tracking is best-effort
       });
     }
 
-    return results;
+    return { data, next_cursor: nextCursor, has_more: hasMore };
   }
 
   /**
@@ -154,7 +166,13 @@ export class UsernamesService {
   async getTrendingCreators(
     timeWindowHours: number = 24,
     limit: number = 10,
-  ): Promise<TrendingCreatorResult[]> {
+    cursor?: string,
+  ): Promise<{ data: TrendingCreatorResult[]; next_cursor: string | null; has_more: boolean }> {
+    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
+    if (cursor) {
+      decodeCursor(cursor);
+    }
+
     if (timeWindowHours < 1 || timeWindowHours > 720) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
@@ -163,21 +181,25 @@ export class UsernamesService {
       );
     }
 
-    // Try cache first
-    const cachedResults = this.cache.getTrendingResults(timeWindowHours, limit);
-    if (cachedResults) {
-      return cachedResults;
-    }
-
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
     const results = await this.supabase.getTrendingCreators(
       timeWindowHours,
-      limit,
+      effectiveLimit + 1,
     );
 
-    // Cache results
-    this.cache.setTrendingResults(timeWindowHours, limit, results);
+    const hasMore = results.length > effectiveLimit;
+    const data = hasMore ? results.slice(0, effectiveLimit) : results;
 
-    return results;
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        "utf-8",
+      ).toString("base64url");
+    }
+
+    return { data, next_cursor: nextCursor, has_more: hasMore };
   }
 
   /**
@@ -187,7 +209,13 @@ export class UsernamesService {
   async getRecentlyActiveUsers(
     timeWindowHours: number = 24,
     limit: number = 10,
-  ): Promise<SearchProfileResult[]> {
+    cursor?: string,
+  ): Promise<{ data: SearchProfileResult[]; next_cursor: string | null; has_more: boolean }> {
+    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
+    if (cursor) {
+      decodeCursor(cursor);
+    }
+
     if (timeWindowHours < 1 || timeWindowHours > 168) {
       throw new UsernameValidationError(
         UsernameErrorCode.INVALID_FORMAT,
@@ -196,24 +224,25 @@ export class UsernamesService {
       );
     }
 
-    // Try cache first
-    const cachedResults = this.cache.getRecentlyActiveResults(
-      timeWindowHours,
-      limit,
-    );
-    if (cachedResults) {
-      return cachedResults;
-    }
-
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
     const results = await this.supabase.getRecentlyActiveUsers(
       timeWindowHours,
-      limit,
+      effectiveLimit + 1,
     );
 
-    // Cache results
-    this.cache.setRecentlyActiveResults(timeWindowHours, limit, results);
+    const hasMore = results.length > effectiveLimit;
+    const data = hasMore ? results.slice(0, effectiveLimit) : results;
 
-    return results;
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        "utf-8",
+      ).toString("base64url");
+    }
+
+    return { data, next_cursor: nextCursor, has_more: hasMore };
   }
 
   /**

@@ -179,7 +179,7 @@ invalid,USDC
     });
 
     it('should parse acceptedAssets with pipe separator', async () => {
-      const csvContent = `amount,asset,acceptedAssets
+      const csvContent = `amount,asset,acceptedassets
 100,XLM,XLM|USDC|AQUA`;
 
       mockLinksService.generateMetadata.mockResolvedValue({

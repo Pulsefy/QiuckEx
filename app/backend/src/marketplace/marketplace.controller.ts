@@ -54,18 +54,23 @@ export class MarketplaceController {
 
   @Get()
   @ApiOperation({ summary: 'Get all active listings' })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page (1-100)' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({ status: 200, description: 'List of active listings' })
   async getActiveListings(
     @Query('limit') limit = 20,
-    @Query('offset') offset = 0,
+    @Query('cursor') cursor?: string,
   ) {
-    const { listings, total } = await this.marketplaceService.getActiveListings(
+    const result = await this.marketplaceService.getActiveListings(
       Number(limit),
-      Number(offset),
+      cursor ?? null,
     );
-    return { listings, total };
+    return {
+      listings: result.listings,
+      total: result.total,
+      next_cursor: result.next_cursor,
+      has_more: result.has_more,
+    };
   }
 
   @Get(':listingId')
@@ -136,12 +141,22 @@ export class MarketplaceController {
   @Get(':listingId/bids')
   @ApiOperation({ summary: 'Get all bids for a listing' })
   @ApiParam({ name: 'listingId', description: 'Listing UUID' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (1-100)', example: 20 })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({ status: 200, description: 'List of bids' })
   @ApiResponse({ status: 404, description: 'Listing not found' })
-  async getBids(@Param('listingId') listingId: string) {
+  async getBids(
+    @Param('listingId') listingId: string,
+    @Query('limit') limit = 20,
+    @Query('cursor') cursor?: string,
+  ) {
     try {
-      const bids = await this.marketplaceService.getBids(listingId);
-      return { bids };
+      const result = await this.marketplaceService.getBids(listingId, Number(limit), cursor ?? null);
+      return {
+        bids: result.bids,
+        next_cursor: result.next_cursor,
+        has_more: result.has_more,
+      };
     } catch (err) {
       if (err instanceof MarketplaceError) {
         this.throwHttp(err);

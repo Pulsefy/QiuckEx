@@ -165,6 +165,16 @@ export class SupabaseService {
     return (data as PaymentRecord[]) ?? [];
   }
 
+  async fetchPaidPayments(): Promise<PaymentRecord[]> {
+    const { data, error } = await this.client
+      .from("payment_records")
+      .select("*")
+      .eq("status", PaymentDbStatus.Paid)
+      .order("created_at", { ascending: false });
+    if (error) this.handleError(error);
+    return (data as PaymentRecord[]) ?? [];
+  }
+
   async updateEscrowStatus(id: string, status: EscrowDbStatus): Promise<void> {
     const { error } = await this.client
       .from("escrow_records")
@@ -560,19 +570,107 @@ export class SupabaseService {
 
   async getActiveListings(
     limit: number,
-    offset: number,
-  ): Promise<{ listings: MarketplaceListing[]; total: number }> {
-    const { data, error, count } = await this.client
-      .from("username_marketplace")
-      .select("*", { count: "exact" })
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    cursor: string | null,
+  ): Promise<{ listings: MarketplaceListing[]; next_cursor: string | null; has_more: boolean; total: number }> {
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+
+    let query = this.client
+      .from('username_marketplace')
+      .select('*', { count: 'exact' })
+      .eq('status', 'active');
+
+    if (cursor) {
+      // Decode cursor
+      try {
+        const json = Buffer.from(cursor, 'base64url').toString('utf-8');
+        const parsed = JSON.parse(json);
+        if (typeof parsed.pk === 'string' && typeof parsed.id === 'string') {
+          query = query
+            .lt('created_at', parsed.pk)
+            .or(`created_at.eq.${parsed.pk},id.lt.${parsed.id}`);
+        }
+      } catch {
+        // invalid cursor – start from beginning
+      }
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    const { data, error, count } = await query;
     if (error) this.handleError(error);
+
+    const rows = (data ?? []) as MarketplaceListing[];
+    const hasMore = rows.length > effectiveLimit;
+    const listings = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore && listings.length > 0) {
+      const last = listings[listings.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        'utf-8',
+      ).toString('base64url');
+    }
+
     return {
-      listings: (data ?? []) as MarketplaceListing[],
+      listings,
+      next_cursor: nextCursor,
+      has_more: hasMore,
       total: count ?? 0,
     };
+  }
+
+  async getBidsByListingIdPaginated(
+    listingId: string,
+    limit: number,
+    cursor: string | null,
+  ): Promise<{ bids: MarketplaceBid[]; next_cursor: string | null; has_more: boolean }> {
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+
+    let query = this.client
+      .from('username_bids')
+      .select('*')
+      .eq('listing_id', listingId);
+
+    if (cursor) {
+      try {
+        const json = Buffer.from(cursor, 'base64url').toString('utf-8');
+        const parsed = JSON.parse(json);
+        if (typeof parsed.pk === 'string' && typeof parsed.id === 'string') {
+          query = query
+            .lt('created_at', parsed.pk)
+            .or(`created_at.eq.${parsed.pk},id.lt.${parsed.id}`);
+        }
+      } catch {
+        // invalid cursor
+      }
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    const { data, error } = await query;
+    if (error) this.handleError(error);
+
+    const rows = (data ?? []) as MarketplaceBid[];
+    const hasMore = rows.length > effectiveLimit;
+    const bids = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore && bids.length > 0) {
+      const last = bids[bids.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        'utf-8',
+      ).toString('base64url');
+    }
+
+    return { bids, next_cursor: nextCursor, has_more: hasMore };
   }
 
   async getListingById(listingId: string): Promise<MarketplaceListing | null> {

@@ -26,4 +26,12 @@ export class SearchUsernamesQueryDto {
   @Max(100)
   @Type(() => Number)
   limit?: number = 10;
+
+  @ApiProperty({
+    description: 'Opaque cursor for the next page of results',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

@@ -324,6 +324,15 @@ export class ListRecurringPaymentsResponseDto {
     type: [RecurringPaymentLinkResponseDto],
   })
   data!: RecurringPaymentLinkResponseDto[];
+
+  @ApiPropertyOptional({ description: 'Cursor for the next page', nullable: true })
+  next_cursor!: string | null;
+
+  @ApiProperty({ description: 'Whether more results exist' })
+  has_more!: boolean;
+
+  @ApiProperty({ description: 'Limit used for this page' })
+  limit!: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,14 +366,12 @@ export class QueryRecurringPaymentsDto {
   destination?: string;
 
   @ApiPropertyOptional({
-    description: 'Page number',
-    example: 1,
-    minimum: 1,
+    description: 'Opaque cursor for the next page of results',
+    example: 'eyJwayI6IjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImlkIjoiMTIzNCJ9',
   })
-  @IsNumber()
-  @Min(1)
+  @IsString()
   @IsOptional()
-  page?: number;
+  cursor?: string;
 
   @ApiPropertyOptional({
     description: 'Items per page',

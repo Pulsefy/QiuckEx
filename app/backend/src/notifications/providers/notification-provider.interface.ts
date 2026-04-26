@@ -1,6 +1,7 @@
-import { Logger } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
 import * as crypto from "crypto";
 
+import { MetricsService } from "../../metrics/metrics.service";
 import type {
   NotificationChannel,
   NotificationPreference,
@@ -191,6 +192,10 @@ export class WebhookProvider implements INotificationProvider {
   private readonly logger = new Logger(WebhookProvider.name);
   private readonly maxResponseBodyLength = 1000;
 
+  constructor(
+    @Inject(MetricsService) private readonly metrics?: MetricsService,
+  ) {}
+
   async send(
     preference: NotificationPreference,
     payload: BaseNotificationPayload,
@@ -199,6 +204,7 @@ export class WebhookProvider implements INotificationProvider {
       throw new Error("No webhook URL configured for preference");
     }
 
+    const startTime = Date.now();
     const webhookPayload = this.buildWebhookPayload(payload);
     const body = JSON.stringify(webhookPayload);
     const signature = this.signPayload(body, webhookPayload.sentAt, preference.webhookSecret);
@@ -211,37 +217,58 @@ export class WebhookProvider implements INotificationProvider {
       "X-QuickEx-Timestamp": webhookPayload.sentAt,
     };
 
-    const response = await fetch(preference.webhookUrl, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    let responseBody: string | undefined;
     try {
-      const text = await response.text();
-      responseBody =
-        text.length > this.maxResponseBodyLength
-          ? text.slice(0, this.maxResponseBodyLength) + "..."
-          : text;
-    } catch {
-      // Ignore response body read errors
-    }
+      const response = await fetch(preference.webhookUrl, {
+        method: "POST",
+        headers,
+        body,
+      });
 
-    if (!response.ok) {
-      throw new Error(
-        `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}: ${responseBody ?? "no response body"}`,
+      const duration = (Date.now() - startTime) / 1000;
+
+      let responseBody: string | undefined;
+      try {
+        const text = await response.text();
+        responseBody =
+          text.length > this.maxResponseBodyLength
+            ? text.slice(0, this.maxResponseBodyLength) + "..."
+            : text;
+      } catch {
+        // Ignore response body read errors
+      }
+
+      if (!response.ok) {
+        const error = new Error(
+          `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}: ${responseBody ?? "no response body"}`,
+        );
+        if (this.metrics) {
+          this.metrics.recordWebhookDeliveryDuration(payload.eventType, "failed", duration);
+          this.metrics.recordError("webhook", "http_error");
+        }
+        throw error;
+      }
+
+      this.logger.debug(
+        `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
       );
+
+      if (this.metrics) {
+        this.metrics.recordWebhookDeliveryDuration(payload.eventType, "success", duration);
+      }
+
+      return {
+        httpStatus: response.status,
+        responseBody,
+      };
+    } catch (error) {
+      const duration = (Date.now() - startTime) / 1000;
+      const errorType = error instanceof Error ? error.constructor.name : "UnknownError";
+      if (this.metrics) {
+        this.metrics.recordWebhookDeliveryDuration(payload.eventType, "error", duration);
+        this.metrics.recordError("webhook", errorType);
+      }
+      throw error;
     }
-
-    this.logger.debug(
-      `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
-    );
-
-    return {
-      httpStatus: response.status,
-      responseBody,
-    };
   }
 
   private buildWebhookPayload(

@@ -2,12 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AppConfigService } from '../config/app-config.service';
+import { DiscoveryCacheService } from './cache/discovery-cache.service';
 import { UsernameValidationError } from './errors';
 
 describe('UsernamesService - Public Profile Discovery', () => {
   let service: UsernamesService;
   let supabaseMock: jest.Mocked<Partial<SupabaseService>>;
   let configMock: Partial<AppConfigService>;
+  let discoveryCacheMock: jest.Mocked<Partial<DiscoveryCacheService>>;
 
   beforeEach(async () => {
     supabaseMock = {
@@ -20,11 +22,25 @@ describe('UsernamesService - Public Profile Discovery', () => {
 
     configMock = { maxUsernamesPerWallet: 5 };
 
+    discoveryCacheMock = {
+      getSearchResults: jest.fn(),
+      setSearchResults: jest.fn(),
+      getTrendingResults: jest.fn(),
+      setTrendingResults: jest.fn(),
+      getRecentlyActiveResults: jest.fn(),
+      setRecentlyActiveResults: jest.fn(),
+      invalidateSearchCache: jest.fn(),
+      invalidateTrendingCache: jest.fn(),
+      invalidateRecentlyActiveCache: jest.fn(),
+      getStats: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsernamesService,
         { provide: SupabaseService, useValue: supabaseMock },
         { provide: AppConfigService, useValue: configMock },
+        { provide: DiscoveryCacheService, useValue: discoveryCacheMock },
       ],
     }).compile();
 
@@ -46,9 +62,10 @@ describe('UsernamesService - Public Profile Discovery', () => {
       supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       const res = await service.searchPublicUsernames('alice', 10);
-      expect(res).toHaveLength(2);
-      expect(res[0].username).toBe('alice');
+      expect(res.data).toHaveLength(2);
+      expect(res.data[0].username).toBe('alice');
       expect(supabaseMock.updateUsernameActivity).toHaveBeenCalledWith('alice');
+      expect(supabaseMock.searchPublicUsernames).toHaveBeenCalledWith('alice', 11);
     });
 
     it('throws for short queries', async () => {
@@ -60,8 +77,8 @@ describe('UsernamesService - Public Profile Discovery', () => {
   describe('getTrendingCreators', () => {
     it('returns trending creators', async () => {
       supabaseMock.getTrendingCreators!.mockResolvedValue([]);
-      await service.getTrendingCreators();
-      expect(supabaseMock.getTrendingCreators).toHaveBeenCalledWith(24, 10);
+      await service.getTrendingCreators(24, 10);
+      expect(supabaseMock.getTrendingCreators).toHaveBeenCalledWith(24, 11);
     });
 
     it('throws on invalid time window', async () => {

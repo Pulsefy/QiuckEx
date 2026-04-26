@@ -214,7 +214,7 @@ export class BulkPaymentLinksService {
       if (row.privacy) item.privacy = row.privacy.toLowerCase() === 'true';
       if (row.expirationdays) item.expirationDays = parseInt(row.expirationDays, 10);
       if (row.acceptedassets) {
-        item.acceptedAssets = row.acceptedAssets
+        item.acceptedAssets = row.acceptedassets
           .split('|')
           .map((a) => a.trim())
           .filter((a) => a.length > 0);
