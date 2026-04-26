@@ -31,6 +31,7 @@ describe("WebhookService", () => {
       upsertPreference: jest.fn(),
       getWebhookById: jest.fn(),
       getWebhooksByPublicKey: jest.fn(),
+      getWebhooksByPublicKeyPaginated: jest.fn(),
       deleteWebhook: jest.fn(),
       regenerateWebhookSecret: jest.fn(),
     };
@@ -123,18 +124,28 @@ describe("WebhookService", () => {
   });
 
   describe("listWebhooks", () => {
-    it("should return all webhooks for a public key", async () => {
+    it("should return paginated webhooks for a public key", async () => {
       const prefs = [
         makePref({ id: "w1" }),
         makePref({ id: "w2", webhookUrl: "https://other.com/hook" }),
       ];
-      mockPrefsRepo.getWebhooksByPublicKey.mockResolvedValue(prefs);
+      mockPrefsRepo.getWebhooksByPublicKeyPaginated.mockResolvedValue({
+        data: prefs,
+        next_cursor: "next-c",
+        has_more: true,
+      });
 
-      const result = await service.listWebhooks(PUBLIC_KEY);
+      const result = await service.listWebhooks(PUBLIC_KEY, "cursor-1", 10);
 
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe("w1");
-      expect(result[1].id).toBe("w2");
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].id).toBe("w1");
+      expect(result.next_cursor).toBe("next-c");
+      expect(result.has_more).toBe(true);
+      expect(mockPrefsRepo.getWebhooksByPublicKeyPaginated).toHaveBeenCalledWith(
+        PUBLIC_KEY,
+        "cursor-1",
+        10,
+      );
     });
   });
 

@@ -113,8 +113,20 @@ export class ApiKeysService {
     const candidates = await this.repo.findByPrefix(prefix);
 
     for (const record of candidates) {
-      const match = await bcrypt.compare(rawKey, record.key_hash);
-      if (match) {
+      const isCurrentMatch = await bcrypt.compare(rawKey, record.key_hash);
+      let isOldMatch = false;
+
+      if (!isCurrentMatch && record.key_hash_old && record.rotated_at) {
+        const rotatedAt = new Date(record.rotated_at).getTime();
+        const now = Date.now();
+        const overlapMs = 24 * 60 * 60 * 1000; // 24 hours
+
+        if (now - rotatedAt < overlapMs) {
+          isOldMatch = await bcrypt.compare(rawKey, record.key_hash_old);
+        }
+      }
+
+      if (isCurrentMatch || isOldMatch) {
         // Fire-and-forget usage increment — don't block the request
         this.repo
           .incrementUsage(record.id)
@@ -137,6 +149,18 @@ export class ApiKeysService {
   // ---------------------------------------------------------------------------
 
   isOverQuota(record: ApiKeyRecord): boolean {
+    const now = new Date();
+    const lastReset = new Date(record.last_reset_at);
+
+    // If we've moved into a new month, the quota hasn't been reset in the DB yet
+    // (it happens on the next increment), but for the guard's sake, it's NOT over quota.
+    if (
+      now.getUTCFullYear() > lastReset.getUTCFullYear() ||
+      now.getUTCMonth() > lastReset.getUTCMonth()
+    ) {
+      return false;
+    }
+
     return record.request_count >= record.monthly_quota;
   }
 

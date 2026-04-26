@@ -111,7 +111,7 @@ export default function TeamSettings() {
                       <select 
                         value={member.role}
                         disabled={userRole !== "admin" || member.id === "1"} // Can't change own role or if not admin
-                        onChange={(e) => handleRoleChange(member.id, e.target.value as any)}
+                        onChange={(e) => handleRoleChange(member.id, e.target.value as "admin" | "operator" | "viewer")}
                         className="bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="admin">Admin</option>
