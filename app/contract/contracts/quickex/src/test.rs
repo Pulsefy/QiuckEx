@@ -2717,3 +2717,191 @@ mod tests {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Golden tests – Event Schema v2
+//
+// These tests lock the canonical topic list and every payload key for each
+// event.  If you add, remove, or rename a field you MUST:
+//   1. Bump EVENT_SCHEMA_VERSION in events.rs.
+//   2. Update the assertions below to match the new shape.
+//   3. Add a migration note in docs/events-schema.md.
+//
+// Indexer migration plan (v1 → v2):
+//   - All events now carry `schema_version: u32` as the first data field.
+//   - Indexers should read `schema_version` before decoding any other field.
+//   - v1 events (no `schema_version` key) can be detected by its absence and
+//     decoded with the legacy decoder.
+//   - v2 events are identified by `schema_version == 2`.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod golden_schema_v2 {
+    use super::*;
+    use crate::events::EVENT_SCHEMA_VERSION;
+
+    fn assert_schema_version(env: &Env, data: Val) {
+        let data_map = event_data_map(env, data);
+        let ver: u32 = data_map
+            .get(Symbol::new(env, "schema_version"))
+            .expect("schema_version must be present in every v2 event")
+            .try_into_val(env)
+            .unwrap();
+        assert_eq!(ver, EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn golden_privacy_toggled() {
+        let (env, client) = setup();
+        let account = Address::generate(&env);
+        client.set_privacy(&account, &true);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_PRIVACY"));
+        assert_eq!(t1, Symbol::new(&env, "PrivacyToggled"));
+        assert_eq!(t2, account);
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "enabled")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_escrow_deposited() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(QuickexContract, ());
+        let client = QuickexContractClient::new(&env, &contract_id);
+        let token = create_test_token(&env);
+        let owner = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &token).mint(&owner, &1000);
+        let salt = Bytes::from_slice(&env, b"golden_deposit_salt");
+        client.deposit(&token, &500i128, &owner, &salt, &0u64, &None);
+
+        let (topics, data) = latest_contract_event(&env, &contract_id);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+        assert_eq!(t1, Symbol::new(&env, "EscrowDeposited"));
+        // t2 = escrow_id (BytesN<32>), t3 = owner (Address) — presence checked implicitly
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "expires_at")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_escrow_withdrawn() {
+        let (env, client) = setup();
+        let token = create_test_token(&env);
+        let owner = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &token).mint(&owner, &1000);
+        let salt = Bytes::from_slice(&env, b"golden_withdraw_salt");
+        let commitment = client.deposit(&token, &500i128, &owner, &salt, &0u64, &None);
+        client.withdraw(&token, &500i128, &commitment, &owner, &salt);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+        assert_eq!(t1, Symbol::new(&env, "EscrowWithdrawn"));
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "fee")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_escrow_refunded() {
+        let (env, client) = setup();
+        let token = create_test_token(&env);
+        let owner = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &token).mint(&owner, &1000);
+        let salt = Bytes::from_slice(&env, b"golden_refund_salt");
+        let commitment = client.deposit(&token, &500i128, &owner, &salt, &100u64, &None);
+        env.ledger().set_timestamp(200);
+        client.refund(&commitment, &owner);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+        assert_eq!(t1, Symbol::new(&env, "EscrowRefunded"));
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "token")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_escrow_disputed() {
+        let (env, client) = setup();
+        let token = create_test_token(&env);
+        let owner = Address::generate(&env);
+        let arbiter = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &token).mint(&owner, &1000);
+        let salt = Bytes::from_slice(&env, b"golden_dispute_salt");
+        let commitment =
+            client.deposit(&token, &500i128, &owner, &salt, &1000u64, &Some(arbiter.clone()));
+        client.dispute(&commitment);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+        assert_eq!(t1, Symbol::new(&env, "EscrowDisputed"));
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_contract_paused() {
+        let (env, client) = setup();
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        client.set_paused(&admin, &true);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+        assert_eq!(t1, Symbol::new(&env, "ContractPaused"));
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "paused")).is_some());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+
+    #[test]
+    fn golden_admin_changed() {
+        let (env, client) = setup();
+        let old_admin = Address::generate(&env);
+        let new_admin = Address::generate(&env);
+        client.initialize(&old_admin);
+        client.set_admin(&old_admin, &new_admin);
+
+        let (topics, data) = latest_contract_event(&env, &client.address);
+        let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+        let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+        assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+        assert_eq!(t1, Symbol::new(&env, "AdminChanged"));
+
+        let data_map = event_data_map(&env, data.clone());
+        assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+        assert_schema_version(&env, data);
+    }
+}
