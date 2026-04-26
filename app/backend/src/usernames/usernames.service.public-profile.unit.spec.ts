@@ -2,12 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AppConfigService } from '../config/app-config.service';
+import { DiscoveryCacheService } from './cache/discovery-cache.service';
 import { UsernameValidationError } from './errors';
 
 describe('UsernamesService - Public Profile Discovery', () => {
   let service: UsernamesService;
   let supabaseMock: jest.Mocked<Partial<SupabaseService>>;
   let configMock: Partial<AppConfigService>;
+  let discoveryCacheMock: jest.Mocked<Partial<DiscoveryCacheService>>;
 
   beforeEach(async () => {
     supabaseMock = {
@@ -20,11 +22,25 @@ describe('UsernamesService - Public Profile Discovery', () => {
 
     configMock = { maxUsernamesPerWallet: 5 };
 
+    discoveryCacheMock = {
+      getSearchResults: jest.fn(),
+      setSearchResults: jest.fn(),
+      getTrendingResults: jest.fn(),
+      setTrendingResults: jest.fn(),
+      getRecentlyActiveResults: jest.fn(),
+      setRecentlyActiveResults: jest.fn(),
+      invalidateSearchCache: jest.fn(),
+      invalidateTrendingCache: jest.fn(),
+      invalidateRecentlyActiveCache: jest.fn(),
+      getStats: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsernamesService,
         { provide: SupabaseService, useValue: supabaseMock },
         { provide: AppConfigService, useValue: configMock },
+        { provide: DiscoveryCacheService, useValue: discoveryCacheMock },
       ],
     }).compile();
 

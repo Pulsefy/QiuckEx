@@ -187,10 +187,12 @@ describe("WebhookProvider", () => {
       const body = call[1].body;
       const headers = call[1].headers;
       const signature = headers["X-QuickEx-Signature"];
+      const timestamp = headers["X-QuickEx-Timestamp"];
 
       const isValid = WebhookProvider.verifySignature(
         body,
         signature,
+        timestamp,
         WEBHOOK_SECRET,
       );
       expect(isValid).toBe(true);
@@ -198,14 +200,16 @@ describe("WebhookProvider", () => {
 
     it("should reject invalid signature", () => {
       const body = JSON.stringify({ test: "data" });
+      const timestamp = new Date().toISOString();
       const wrongSecret = "wrong_secret";
       const hmac = crypto.createHmac("sha256", wrongSecret);
-      hmac.update(body);
+      hmac.update(`${timestamp}.${body}`);
       const signature = `sha256=${hmac.digest("hex")}`;
 
       const isValid = WebhookProvider.verifySignature(
         body,
         signature,
+        timestamp,
         WEBHOOK_SECRET,
       );
       expect(isValid).toBe(false);
@@ -213,11 +217,13 @@ describe("WebhookProvider", () => {
 
     it("should reject signature without sha256 prefix", () => {
       const body = JSON.stringify({ test: "data" });
+      const timestamp = new Date().toISOString();
       const signature = "invalid";
 
       const isValid = WebhookProvider.verifySignature(
         body,
         signature,
+        timestamp,
         WEBHOOK_SECRET,
       );
       expect(isValid).toBe(false);
