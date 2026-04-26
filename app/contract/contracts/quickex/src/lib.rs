@@ -169,7 +169,7 @@ impl QuickexContract {
         privacy::get_privacy(&env, owner)
     }
 
-    /// Deposit funds and create an escrow entry keyed by `SHA256(owner || amount || salt)`.
+    /// Deposit funds and create an escrow entry keyed by `KECCAK256(owner || amount || salt)`.
     ///
     /// Transfers `amount` from `owner` to the contract and stores an escrow entry.
     ///
@@ -236,8 +236,9 @@ impl QuickexContract {
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
     ///
-    /// Computes `SHA256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
-    /// always yield the same hash. Use for API shape validation and audit trails.
+    /// Computes `KECCAK256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
+    /// always yield the same hash. Legacy `SHA256(owner || amount || salt)` commitments remain
+    /// accepted by verification paths for backwards compatibility.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -593,16 +594,18 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        // optimized: move owner directly
-        let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
+        let commitment_result = commitment::amount_commitment_hashes(&env, &owner, amount, &salt);
 
-        let commitment = match commitment_result {
+        let (commitment, legacy_commitment) = match commitment_result {
             Ok(c) => c,
             Err(_) => return false,
         };
 
         let commitment_bytes: Bytes = commitment.into();
-        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes).or_else(|| {
+            let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+            get_escrow(&env, &legacy_commitment_bytes)
+        });
 
         match entry {
             Some(e) => {

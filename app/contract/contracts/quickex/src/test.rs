@@ -24,7 +24,10 @@
 
 use crate::{
     errors::QuickexError,
-    storage::{put_escrow, DataKey, PauseFlag, PRIVACY_ENABLED_KEY, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION},
+    storage::{
+        put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
+        PRIVACY_ENABLED_KEY,
+    },
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
