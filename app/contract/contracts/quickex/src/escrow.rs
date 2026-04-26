@@ -167,7 +167,8 @@ pub fn deposit(
         return Ok(existing);
     }
 
-    let commitment = commitment::create_amount_commitment(env, owner.clone(), amount, salt)?;
+    let (commitment, legacy_commitment) =
+        commitment::amount_commitment_hashes(env, &owner, amount, &salt)?;
     let now = env.ledger().timestamp();
 
     // let expires_at = if timeout_secs > 0 {
@@ -194,6 +195,15 @@ pub fn deposit(
     // commitment converted to Bytes once, reused
     let token_client = token::Client::new(env, &token);
     let commitment_bytes: Bytes = commitment.clone().into();
+    if has_escrow(env, &commitment_bytes) {
+        return Err(QuickexError::CommitmentAlreadyExists);
+    }
+    if legacy_commitment != commitment {
+        let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+        if has_escrow(env, &legacy_commitment_bytes) {
+            return Err(QuickexError::CommitmentAlreadyExists);
+        }
+    }
     let entry = EscrowEntry {
         token, // moved
         amount,
@@ -330,11 +340,19 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 
     to.require_auth();
 
-    let commitment = commitment::create_amount_commitment(env, to.clone(), amount, salt)?;
+    let (commitment, legacy_commitment) =
+        commitment::amount_commitment_hashes(env, &to, amount, &salt)?;
     let commitment_bytes: Bytes = commitment.clone().into();
 
-    let entry: EscrowEntry =
-        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+    let (commitment, commitment_bytes, entry): (BytesN<32>, Bytes, EscrowEntry) =
+        if let Some(entry) = get_escrow(env, &commitment_bytes) {
+            (commitment, commitment_bytes, entry)
+        } else {
+            let legacy_commitment_bytes: Bytes = legacy_commitment.clone().into();
+            let entry = get_escrow(env, &legacy_commitment_bytes)
+                .ok_or(QuickexError::CommitmentNotFound)?;
+            (legacy_commitment, legacy_commitment_bytes, entry)
+        };
 
     // INV-5: terminal states are final
     if entry.status != EscrowStatus::Pending {

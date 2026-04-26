@@ -7,7 +7,7 @@
 //! golden path regression suite. See `REGRESSION_TESTS.md` and `src/test.rs` module doc.
 
 use crate::{errors::QuickexError, QuickexContract, QuickexContractClient};
-use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
+use soroban_sdk::{testutils::Address as _, xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 extern crate std;
 
@@ -178,6 +178,40 @@ fn test_create_and_verify_commitment_success() {
     let is_valid = client.verify_amount_commitment(&commitment, &owner, &amount, &salt);
 
     assert!(is_valid);
+}
+
+#[test]
+fn test_commitment_matches_keccak256_payload_hash() {
+    let (env, client) = setup();
+    let owner = Address::generate(&env);
+    let amount = 5_000i128;
+    let salt = Bytes::from_slice(&env, b"keccak_binding_test");
+
+    let commitment = client.create_amount_commitment(&owner, &amount, &salt);
+
+    let mut payload = Bytes::new(&env);
+    payload.append(&owner.clone().to_xdr(&env));
+    payload.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    payload.append(&salt);
+    let expected: BytesN<32> = env.crypto().keccak256(&payload).into();
+
+    assert_eq!(commitment, expected);
+}
+
+#[test]
+fn test_verify_commitment_accepts_legacy_sha256_hash() {
+    let (env, client) = setup();
+    let owner = Address::generate(&env);
+    let amount = 5_000i128;
+    let salt = Bytes::from_slice(&env, b"legacy_sha_binding");
+
+    let mut payload = Bytes::new(&env);
+    payload.append(&owner.clone().to_xdr(&env));
+    payload.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
+    payload.append(&salt);
+    let legacy_commitment: BytesN<32> = env.crypto().sha256(&payload).into();
+
+    assert!(client.verify_amount_commitment(&legacy_commitment, &owner, &amount, &salt));
 }
 
 #[test]

@@ -19,9 +19,12 @@
 extern crate std;
 
 use crate::{
-    storage::put_escrow, EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
+    storage::{put_escrow, DataKey, PRIVACY_ENABLED_KEY},
+    EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
-use soroban_sdk::{testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env};
+use soroban_sdk::{
+    testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env, Symbol,
+};
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -66,19 +69,31 @@ fn seed_escrow(
 }
 
 /// Compute the same commitment hash used by the contract:
-/// SHA256(XDR(owner) || BE(amount) || salt)
+/// KECCAK256(XDR(owner) || BE(amount) || salt)
 fn make_commitment(env: &Env, owner: &Address, amount: i128, salt: &Bytes) -> BytesN<32> {
     let mut data = Bytes::new(env);
     data.append(&owner.clone().to_xdr(env));
     data.append(&Bytes::from_slice(env, &amount.to_be_bytes()));
     data.append(salt);
-    env.crypto().sha256(&data).into()
+    env.crypto().keccak256(&data).into()
+}
+
+fn make_commitment_payload(env: &Env, owner: &Address, amount: i128, salt: &Bytes) -> Bytes {
+    let mut data = Bytes::new(env);
+    data.append(&owner.clone().to_xdr(env));
+    data.append(&Bytes::from_slice(env, &amount.to_be_bytes()));
+    data.append(salt);
+    data
 }
 
 fn print_budget(env: &Env, label: &str) {
     let cpu = env.cost_estimate().budget().cpu_instruction_cost();
     let mem = env.cost_estimate().budget().memory_bytes_cost();
     std::println!("[bench] {label:<35}  cpu={cpu:<12}  mem={mem}");
+}
+
+fn legacy_privacy_storage_key(env: &Env, owner: &Address) -> (Symbol, Address) {
+    (Symbol::new(env, PRIVACY_ENABLED_KEY), owner.clone())
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +112,32 @@ fn bench_create_amount_commitment() {
     env.cost_estimate().budget().reset_default();
     let _ = client.create_amount_commitment(&owner, &1_000_000i128, &salt);
     print_budget(&env, "create_amount_commitment");
+}
+
+/// Benchmark: SHA256 on the small commitment payload.
+#[test]
+fn bench_sha256_small_payload() {
+    let (env, _) = setup();
+    let owner = Address::generate(&env);
+    let salt = Bytes::from_slice(&env, b"bench_hash_small_payload");
+    let payload = make_commitment_payload(&env, &owner, 1_000_000, &salt);
+
+    env.cost_estimate().budget().reset_default();
+    let _: BytesN<32> = env.crypto().sha256(&payload).into();
+    print_budget(&env, "sha256_small_payload");
+}
+
+/// Benchmark: Keccak256 on the same small commitment payload.
+#[test]
+fn bench_keccak256_small_payload() {
+    let (env, _) = setup();
+    let owner = Address::generate(&env);
+    let salt = Bytes::from_slice(&env, b"bench_hash_small_payload");
+    let payload = make_commitment_payload(&env, &owner, 1_000_000, &salt);
+
+    env.cost_estimate().budget().reset_default();
+    let _: BytesN<32> = env.crypto().keccak256(&payload).into();
+    print_budget(&env, "keccak256_small_payload");
 }
 
 /// Benchmark: deposit
@@ -194,6 +235,76 @@ fn bench_get_privacy() {
     env.cost_estimate().budget().reset_default();
     let _ = client.get_privacy(&owner);
     print_budget(&env, "get_privacy");
+}
+
+/// Benchmark: legacy privacy-key read
+/// Measures the pre-migration `(Symbol, Address)` storage path directly.
+#[test]
+fn bench_legacy_privacy_key_read() {
+    let env = Env::default();
+    let contract_id = env.register(QuickexContract, ());
+    let owner = Address::generate(&env);
+    let key = legacy_privacy_storage_key(&env, &owner);
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&key, &true);
+    });
+
+    env.cost_estimate().budget().reset_default();
+    env.as_contract(&contract_id, || {
+        let _: bool = env.storage().persistent().get(&key).unwrap_or(false);
+    });
+    print_budget(&env, "legacy_privacy_key_read");
+}
+
+/// Benchmark: typed privacy-key read
+/// Measures the `DataKey::PrivacyEnabled` storage path used by privacy checks.
+#[test]
+fn bench_typed_privacy_key_read() {
+    let env = Env::default();
+    let contract_id = env.register(QuickexContract, ());
+    let owner = Address::generate(&env);
+    let key = DataKey::PrivacyEnabled(owner);
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&key, &true);
+    });
+
+    env.cost_estimate().budget().reset_default();
+    env.as_contract(&contract_id, || {
+        let _: bool = env.storage().persistent().get(&key).unwrap_or(false);
+    });
+    print_budget(&env, "typed_privacy_key_read");
+}
+
+/// Benchmark: legacy privacy-key write
+/// Measures the pre-migration `(Symbol, Address)` storage write path directly.
+#[test]
+fn bench_legacy_privacy_key_write() {
+    let env = Env::default();
+    let contract_id = env.register(QuickexContract, ());
+    let owner = Address::generate(&env);
+    let key = legacy_privacy_storage_key(&env, &owner);
+
+    env.cost_estimate().budget().reset_default();
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&key, &true);
+    });
+    print_budget(&env, "legacy_privacy_key_write");
+}
+
+/// Benchmark: typed privacy-key write
+/// Measures the `DataKey::PrivacyEnabled` storage write path used by privacy toggles.
+#[test]
+fn bench_typed_privacy_key_write() {
+    let env = Env::default();
+    let contract_id = env.register(QuickexContract, ());
+    let owner = Address::generate(&env);
+    let key = DataKey::PrivacyEnabled(owner);
+
+    env.cost_estimate().budget().reset_default();
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&key, &true);
+    });
+    print_budget(&env, "typed_privacy_key_write");
 }
 
 /// Benchmark: verify_proof_view

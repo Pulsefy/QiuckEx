@@ -124,7 +124,7 @@ impl<'a> TestContext<'a> {
         data.append(&owner.clone().to_xdr(&self.env));
         data.append(&Bytes::from_slice(&self.env, &amount.to_be_bytes()));
         data.append(&Bytes::from_slice(&self.env, salt));
-        self.env.crypto().sha256(&data).into()
+        self.env.crypto().keccak256(&data).into()
     }
 
     /// Wrap a byte slice into the `Bytes` type the contract expects.
