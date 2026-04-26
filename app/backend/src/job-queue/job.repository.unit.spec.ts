@@ -12,7 +12,8 @@ import { JobType, JobStatus } from './types/job.types';
 
 describe('JobRepository - Basic Verification', () => {
   let repository: JobRepository;
-  let supabaseService: SupabaseService;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let _supabaseService: SupabaseService;
 
   // Mock Supabase client
   const mockSupabaseClient = {
@@ -33,7 +34,7 @@ describe('JobRepository - Basic Verification', () => {
     }).compile();
 
     repository = module.get<JobRepository>(JobRepository);
-    supabaseService = module.get<SupabaseService>(SupabaseService);
+    _supabaseService = module.get<SupabaseService>(SupabaseService);
   });
 
   afterEach(() => {

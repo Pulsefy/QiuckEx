@@ -22,7 +22,8 @@ describe('JobExecutor', () => {
   let repository: jest.Mocked<JobRepository>;
   let registry: jest.Mocked<JobRegistry>;
   let cancellationStore: jest.Mocked<CancellationStore>;
-  let metrics: jest.Mocked<JobQueueMetricsService>;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let _metrics: jest.Mocked<JobQueueMetricsService>;
 
   beforeEach(async () => {
     // Create mock implementations
@@ -69,7 +70,7 @@ describe('JobExecutor', () => {
     repository = module.get(JobRepository) as jest.Mocked<JobRepository>;
     registry = module.get(JobRegistry) as jest.Mocked<JobRegistry>;
     cancellationStore = module.get(CancellationStore) as jest.Mocked<CancellationStore>;
-    metrics = module.get(JobQueueMetricsService) as jest.Mocked<JobQueueMetricsService>;
+    _metrics = module.get(JobQueueMetricsService) as jest.Mocked<JobQueueMetricsService>;
   });
 
   describe('processDueJobs', () => {

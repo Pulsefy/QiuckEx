@@ -253,13 +253,13 @@ export class JobAdminController {
   @ApiResponse({ status: 200, description: 'Job metrics' })
   async getMetrics(): Promise<JobMetrics> {
     // Initialize metrics structure
-    const byType: Record<JobType, {
+    const byType: Record<string, {
       pending: number;
       running: number;
       completed: number;
       failed: number;
       cancelled: number;
-    }> = {} as any;
+    }> = {};
 
     // Initialize all job types
     for (const type of Object.values(JobType)) {

@@ -167,9 +167,12 @@ describe('Job Queue Types', () => {
   describe('JobHandler interface', () => {
     it('should define required methods', () => {
       const handler: JobHandler<WebhookDeliveryPayload> = {
-        execute: async (job, token) => {},
-        validate: async (payload) => {},
-        onFailure: async (job, error) => {},
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        execute: async (_job, _token) => {},
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        validate: async (_payload) => {},
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        onFailure: async (_job, _error) => {},
       };
 
       expect(handler.execute).toBeDefined();

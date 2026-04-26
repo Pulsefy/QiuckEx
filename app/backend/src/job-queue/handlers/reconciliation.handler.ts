@@ -48,7 +48,8 @@ export class ReconciliationHandler implements JobHandler<ReconciliationPayload> 
    */
   async execute(
     job: Job<ReconciliationPayload>,
-    cancellationToken: CancellationToken,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _cancellationToken: CancellationToken,
   ): Promise<void> {
     const { batchSize, startLedger, endLedger } = job.payload;
 

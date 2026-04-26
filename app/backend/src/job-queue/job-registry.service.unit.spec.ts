@@ -8,7 +8,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobRegistry } from './job-registry.service';
-import { JobType, JobHandler, RetryPolicy, Job, CancellationToken } from './types';
+import { JobType, JobHandler, RetryPolicy } from './types';
 
 describe('JobRegistry', () => {
   let registry: JobRegistry;

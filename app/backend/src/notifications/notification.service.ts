@@ -361,7 +361,7 @@ export class NotificationService implements OnModuleInit {
     pref: NotificationPreference,
     payload: NotificationPayload,
   ): Promise<void> {
-    const { publicKey, webhookUrl, webhookSecret } = pref;
+    const { publicKey, webhookUrl } = pref;
     const { eventType, eventId } = payload;
 
     if (!webhookUrl) {

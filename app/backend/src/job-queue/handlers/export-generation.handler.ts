@@ -113,7 +113,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     exportType: 'transactions' | 'links' | 'payments',
     filters: Record<string, unknown>,
     cancellationToken: CancellationToken,
-  ): Promise<any[]> {
+  ): Promise<Record<string, unknown>[]> {
     // Check cancellation before starting
     cancellationToken.throwIfCancelled();
 
@@ -179,7 +179,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * @returns Export data as string
    */
   private async generateExportFile(
-    records: any[],
+    records: Record<string, unknown>[],
     format: 'csv' | 'json',
     cancellationToken: CancellationToken,
   ): Promise<string> {
