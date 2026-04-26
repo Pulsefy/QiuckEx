@@ -2852,8 +2852,14 @@ mod golden_schema_v2 {
         let arbiter = Address::generate(&env);
         token::StellarAssetClient::new(&env, &token).mint(&owner, &1000);
         let salt = Bytes::from_slice(&env, b"golden_dispute_salt");
-        let commitment =
-            client.deposit(&token, &500i128, &owner, &salt, &1000u64, &Some(arbiter.clone()));
+        let commitment = client.deposit(
+            &token,
+            &500i128,
+            &owner,
+            &salt,
+            &1000u64,
+            &Some(arbiter.clone()),
+        );
         client.dispute(&commitment);
 
         let (topics, data) = latest_contract_event(&env, &client.address);
