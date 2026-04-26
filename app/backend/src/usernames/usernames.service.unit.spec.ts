@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AppConfigService } from '../config';
+import { DiscoveryCacheService } from './cache/discovery-cache.service';
 import {
   UsernameConflictError,
   UsernameLimitExceededError,
@@ -36,6 +37,21 @@ describe('UsernamesService', () => {
             get maxUsernamesPerWallet(): number | undefined {
               return configMaxPerWallet;
             },
+          },
+        },
+        {
+          provide: DiscoveryCacheService,
+          useValue: {
+            getSearchResults: jest.fn(),
+            setSearchResults: jest.fn(),
+            getTrendingResults: jest.fn(),
+            setTrendingResults: jest.fn(),
+            getRecentlyActiveResults: jest.fn(),
+            setRecentlyActiveResults: jest.fn(),
+            invalidateSearchCache: jest.fn(),
+            invalidateTrendingCache: jest.fn(),
+            invalidateRecentlyActiveCache: jest.fn(),
+            getStats: jest.fn(),
           },
         },
       ],

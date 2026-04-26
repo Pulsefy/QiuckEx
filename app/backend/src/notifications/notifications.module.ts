@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 
 import { SupabaseModule } from "../supabase/supabase.module";
+import { MetricsModule } from "../metrics/metrics.module";
+import { MetricsService } from "../metrics/metrics.service";
 import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
@@ -32,7 +34,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, MetricsModule],
   controllers: [
     NotificationPreferencesController,
     TelegramController,
@@ -51,6 +53,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
       useFactory: (
         telegramBot: TelegramBotService,
         telegramRepo: TelegramRepository,
+        metrics: MetricsService,
       ) => {
         const providers = [];
 
@@ -69,7 +72,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
           providers.push(new NoopNotificationProvider("push"));
         }
 
-        providers.push(new WebhookProvider());
+        providers.push(new WebhookProvider(metrics));
 
         // Add Telegram provider if bot is initialized
         const telegramToken = process.env["TELEGRAM_BOT_TOKEN"];
@@ -83,7 +86,7 @@ import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
 
         return providers;
       },
-      inject: [TelegramBotService, TelegramRepository],
+      inject: [TelegramBotService, TelegramRepository, MetricsService],
     },
     NotificationService,
   ],
