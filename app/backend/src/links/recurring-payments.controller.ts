@@ -90,8 +90,8 @@ export class RecurringPaymentsController {
   @ApiQuery({ name: 'status', required: false, enum: RecurringStatus })
   @ApiQuery({ name: 'username', required: false })
   @ApiQuery({ name: 'destination', required: false })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({
     status: 200,
     description: 'Recurring payment links listed successfully',
@@ -99,7 +99,7 @@ export class RecurringPaymentsController {
   })
   async listRecurringLinks(
     @Query() query: QueryRecurringPaymentsDto,
-  ): Promise<{ success: boolean; data: RecurringPaymentLinkResponseDto[]; total: number }> {
+  ): Promise<{ success: boolean; data: RecurringPaymentLinkResponseDto[]; total: number; next_cursor: string | null; has_more: boolean; limit: number }> {
     const result = await this.service.listRecurringLinks(query);
     return {
       success: true,

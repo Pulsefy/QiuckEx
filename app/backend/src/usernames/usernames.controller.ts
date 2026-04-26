@@ -179,10 +179,11 @@ export class UsernamesController {
     const results = await this.usernamesService.searchPublicUsernames(
       query.query,
       query.limit,
+      query.cursor,
     );
 
     return {
-      profiles: results.map((r) => ({
+      profiles: results.data.map((r) => ({
         id: r.id,
         username: r.username,
         publicKey: r.public_key,
@@ -190,7 +191,9 @@ export class UsernamesController {
         createdAt: r.created_at,
         similarityScore: r.similarity_score,
       })) as PublicProfileDto[],
-      total: results.length,
+      total: results.data.length,
+      next_cursor: results.next_cursor,
+      has_more: results.has_more,
     };
   }
 
@@ -229,10 +232,11 @@ export class UsernamesController {
     const creators = await this.usernamesService.getTrendingCreators(
       query.timeWindowHours,
       query.limit,
+      query.cursor,
     );
 
     return {
-      creators: creators.map((c) => ({
+      creators: creators.data.map((c) => ({
         id: c.id,
         username: c.username,
         publicKey: c.public_key,
@@ -243,6 +247,8 @@ export class UsernamesController {
       })) as PublicProfileDto[],
       timeWindowHours: query.timeWindowHours,
       calculatedAt: new Date().toISOString(),
+      next_cursor: creators.next_cursor,
+      has_more: creators.has_more,
     };
   }
 
@@ -283,10 +289,11 @@ export class UsernamesController {
     const users = await this.usernamesService.getRecentlyActiveUsers(
       query.timeWindowHours,
       query.limit,
+      query.cursor,
     );
 
     return {
-      users: users.map((u) => ({
+      users: users.data.map((u) => ({
         id: u.id,
         username: u.username,
         publicKey: u.public_key,
@@ -295,6 +302,8 @@ export class UsernamesController {
       })) as PublicProfileDto[],
       timeWindowHours: query.timeWindowHours,
       calculatedAt: new Date().toISOString(),
+      next_cursor: users.next_cursor,
+      has_more: users.has_more,
     };
   }
 

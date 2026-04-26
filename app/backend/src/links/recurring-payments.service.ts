@@ -105,9 +105,9 @@ export class RecurringPaymentsService {
     status?: RecurringStatus;
     username?: string;
     destination?: string;
-    page?: number;
+    cursor?: string;
     limit?: number;
-  }): Promise<{ data: RecurringPaymentLinkResponseDto[]; total: number }> {
+  }): Promise<{ data: RecurringPaymentLinkResponseDto[]; total: number; next_cursor: string | null; has_more: boolean; limit: number }> {
     const result = await this.repository.listLinks(params);
 
     const data = result.data.map((link) => this.mapToResponseDto(link));
@@ -115,6 +115,9 @@ export class RecurringPaymentsService {
     return {
       data,
       total: result.total,
+      next_cursor: result.next_cursor,
+      has_more: result.has_more,
+      limit: params.limit ?? 20,
     };
   }
 
