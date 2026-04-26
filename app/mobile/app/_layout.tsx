@@ -28,6 +28,7 @@ import { routeFromNotificationResponse } from "../services/notification-routing"
 
 // ── Theme System v2 ──────────────────────────────────────────────────────────
 import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
+import { invalidateOldCache } from "../services/cache";
 
 function useDeepLinkHandler() {
   const router = useRouter();
@@ -90,6 +91,10 @@ function DevPoller() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    void invalidateOldCache();
+  }, []);
+
   return (
     <QuickExThemeProvider>
       <ThemeBridge />

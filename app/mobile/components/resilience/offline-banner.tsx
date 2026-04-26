@@ -29,7 +29,7 @@ export function OfflineBanner() {
       <View style={styles.content}>
         <Ionicons name="cloud-offline" size={20} color={textColor} />
         <ThemedText style={[styles.text, { color: textColor }]}>
-          You are currently offline. Some features may be unavailable.
+          You are currently offline. "Read Mode" enabled for cached data.
         </ThemedText>
       </View>
     </View>
