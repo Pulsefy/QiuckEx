@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, Min, Max } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
 
 /**
  * DTO for recently active users query parameters
@@ -29,4 +29,12 @@ export class RecentlyActiveQueryDto {
   @Max(100)
   @Type(() => Number)
   limit?: number = 10;
+
+  @ApiProperty({
+    description: 'Opaque cursor for the next page of results',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

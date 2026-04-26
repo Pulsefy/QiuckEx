@@ -72,6 +72,8 @@ export class WebhooksController {
     name: "publicKey",
     description: "Stellar public key (G...)",
   })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({
     status: 200,
     description: "List of webhooks",
@@ -79,8 +81,10 @@ export class WebhooksController {
   })
   async listWebhooks(
     @Param("publicKey") publicKey: string,
-  ): Promise<WebhookResponseDto[]> {
-    return this.webhookService.listWebhooks(publicKey);
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.webhookService.listWebhooks(publicKey, cursor, Number(limit || 20));
   }
 
   @Get(":publicKey/:id")
@@ -198,6 +202,7 @@ export class WebhooksController {
     description: "Maximum number of logs to return",
     example: 50,
   })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({
     status: 200,
     description: "Delivery logs",
@@ -207,13 +212,14 @@ export class WebhooksController {
     @Param("publicKey") publicKey: string,
     @Param("id") id: string,
     @Query("limit") limit?: number,
-  ): Promise<WebhookDeliveryLogDto[]> {
+    @Query('cursor') cursor?: string,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
     const webhook = await this.webhookService.getWebhook(id);
     if (!webhook || webhook.publicKey !== publicKey) {
       throw new NotFoundException("Webhook not found");
     }
 
-    return this.webhookService.getDeliveryLogs(publicKey, limit);
+    return this.webhookService.getDeliveryLogs(publicKey, limit ? Number(limit) : undefined, cursor);
   }
 
   @Get(":publicKey/:id/stats")

@@ -6,6 +6,7 @@ import {
   RecurringStatus,
   ExecutionStatus,
 } from './dto/recurring-payment.dto';
+import { CursorPayload, clampLimit, paginateResult, decodeCursor } from '../common/pagination/cursor.util';
 
 // Database type mappings
 export type DbRecurringPaymentLink = {
@@ -155,10 +156,14 @@ export class RecurringPaymentsRepository {
     status?: RecurringStatus;
     username?: string;
     destination?: string;
-    page?: number;
+    cursor?: string;
     limit?: number;
-  }): Promise<{ data: DbRecurringPaymentLink[]; total: number }> {
-    const { status, username, destination, page = 1, limit = 20 } = params;
+  }): Promise<{ data: DbRecurringPaymentLink[]; next_cursor: string | null; has_more: boolean; total: number }> {
+    const { status, username, destination, cursor: cursorStr, limit } = params;
+    const effectiveLimit = clampLimit(limit);
+
+    // Decode cursor
+    const decodedCursor: CursorPayload | null = cursorStr ? decodeCursor(cursorStr) : null;
 
     let query = this.supabase.from('recurring_payment_links').select('*', { count: 'exact' });
 
@@ -174,8 +179,17 @@ export class RecurringPaymentsRepository {
       query = query.eq('destination', destination);
     }
 
-    const offset = (page - 1) * limit;
-    query = query.range(offset, offset + limit - 1).order('created_at', { ascending: false });
+    // Apply cursor filter for deterministic ordering
+    if (decodedCursor) {
+      query = query
+        .lt('created_at', decodedCursor.pk)
+        .or(`created_at.eq.${decodedCursor.pk},id.lt.${decodedCursor.id}`);
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(effectiveLimit + 1);
 
     const { data, error, count } = await query;
 
@@ -184,8 +198,13 @@ export class RecurringPaymentsRepository {
       throw error;
     }
 
+    const rows = (data as DbRecurringPaymentLink[]) ?? [];
+    const paginated = paginateResult(rows, effectiveLimit, 'created_at');
+
     return {
-      data: data as DbRecurringPaymentLink[],
+      data: paginated.data as DbRecurringPaymentLink[],
+      next_cursor: paginated.next_cursor,
+      has_more: paginated.has_more,
       total: count || 0,
     };
   }

@@ -8,12 +8,14 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiHeader,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { RefundsService } from './refunds.service';
@@ -79,8 +81,13 @@ export class RefundsController {
 
   @Get()
   @ApiOperation({ summary: 'List all refund attempts' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({ status: 200, description: 'List of refund attempts' })
-  async list() {
-    return this.refundsService.listRefunds();
+  async list(
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.refundsService.listRefunds(cursor, Number(limit || 20));
   }
 }
