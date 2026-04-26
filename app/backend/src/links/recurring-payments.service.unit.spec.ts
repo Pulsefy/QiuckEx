@@ -61,7 +61,7 @@ describe('RecurringPaymentsService', () => {
         asset: 'XLM',
         frequency: FrequencyType.MONTHLY,
         username: 'test_user',
-        startDate: new Date().toISOString(),
+        startDate: new Date(Date.now() + 60_000).toISOString(),
       };
 
       const mockLink = {
@@ -239,7 +239,7 @@ describe('RecurringPaymentsService', () => {
       const currentDate = new Date('2025-03-26');
       const nextDate = service.calculateNextExecutionDate(currentDate, FrequencyType.WEEKLY);
       
-      expect(nextDate.getDate()).toBe(currentDate.getDate() + 7);
+      expect(nextDate.getTime()).toBe(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
     });
 
     it('should calculate next execution date for monthly frequency', () => {

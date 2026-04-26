@@ -115,4 +115,39 @@ export class AppConfigService {
   get sentryDsn(): string | undefined {
     return this.configService.get('SENTRY_DSN', { infer: true });
   }
+
+  /**
+   * Supabase service role key (optional). Used for admin database operations.
+   */
+  get supabaseServiceRoleKey(): string | undefined {
+    return this.configService.get('SUPABASE_SERVICE_ROLE_KEY', { infer: true });
+  }
+
+  /**
+   * Custom Horizon URL (optional). Overrides network default if provided.
+   */
+  get horizonUrl(): string | undefined {
+    return this.configService.get('HORIZON_URL', { infer: true });
+  }
+
+  /**
+   * Stellar secret key (optional). Required for signing transactions.
+   */
+  get stellarSecretKey(): string | undefined {
+    return this.configService.get('STELLAR_SECRET_KEY', { infer: true });
+  }
+
+  /**
+   * Stellar public key (optional). The public key corresponding to the secret key.
+   */
+  get stellarPublicKey(): string | undefined {
+    return this.configService.get('STELLAR_PUBLIC_KEY', { infer: true });
+  }
+
+  /**
+   * Check if payment signing is configured (has secret key)
+   */
+  get isPaymentSigningConfigured(): boolean {
+    return !!this.stellarSecretKey;
+  }
 }

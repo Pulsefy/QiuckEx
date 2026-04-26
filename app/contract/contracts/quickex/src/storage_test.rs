@@ -108,6 +108,18 @@ fn test_escrow_counter() {
 }
 
 #[test]
+fn test_contract_version_storage() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        assert_eq!(get_contract_version(&env), None);
+
+        set_contract_version(&env, CURRENT_CONTRACT_VERSION);
+        assert_eq!(get_contract_version(&env), Some(CURRENT_CONTRACT_VERSION));
+    });
+}
+
+#[test]
 fn test_admin_storage() {
     let env = Env::default();
     let contract_id = env.register(crate::QuickexContract, ());

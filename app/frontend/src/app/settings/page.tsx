@@ -69,6 +69,12 @@ export default function Settings() {
           >
             <span className="text-indigo-400">⚙️</span> Profile Settings
           </Link>
+          <Link
+            href="/settings/teams"
+            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition"
+          >
+            <span>👥</span> Team Management
+          </Link>
         </nav>
       </aside>
 
@@ -97,6 +103,12 @@ export default function Settings() {
             className="px-4 py-2 rounded-xl border border-white/10 bg-white/10 text-sm font-semibold hover:bg-white/20"
           >
             {t('generalTab')}
+          </Link>
+          <Link
+            href="/settings/teams"
+            className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5"
+          >
+            Team
           </Link>
           <Link
             href="/settings/developer"

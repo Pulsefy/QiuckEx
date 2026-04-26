@@ -29,6 +29,25 @@ export const envSchema = Joi.object({
     .required()
     .description("Supabase anonymous key"),
 
+  SUPABASE_SERVICE_ROLE_KEY: Joi.string()
+    .optional()
+    .description("Supabase service role key for admin operations"),
+
+  // Stellar Horizon configuration (required for blockchain operations)
+  HORIZON_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Custom Horizon URL (overrides network default)"),
+
+  // Stellar signing keys (required for payment operations)
+  STELLAR_SECRET_KEY: Joi.string()
+    .optional()
+    .description("Stellar account secret key for signing transactions (starts with S)"),
+
+  STELLAR_PUBLIC_KEY: Joi.string()
+    .optional()
+    .description("Stellar account public key (starts with G)"),
+
   // Node environment
   NODE_ENV: Joi.string()
     .valid("development", "production", "test")
@@ -57,6 +76,7 @@ export const envSchema = Joi.object({
 
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Soroban contract ID to stream events from (enables Stellar ingestion service)",
@@ -68,15 +88,18 @@ export const envSchema = Joi.object({
 
   // SendGrid email channel
   SENDGRID_API_KEY: Joi.string()
+    .empty("")
     .optional()
     .description("SendGrid API key — enables email notification channel"),
 
   SENDGRID_FROM_EMAIL: Joi.string()
+    .empty("")
     .optional()
     .description("From address for SendGrid emails (e.g. noreply@quickex.to)"),
 
   // Expo push channel
   EXPO_ACCESS_TOKEN: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Expo server access token — enhances push notification delivery priority",
@@ -95,10 +118,81 @@ export const envSchema = Joi.object({
   // Rate limiting — optional bcrypt-hashed API keys (comma-separated)
   // Generate a hash: node -e "require('bcrypt').hash('MY_KEY', 10).then(console.log)"
   API_KEYS: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Comma-separated list of bcrypt-hashed API keys for trusted clients. " +
         "Valid keys receive higher rate limits (120 req/min vs 20 req/min).",
+    ),
+
+  // Global HTTP rate-limiting profiles (all optional; defaults applied)
+  RATE_LIMIT_PUBLIC_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(10)
+    .description("Public traffic burst request limit"),
+  RATE_LIMIT_PUBLIC_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Public traffic burst window in milliseconds"),
+  RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(20)
+    .description("Public traffic sustained request limit"),
+  RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Public traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_AUTHENTICATED_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(40)
+    .description("Authenticated traffic burst request limit"),
+  RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Authenticated traffic burst window in milliseconds"),
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(120)
+    .description("Authenticated traffic sustained request limit"),
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Authenticated traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_WEBHOOKS_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(20)
+    .description("Webhook traffic burst request limit"),
+  RATE_LIMIT_WEBHOOKS_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Webhook traffic burst window in milliseconds"),
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .default(60)
+    .description("Webhook traffic sustained request limit"),
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description("Webhook traffic sustained window in milliseconds"),
+
+  RATE_LIMIT_KEY_ORDER: Joi.string()
+    .default("user_id,api_key,ip")
+    .description(
+      "Preferred key order for rate-limit identity. Allowed values: user_id,api_key,ip",
     ),
 
   // ---------------------------------------------------------------------------
@@ -107,20 +201,21 @@ export const envSchema = Joi.object({
 
   SENTRY_DSN: Joi.string()
     .uri({ scheme: ["http", "https"] })
+    .empty("")
     .optional()
     .description("Sentry DSN for error reporting — omit to disable Sentry"),
 
   SENTRY_ENVIRONMENT: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Sentry environment tag (e.g. production, staging). Falls back to NODE_ENV.",
     ),
 
   SENTRY_RELEASE: Joi.string()
+    .empty("")
     .optional()
-    .description(
-      "Sentry release identifier (e.g. quickex-backend@1.2.3)",
-    ),
+    .description("Sentry release identifier (e.g. quickex-backend@1.2.3)"),
 
   SENTRY_TRACES_SAMPLE_RATE: Joi.number()
     .min(0)
@@ -136,9 +231,7 @@ export const envSchema = Joi.object({
     .max(1)
     .optional()
     .default(1.0)
-    .description(
-      "Sentry profiling sample rate (0.0 to 1.0). Default: 1.0",
-    ),
+    .description("Sentry profiling sample rate (0.0 to 1.0). Default: 1.0"),
 });
 
 /**
@@ -149,6 +242,10 @@ export interface EnvConfig {
   NETWORK: "testnet" | "mainnet";
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  HORIZON_URL?: string;
+  STELLAR_SECRET_KEY?: string;
+  STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
@@ -159,6 +256,19 @@ export interface EnvConfig {
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
   API_KEYS?: string;
+  RATE_LIMIT_PUBLIC_BURST_LIMIT: number;
+  RATE_LIMIT_PUBLIC_BURST_TTL_MS: number;
+  RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_AUTHENTICATED_BURST_LIMIT: number;
+  RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS: number;
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_WEBHOOKS_BURST_LIMIT: number;
+  RATE_LIMIT_WEBHOOKS_BURST_TTL_MS: number;
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: number;
+  RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_KEY_ORDER: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;

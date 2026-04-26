@@ -1,7 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ApiKeyGuard } from "./api-key.guard";
-import { ApiKeysService } from "src/api-keys/api-keys.service";
+import { ApiKeysService } from "../../api-keys/api-keys.service";
 import { Test } from "@nestjs/testing";
 import { Request } from "express";
 
@@ -15,6 +15,8 @@ function makeContext(headers: Record<string, string> = {}) {
     switchToHttp: () => ({
       getRequest: () => req,
     }),
+    getHandler: () => ({}),
+    getClass: () => ({}),
   } as unknown as ExecutionContext;
 
   return { ctx, req };
@@ -24,11 +26,12 @@ describe("ApiKeyGuard", () => {
   let guard: ApiKeyGuard;
 
   const mockApiKeysService = {
-    validateApiKey: jest.fn(),
+    validateKey: jest.fn(),
+    isOverQuota: jest.fn().mockReturnValue(false),
   };
 
   const mockReflector = {
-    get: jest.fn(),
+    getAllAndOverride: jest.fn().mockReturnValue([]),
   };
 
   beforeEach(async () => {
@@ -60,7 +63,16 @@ describe("ApiKeyGuard", () => {
   });
 
   it("should allow access when API key is valid", async () => {
-    mockApiKeysService.validateApiKey.mockResolvedValue(true);
+    mockApiKeysService.validateKey.mockResolvedValue({
+      record: {
+        id: "api-key-id",
+        name: "test key",
+        scopes: [],
+        request_count: 0,
+        monthly_quota: 1000,
+      },
+      hasScope: () => true,
+    });
 
     const { ctx, req } = makeContext({
       "x-api-key": "valid-key",
@@ -73,7 +85,7 @@ describe("ApiKeyGuard", () => {
   });
 
   it("should deny access when API key is invalid", async () => {
-    mockApiKeysService.validateApiKey.mockResolvedValue(false);
+    mockApiKeysService.validateKey.mockResolvedValue(null);
 
     const { ctx } = makeContext({
       "x-api-key": "invalid-key",

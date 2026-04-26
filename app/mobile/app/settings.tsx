@@ -1,5 +1,7 @@
+import { Link } from "expo-router";
 import React from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,10 +11,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemeSelector } from "../components/ThemeSelector";
 import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
+import { ThemeSelector } from "../components/ThemeSelector";
 import {
   SYNC_INTERVALS_MINUTES,
   type SyncFrequency,
@@ -63,7 +65,9 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Settings</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>
+          Settings
+        </Text>
 
         <ThemeSelector />
         <LocaleSwitcher />
@@ -74,20 +78,55 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Notifications</Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Security
+          </Text>
+
+          <Link href="/security-center" asChild>
+            <Pressable style={styles.row}>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  Security Center
+                </Text>
+                <Text style={[styles.helper, { color: theme.textMuted }]}>
+                  Review your security posture and settings.
+                </Text>
+              </View>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>→</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Notifications
+          </Text>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Sound Effects</Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>Play a short tone when a new synced notification appears.</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>
+                Sound Effects
+              </Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>
+                Play a short tone when a new synced notification appears.
+              </Text>
             </View>
             <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
           </View>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>App Badge</Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>Keep the launcher badge aligned with unread notifications.</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>
+                App Badge
+              </Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>
+                Keep the launcher badge aligned with unread notifications.
+              </Text>
             </View>
             <Switch
               value={backgroundSyncSettings.badgeEnabled}
@@ -107,13 +146,23 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Background Sync</Text>
-          <Text style={[styles.helper, { color: theme.textMuted }]}>Uses Expo background tasks when available and falls back to foreground refreshes when periodic work is unavailable.</Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Background Sync
+          </Text>
+          <Text style={[styles.helper, { color: theme.textMuted }]}>
+            Uses Expo background tasks when available and falls back to
+            foreground refreshes when periodic work is unavailable.
+          </Text>
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Periodic Sync</Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>Refresh notifications and recent activity without opening the app.</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>
+                Periodic Sync
+              </Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>
+                Refresh notifications and recent activity without opening the
+                app.
+              </Text>
             </View>
             <Switch
               value={backgroundSyncSettings.enabled}
@@ -128,8 +177,12 @@ export default function SettingsScreen() {
 
           <View style={styles.row}>
             <View style={styles.rowCopy}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Wi-Fi Only</Text>
-              <Text style={[styles.helper, { color: theme.textMuted }]}>Skip background work on mobile data for better battery life.</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>
+                Wi-Fi Only
+              </Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>
+                Skip background work on mobile data for better battery life.
+              </Text>
             </View>
             <Switch
               value={backgroundSyncSettings.wifiOnly}
@@ -142,7 +195,9 @@ export default function SettingsScreen() {
             />
           </View>
 
-          <Text style={[styles.subheading, { color: theme.textPrimary }]}>Sync Frequency</Text>
+          <Text style={[styles.subheading, { color: theme.textPrimary }]}>
+            Sync Frequency
+          </Text>
           <View style={styles.optionGroup}>
             {FREQUENCY_OPTIONS.map((option) => {
               const active = option.value === backgroundSyncSettings.frequency;
@@ -152,8 +207,12 @@ export default function SettingsScreen() {
                   style={[
                     styles.optionCard,
                     {
-                      borderColor: active ? theme.buttonPrimaryBg : theme.border,
-                      backgroundColor: active ? theme.chipActiveBg : theme.background,
+                      borderColor: active
+                        ? theme.buttonPrimaryBg
+                        : theme.border,
+                      backgroundColor: active
+                        ? theme.chipActiveBg
+                        : theme.background,
                     },
                   ]}
                   onPress={() => {
@@ -166,12 +225,20 @@ export default function SettingsScreen() {
                   <Text
                     style={[
                       styles.optionTitle,
-                      { color: active ? theme.chipActiveText : theme.textPrimary },
+                      {
+                        color: active
+                          ? theme.chipActiveText
+                          : theme.textPrimary,
+                      },
                     ]}
                   >
                     {option.label}
                   </Text>
-                  <Text style={[styles.optionHelper, { color: theme.textMuted }]}>{option.helper}</Text>
+                  <Text
+                    style={[styles.optionHelper, { color: theme.textMuted }]}
+                  >
+                    {option.helper}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -199,20 +266,54 @@ export default function SettingsScreen() {
                   : "No successful sync recorded yet."}
             </Text>
             <Pressable
-              style={[styles.syncNowButton, { backgroundColor: theme.buttonPrimaryBg }]}
+              style={[
+                styles.syncNowButton,
+                { backgroundColor: theme.buttonPrimaryBg },
+              ]}
               onPress={() => {
                 void syncNow();
               }}
             >
-              <Text style={[styles.syncNowButtonText, { color: theme.buttonPrimaryText }]}>Sync Now</Text>
+              <Text
+                style={[
+                  styles.syncNowButtonText,
+                  { color: theme.buttonPrimaryText },
+                ]}
+              >
+                Sync Now
+              </Text>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Onboarding</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            Onboarding
+          </Text>
           <OnboardingResetButton />
         </View>
+
+        {Platform.OS !== "web" ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Debug
+            </Text>
+            <Link href="/notification-debug" asChild>
+              <Pressable
+                style={[
+                  styles.debugButton,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text
+                  style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                >
+                  Open Notification Simulator
+                </Text>
+              </Pressable>
+            </Link>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -301,6 +402,16 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
+    fontWeight: "600",
+  },
+  debugButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  debugButtonText: {
+    fontSize: 14,
     fontWeight: "600",
   },
 });

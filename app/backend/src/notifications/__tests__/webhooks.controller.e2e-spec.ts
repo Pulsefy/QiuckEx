@@ -35,6 +35,7 @@ describe("WebhooksController (e2e)", () => {
         totalFailed: 0,
         pendingRetries: 0,
       }),
+      redeliverEvent: jest.fn().mockResolvedValue(true),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -48,7 +49,13 @@ describe("WebhooksController (e2e)", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
@@ -215,7 +222,7 @@ describe("WebhooksController (e2e)", () => {
 
       return request(app.getHttpServer())
         .post(`/webhooks/${PUBLIC_KEY}/${WEBHOOK_ID}/regenerate-secret`)
-        .expect(201)
+        .expect(200)
         .expect((res) => {
           expect(res.body.secret).toBe("whsec_newsecret123");
         });
@@ -247,6 +254,38 @@ describe("WebhooksController (e2e)", () => {
           expect(res.body.totalSent).toBe(100);
           expect(res.body.totalFailed).toBe(5);
         });
+    });
+  });
+
+  describe("POST /webhooks/:publicKey/:id/redeliver", () => {
+    it("should trigger redelivery of a specific event", () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValueOnce({
+        id: WEBHOOK_ID,
+        publicKey: PUBLIC_KEY,
+        webhookUrl: "https://example.com/webhook",
+        secret: "whsec_test",
+        events: null,
+        minAmountStroops: "0",
+        enabled: true,
+      });
+      (mockWebhookService.redeliverEvent as jest.Mock).mockResolvedValueOnce(true);
+
+      return request(app.getHttpServer())
+        .post(`/webhooks/${PUBLIC_KEY}/${WEBHOOK_ID}/redeliver`)
+        .send({ eventId: "tx_abc123", eventType: "payment.received" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.queued).toBe(true);
+        });
+    });
+
+    it("should return 404 if webhook not found for redeliver", () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValueOnce(null);
+
+      return request(app.getHttpServer())
+        .post(`/webhooks/${PUBLIC_KEY}/nonexistent/redeliver`)
+        .send({ eventId: "tx_abc123", eventType: "payment.received" })
+        .expect(404);
     });
   });
 });
