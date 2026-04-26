@@ -62,9 +62,10 @@ describe('UsernamesService - Public Profile Discovery', () => {
       supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       const res = await service.searchPublicUsernames('alice', 10);
-      expect(res).toHaveLength(2);
-      expect(res[0].username).toBe('alice');
+      expect(res.data).toHaveLength(2);
+      expect(res.data[0].username).toBe('alice');
       expect(supabaseMock.updateUsernameActivity).toHaveBeenCalledWith('alice');
+      expect(supabaseMock.searchPublicUsernames).toHaveBeenCalledWith('alice', 11);
     });
 
     it('throws for short queries', async () => {
@@ -76,8 +77,8 @@ describe('UsernamesService - Public Profile Discovery', () => {
   describe('getTrendingCreators', () => {
     it('returns trending creators', async () => {
       supabaseMock.getTrendingCreators!.mockResolvedValue([]);
-      await service.getTrendingCreators();
-      expect(supabaseMock.getTrendingCreators).toHaveBeenCalledWith(24, 10);
+      await service.getTrendingCreators(24, 10);
+      expect(supabaseMock.getTrendingCreators).toHaveBeenCalledWith(24, 11);
     });
 
     it('throws on invalid time window', async () => {

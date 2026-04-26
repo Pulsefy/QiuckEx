@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { ApiKeysService } from './api-keys.service';
 import { ApiKeysRepository } from './api-keys.repository';
 import { ApiKeyRecord } from './api-keys.types';
@@ -12,6 +13,7 @@ const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
   id: 'test-uuid-1234',
   name: 'Test Key',
   key_hash: '$2b$10$hashedvalue',
+  key_hash_old: null,
   key_prefix: 'qx_live_abc',
   scopes: ['links:read'],
   owner_id: null,
@@ -19,6 +21,8 @@ const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
   request_count: 0,
   monthly_quota: 10000,
   last_used_at: null,
+  rotated_at: null,
+  last_reset_at: new Date().toISOString(),
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
   ...overrides,
@@ -204,6 +208,37 @@ describe('ApiKeysService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('returns record when key matches key_hash_old within 24h', async () => {
+      // We'll use a known bcrypt hash for 'qx_live_oldkey12345678901234567890'
+      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
+      const record = makeRecord({
+        key_hash: '$2b$10$newhashvalue...',
+        key_hash_old: oldHash,
+        rotated_at: new Date().toISOString(),
+      });
+      repo.findByPrefix.mockResolvedValue([record]);
+      repo.incrementUsage.mockResolvedValue(undefined);
+
+      const result = await service.validateKey('qx_live_oldkey12345678901234567890');
+
+      expect(result).not.toBeNull();
+      expect(result?.record.id).toBe(record.id);
+    });
+
+    it('returns null when key matches key_hash_old but after 24h', async () => {
+      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
+      const record = makeRecord({
+        key_hash: '$2b$10$newhashvalue...',
+        key_hash_old: oldHash,
+        rotated_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), // 25h ago
+      });
+      repo.findByPrefix.mockResolvedValue([record]);
+
+      const result = await service.validateKey('qx_live_oldkey12345678901234567890');
+
+      expect(result).toBeNull();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -224,6 +259,19 @@ describe('ApiKeysService', () => {
     it('returns true when usage exceeds quota', () => {
       const record = makeRecord({ request_count: 10001, monthly_quota: 10000 });
       expect(service.isOverQuota(record)).toBe(true);
+    });
+
+    it('returns false if current month is later than last_reset_at', () => {
+      const lastMonth = new Date();
+      lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+      
+      const record = makeRecord({ 
+        request_count: 15000, 
+        monthly_quota: 10000,
+        last_reset_at: lastMonth.toISOString()
+      });
+      
+      expect(service.isOverQuota(record)).toBe(false);
     });
   });
 });

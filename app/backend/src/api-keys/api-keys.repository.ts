@@ -129,10 +129,17 @@ export class ApiKeysRepository {
     id: string,
     data: { key_hash: string; key_prefix: string },
   ): Promise<ApiKeyRecord> {
+    // Fetch current to move hash to old_hash
+    const current = await this.findById(id);
+    if (!current) throw new Error('API key not found');
+
     const { data: row, error } = await this.client
       .from('api_keys')
       .update({
-        ...data,
+        key_hash: data.key_hash,
+        key_prefix: data.key_prefix,
+        key_hash_old: current.key_hash,
+        rotated_at: new Date().toISOString(),
         request_count: 0,
         last_used_at: null,
         updated_at: new Date().toISOString(),
