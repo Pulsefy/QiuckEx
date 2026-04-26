@@ -15,11 +15,11 @@
 //! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Numeric privacy level per account (0 = off). Used by `enable_privacy`. |
 //! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Per-account history of privacy level changes (chronological). |
 //!
-//! ## Related Keys (outside `DataKey`)
+//! ## Related Keys (legacy compatibility)
 //!
 //! | Key                    | Format                    | Value Type | Description |
 //! |------------------------|---------------------------|------------|-------------|
-//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Boolean privacy on/off per account. Used by `set_privacy` / `get_privacy`. |
+//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy boolean privacy on/off key. Read as a fallback and migrated to [`DataKey::PrivacyEnabled`] on write. |
 //!
 //! ## Relations
 //!
@@ -28,7 +28,7 @@
 //!   status, and created_at.
 //! - **Admin ↔ Paused**: Admin can set the paused flag. Both are singleton keys.
 //! - **PrivacyLevel ↔ PrivacyHistory**: Same account may have both; level is current, history is append-only.
-//! - **PrivacyLevel / PrivacyHistory ↔ privacy_enabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
+//! - **PrivacyLevel / PrivacyHistory ↔ PrivacyEnabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
 //!
 //! ## Backwards Compatibility
 //!
@@ -46,9 +46,9 @@ use crate::types::{EscrowEntry, FeeConfig, StealthEscrowEntry};
 // Key constants (for keys not using DataKey)
 // -----------------------------------------------------------------------------
 
-/// Symbol string for the boolean privacy-enabled flag.
+/// Symbol string for the legacy boolean privacy-enabled flag.
 /// Used as `(Symbol::new(env, PRIVACY_ENABLED_KEY), Address)` in persistent storage.
-/// See [`crate::privacy`] module.
+/// See [`crate::privacy`] module for fallback/migration behaviour.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
 
 pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
@@ -100,6 +100,8 @@ pub enum DataKey {
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
     PlatformWallet,
+    /// Boolean privacy flag per account.
+    PrivacyEnabled(Address),
 }
 
 // -----------------------------------------------------------------------------

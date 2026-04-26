@@ -23,7 +23,7 @@
 
 use crate::{
     errors::QuickexError,
-    storage::{put_escrow, PauseFlag},
+    storage::{put_escrow, DataKey, PauseFlag, PRIVACY_ENABLED_KEY},
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
@@ -458,6 +458,29 @@ fn test_set_and_get_privacy() {
     // Disable privacy
     client.set_privacy(&account, &false);
     assert!(!client.get_privacy(&account));
+}
+
+#[test]
+fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
+    let (env, client) = setup();
+    let account = Address::generate(&env);
+    let legacy_key = (Symbol::new(&env, PRIVACY_ENABLED_KEY), account.clone());
+    let typed_key = DataKey::PrivacyEnabled(account.clone());
+
+    env.as_contract(&client.address, || {
+        env.storage().persistent().set(&legacy_key, &true);
+    });
+
+    assert!(client.get_privacy(&account));
+
+    client.set_privacy(&account, &false);
+    assert!(!client.get_privacy(&account));
+
+    env.as_contract(&client.address, || {
+        assert!(!env.storage().persistent().has(&legacy_key));
+        let stored: bool = env.storage().persistent().get(&typed_key).unwrap();
+        assert!(!stored);
+    });
 }
 
 /// Regression suite: create and verify amount commitment — core commitment flow.
