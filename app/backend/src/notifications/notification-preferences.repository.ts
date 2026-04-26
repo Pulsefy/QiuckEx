@@ -165,6 +165,67 @@ export class NotificationPreferencesRepository {
     return (data ?? []).map(mapRow);
   }
 
+  /** Get webhooks for a public key with cursor-based pagination. */
+  async getWebhooksByPublicKeyPaginated(
+    publicKey: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<{ data: NotificationPreference[]; next_cursor: string | null; has_more: boolean }> {
+    const effectiveLimit = Math.min(100, Math.max(1, limit ?? 20));
+
+    let query = this.supabase
+      .getClient()
+      .from("notification_preferences")
+      .select("*")
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook");
+
+    // Decode cursor
+    if (cursor) {
+      try {
+        const json = Buffer.from(cursor, "base64url").toString("utf-8");
+        const parsed = JSON.parse(json);
+        if (typeof parsed.pk === "string" && typeof parsed.id === "string") {
+          query = query
+            .lt("created_at", parsed.pk)
+            .or(`created_at.eq.${parsed.pk},id.lt.${parsed.id}`);
+        }
+      } catch {
+        // invalid cursor
+      }
+    }
+
+    query = query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    const { data, error } = await query;
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch webhooks for ${publicKey}: ${error.message}`,
+      );
+      throw error;
+    }
+
+    const rows = (data ?? []).map(mapRow);
+    const hasMore = rows.length > effectiveLimit;
+    const resultData = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore && resultData.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const lastRaw = (data as any[])[effectiveLimit - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: lastRaw.created_at, id: lastRaw.id }),
+        "utf-8",
+      ).toString("base64url");
+    }
+
+    return { data: resultData, next_cursor: nextCursor, has_more: hasMore };
+  }
+
   /** Delete a webhook preference. */
   async deleteWebhook(id: string): Promise<boolean> {
     const { error } = await this.supabase

@@ -13,6 +13,8 @@ import {
   ApiKeyRecord,
   ApiKeyScope,
 } from './api-keys.types';
+import { decodeCursor, clampLimit } from '../common/pagination/cursor.util';
+import { PaginationMetaDto } from '../dto/pagination/pagination.dto';
 
 const BCRYPT_ROUNDS = 10;
 const DEFAULT_QUOTA = 10_000;
@@ -50,6 +52,24 @@ export class ApiKeysService {
   async list(owner_id?: string): Promise<ApiKeyPublic[]> {
     const records = await this.repo.findAll(owner_id);
     return records.map((r) => this.toPublic(r));
+  }
+
+  async listPaginated(
+    owner_id: string | undefined,
+    cursor?: string,
+    limit?: number,
+  ): Promise<{ data: ApiKeyPublic[]; pagination: PaginationMetaDto }> {
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
+    const effectiveLimit = clampLimit(limit);
+    const result = await this.repo.findAllPaginated(owner_id, decodedCursor, effectiveLimit);
+    return {
+      data: result.data.map((r) => this.toPublic(r)),
+      pagination: {
+        next_cursor: result.next_cursor,
+        has_more: result.has_more,
+        limit: result.limit,
+      },
+    };
   }
 
   async revoke(id: string): Promise<void> {

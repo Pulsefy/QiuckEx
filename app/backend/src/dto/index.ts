@@ -35,3 +35,6 @@ export * from './transaction';
 
 // Validators
 export * from './validators';
+
+// Pagination
+export * from './pagination';

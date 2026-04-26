@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ApiKeyRecord, ApiKeyScope } from './api-keys.types';
+import { CursorPayload, clampLimit, paginateResult } from '../common/pagination/cursor.util';
 
 @Injectable()
 export class ApiKeysRepository {
@@ -42,6 +43,52 @@ export class ApiKeysRepository {
     const { data, error } = await query;
     if (error) throw error;
     return (data as ApiKeyRecord[]) ?? [];
+  }
+
+  /**
+   * Cursor-paginated variant of findAll.
+   * Returns { data, next_cursor, has_more, limit }.
+   */
+  async findAllPaginated(
+    owner_id: string | undefined,
+    cursor: CursorPayload | null,
+    limit?: number,
+  ): Promise<{ data: ApiKeyRecord[]; next_cursor: string | null; has_more: boolean; limit: number }> {
+    const effectiveLimit = clampLimit(limit);
+
+    let query = this.client
+      .from('api_keys')
+      .select('*')
+      .eq('is_active', true);
+
+    if (owner_id) {
+      query = query.eq('owner_id', owner_id);
+    }
+
+    // Apply cursor filter
+    if (cursor) {
+      query = query
+        .lt('created_at', cursor.pk)
+        .or(`created_at.eq.${cursor.pk},id.lt.${cursor.id}`);
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const rows = (data as ApiKeyRecord[]) ?? [];
+    const result = paginateResult(rows, effectiveLimit, 'created_at');
+
+    return {
+      data: result.data as ApiKeyRecord[],
+      next_cursor: result.next_cursor,
+      has_more: result.has_more,
+      limit: effectiveLimit,
+    };
   }
 
   async findById(id: string): Promise<ApiKeyRecord | null> {
