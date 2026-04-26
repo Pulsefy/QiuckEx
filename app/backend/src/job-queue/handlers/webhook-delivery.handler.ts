@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JobHandler, Job, CancellationToken } from '../types';
 import { WebhookDeliveryPayload } from '../types/job-payloads.types';
 import { NotificationLogRepository } from '../../notifications/notification-log.repository';
+import { NotificationEventType } from '../../notifications/types/notification.types';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -108,7 +109,7 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
         await this.notificationLogRepo.markSent(
           recipientPublicKey,
           'webhook',
-          eventType as string, // eventType from payload may not match NotificationEventType enum
+          eventType as NotificationEventType, // eventType from payload may not match NotificationEventType enum
           eventId,
           undefined, // no provider message ID for webhooks
           response.status,
@@ -245,7 +246,7 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
       await this.notificationLogRepo.markFailed(
         recipientPublicKey,
         'webhook',
-        eventType as string, // eventType from payload may not match NotificationEventType enum
+        eventType as NotificationEventType, // eventType from payload may not match NotificationEventType enum
         eventId,
         error.message,
       );
