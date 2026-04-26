@@ -12,6 +12,7 @@ export interface ApiKeyRecord {
   id: string;
   name: string;
   key_hash: string;
+  key_hash_old: string | null;
   key_prefix: string;
   scopes: ApiKeyScope[];
   owner_id: string | null;
@@ -19,6 +20,8 @@ export interface ApiKeyRecord {
   request_count: number;
   monthly_quota: number;
   last_used_at: string | null;
+  rotated_at: string | null;
+  last_reset_at: string;
   created_at: string;
   updated_at: string;
 }

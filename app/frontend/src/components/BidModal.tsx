@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MarketplaceListing, formatCountdown, placeBid } from "@/hooks/marketplaceApi";
+import { SigningSummary } from "./SigningSummary";
 
 type BidModalProps = {
   listing: MarketplaceListing | null;
@@ -15,6 +16,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
   const [amount, setAmount] = useState("");
   const [bidState, setBidState] = useState<BidState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
 
   const minBid = listing ? listing.currentBid + 1 : 1;
   const parsedAmount = parseFloat(amount);
@@ -39,6 +41,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
     setBidState("idle");
     setAmount("");
     setErrorMsg("");
+    setShowPreview(false);
     onClose();
   }
 
@@ -168,41 +171,75 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                 </div>
               </div>
 
-              {/* Bidding rules */}
-              <div className="flex items-start gap-3 p-3 mb-5 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl">
-                <span className="text-indigo-400 mt-0.5">📋</span>
-                <div className="text-[11px] text-indigo-400/80 leading-relaxed">
-                  <p className="font-bold mb-1">Bidding Rules</p>
-                  <ul className="space-y-0.5">
-                    <li>• Minimum increment: +1 USDC above current bid</li>
-                    <li>• Auction ends: {formatCountdown(listing.endsAt)}</li>
-                    <li>• Winner pays highest bid amount</li>
-                    <li>• Payment in USDC on Stellar network</li>
-                  </ul>
+              {/* Bidding rules (Only show if not previewing) */}
+              {!showPreview && (
+                <div className="flex items-start gap-3 p-3 mb-5 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl">
+                  <span className="text-indigo-400 mt-0.5">📋</span>
+                  <div className="text-[11px] text-indigo-400/80 leading-relaxed">
+                    <p className="font-bold mb-1">Bidding Rules</p>
+                    <ul className="space-y-0.5">
+                      <li>• Minimum increment: +1 USDC above current bid</li>
+                      <li>• Auction ends: {formatCountdown(listing.endsAt)}</li>
+                      <li>• Winner pays highest bid amount</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Signing Preview */}
+              {showPreview && (
+                <div className="mb-6">
+                  <SigningSummary
+                    action="bid"
+                    amount={{ value: parsedAmount, asset: "USDC" }}
+                    details={[
+                      { label: "Target Asset", value: `@${listing.username}` },
+                      { label: "Listing ID", value: listing.id.slice(0, 8) },
+                      { label: "Valid Until", value: formatCountdown(listing.endsAt) },
+                    ]}
+                    expiry={listing.endsAt}
+                  />
+                </div>
+              )}
 
               {/* CTA */}
-              <button
-                onClick={handleConfirm}
-                disabled={!isValid || bidState === "loading"}
-                className={`w-full py-4 rounded-xl font-black text-base tracking-wide transition-all ${
-                  bidState === "loading"
-                    ? "bg-indigo-500/40 text-white/60 cursor-wait"
-                    : isValid
-                    ? "bg-indigo-500 text-white hover:bg-indigo-400 shadow-[0_12px_40px_-15px_rgba(99,102,241,0.6)] hover:scale-[1.02] active:scale-[0.98]"
-                    : "bg-white/5 text-neutral-600 cursor-not-allowed"
-                }`}
-              >
-                {bidState === "loading" ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Signing Transaction…
-                  </span>
-                ) : (
-                  "Confirm Bid →"
-                )}
-              </button>
+              {!showPreview ? (
+                <button
+                  onClick={() => setShowPreview(true)}
+                  disabled={!isValid || bidState === "loading"}
+                  className={`w-full py-4 rounded-xl font-black text-base tracking-wide transition-all ${
+                    isValid
+                      ? "bg-indigo-500 text-white hover:bg-indigo-400 shadow-[0_12px_40px_-15px_rgba(99,102,241,0.6)]"
+                      : "bg-white/5 text-neutral-600 cursor-not-allowed"
+                  }`}
+                >
+                  Review Bid →
+                </button>
+              ) : (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    disabled={bidState === "loading"}
+                    className="flex-1 py-4 bg-white/5 text-neutral-400 font-bold rounded-xl hover:bg-white/10 transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={bidState === "loading"}
+                    className="flex-[2] py-4 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-400 shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    {bidState === "loading" ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Signing...
+                      </>
+                    ) : (
+                      "Sign & Pay"
+                    )}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
