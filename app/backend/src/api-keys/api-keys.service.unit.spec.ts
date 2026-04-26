@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { ApiKeysService } from './api-keys.service';
 import { ApiKeysRepository } from './api-keys.repository';
 import { ApiKeyRecord } from './api-keys.types';
@@ -210,7 +211,7 @@ describe('ApiKeysService', () => {
 
     it('returns record when key matches key_hash_old within 24h', async () => {
       // We'll use a known bcrypt hash for 'qx_live_oldkey12345678901234567890'
-      const oldHash = await require('bcrypt').hash('qx_live_oldkey12345678901234567890', 10);
+      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
       const record = makeRecord({
         key_hash: '$2b$10$newhashvalue...',
         key_hash_old: oldHash,
@@ -226,7 +227,7 @@ describe('ApiKeysService', () => {
     });
 
     it('returns null when key matches key_hash_old but after 24h', async () => {
-      const oldHash = await require('bcrypt').hash('qx_live_oldkey12345678901234567890', 10);
+      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
       const record = makeRecord({
         key_hash: '$2b$10$newhashvalue...',
         key_hash_old: oldHash,
