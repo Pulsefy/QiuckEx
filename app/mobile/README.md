@@ -47,3 +47,15 @@ Run unit tests:
 ```bash
 pnpm --filter=mobile test
 ```
+
+## Universal Links / App Links
+
+QuickEx deep-link verification files now live in:
+
+- `app/frontend/public/.well-known/apple-app-site-association`
+- `app/frontend/public/.well-known/assetlinks.json`
+
+Before production release, replace these placeholders with real values:
+
+- `TEAM_ID.com.pulsefy.quickex` in the AASA file.
+- `REPLACE_WITH_RELEASE_CERT_SHA256_FINGERPRINT` in `assetlinks.json`.
