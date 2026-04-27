@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React from "react";
 
 export default function OfflinePage() {
   return (
@@ -22,10 +22,11 @@ export default function OfflinePage() {
         </svg>
       </div>
       <h1 className="text-4xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-        You're Offline
+        You&apos;re Offline
       </h1>
       <p className="text-neutral-400 max-w-md mx-auto mb-8 text-lg">
-        It looks like you've lost your connection. Don't worry, QuickEx is ready to resume once you're back online.
+        It looks like you&apos;ve lost your connection. Don&apos;t worry,
+        QuickEx is ready to resume once you&apos;re back online.
       </p>
       <button
         onClick={() => window.location.reload()}
@@ -33,12 +34,13 @@ export default function OfflinePage() {
       >
         Retry Connection
       </button>
-      
+
       <div className="mt-12 p-4 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
         <p className="text-sm text-neutral-500">
-          Tip: You can still use the app for some basic features if they were cached.
+          Tip: You can still use the app for some basic features if they were
+          cached.
         </p>
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,3 @@
-/// <reference types="react" />
-
 import * as React from "react";
 
 export default function MarketplaceLoading() {
@@ -10,7 +8,10 @@ export default function MarketplaceLoading() {
         <div className="h-72 rounded-3xl bg-white/5 border border-white/5 animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="h-72 rounded-3xl bg-white/5 border border-white/5 animate-pulse" />
+            <div
+              key={idx}
+              className="h-72 rounded-3xl bg-white/5 border border-white/5 animate-pulse"
+            />
           ))}
         </div>
       </div>

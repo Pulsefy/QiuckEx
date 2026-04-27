@@ -78,6 +78,9 @@ function getStatusClasses(status: ActivityItem["status"]) {
   }
 }
 
+const FOCUS_RING_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const { data, error, loading, callApi } = useApi<DashboardResponse>();
@@ -148,10 +151,12 @@ function DashboardContent() {
     }
 
     const timer = window.setTimeout(() => {
-      document.getElementById(focusTargetId)?.scrollIntoView({
+      const target = document.getElementById(focusTargetId);
+      target?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
+      target?.focus();
     }, 180);
 
     return () => window.clearTimeout(timer);
@@ -193,42 +198,48 @@ function DashboardContent() {
 
   return (
     <div className="relative min-h-screen text-white">
+      <a
+        href="#dashboard-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to dashboard content
+      </a>
       <NetworkBadge />
 
       <div className="fixed left-[-30%] top-[-20%] h-[60%] w-[60%] rounded-full bg-indigo-500/10 blur-[120px]" />
       <div className="fixed bottom-[-20%] right-[-30%] h-[50%] w-[50%] rounded-full bg-purple-500/5 blur-[100px]" />
 
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-72 flex-col border-r border-white/5 bg-black/20 backdrop-blur-3xl md:flex">
-        <nav className="flex-1 space-y-2 px-4 py-20">
+        <nav className="flex-1 space-y-2 px-4 py-20" aria-label="Dashboard navigation">
           <Link
             href="/dashboard"
             aria-current="page"
-            className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 font-semibold text-white"
+            className={`flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3 font-semibold text-white ${FOCUS_RING_CLASS}`}
           >
             <span>Dashboard</span>
           </Link>
           <Link
             href="/generator"
-            className="flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white"
+            className={`flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white ${FOCUS_RING_CLASS}`}
           >
             <span>Link Generator</span>
           </Link>
           <Link
             href="/notifications"
-            className="flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white"
+            className={`flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white ${FOCUS_RING_CLASS}`}
           >
             <span>Notifications</span>
           </Link>
           <Link
             href="/settings"
-            className="flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white"
+            className={`flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold text-neutral-200 transition hover:bg-white/5 hover:text-white ${FOCUS_RING_CLASS}`}
           >
             <span>Profile Settings</span>
           </Link>
         </nav>
       </aside>
 
-      <main className="relative z-10 p-4 sm:p-6 md:ml-72 md:p-12">
+      <main id="dashboard-main" className="relative z-10 p-4 sm:p-6 md:ml-72 md:p-12">
         <header className="mb-10 flex flex-col gap-6 md:mb-16 md:flex-row md:items-start md:justify-between">
           <div>
             <nav className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-neutral-400 md:mb-4">
@@ -248,14 +259,16 @@ function DashboardContent() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/notifications"
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:bg-white/10"
+              className={`rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:bg-white/10 ${FOCUS_RING_CLASS}`}
+              aria-label="Open notifications panel"
             >
               Open notifications
             </Link>
             <button
               type="button"
               onClick={() => setStatusMessage("Withdraw flow coming soon.")}
-              className="rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white shadow-lg transition hover:bg-indigo-400"
+              className={`rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white shadow-lg transition hover:bg-indigo-400 ${FOCUS_RING_CLASS}`}
+              aria-label="Withdraw funds"
             >
               Withdraw funds
             </button>
@@ -319,6 +332,7 @@ function DashboardContent() {
 
         <section
           id="dashboard-activity"
+          tabIndex={-1}
           className="overflow-hidden rounded-3xl border border-white/5 bg-black/40 shadow-2xl backdrop-blur-2xl"
         >
           <div className="flex flex-col justify-between gap-4 border-b border-white/5 p-6 sm:flex-row sm:p-10">
@@ -335,7 +349,7 @@ function DashboardContent() {
               </label>
               <select
                 id="dashboard-range"
-                className="bg-transparent text-sm font-semibold text-neutral-100"
+                className={`bg-transparent text-sm font-semibold text-neutral-100 ${FOCUS_RING_CLASS}`}
                 defaultValue="Last 30 Days"
               >
                 <option>Last 30 Days</option>
@@ -370,6 +384,7 @@ function DashboardContent() {
                     <tr
                       key={item.id}
                       id={toAnchorId("transaction", item.id)}
+                      tabIndex={-1}
                       className={`transition ${
                         isHighlighted
                           ? "bg-indigo-500/10"
@@ -416,7 +431,8 @@ function DashboardContent() {
                           <button
                             type="button"
                             onClick={() => void handleExtend(item.id)}
-                            className="rounded-full bg-indigo-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-indigo-100 transition hover:bg-indigo-500 hover:text-white"
+                            className={`rounded-full bg-indigo-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-indigo-100 transition hover:bg-indigo-500 hover:text-white ${FOCUS_RING_CLASS}`}
+                            aria-label={`Extend TTL for transaction ${item.id}`}
                           >
                             Extend TTL
                           </button>
@@ -424,7 +440,8 @@ function DashboardContent() {
                           <button
                             type="button"
                             onClick={() => void handleCleanup(item.id)}
-                            className="rounded-full bg-red-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-red-100 transition hover:bg-red-500 hover:text-white"
+                            className={`rounded-full bg-red-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-red-100 transition hover:bg-red-500 hover:text-white ${FOCUS_RING_CLASS}`}
+                            aria-label={`Clean up transaction ${item.id}`}
                           >
                             Cleanup
                           </button>
@@ -440,7 +457,7 @@ function DashboardContent() {
           <div className="bg-white/[0.01] p-6 text-center sm:p-8">
             <Link
               href="/notifications?category=payments"
-              className="text-sm font-semibold text-neutral-200 transition hover:text-white"
+              className={`text-sm font-semibold text-neutral-200 transition hover:text-white ${FOCUS_RING_CLASS}`}
             >
               View payment alerts
             </Link>
@@ -460,14 +477,14 @@ function DashboardContent() {
             </div>
             <Link
               href="/notifications?category=escrows"
-              className="rounded-xl border border-indigo-300/40 bg-indigo-500/10 px-5 py-2.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500 hover:text-white"
+              className={`rounded-xl border border-indigo-300/40 bg-indigo-500/10 px-5 py-2.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500 hover:text-white ${FOCUS_RING_CLASS}`}
             >
               Open escrow alerts
             </Link>
           </div>
 
           <div className="grid divide-y divide-white/5 md:grid-cols-2 md:divide-x md:divide-y-0">
-            <div id="dashboard-bids" className="p-6 sm:p-8">
+            <div id="dashboard-bids" tabIndex={-1} className="p-6 sm:p-8">
               <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-neutral-300">
                 My Active Bids
               </h3>
@@ -479,6 +496,7 @@ function DashboardContent() {
                     <div
                       key={bid.username}
                       id={toAnchorId("bid", bid.username)}
+                      tabIndex={-1}
                       className={`flex items-center justify-between rounded-2xl border p-4 ${
                         bid.username === highlightedBid
                           ? "border-indigo-300/40 bg-indigo-500/10"
@@ -509,7 +527,7 @@ function DashboardContent() {
               )}
             </div>
 
-            <div id="dashboard-listings" className="p-6 sm:p-8">
+            <div id="dashboard-listings" tabIndex={-1} className="p-6 sm:p-8">
               <h3 className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-neutral-300">
                 My Listings
               </h3>
@@ -523,6 +541,7 @@ function DashboardContent() {
                     <div
                       key={listing.username}
                       id={toAnchorId("listing", listing.username)}
+                      tabIndex={-1}
                       className={`rounded-2xl border p-4 ${
                         listing.username === highlightedListing
                           ? "border-indigo-300/40 bg-indigo-500/10"

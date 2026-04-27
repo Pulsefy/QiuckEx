@@ -16,6 +16,9 @@ type Profile = {
   githubHandle?: string;
 };
 
+const FOCUS_RING_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+
 export default function PublicProfile() {
   const params = useParams();
   const username = params.username as string;
@@ -71,6 +74,12 @@ export default function PublicProfile() {
 
   return (
     <div className="relative min-h-screen text-white">
+      <a
+        href="#public-profile-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to payment form
+      </a>
       <NetworkBadge />
 
       {/* Background glows with theme color */}
@@ -84,7 +93,7 @@ export default function PublicProfile() {
       />
 
       {/* MAIN CONTENT */}
-      <main className="relative z-10 max-w-2xl mx-auto p-4 sm:p-6 md:p-12">
+      <main id="public-profile-main" className="relative z-10 max-w-2xl mx-auto p-4 sm:p-6 md:p-12">
         {/* Profile Header */}
         <div className="text-center mb-12">
           {/* Avatar */}
@@ -111,7 +120,7 @@ export default function PublicProfile() {
 
           {/* Bio */}
           {profile.bio && (
-            <p className="text-neutral-400 text-lg mb-6 max-w-md mx-auto">
+            <p className="text-neutral-300 text-lg mb-6 max-w-md mx-auto">
               {profile.bio}
             </p>
           )}
@@ -124,7 +133,8 @@ export default function PublicProfile() {
                   href={`https://twitter.com/${profile.twitterHandle}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl"
+                  aria-label={`Open ${profile.twitterHandle} on X`}
+                  className={`w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
                   style={{ color: primaryColor }}
                 >
                   𝕏
@@ -143,7 +153,8 @@ export default function PublicProfile() {
                   href={`https://github.com/${profile.githubHandle}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl"
+                  aria-label={`Open ${profile.githubHandle} on GitHub`}
+                  className={`w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
                   style={{ color: primaryColor }}
                 >
                   🐙
@@ -157,29 +168,31 @@ export default function PublicProfile() {
         <div className="rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl p-8 mb-8">
           <h2 className="text-2xl font-black mb-6">Send Payment</h2>
 
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <div>
-              <label className="block text-sm font-bold text-neutral-400 mb-2">
+              <label htmlFor="payment-amount" className="block text-sm font-bold text-neutral-300 mb-2">
                 Amount
               </label>
               <input
+                id="payment-amount"
                 type="number"
                 value={paymentForm.amount}
                 onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-lg"
+                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-lg ${FOCUS_RING_CLASS}`}
                 placeholder="0.00"
                 step="0.01"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-neutral-400 mb-2">
+              <label htmlFor="payment-asset" className="block text-sm font-bold text-neutral-300 mb-2">
                 Asset
               </label>
               <select
+                id="payment-asset"
                 value={paymentForm.asset}
                 onChange={(e) => setPaymentForm({ ...paymentForm, asset: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
+                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white ${FOCUS_RING_CLASS}`}
               >
                 <option value="USDC">USDC</option>
                 <option value="XLM">XLM</option>
@@ -189,26 +202,29 @@ export default function PublicProfile() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-neutral-400 mb-2">
+              <label htmlFor="payment-memo" className="block text-sm font-bold text-neutral-300 mb-2">
                 Memo (optional)
               </label>
               <input
+                id="payment-memo"
                 type="text"
                 value={paymentForm.memo}
                 onChange={(e) => setPaymentForm({ ...paymentForm, memo: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
+                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white ${FOCUS_RING_CLASS}`}
                 placeholder="Payment for..."
                 maxLength={28}
               />
             </div>
 
             <button
-              className="w-full py-4 rounded-xl font-bold text-white transition hover:opacity-90 mt-6"
+              type="submit"
+              aria-label={`Generate payment link for ${profile.username}`}
+              className={`w-full py-4 rounded-xl font-bold text-white transition hover:opacity-90 mt-6 ${FOCUS_RING_CLASS}`}
               style={{ backgroundColor: primaryColor }}
             >
               Generate Payment Link
             </button>
-          </div>
+          </form>
         </div>
 
         {/* QR Code Preview */}
@@ -227,7 +243,7 @@ export default function PublicProfile() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-12 text-neutral-600 text-sm">
+        <div className="text-center mt-12 text-neutral-400 text-sm">
           <p>Powered by QuickEx • Stellar Network</p>
         </div>
       </main>
