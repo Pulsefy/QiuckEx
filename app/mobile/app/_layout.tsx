@@ -30,25 +30,89 @@ import { routeFromNotificationResponse } from "../services/notification-routing"
 import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
 import { invalidateOldCache } from "../services/cache";
 
+const QUICKEX_HOSTS = ["quickex.to", "www.quickex.to"];
+const QUICKEX_SCHEME = "quickex";
+
+function parseTransactionDeepLink(
+  raw: string,
+): { id: string; params: Record<string, string> } | null {
+  try {
+    const url = new URL(raw);
+
+    // quickex://transaction/123?amount=...
+    if (url.protocol === `${QUICKEX_SCHEME}:`) {
+      const segments = url.pathname
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter(Boolean);
+      if (segments.length >= 2 && segments[0] === "transaction") {
+        const id = segments[1];
+        const params: Record<string, string> = {};
+        url.searchParams.forEach((value, key) => {
+          params[key] = value;
+        });
+        return { id, params };
+      }
+    }
+
+    // https://quickex.to/transaction/123?amount=...
+    if (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      QUICKEX_HOSTS.includes(url.hostname)
+    ) {
+      const segments = url.pathname
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter(Boolean);
+      if (segments.length >= 2 && segments[0] === "transaction") {
+        const id = segments[1];
+        const params: Record<string, string> = {};
+        url.searchParams.forEach((value, key) => {
+          params[key] = value;
+        });
+        return { id, params };
+      }
+    }
+  } catch {
+    // ignore invalid URLs
+  }
+  return null;
+}
+
 function useDeepLinkHandler() {
   const router = useRouter();
 
   useEffect(() => {
     function handleURL(event: { url: string }) {
-      const result = parsePaymentLink(event.url);
-      if (!result.valid) return;
+      // 1. Try payment link first
+      const paymentResult = parsePaymentLink(event.url);
+      if (paymentResult.valid) {
+        const { username, amount, asset, memo, privacy } = paymentResult.data;
+        router.replace({
+          pathname: "/payment-confirmation",
+          params: {
+            username,
+            amount,
+            asset,
+            ...(memo ? { memo } : {}),
+            privacy: String(privacy),
+          },
+        });
+        return;
+      }
 
-      const { username, amount, asset, memo, privacy } = result.data;
-      router.replace({
-        pathname: "/payment-confirmation",
-        params: {
-          username,
-          amount,
-          asset,
-          ...(memo ? { memo } : {}),
-          privacy: String(privacy),
-        },
-      });
+      // 2. Try transaction detail deep link
+      const txResult = parseTransactionDeepLink(event.url);
+      if (txResult) {
+        router.push({
+          pathname: "/transaction/[id]",
+          params: {
+            id: txResult.id,
+            ...txResult.params,
+          },
+        });
+        return;
+      }
     }
 
     const subscription = Linking.addEventListener("url", handleURL);
