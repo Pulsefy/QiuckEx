@@ -13,7 +13,7 @@ import type {
   WalletError,
   WalletState,
   WalletType,
-} from "../../types/wallet";
+} from "../types/wallet";
 import {
   clearWalletSession,
   getLastWalletType,
@@ -21,8 +21,8 @@ import {
   isSessionRestorable,
   saveWalletSession,
   touchSession,
-} from "../../services/wallet-session";
-import { useSecurity } from "../use-security";
+} from "../services/wallet-session";
+import { useSecurity } from "./use-security";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
