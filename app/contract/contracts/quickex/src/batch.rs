@@ -35,7 +35,6 @@ pub struct BatchItemResult {
 pub struct BatchCreateItem {
     pub escrow_id: soroban_sdk::Bytes,
     pub owner: Address,
-    pub recipient: Address,
     pub token: Address,
     pub amount: i128,
     /// Unix timestamp; 0 means no expiry.
@@ -74,13 +73,13 @@ pub fn batch_create(
 
         let entry = EscrowEntry {
             owner: item.owner.clone(),
-            recipient: item.recipient.clone(),
             token: item.token.clone(),
-            amount: item.amount,
+            amount_due: item.amount,
+            amount_paid: item.amount,
             status: EscrowStatus::Pending,
+            created_at: env.ledger().timestamp(),
             expires_at: item.expires_at,
             arbiter: None,
-            commitment: None,
         };
 
         store_escrow(env, &item.escrow_id, &entry);

@@ -94,7 +94,8 @@ fn setup_escrow(
 
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: depositor,
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),
@@ -125,7 +126,8 @@ fn setup_escrow_with_owner(
 ) {
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: owner.clone(),
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),
@@ -172,7 +174,8 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
-    assert_eq!(view.amount, None);
+    assert_eq!(view.amount_due, None);
+    assert_eq!(view.amount_paid, None);
     assert_eq!(view.owner, None);
 }
 
@@ -208,7 +211,8 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
     let view = client.get_escrow_details(&commitment, &owner).unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.status, EscrowStatus::Pending);
-    assert_eq!(view.amount, Some(amount));
+    assert_eq!(view.amount_due, Some(amount));
+    assert_eq!(view.amount_paid, Some(amount));
     assert_eq!(view.owner, Some(owner.clone()));
 }
 
@@ -240,7 +244,8 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
 
     // Privacy is off (never set) â€” stranger still gets full data
     let view = client.get_escrow_details(&commitment, &stranger).unwrap();
-    assert_eq!(view.amount, Some(amount));
+    assert_eq!(view.amount_due, Some(amount));
+    assert_eq!(view.amount_paid, Some(amount));
     assert_eq!(view.owner, Some(owner));
     assert_eq!(view.status, EscrowStatus::Pending);
 }
@@ -680,7 +685,8 @@ fn test_event_snapshot_escrow_deposited_schema() {
 
     let data_map = event_data_map(&env, data);
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
-    assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "amount_due")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "amount_paid")).is_some());
     assert!(data_map.get(Symbol::new(&env, "expires_at")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
@@ -1161,7 +1167,8 @@ fn test_get_commitment_state_spent() {
     // Create entry with Spent status
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
@@ -1308,7 +1315,8 @@ fn test_verify_proof_view_spent_commitment() {
     // Create entry with Spent status
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
@@ -1361,7 +1369,8 @@ fn test_get_escrow_details_found() {
     assert!(details.is_some());
 
     let entry = details.unwrap();
-    assert_eq!(entry.amount, Some(amount));
+    assert_eq!(entry.amount_due, Some(amount));
+    assert_eq!(entry.amount_paid, Some(amount));
     assert_eq!(entry.token, token);
     assert_eq!(entry.status, EscrowStatus::Pending);
 }
@@ -1402,7 +1411,8 @@ fn test_get_escrow_details_spent_status() {
 
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: owner.clone(),
         status: EscrowStatus::Spent,
         created_at: env.ledger().timestamp(),
@@ -1422,7 +1432,8 @@ fn test_get_escrow_details_spent_status() {
 
     let retrieved = details.unwrap();
     assert_eq!(retrieved.status, EscrowStatus::Spent);
-    assert_eq!(retrieved.amount, Some(amount));
+    assert_eq!(retrieved.amount_due, Some(amount));
+    assert_eq!(retrieved.amount_paid, Some(amount));
     assert_eq!(retrieved.token, token);
 }
 // ============================================================================
@@ -1507,7 +1518,8 @@ fn test_upgrade_migration_preserves_legacy_escrow_data() {
 
     let details = client.get_escrow_details(&commitment, &owner).unwrap();
     assert_eq!(details.token, token);
-    assert_eq!(details.amount, Some(amount));
+    assert_eq!(details.amount_due, Some(amount));
+    assert_eq!(details.amount_paid, Some(amount));
     assert_eq!(details.owner, Some(owner.clone()));
     assert_eq!(details.status, EscrowStatus::Pending);
 
@@ -2370,7 +2382,8 @@ fn test_cross_asset_privacy_preserved_across_tokens() {
 
     // Stranger should not see sensitive details
     let view = client.get_escrow_details(&commitment_a, &stranger).unwrap();
-    assert_eq!(view.amount, None);
+    assert_eq!(view.amount_due, None);
+    assert_eq!(view.amount_paid, None);
     assert_eq!(view.owner, None);
     assert_eq!(view.token, token_a);
     assert_eq!(view.status, EscrowStatus::Pending);
@@ -2448,7 +2461,8 @@ mod tests {
             let env = Env::default();
             EscrowEntry {
                 token: Address::generate(&env),
-                amount: 1000,
+                amount_due: 1000,
+                amount_paid: 1000,
                 owner: Address::generate(&env),
                 status: EscrowStatus::Pending,
                 created_at: 0,
@@ -2531,7 +2545,8 @@ mod tests {
         fn dummy_entry(env: &Env, status: EscrowStatus, expires_at: u64) -> EscrowEntry {
             EscrowEntry {
                 token: Address::generate(env),
-                amount: 1000,
+                amount_due: 1000,
+                amount_paid: 1000,
                 owner: Address::generate(env),
                 status,
                 created_at: 0,
@@ -2737,9 +2752,302 @@ mod tests {
 
                 // Both withdraw and refund reject non-Pending status
                 let is_terminal =
-                    entry.status != EscrowStatus::Pending && entry.status != EscrowStatus::Disputed;
-                assert!(is_terminal, "INV-5: {:?} must be a terminal state", status);
+                    entry.status == EscrowStatus::Spent || entry.status == EscrowStatus::Refunded;
+                assert!(is_terminal, "INV-5: terminal states must be final");
             }
         }
     }
+}
+
+// ============================================================================
+// Multi-Payment Tests
+// ============================================================================
+
+#[test]
+fn test_partial_payment_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 700;
+    let salt = Bytes::from_slice(&env, b"partial_payment_salt");
+
+    // Mint tokens to owner and payer
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer, &300);
+
+    // Create escrow with partial initial payment
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // Make partial payment
+    let payment_amount: i128 = 300;
+    client.partial_payment(&commitment, &payer, &payment_amount);
+
+    // Verify escrow state
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.amount_due, Some(amount_due));
+    assert_eq!(details.amount_paid, Some(1000));
+    assert_eq!(details.status, EscrowStatus::Pending);
+}
+
+#[test]
+fn test_partial_payment_overpayment_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 500;
+    let salt = Bytes::from_slice(&env, b"overpayment_salt");
+
+    // Mint tokens to owner and payer
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer, &501);
+
+    // Create escrow with partial initial payment
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // Try to overpay
+    let payment_amount: i128 = 501; // More than remaining (500)
+    let result = client.try_partial_payment(&commitment, &payer, &payment_amount);
+    assert_contract_error(result, QuickexError::Overpayment);
+}
+
+#[test]
+fn test_partial_payment_fully_paid_triggers_finalization() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 500;
+    let salt = Bytes::from_slice(&env, b"finalization_salt");
+
+    // Mint tokens to owner and payer
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer, &500);
+
+    // Create escrow with partial initial payment
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // Make payment to complete the escrow
+    let payment_amount: i128 = 500;
+    client.partial_payment(&commitment, &payer, &payment_amount);
+
+    // Verify escrow is fully paid
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.amount_due, Some(1000));
+    assert_eq!(details.amount_paid, Some(1000));
+    assert_eq!(details.status, EscrowStatus::Pending);
+}
+
+#[test]
+fn test_partial_payment_invalid_amount_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 500;
+    let salt = Bytes::from_slice(&env, b"invalid_amount_salt");
+
+    // Mint tokens to owner
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+
+    // Create escrow
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // Try to pay zero
+    let result = client.try_partial_payment(&commitment, &payer, &0);
+    assert_contract_error(result, QuickexError::InvalidAmount);
+
+    // Try to pay negative
+    let result = client.try_partial_payment(&commitment, &payer, &-100);
+    assert_contract_error(result, QuickexError::InvalidAmount);
+}
+
+#[test]
+fn test_partial_payment_nonexistent_escrow_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let payer = Address::generate(&env);
+    let fake_commitment = BytesN::from_array(&env, &[255; 32]);
+
+    // Try to pay to non-existent escrow
+    let result = client.try_partial_payment(&fake_commitment, &payer, &100);
+    assert_contract_error(result, QuickexError::CommitmentNotFound);
+}
+
+#[test]
+fn test_partial_payment_terminal_state_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"terminal_state_salt");
+
+    // Mint tokens to owner
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount_due);
+
+    // Create and withdraw escrow (fully paid)
+    let commitment = client.deposit(&token, &amount_due, &owner, &salt, &0, &None);
+    client.withdraw(&token, &amount_due, &commitment, &owner, &salt);
+
+    // Try to make partial payment on spent escrow
+    let result = client.try_partial_payment(&commitment, &payer, &100);
+    assert_contract_error(result, QuickexError::AlreadySpent);
+}
+
+#[test]
+fn test_withdraw_requires_fully_paid() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 500;
+    let salt = Bytes::from_slice(&env, b"not_fully_paid_salt");
+
+    // Mint tokens to owner
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+
+    // Create escrow with partial payment
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // Try to withdraw before fully paid
+    let result = client.try_withdraw(&token, &amount_due, &commitment, &owner, &salt);
+    assert_contract_error(result, QuickexError::Overpayment);
+}
+
+#[test]
+fn test_multi_payment_sequence() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer1 = Address::generate(&env);
+    let payer2 = Address::generate(&env);
+    let payer3 = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 300;
+    let salt = Bytes::from_slice(&env, b"multi_payment_salt");
+
+    // Mint tokens to all participants
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer1, &200);
+    token_client.mint(&payer2, &300);
+    token_client.mint(&payer3, &200);
+
+    // Create escrow with initial payment of 300
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+    );
+
+    // First partial payment: 200
+    client.partial_payment(&commitment, &payer1, &200);
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.amount_paid, Some(500));
+
+    // Second partial payment: 300
+    client.partial_payment(&commitment, &payer2, &300);
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.amount_paid, Some(800));
+
+    // Final payment: 200 (completes the escrow)
+    client.partial_payment(&commitment, &payer3, &200);
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+    assert_eq!(details.amount_paid, Some(1000));
+    assert_eq!(details.amount_due, Some(1000));
 }
