@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { TransactionResponse } from '../types/transaction';
+import type { TransactionItem, TransactionResponse } from '../types/transaction';
 
 const TRANSACTIONS_CACHE_KEY_PREFIX = '@qex_tx_cache_';
 const PROFILE_CACHE_KEY_PREFIX = '@qex_profile_cache_';
@@ -39,6 +39,38 @@ export async function getTransactionsFromCache(accountId: string): Promise<Trans
 /**
  * Simple cache invalidation: clears data older than 7 days.
  */
+/**
+ * Searches all cached transaction responses for a specific transaction by pagingToken.
+ * Returns the matching TransactionItem or null if not found.
+ */
+export async function findTransactionInCache(
+    pagingToken: string,
+): Promise<TransactionItem | null> {
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        const cacheKeys = keys.filter((k) =>
+            k.startsWith(TRANSACTIONS_CACHE_KEY_PREFIX),
+        );
+
+        for (const key of cacheKeys) {
+            const raw = await AsyncStorage.getItem(key);
+            if (!raw) continue;
+            const entry = JSON.parse(raw) as {
+                data: TransactionResponse;
+                timestamp: number;
+            };
+            const match = entry.data.items.find(
+                (item) => item.pagingToken === pagingToken,
+            );
+            if (match) return match;
+        }
+        return null;
+    } catch (err) {
+        console.error('Failed to find transaction in cache', err);
+        return null;
+    }
+}
+
 export async function invalidateOldCache(): Promise<void> {
     try {
         const keys = await AsyncStorage.getAllKeys();
