@@ -8,7 +8,7 @@ export class AuditService {
   // In-memory store for minimal implementation
   private logs: AuditLog[] = [];
 
-  log(actor: string, action: string, target?: string, metadata?: Record<string, any>, requestId?: string) {
+  log(actor: string, action: string, target?: string, metadata?: Record<string, unknown>, requestId?: string) {
     const entry: AuditLog = {
       id: randomUUID(),
       actor,

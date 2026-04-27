@@ -3,7 +3,7 @@ export interface AuditLog {
   actor: string;
   action: string;
   target?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   requestId?: string;
   createdAt: Date;
 }

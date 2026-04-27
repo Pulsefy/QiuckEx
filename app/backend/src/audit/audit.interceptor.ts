@@ -11,7 +11,7 @@ import { AuditService } from './audit.service';
 export class AuditInterceptor implements NestInterceptor {
   constructor(private readonly auditService: AuditService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
     const { method, url, user, headers } = request;
     
