@@ -104,15 +104,20 @@ pub fn register_ephemeral_key(
     let StealthDepositParams {
         sender,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         eph_pub,
         spend_pub,
         stealth_address,
         timeout_secs,
     } = params;
 
-    if amount <= 0 {
+    if amount_due <= 0 || amount_paid <= 0 {
         return Err(QuickexError::InvalidAmount);
+    }
+
+    if amount_paid > amount_due {
+        return Err(QuickexError::Overpayment);
     }
 
     sender.require_auth();
@@ -135,7 +140,7 @@ pub fn register_ephemeral_key(
     // Transfer funds from sender to contract.
     let token_client = token::Client::new(env, &token);
     let contract_addr = env.current_contract_address();
-    token_client.transfer(&sender, &contract_addr, &amount);
+    token_client.transfer(&sender, &contract_addr, &amount_paid);
 
     let now = env.ledger().timestamp();
     let expires_at = if timeout_secs > 0 {
@@ -146,8 +151,8 @@ pub fn register_ephemeral_key(
 
     let entry = StealthEscrowEntry {
         token: token.clone(),
-        amount_due: amount,
-        amount_paid: amount,
+        amount_due,
+        amount_paid,
         eph_pub: eph_pub.clone(),
         status: EscrowStatus::Pending,
         created_at: now,
@@ -161,8 +166,8 @@ pub fn register_ephemeral_key(
         stealth_address.clone(),
         eph_pub,
         token,
-        amount,
-        amount,
+        amount_due,
+        amount_paid,
         expires_at,
     );
 
