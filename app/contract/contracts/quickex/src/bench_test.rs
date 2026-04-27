@@ -55,7 +55,8 @@ fn seed_escrow(
 ) {
     let entry = EscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         owner: owner.clone(),
         status: EscrowStatus::Pending,
         created_at: env.ledger().timestamp(),

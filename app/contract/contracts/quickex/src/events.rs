@@ -35,7 +35,8 @@ pub struct EscrowDepositedEvent {
     pub owner: Address,
 
     pub token: Address,
-    pub amount: i128,
+    pub amount_due: i128,
+    pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
 }
@@ -164,14 +165,16 @@ pub(crate) fn publish_escrow_deposited(
     commitment: BytesN<32>,
     owner: Address,
     token: Address,
-    amount: i128,
+    amount_due: i128,
+    amount_paid: i128,
     expires_at: u64,
 ) {
     EscrowDepositedEvent {
         escrow_id: commitment,
         owner,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         expires_at,
         timestamp: env.ledger().timestamp(),
     }
@@ -189,6 +192,36 @@ pub struct EscrowRefundedEvent {
 
     pub token: Address,
     pub amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ESCROW", "PartialPayment"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PartialPaymentEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub payer: Address,
+
+    pub token: Address,
+    pub payment_amount: i128,
+    pub amount_paid: i128,
+    pub amount_due: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ESCROW", "EscrowFinalized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowFinalizedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub owner: Address,
+
+    pub token: Address,
+    pub total_amount: i128,
     pub timestamp: u64,
 }
 
@@ -230,6 +263,44 @@ pub(crate) fn publish_escrow_refunded(
     .publish(env);
 }
 
+pub(crate) fn publish_partial_payment(
+    env: &Env,
+    commitment: BytesN<32>,
+    payer: Address,
+    token: Address,
+    payment_amount: i128,
+    amount_paid: i128,
+    amount_due: i128,
+) {
+    PartialPaymentEvent {
+        escrow_id: commitment,
+        payer,
+        token,
+        payment_amount,
+        amount_paid,
+        amount_due,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_escrow_finalized(
+    env: &Env,
+    commitment: BytesN<32>,
+    owner: Address,
+    token: Address,
+    total_amount: i128,
+) {
+    EscrowFinalizedEvent {
+        escrow_id: commitment,
+        owner,
+        token,
+        total_amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 // ---------------------------------------------------------------------------
 // Stealth address events (Privacy v2 – Issue #157)
 // ---------------------------------------------------------------------------
@@ -246,7 +317,8 @@ pub struct EphemeralKeyRegisteredEvent {
     pub eph_pub: BytesN<32>,
 
     pub token: Address,
-    pub amount: i128,
+    pub amount_due: i128,
+    pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
 }
@@ -256,14 +328,16 @@ pub(crate) fn publish_ephemeral_key_registered(
     stealth_address: BytesN<32>,
     eph_pub: BytesN<32>,
     token: Address,
-    amount: i128,
+    amount_due: i128,
+    amount_paid: i128,
     expires_at: u64,
 ) {
     EphemeralKeyRegisteredEvent {
         stealth_address,
         eph_pub,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         expires_at,
         timestamp: env.ledger().timestamp(),
     }

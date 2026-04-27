@@ -146,7 +146,8 @@ pub fn register_ephemeral_key(
 
     let entry = StealthEscrowEntry {
         token: token.clone(),
-        amount,
+        amount_due: amount,
+        amount_paid: amount,
         eph_pub: eph_pub.clone(),
         status: EscrowStatus::Pending,
         created_at: now,
@@ -160,6 +161,7 @@ pub fn register_ephemeral_key(
         stealth_address.clone(),
         eph_pub,
         token,
+        amount,
         amount,
         expires_at,
     );
@@ -220,9 +222,19 @@ pub fn stealth_withdraw(
 
     // Transfer funds to recipient.
     let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(&env.current_contract_address(), &recipient, &entry.amount);
+    token_client.transfer(
+        &env.current_contract_address(),
+        &recipient,
+        &entry.amount_paid,
+    );
 
-    events::publish_stealth_withdrawn(env, stealth_address, recipient, entry.token, entry.amount);
+    events::publish_stealth_withdrawn(
+        env,
+        stealth_address,
+        recipient,
+        entry.token,
+        entry.amount_paid,
+    );
 
     Ok(true)
 }
