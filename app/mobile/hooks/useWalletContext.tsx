@@ -13,7 +13,7 @@ import type {
   WalletError,
   WalletState,
   WalletType,
-} from "../../types/wallet";
+} from "../types/wallet";
 import {
   clearWalletSession,
   getLastWalletType,
@@ -21,8 +21,8 @@ import {
   isSessionRestorable,
   saveWalletSession,
   touchSession,
-} from "../../services/wallet-session";
-import { useSecurity } from "../use-security";
+} from "../services/wallet-session";
+import { useSecurity } from "./use-security";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -183,10 +183,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // ── Edge-case simulation (real SDKs will throw these naturally) ────
         if (walletType !== "demo") {
-          const rand = Math.random();
-
           // Simulate: ~5 % chance the wallet is locked
-          if (rand < 0.05) {
+          if (Math.random() < 0.05) {
             throw walletError(
               "wallet_locked",
               "Your wallet is locked. Please unlock it and try again.",
@@ -194,7 +192,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
           }
 
           // Simulate: ~5 % chance the wallet is on the wrong network
-          if (rand < 0.10) {
+          if (Math.random() < 0.05) {
             throw walletError(
               "wrong_network",
               `Your wallet is not on ${selectedNetwork}. Switch your wallet network and try again.`,
@@ -202,7 +200,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
           }
 
           // Simulate: ~5 % chance the user rejects the signature request
-          if (rand < 0.15) {
+          if (Math.random() < 0.15) {
             throw walletError(
               "signature_rejected",
               "You rejected the signature request. Please try again and approve the transaction.",
