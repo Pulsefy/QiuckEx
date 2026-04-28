@@ -118,13 +118,13 @@ pub fn is_nonce_used(env: &Env, signer: &Address, nonce: u64) -> bool {
 ///
 /// Append your application-specific data before hashing.
 pub fn domain_prefix(env: &Env) -> soroban_sdk::Bytes {
-    use soroban_sdk::Bytes;
+    use soroban_sdk::{xdr::ToXdr, Bytes};
 
     let contract_bytes = env.current_contract_address().to_xdr(env);
-    let passphrase = env.ledger().network_passphrase();
+    let passphrase = env.ledger().network_id();
 
     let mut prefix = Bytes::new(env);
     prefix.append(&contract_bytes);
-    prefix.append(&passphrase);
+    prefix.append(&passphrase.into());
     prefix
 }
