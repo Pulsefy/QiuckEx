@@ -146,7 +146,7 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             let prefix = domain_prefix(&ctx.env);
-            assert!(prefix.len() > 0);
+            assert!(!prefix.is_empty());
         });
     }
 
