@@ -15,11 +15,11 @@ mod escrow_id_test;
 mod events;
 mod fee;
 mod hook;
-mod oracle;
 #[cfg(test)]
 mod fee_test;
 #[cfg(test)]
 mod hook_oracle_test;
+mod oracle;
 mod privacy;
 #[cfg(test)]
 mod role_test;
@@ -645,11 +645,13 @@ impl QuickexContract {
 
     /// Register an external hook contract to receive escrow lifecycle callbacks.
     pub fn register_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         hook::register_hook(&env, hook_contract)
     }
 
     /// Unregister a hook contract.
     pub fn unregister_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         hook::unregister_hook(&env, hook_contract)
     }
 
@@ -664,6 +666,7 @@ impl QuickexContract {
         caller: Address,
         config: FeeConfig,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_fee_config(&env, &caller, config)
     }
 
@@ -673,6 +676,7 @@ impl QuickexContract {
         caller: Address,
         config: OracleFeeConfig,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_oracle_fee_config(&env, &caller, config)
     }
 
@@ -692,6 +696,7 @@ impl QuickexContract {
         caller: Address,
         wallet: Address,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_platform_wallet(&env, &caller, wallet)
     }
 

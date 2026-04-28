@@ -86,7 +86,15 @@ impl MockOracleContract {
     }
 }
 
-fn setup<'a>(env: &'a Env) -> (QuickexContractClient<'a>, Address, Address, Address, Address) {
+fn setup<'a>(
+    env: &'a Env,
+) -> (
+    QuickexContractClient<'a>,
+    Address,
+    Address,
+    Address,
+    Address,
+) {
     let admin = Address::generate(env);
     let platform_wallet = Address::generate(env);
     let owner = Address::generate(env);
