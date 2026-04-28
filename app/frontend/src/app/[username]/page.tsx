@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { QRPreview } from "@/components/QRPreview";
@@ -99,9 +100,11 @@ export default function PublicProfile() {
           {/* Avatar */}
           <div className="flex justify-center mb-6">
             {profile.avatarUrl ? (
-              <img
+              <Image
                 src={profile.avatarUrl}
                 alt={profile.username}
+                width={128}
+                height={128}
                 className="w-32 h-32 rounded-full border-4 object-cover"
                 style={{ borderColor: primaryColor }}
               />

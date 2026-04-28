@@ -14,6 +14,7 @@ import { SupabaseModule } from "../supabase/supabase.module";
 import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { JobQueueModule } from "../job-queue/job-queue.module";
+import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 
 @Module({
   controllers: [
@@ -43,6 +44,7 @@ import { JobQueueModule } from "../job-queue/job-queue.module";
     SupabaseModule,
     StellarModule,
     ApiKeysModule,
+    FeatureFlagsModule,
     forwardRef(() => JobQueueModule),
   ],
 })

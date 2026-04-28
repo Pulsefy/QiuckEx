@@ -2,12 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BulkPaymentLinksService } from './bulk-payment-links.service';
 import { LinksService } from './links.service';
 import { BulkPaymentLinkItemDto } from './dto/bulk-payment-link.dto';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 
 describe('BulkPaymentLinksService', () => {
   let service: BulkPaymentLinksService;
 
   const mockLinksService = {
     generateMetadata: jest.fn(),
+  };
+
+  const mockFeatureFlagsService = {
+    assertActionEnabled: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -17,6 +22,10 @@ describe('BulkPaymentLinksService', () => {
         {
           provide: LinksService,
           useValue: mockLinksService,
+        },
+        {
+          provide: FeatureFlagsService,
+          useValue: mockFeatureFlagsService,
         },
       ],
     }).compile();
@@ -48,6 +57,7 @@ describe('BulkPaymentLinksService', () => {
       expect(result.total).toBe(2);
       expect(result.links).toHaveLength(2);
       expect(result.processingTimeMs).toBeGreaterThanOrEqual(0);
+      expect(mockFeatureFlagsService.assertActionEnabled).toHaveBeenCalledWith('bulk_link_generation');
     });
 
     it('should throw error for empty items array', async () => {
@@ -103,6 +113,17 @@ describe('BulkPaymentLinksService', () => {
       await expect(service.generateBulkLinks(items)).rejects.toThrow(
         'Failed to generate 1 link(s)',
       );
+    });
+
+    it('should stop generation when kill switch is active', async () => {
+      mockFeatureFlagsService.assertActionEnabled.mockRejectedValueOnce(
+        new Error('Feature disabled'),
+      );
+
+      await expect(service.generateBulkLinks([{ amount: 100, asset: 'XLM' }])).rejects.toThrow(
+        'Feature disabled',
+      );
+      expect(mockLinksService.generateMetadata).not.toHaveBeenCalled();
     });
   });
 

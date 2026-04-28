@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { LinksService } from './links.service';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 import {
   BulkPaymentLinkItemDto,
   BulkPaymentLinkResponseItemDto,
@@ -13,7 +14,10 @@ export class BulkPaymentLinksService {
   private readonly logger = new Logger(BulkPaymentLinksService.name);
   private readonly MAX_LINKS_PER_REQUEST = 500;
 
-  constructor(private readonly linksService: LinksService) {}
+  constructor(
+    private readonly linksService: LinksService,
+    private readonly featureFlagsService: FeatureFlagsService,
+  ) {}
 
   /**
    * Generate multiple payment links in bulk from JSON array
@@ -23,6 +27,7 @@ export class BulkPaymentLinksService {
   async generateBulkLinks(
     items: BulkPaymentLinkItemDto[],
   ): Promise<BulkPaymentLinkResponseDto> {
+    await this.featureFlagsService.assertActionEnabled('bulk_link_generation');
     const startTime = Date.now();
 
     // Validate batch size

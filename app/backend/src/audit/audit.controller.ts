@@ -16,8 +16,8 @@ export class AuditController {
 
   // Export capability (CSV)
   @Get('export')
-  exportCsv(@Res() res: Response) {
-    const csv = this.auditService.exportCsv();
+  async exportCsv(@Res() res: Response) {
+    const csv = await this.auditService.exportCsv();
     res.header('Content-Type', 'text/csv');
     res.attachment('audit-logs.csv');
     return res.send(csv);

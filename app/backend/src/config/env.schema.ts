@@ -74,6 +74,17 @@ export const envSchema = Joi.object({
     .default(60000)
     .description("Cache TTL in milliseconds for transaction responses"),
 
+  FEATURE_FLAGS_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(15000)
+    .description("Cache TTL in milliseconds for feature flag snapshots"),
+
+  FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
+    .empty("")
+    .optional()
+    .description("Optional JSON array of bootstrap feature flags used when the store is unavailable"),
+
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
     .empty("")
@@ -250,6 +261,8 @@ export interface EnvConfig {
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
+  FEATURE_FLAGS_CACHE_TTL_MS: number;
+  FEATURE_FLAGS_BOOTSTRAP_JSON?: string;
   QUICKEX_CONTRACT_ID?: string;
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;
