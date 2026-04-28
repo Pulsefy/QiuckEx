@@ -14,8 +14,12 @@ mod escrow_id;
 mod escrow_id_test;
 mod events;
 mod fee;
+mod hook;
+mod oracle;
 #[cfg(test)]
 mod fee_test;
+#[cfg(test)]
+mod hook_oracle_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
@@ -34,7 +38,8 @@ mod types;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PrivacyAwareEscrowView, Role,
+    StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -104,6 +109,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Withdrawal) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::withdraw(&env, amount, to, salt)
     }
 
@@ -203,6 +209,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
     }
 
@@ -334,6 +341,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit_with_commitment(
             &env,
             from,
@@ -382,6 +390,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit_partial(
             &env,
             token,
@@ -424,6 +433,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::partial_payment(&env, commitment, payer, payment_amount)
     }
 
@@ -450,6 +460,7 @@ impl QuickexContract {
             return Err(QuickexError::OperationPaused);
         }
 
+        hook::assert_not_reentrant(&env)?;
         escrow::refund(&env, commitment, caller)
     }
 
@@ -484,6 +495,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::dispute(&env, commitment)
     }
 
@@ -513,6 +525,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
     }
 
@@ -630,6 +643,21 @@ impl QuickexContract {
         storage::get_fee_config(&env)
     }
 
+    /// Register an external hook contract to receive escrow lifecycle callbacks.
+    pub fn register_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::register_hook(&env, hook_contract)
+    }
+
+    /// Unregister a hook contract.
+    pub fn unregister_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::unregister_hook(&env, hook_contract)
+    }
+
+    /// Get the list of registered hook contracts.
+    pub fn get_registered_hooks(env: Env) -> Vec<Address> {
+        hook::get_registered_hooks(&env)
+    }
+
     /// Set the fee configuration (**Admin only**).
     pub fn set_fee_config(
         env: Env,
@@ -637,6 +665,20 @@ impl QuickexContract {
         config: FeeConfig,
     ) -> Result<(), QuickexError> {
         admin::set_fee_config(&env, &caller, config)
+    }
+
+    /// Set oracle fee configuration (**Admin or Operator only**).
+    pub fn set_oracle_fee_config(
+        env: Env,
+        caller: Address,
+        config: OracleFeeConfig,
+    ) -> Result<(), QuickexError> {
+        admin::set_oracle_fee_config(&env, &caller, config)
+    }
+
+    /// Get the current oracle fee configuration.
+    pub fn get_oracle_fee_config(env: Env) -> Option<OracleFeeConfig> {
+        oracle::get_oracle_fee_config(&env)
     }
 
     /// Get the platform wallet address (read-only).

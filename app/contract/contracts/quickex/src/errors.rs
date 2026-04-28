@@ -45,6 +45,12 @@ pub enum QuickexError {
     InvalidContractVersion = 314,
     /// Payment amount exceeds the remaining amount due for the escrow.
     Overpayment = 315,
+    /// Reentrant callback detected during hook invocation.
+    ReentrancyDetected = 316,
+    /// Hook contract is already registered.
+    HookAlreadyRegistered = 317,
+    /// Hook contract was not registered.
+    HookNotRegistered = 318,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

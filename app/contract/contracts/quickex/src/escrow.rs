@@ -203,11 +203,21 @@ pub fn deposit(
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
-        owner,
+        owner.clone(),
         token_client.address,
         amount,
         amount,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        owner,
+        token_client.address,
+        amount,
+        0,
     );
 
     Ok(commitment)
@@ -271,12 +281,22 @@ pub fn deposit_with_commitment(
     put_escrow(env, &commitment_bytes, &entry);
     events::publish_escrow_deposited(
         env,
-        commitment,
-        from_ref,
+        commitment.clone(),
+        from_ref.clone(),
         token_client.address,
         amount,
         amount,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        from_ref,
+        token_client.address,
+        amount,
+        0,
     );
 
     Ok(())
@@ -343,11 +363,21 @@ pub fn deposit_partial(
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
-        owner,
+        owner.clone(),
         token_client.address,
         amount_due,
         initial_payment,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        owner,
+        token_client.address,
+        initial_payment,
+        0,
     );
 
     Ok(commitment)
@@ -525,7 +555,17 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         }
     }
 
-    events::publish_escrow_withdrawn(env, commitment, to, token_ref, amount_paid, fee_amount);
+    events::publish_escrow_withdrawn(env, commitment, to.clone(), token_ref.clone(), amount_paid, fee_amount);
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Settle,
+        &commitment,
+        entry.owner,
+        token_ref,
+        amount_paid,
+        fee_amount,
+    );
 
     Ok(true)
 }
@@ -587,7 +627,17 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let token_client = token::Client::new(env, &token_ref);
     token_client.transfer(&env.current_contract_address(), &owner_ref, &amount_paid);
 
-    events::publish_escrow_refunded(env, owner_ref, commitment, token_ref, amount_paid);
+    events::publish_escrow_refunded(env, owner_ref.clone(), commitment, token_ref.clone(), amount_paid);
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Refund,
+        &commitment,
+        owner_ref,
+        token_ref,
+        amount_paid,
+        0,
+    );
 
     Ok(())
 }
@@ -756,16 +806,34 @@ pub fn resolve_dispute(
     if resolve_for_owner {
         events::publish_escrow_refunded(
             env,
-            entry.owner,
+            entry.owner.clone(),
             commitment,
+            entry.token.clone(),
+            entry.amount_paid,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Refund,
+            &commitment,
+            entry.owner,
             entry.token,
             entry.amount_paid,
+            0,
         );
     } else {
         events::publish_escrow_withdrawn(
             env,
             commitment,
-            recipient_address,
+            recipient_address.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            fee_amount,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Settle,
+            &commitment,
+            entry.owner,
             entry.token,
             entry.amount_paid,
             fee_amount,
