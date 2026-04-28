@@ -18,6 +18,8 @@ describe('UsernamesService', () => {
     insertUsername: jest.fn(),
     countUsernamesByPublicKey: jest.fn(),
     listUsernamesByPublicKey: jest.fn(),
+    searchPublicUsernames: jest.fn(),
+    updateUsernameActivity: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -170,6 +172,69 @@ describe('UsernamesService', () => {
         'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
       );
       expect(result).toEqual(rows);
+    });
+  });
+
+  describe('searchPublicUsernames', () => {
+    const rows = [
+      {
+        id: 'id-4',
+        username: 'alice4',
+        public_key: 'GAAA4',
+        created_at: '2025-01-04T00:00:00.000Z',
+        last_active_at: null,
+        is_public: true,
+      },
+      {
+        id: 'id-3',
+        username: 'alice3',
+        public_key: 'GAAA3',
+        created_at: '2025-01-03T00:00:00.000Z',
+        last_active_at: null,
+        is_public: true,
+      },
+      {
+        id: 'id-2',
+        username: 'alice2',
+        public_key: 'GAAA2',
+        created_at: '2025-01-02T00:00:00.000Z',
+        last_active_at: null,
+        is_public: true,
+      },
+      {
+        id: 'id-1',
+        username: 'alice1',
+        public_key: 'GAAA1',
+        created_at: '2025-01-01T00:00:00.000Z',
+        last_active_at: null,
+        is_public: true,
+      },
+    ];
+
+    it('returns first page with next_cursor and has_more=true', async () => {
+      mockSupabaseService.searchPublicUsernames.mockResolvedValueOnce(rows.slice(0, 3));
+
+      const result = await service.searchPublicUsernames('alice', 2);
+
+      expect(result.data.map((r: { id: string }) => r.id)).toEqual(['id-4', 'id-3']);
+      expect(result.has_more).toBe(true);
+      expect(result.next_cursor).toBeTruthy();
+      expect(mockSupabaseService.updateUsernameActivity).toHaveBeenCalledWith('alice4');
+    });
+
+    it('advances to next page when cursor is provided', async () => {
+      mockSupabaseService.searchPublicUsernames.mockResolvedValueOnce(rows);
+      const cursor = Buffer.from(
+        JSON.stringify({ pk: '2025-01-03T00:00:00.000Z', id: 'id-3' }),
+        'utf-8',
+      ).toString('base64url');
+
+      const result = await service.searchPublicUsernames('alice', 2, cursor);
+
+      expect(result.data.map((r: { id: string }) => r.id)).toEqual(['id-2', 'id-1']);
+      expect(result.has_more).toBe(false);
+      expect(result.next_cursor).toBeNull();
+      expect(mockSupabaseService.searchPublicUsernames).toHaveBeenCalledWith('alice', 100);
     });
   });
 });
