@@ -18,6 +18,7 @@ import { StellarModule } from "./stellar/stellar.module";
 import { SupabaseModule } from "./supabase/supabase.module";
 import { UsernamesModule } from "./usernames/usernames.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { LinksModule } from "./links/links.module";
 import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
 import { TransactionsModule } from "./transactions/transactions.module";
@@ -64,6 +65,7 @@ type AppImport =
       StellarModule,
       UsernamesModule,
       MetricsModule,
+      AnalyticsModule,
       LinksModule,
       ScamAlertsModule,
       TransactionsModule,
