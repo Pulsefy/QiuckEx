@@ -327,10 +327,7 @@ pub fn set_registered_hooks(env: &Env, hooks: &Vec<Address>) {
 }
 
 pub fn get_reentrancy_guard(env: &Env) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::ReentrancyGuard)
-        .unwrap_or(false)
+    env.storage().persistent().get(&DataKey::ReentrancyGuard).unwrap_or(false)
 }
 
 pub fn set_reentrancy_guard(env: &Env, value: &bool) {

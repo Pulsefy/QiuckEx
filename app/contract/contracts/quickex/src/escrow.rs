@@ -65,12 +65,12 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 use crate::{
     admin, commitment,
     errors::QuickexError,
-    escrow_id, events, fee,
+    escrow_id, events, fee, hook,
     storage::{
         get_escrow, get_escrow_id_mapping, get_platform_wallet, has_escrow, put_escrow,
         put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
     },
-    types::{EscrowEntry, EscrowStatus, Role},
+    types::{EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
 
 // ---------------------------------------------------------------------------
