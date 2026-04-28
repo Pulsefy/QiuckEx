@@ -17,11 +17,13 @@ import type {
   EscrowRefundedPayload,
   PaymentReceivedPayload,
   UsernameClaimedPayload,
+  AutoReconciliationSucceededNotificationPayload,
 } from "./types/notification.types";
 import {
   NotificationEvent,
   PaymentReceivedEvent,
   UsernameClaimedEvent,
+  AutoReconciliationSucceededEvent,
 } from "../events/notification.events";
 import type {
   EscrowDepositedEvent,
@@ -144,6 +146,33 @@ export class NotificationService implements OnModuleInit {
       txHash: event.txHash,
       sender: event.sender,
       metadata: { txHash: event.txHash, sender: event.sender },
+    };
+    await this.dispatch(payload);
+  }
+
+  @OnEvent("auto_reconciliation.succeeded", { async: true })
+  async onAutoReconciliationSucceeded(event: AutoReconciliationSucceededEvent): Promise<void> {
+    const payload: AutoReconciliationSucceededNotificationPayload = {
+      eventType: "auto_reconciliation.succeeded",
+      eventId: event.txHash,
+      recipientPublicKey: event.ownerPublicKey,
+      title: "Payment Link Fulfilled",
+      body:
+        "Your payment link for " +
+        event.amount +
+        " " +
+        event.assetCode +
+        " has been automatically matched and marked as paid.",
+      occurredAt: event.matchedAt,
+      linkId: event.linkId,
+      txHash: event.txHash,
+      assetCode: event.assetCode,
+      confidence: event.confidence,
+      metadata: {
+        linkId: event.linkId,
+        txHash: event.txHash,
+        confidence: event.confidence,
+      },
     };
     await this.dispatch(payload);
   }
