@@ -105,6 +105,12 @@ pub enum DataKey {
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
     PlatformWallet,
+    /// Oracle fee configuration for dynamic USD-based fees.
+    OracleFeeConfig,
+    /// Registered hook contract addresses.
+    HookRegistry,
+    /// Reentrancy guard to prevent callback-based reentry during hook execution.
+    ReentrancyGuard,
     /// Boolean privacy flag per account.
     PrivacyEnabled(Address),
     /// Maps a deterministic 32-byte `escrow_id` (see [`crate::escrow_id`])
@@ -295,6 +301,42 @@ pub fn set_platform_wallet(env: &Env, wallet: &Address) {
     env.storage()
         .persistent()
         .set(&DataKey::PlatformWallet, wallet);
+}
+
+pub fn get_oracle_fee_config(env: &Env) -> Option<crate::types::OracleFeeConfig> {
+    env.storage().persistent().get(&DataKey::OracleFeeConfig)
+}
+
+pub fn set_oracle_fee_config(env: &Env, config: &crate::types::OracleFeeConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::OracleFeeConfig, config);
+}
+
+pub fn get_registered_hooks(env: &Env) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::HookRegistry)
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn set_registered_hooks(env: &Env, hooks: &Vec<Address>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::HookRegistry, hooks);
+}
+
+pub fn get_reentrancy_guard(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::ReentrancyGuard)
+        .unwrap_or(false)
+}
+
+pub fn set_reentrancy_guard(env: &Env, value: &bool) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::ReentrancyGuard, value);
 }
 
 // -----------------------------------------------------------------------------
