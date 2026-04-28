@@ -2,8 +2,12 @@
 // Channels
 // ---------------------------------------------------------------------------
 
-export type NotificationChannel = "email" | "push" | "webhook" | "telegram";
-
+export type NotificationChannel =
+  | "email"
+  | "push"
+  | "webhook"
+  | "telegram"
+  | "in_app";
 // ---------------------------------------------------------------------------
 // Notification domain events
 // These extend the Stellar ingestion events with classic payment/username events.
