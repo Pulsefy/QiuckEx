@@ -33,6 +33,8 @@ import { MarketplaceModule } from "./marketplace/marketplace.module";
 import { SentryModule } from "./sentry";
 import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 import { RefundsModule } from "./refunds/refunds.module";
+import { ExportsModule } from "./exports/exports.module";
+import { JobQueueModule } from "./job-queue/job-queue.module";
 import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 
@@ -69,6 +71,8 @@ type AppImport =
       MarketplaceModule,
       FiatRampsModule,
       RefundsModule,
+      ExportsModule,
+      JobQueueModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't

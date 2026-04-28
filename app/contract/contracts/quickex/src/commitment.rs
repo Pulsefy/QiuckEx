@@ -16,10 +16,10 @@ use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};
 ///    - Changing owner → different commitment
 ///    - Changing amount → different commitment
 ///    - Changing salt → different commitment
-///    - SHA-256 provides ~2^256 output space, making collisions computationally infeasible
+///    - Keccak-256 provides ~2^256 output space, making collisions computationally infeasible
 ///
 /// 3. **Hiding Property**: Commitment reveals nothing about (owner, amount, salt)
-///    - The SHA-256 hash is cryptographically one-way
+///    - The Keccak-256 hash is cryptographically one-way
 ///    - No practical algorithm can derive inputs from the commitment alone
 ///    - Salt adds entropy to prevent rainbow table attacks on common amounts
 ///
@@ -37,54 +37,60 @@ use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};
 /// ## Limitations
 ///
 /// - No formal cryptographic proof provided in-code (empirical testing only)
-/// - Relies on SHA-256 security assumptions (pre-image resistance, collision resistance)
+/// - Relies on Keccak-256 security assumptions (pre-image resistance, collision resistance)
 /// - Salt must be kept secret by the user; if leaked, privacy is compromised
 /// - Does not protect against timing attacks (constant-time operations not guaranteed)
 ///
 /// ## Implementation Details
 ///
-/// Commitment = SHA256(XDR(owner) || BE(amount) || salt)
+/// Commitment = KECCAK256(XDR(owner) || BE(amount) || salt)
 /// where:
 /// - XDR(owner) = Stellar XDR encoding of Address
 /// - BE(amount) = 16-byte big-endian representation of i128
 /// - || = byte concatenation
 ///
+/// Verification paths also accept the legacy `SHA256(XDR(owner) || BE(amount) || salt)`
+/// commitment so older privacy escrows remain valid after the migration.
+fn validate_commitment_input(amount: i128, salt: &Bytes) -> Result<(), QuickexError> {
+    if amount < 0 {
+        return Err(QuickexError::InvalidAmount);
+    }
+    if salt.len() > 1024 {
+        return Err(QuickexError::InvalidSalt);
+    }
+    Ok(())
+}
+
+fn build_commitment_payload(env: &Env, owner: &Address, amount: i128, salt: &Bytes) -> Bytes {
+    let mut payload = Bytes::new(env);
+    payload.append(&owner.to_xdr(env));
+    payload.append(&Bytes::from_array(env, &amount.to_be_bytes()));
+    payload.append(salt);
+    payload
+}
+
+pub(crate) fn amount_commitment_hashes(
+    env: &Env,
+    owner: &Address,
+    amount: i128,
+    salt: &Bytes,
+) -> Result<(BytesN<32>, BytesN<32>), QuickexError> {
+    validate_commitment_input(amount, salt)?;
+    let payload = build_commitment_payload(env, owner, amount, salt);
+    Ok((
+        env.crypto().keccak256(&payload).into(),
+        env.crypto().sha256(&payload).into(),
+    ))
+}
+
 pub fn create_amount_commitment(
     env: &Env,
     owner: Address,
     amount: i128,
     salt: Bytes,
 ) -> Result<BytesN<32>, QuickexError> {
-    if amount < 0 {
-        return Err(QuickexError::InvalidAmount);
-    }
-
-    // Cap salt length as a safeguard
-    if salt.len() > 1024 {
-        return Err(QuickexError::InvalidSalt);
-    }
-
-    let mut payload = Bytes::new(env);
-
-    // Append owner (Address) - using XDR serialization for consistency
-    payload.append(&owner.to_xdr(env));
-
-    // Serialize amount (i128) to big-endian bytes
-    let amount_bytes: [u8; 16] = amount.to_be_bytes();
-
-    // non-optimized: 16 individual push_back host calls
-    // for b in &amount_bytes {
-    //     payload.push_back(*b);
-    // }
-
-    // optimized: single append — 1 host call
-    payload.append(&Bytes::from_array(env, &amount_bytes));
-
-    // Append salt
-    payload.append(&salt);
-
-    // Return SHA256 hash
-    Ok(env.crypto().sha256(&payload).into())
+    let (commitment, _) = amount_commitment_hashes(env, &owner, amount, &salt)?;
+    Ok(commitment)
 }
 
 pub fn verify_amount_commitment(
@@ -94,8 +100,8 @@ pub fn verify_amount_commitment(
     amount: i128,
     salt: Bytes,
 ) -> bool {
-    match create_amount_commitment(env, owner, amount, salt) {
-        Ok(hash) => hash == commitment,
+    match amount_commitment_hashes(env, &owner, amount, &salt) {
+        Ok((keccak, sha256)) => commitment == keccak || commitment == sha256,
         Err(_) => false,
     }
 }

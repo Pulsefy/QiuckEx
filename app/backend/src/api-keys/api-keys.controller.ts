@@ -8,9 +8,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
+import { CursorPaginationQueryDto } from '../dto/pagination/pagination.dto';
 
+@ApiTags('api-keys')
 @Controller('api-keys')
 export class ApiKeysController {
   constructor(private readonly service: ApiKeysService) {}
@@ -26,11 +29,19 @@ export class ApiKeysController {
 
   /**
    * GET /api-keys
-   * Lists all active keys (masked). Optionally filter by owner_id.
+   * Lists all active keys (masked) with cursor-based pagination. Optionally filter by owner_id.
    */
   @Get()
-  list(@Query('owner_id') ownerId?: string) {
-    return this.service.list(ownerId);
+  @ApiOperation({ summary: 'List API keys with cursor-based pagination' })
+  @ApiQuery({ name: 'owner_id', required: false })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
+  @ApiResponse({ status: 200, description: 'Paginated list of API keys' })
+  list(
+    @Query('owner_id') ownerId?: string,
+    @Query() pagination?: CursorPaginationQueryDto,
+  ) {
+    return this.service.listPaginated(ownerId, pagination?.cursor, pagination?.limit);
   }
 
   /**

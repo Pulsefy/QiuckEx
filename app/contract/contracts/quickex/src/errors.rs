@@ -43,6 +43,8 @@ pub enum QuickexError {
     OperationPaused = 313,
     /// The stored contract version cannot be migrated by this release.
     InvalidContractVersion = 314,
+    /// Payment amount exceeds the remaining amount due for the escrow.
+    Overpayment = 315,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

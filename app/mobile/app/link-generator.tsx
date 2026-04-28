@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { QRPreviewModal } from "../components/QRPreviewModal";
 import { useTheme } from "../src/theme/ThemeContext";
+import { useNetworkStatus } from "../hooks/use-network-status";
 
 const API_BASE_URL =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
@@ -108,7 +109,13 @@ export default function LinkGeneratorScreen() {
     });
   }, [form.amount, recipientAssetCode, form.destination, form.memo]);
 
+  const { isConnected } = useNetworkStatus();
+
   const handleGenerate = async () => {
+    if (isConnected === false) {
+      Alert.alert("Offline Mode", "You cannot generate payment links while offline.");
+      return;
+    }
     if (!isValidAmount || !isValidDestination) {
       Alert.alert("Invalid Input", "Please check your amount and destination.");
       return;

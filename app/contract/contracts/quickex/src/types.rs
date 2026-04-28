@@ -36,8 +36,10 @@ pub enum EscrowStatus {
 pub struct EscrowEntry {
     /// Token contract address for the escrowed funds.
     pub token: Address,
-    /// Amount in token base units.
-    pub amount: i128,
+    /// Total amount due in token base units (the target amount to be paid).
+    pub amount_due: i128,
+    /// Amount already paid towards the escrow.
+    pub amount_paid: i128,
     /// Owner who deposited and may refund after expiry.
     pub owner: Address,
     /// Current status (Pending, Spent, Refunded, Expired, Disputed).
@@ -54,7 +56,7 @@ pub struct EscrowEntry {
 /// Privacy-aware view of an escrow entry.
 ///
 /// Returned by [`QuickexContract::get_escrow_details`] instead of the raw
-/// [`EscrowEntry`]. Sensitive fields (`amount`, `owner`) are set to `None`
+/// [`EscrowEntry`]. Sensitive fields (`amount_due`, `amount_paid`, `owner`) are set to `None`
 /// when the escrow owner has privacy enabled and the caller is not the owner.
 ///
 /// ## Field visibility
@@ -65,15 +67,18 @@ pub struct EscrowEntry {
 /// | `status`     | ✓           | ✓                            | ✓                               |
 /// | `created_at` | ✓           | ✓                            | ✓                               |
 /// | `expires_at` | ✓           | ✓                            | ✓                               |
-/// | `amount`     | ✓           | ✓                            | `None`                          |
+/// | `amount_due` | ✓           | ✓                            | `None`                          |
+/// | `amount_paid`| ✓           | ✓                            | `None`                          |
 /// | `owner`      | ✓           | ✓                            | `None`                          |
 #[contracttype]
 #[derive(Clone)]
 pub struct PrivacyAwareEscrowView {
     /// Token contract address (always visible).
     pub token: Address,
-    /// Escrowed amount. `None` when privacy is enabled and caller is not the owner.
-    pub amount: Option<i128>,
+    /// Total amount due. `None` when privacy is enabled and caller is not the owner.
+    pub amount_due: Option<i128>,
+    /// Amount already paid. `None` when privacy is enabled and caller is not the owner.
+    pub amount_paid: Option<i128>,
     /// Owner address. `None` when privacy is enabled and caller is not the owner.
     pub owner: Option<Address>,
     /// Current lifecycle status (always visible).
@@ -97,8 +102,10 @@ pub struct StealthDepositParams {
     pub sender: Address,
     /// Token contract address.
     pub token: Address,
-    /// Amount to lock; must be positive.
-    pub amount: i128,
+    /// Total amount due; must be positive.
+    pub amount_due: i128,
+    /// Initial payment amount; must be positive and <= amount_due.
+    pub amount_paid: i128,
     /// Sender's ephemeral public key (32 bytes).
     pub eph_pub: BytesN<32>,
     /// Recipient's spend public key (32 bytes).
@@ -116,7 +123,7 @@ pub struct StealthDepositParams {
 ///
 /// ## Field visibility
 /// - `eph_pub` is public (needed by recipient to scan).
-/// - `token`, `amount`, `status`, `created_at`, `expires_at` are public.
+/// - `token`, `amount_due`, `amount_paid`, `status`, `created_at`, `expires_at` are public.
 /// - The link between `eph_pub` and the recipient's real identity is only
 ///   computable by the recipient (who holds the matching private key).
 #[contracttype]
@@ -124,8 +131,10 @@ pub struct StealthDepositParams {
 pub struct StealthEscrowEntry {
     /// Token contract address for the escrowed funds.
     pub token: Address,
-    /// Amount in token base units.
-    pub amount: i128,
+    /// Total amount due in token base units (the target amount to be paid).
+    pub amount_due: i128,
+    /// Amount already paid towards the escrow.
+    pub amount_paid: i128,
     /// Sender's ephemeral public key (32 bytes). Stored so the recipient can
     /// scan events and re-derive the shared secret off-chain.
     pub eph_pub: BytesN<32>,

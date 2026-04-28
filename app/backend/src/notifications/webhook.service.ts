@@ -46,9 +46,17 @@ export class WebhookService {
     return this.toResponse(preference);
   }
 
-  async listWebhooks(publicKey: string): Promise<WebhookResponseDto[]> {
-    const preferences = await this.prefsRepo.getWebhooksByPublicKey(publicKey);
-    return preferences.map((p) => this.toResponse(p));
+  async listWebhooks(
+    publicKey: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<{ data: WebhookResponseDto[]; next_cursor: string | null; has_more: boolean }> {
+    const preferences = await this.prefsRepo.getWebhooksByPublicKeyPaginated(publicKey, cursor, limit);
+    return {
+      data: preferences.data.map((p) => this.toResponse(p)),
+      next_cursor: preferences.next_cursor,
+      has_more: preferences.has_more,
+    };
   }
 
   async getWebhook(id: string): Promise<WebhookResponseDto | null> {
@@ -113,20 +121,25 @@ export class WebhookService {
   async getDeliveryLogs(
     publicKey: string,
     limit?: number,
-  ): Promise<WebhookDeliveryLogDto[]> {
-    const logs = await this.logRepo.getWebhookDeliveryLogs(publicKey, limit);
-    return logs.map((log) => ({
-      id: log.id,
-      eventType: log.eventType,
-      eventId: log.eventId,
-      status: log.status,
-      attempts: log.attempts,
-      lastError: log.lastError,
-      httpStatus: log.httpStatus,
-      responseBody: log.responseBody,
-      createdAt: log.createdAt,
-      deliveredAt: log.deliveredAt,
-    }));
+    cursor?: string,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
+    const result = await this.logRepo.getWebhookDeliveryLogsPaginated(publicKey, limit, cursor);
+    return {
+      data: result.data.map((log) => ({
+        id: log.id,
+        eventType: log.eventType,
+        eventId: log.eventId,
+        status: log.status,
+        attempts: log.attempts,
+        lastError: log.lastError,
+        httpStatus: log.httpStatus,
+        responseBody: log.responseBody,
+        createdAt: log.createdAt,
+        deliveredAt: log.deliveredAt,
+      })),
+      next_cursor: result.next_cursor,
+      has_more: result.has_more,
+    };
   }
 
   async getStats(publicKey: string): Promise<WebhookStatsDto> {

@@ -38,6 +38,8 @@ type PathPreviewResponse = {
 
 const QUOTE_TTL_SECONDS = 25;
 const BASE_PATH_OPERATION_FEE_XLM = 0.00001;
+const FOCUS_RING_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black";
 
 type LinkMetadataSuccess = {
   success: true;
@@ -430,32 +432,39 @@ export default function Generator() {
 
   return (
     <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
+      <a
+        href="#generator-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to payment form
+      </a>
       <NetworkBadge />
 
       <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px]" />
       <div className="fixed bottom-[-20%] right-[-30%] w-[50%] h-[50%] bg-purple-500/5 blur-[100px]" />
 
       <aside className="hidden md:flex w-72 h-screen border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col fixed left-0 top-0 z-20">
-        <nav className="flex-1 px-4 py-20 space-y-2">
+        <nav className="flex-1 px-4 py-20 space-y-2" aria-label="Generator navigation">
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold"
+            className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
           >
             <span>📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
-            className="flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner"
+            aria-current="page"
+            className={`flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner ${FOCUS_RING_CLASS}`}
           >
             <span className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
-          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold">
+          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
             <span>⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
 
-      <main className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
+      <main id="generator-main" className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
         <header className="mb-10 sm:mb-16 max-w-3xl">
           <nav className="flex items-center gap-2 text-xs font-black text-neutral-600 uppercase tracking-widest mb-4">
             <span>{t('services')}</span>
@@ -479,7 +488,7 @@ export default function Generator() {
           <div className="space-y-12">
             <section className="space-y-6">
               <div>
-                <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
+                <label htmlFor="generator-amount" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
                   {t('amountLabel')}
                 </label>
 
@@ -488,13 +497,16 @@ export default function Generator() {
 
                   <div className="relative bg-neutral-900/50 border border-white/10 rounded-3xl p-1 shadow-2xl">
                     <input
+                      id="generator-amount"
                       type="number"
                       placeholder={t('amountPlaceholder')}
                       value={form.amount}
                       onChange={(e) =>
                         setForm({ ...form, amount: e.target.value })
                       }
-                      className="w-full bg-transparent p-6 sm:p-8 text-3xl sm:text-5xl font-black focus:outline-none placeholder:text-neutral-800"
+                      aria-invalid={Boolean(errors.amount)}
+                      aria-describedby={errors.amount ? "generator-amount-error" : undefined}
+                      className={`w-full bg-transparent p-6 sm:p-8 text-3xl sm:text-5xl font-black placeholder:text-neutral-500 ${FOCUS_RING_CLASS}`}
                     />
 
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex bg-black/40 p-2 rounded-2xl border border-white/5 backdrop-blur-xl gap-1 max-w-[50%] flex-wrap justify-end">
@@ -508,12 +520,14 @@ export default function Generator() {
                             key={a.code}
                             type="button"
                             onClick={() => setRecipientAssetCode(a.code)}
+                            aria-pressed={recipientAssetCode === a.code}
+                            aria-label={`Set recipient asset to ${a.code}`}
                             className={`
-                            px-3 py-2 text-xs sm:text-sm rounded-xl transition 
+                            px-3 py-2 text-xs sm:text-sm rounded-xl transition ${FOCUS_RING_CLASS}
                             ${
                               recipientAssetCode === a.code
                                 ? "bg-white text-black font-black"
-                                : "text-neutral-500 hover:text-white"
+                                : "text-neutral-300 hover:text-white"
                             }
                           `}
                           >
@@ -526,43 +540,47 @@ export default function Generator() {
                 </div>
 
                 {errors.amount && (
-                  <p className="text-red-500 text-xs mt-2">{errors.amount}</p>
+                  <p id="generator-amount-error" role="alert" className="text-red-400 text-xs mt-2">{errors.amount}</p>
                 )}
                 {assetsError && (
-                  <p className="text-amber-500 text-xs mt-2">{assetsError}</p>
+                  <p role="alert" className="text-amber-400 text-xs mt-2">{assetsError}</p>
                 )}
               </div>
 
               <div>
-                <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
+                <label htmlFor="generator-destination" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
                   {t('destinationLabel')}
                 </label>
                 <input
+                  id="generator-destination"
                   type="text"
                   placeholder={t('destinationPlaceholder')}
                   value={form.destination}
                   onChange={(e) =>
                     setForm({ ...form, destination: e.target.value })
                   }
-                  className="w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 focus:outline-none placeholder:text-neutral-700"
+                  aria-invalid={Boolean(errors.destination)}
+                  aria-describedby={errors.destination ? "generator-destination-error" : undefined}
+                  className={`w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 placeholder:text-neutral-400 ${FOCUS_RING_CLASS}`}
                 />
                 {errors.destination && (
-                  <p className="text-red-500 text-xs mt-2">
+                  <p id="generator-destination-error" role="alert" className="text-red-400 text-xs mt-2">
                     {errors.destination}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-xs font-black uppercase tracking-widest text-neutral-500 ml-1">
+                <label htmlFor="generator-memo" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
                   {t('memoLabel')}
                 </label>
                 <input
+                  id="generator-memo"
                   type="text"
                   placeholder={t('memoPlaceholder')}
                   value={form.memo}
                   onChange={(e) => setForm({ ...form, memo: e.target.value })}
-                  className="w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 focus:outline-none placeholder:text-neutral-700"
+                  className={`w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 placeholder:text-neutral-400 ${FOCUS_RING_CLASS}`}
                 />
               </div>
 
@@ -570,31 +588,34 @@ export default function Generator() {
                 <button
                   type="button"
                   onClick={() => setAdvancedOpen((v) => !v)}
-                  className="flex w-full items-center justify-between text-left"
+                  aria-expanded={advancedOpen}
+                  aria-controls="generator-advanced-panel"
+                  className={`flex w-full items-center justify-between text-left ${FOCUS_RING_CLASS}`}
                 >
                   <span className="text-sm font-black uppercase tracking-widest text-indigo-300">
                     {t('advancedSettings')}
                   </span>
-                  <span className="text-neutral-500 text-sm">
+                  <span className="text-neutral-300 text-sm">
                     {advancedOpen ? t('hide') : t('show')} path payments
                   </span>
                 </button>
 
                 {advancedOpen && (
-                  <div className="space-y-6 pt-2 border-t border-white/5">
+                  <div id="generator-advanced-panel" className="space-y-6 pt-2 border-t border-white/5">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
+                      <label htmlFor="generator-recipient-asset" className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2 block">
                         {t('recipientAsset')}
-                      </p>
-                      <p className="text-sm text-neutral-400 mb-3">
+                      </label>
+                      <p className="text-sm text-neutral-300 mb-3">
                         {t('recipientAssetDescription')}
                       </p>
                       <select
+                        id="generator-recipient-asset"
                         value={recipientAssetCode}
                         onChange={(e) =>
                           setRecipientAssetCode(e.target.value)
                         }
-                        className="w-full bg-neutral-900 border border-white/10 rounded-2xl p-4 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                        className={`w-full bg-neutral-900 border border-white/10 rounded-2xl p-4 font-bold ${FOCUS_RING_CLASS}`}
                       >
                         {verifiedAssets.map((a) => (
                           <option key={a.code} value={a.code}>
@@ -606,17 +627,17 @@ export default function Generator() {
                         ))}
                       </select>
                       {errors.asset && (
-                        <p className="text-red-500 text-xs mt-2">
+                        <p role="alert" className="text-red-400 text-xs mt-2">
                           {errors.asset}
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2">
                         {t('allowedSourceAssets')}
                       </p>
-                      <p className="text-sm text-neutral-400 mb-3">
+                      <p className="text-sm text-neutral-300 mb-3">
                         {t('allowedSourceAssetsDescription')}
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -627,10 +648,11 @@ export default function Generator() {
                               key={a.code}
                               type="button"
                               onClick={() => toggleSource(a.code)}
+                              aria-pressed={on}
                               className={`px-4 py-2 rounded-xl text-sm font-bold border transition ${
                                 on
                                   ? "bg-indigo-500/30 border-indigo-400/50 text-white"
-                                  : "bg-neutral-900/50 border-white/10 text-neutral-500 hover:text-neutral-300"
+                                  : `bg-neutral-900/50 border-white/10 text-neutral-300 hover:text-white ${FOCUS_RING_CLASS}`
                               }`}
                             >
                               {a.code}
@@ -642,7 +664,7 @@ export default function Generator() {
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
                           {t('pathPreview')}
                         </h3>
                         <div className="flex items-center gap-3">
@@ -661,7 +683,7 @@ export default function Generator() {
                             type="button"
                             onClick={() => void fetchPathPreview()}
                             disabled={pathLoading}
-                            className="text-xs px-2 py-1 rounded-md border border-white/10 text-neutral-300 hover:text-white hover:bg-white/5 disabled:opacity-50"
+                            className={`text-xs px-2 py-1 rounded-md border border-white/10 text-neutral-200 hover:text-white hover:bg-white/5 disabled:opacity-50 ${FOCUS_RING_CLASS}`}
                           >
                             {pathLoading ? t('fetchingEstimates') : t('refreshQuote')}
                           </button>
@@ -679,7 +701,7 @@ export default function Generator() {
                         </p>
                       )}
                       {pathError && (
-                        <p className="text-amber-500 text-sm">
+                        <p role="alert" className="text-amber-400 text-sm">
                           {pathErrorType === "liquidity"
                             ? t('insufficientLiquidityState')
                             : pathErrorType === "path"
@@ -691,12 +713,12 @@ export default function Generator() {
                         !pathError &&
                         pathData &&
                         pathData.paths.length === 0 && (
-                          <p className="text-neutral-500 text-sm">
+                          <p className="text-neutral-300 text-sm">
                             {t('noPathsFound', { horizonUrl: pathData.horizonUrl })}
                           </p>
                         )}
                       {!pathLoading && !pathError && !pathData && (
-                        <p className="text-neutral-600 text-xs">
+                        <p className="text-neutral-300 text-xs">
                           {t('pathPreviewHint')}
                         </p>
                       )}
@@ -715,23 +737,23 @@ export default function Generator() {
                                   destinationAsset: p.destinationAsset
                                 })}
                               </div>
-                              <div className="text-xs text-neutral-500 mt-1">
+                              <div className="text-xs text-neutral-300 mt-1">
                                 {t('hops', { hopCount: p.hopCount })}
                                 {p.pathHops.length > 0
                                   ? ` · ${p.pathHops.join(" → ")}`
                                   : ""}
                               </div>
-                              <div className="text-xs text-neutral-600 mt-1">
+                              <div className="text-xs text-neutral-400 mt-1">
                                 {p.rateDescription}
                               </div>
                               <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] p-2 space-y-1">
-                                <p className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">
+                                <p className="text-[11px] uppercase tracking-wide text-neutral-300 font-semibold">
                                   {t('pathBreakdown')}
                                 </p>
                                 {getPathLegs(p).map((leg) => (
                                   <div
                                     key={`${leg.poolLabel}-${leg.fromAsset}-${leg.toAsset}`}
-                                    className="flex items-center justify-between text-xs text-neutral-400"
+                                    className="flex items-center justify-between text-xs text-neutral-300"
                                   >
                                     <span>{leg.poolLabel}</span>
                                     <span className="font-mono">
@@ -739,7 +761,7 @@ export default function Generator() {
                                     </span>
                                   </div>
                                 ))}
-                                <p className="text-xs text-neutral-500">
+                                <p className="text-xs text-neutral-300">
                                   {t('estimatedNetworkFee', {
                                     fee: ((p.hopCount + 1) * BASE_PATH_OPERATION_FEE_XLM).toFixed(5),
                                   })}
@@ -753,14 +775,14 @@ export default function Generator() {
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
                           {t('slippageTolerance')}
                         </h3>
-                        <span className="text-sm font-mono text-neutral-300">
+                        <span className="text-sm font-mono text-neutral-200">
                           {slippageValue.toFixed(2)}%
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-neutral-300">
                         {t('slippageDescription')}
                       </p>
                       <input
@@ -770,7 +792,8 @@ export default function Generator() {
                         step={0.1}
                         value={slippagePct}
                         onChange={(e) => setSlippagePct(e.target.value)}
-                        className="w-full accent-indigo-400"
+                        aria-label="Slippage percentage"
+                        className={`w-full accent-indigo-400 ${FOCUS_RING_CLASS}`}
                       />
                       <div className="flex flex-wrap gap-2">
                         {["0.50", "1.00", "2.00"].map((preset) => (
@@ -781,7 +804,7 @@ export default function Generator() {
                             className={`px-3 py-1 text-xs rounded-lg border ${
                               slippagePct === preset
                                 ? "border-indigo-400/60 text-indigo-200 bg-indigo-500/10"
-                                : "border-white/10 text-neutral-400"
+                                : `border-white/10 text-neutral-200 ${FOCUS_RING_CLASS}`
                             }`}
                           >
                             {preset}%
@@ -791,10 +814,10 @@ export default function Generator() {
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
                         {t('sorobanPreflight')}
                       </h3>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-neutral-300">
                         {t('sorobanPreflightDescription')}
                       </p>
                       <input
@@ -802,20 +825,20 @@ export default function Generator() {
                         placeholder={t('sourceAccountPlaceholder')}
                         value={preflightAccount}
                         onChange={(e) => setPreflightAccount(e.target.value)}
-                        className="w-full bg-neutral-900/80 border border-white/10 rounded-xl p-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        className={`w-full bg-neutral-900/80 border border-white/10 rounded-xl p-3 font-mono text-sm ${FOCUS_RING_CLASS}`}
                       />
                       <button
                         type="button"
                         onClick={() => void runPreflight()}
                         disabled={preflightLoading}
-                        className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-bold disabled:opacity-50"
+                        className={`w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-bold disabled:opacity-50 ${FOCUS_RING_CLASS}`}
                       >
                         {preflightLoading
                           ? t('simulating')
                           : t('runPreflight')}
                       </button>
                       {preflightUnavailable && (
-                        <p className="text-amber-500 text-sm">
+                        <p role="alert" className="text-amber-400 text-sm">
                           {preflightUnavailable}
                         </p>
                       )}
@@ -849,14 +872,15 @@ export default function Generator() {
             </section>
 
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className="w-full py-6 bg-white text-black text-3xl font-black rounded-3xl hover:bg-neutral-200 active:scale-95 transition disabled:opacity-60"
+              className={`w-full py-6 bg-white text-black text-3xl font-black rounded-3xl hover:bg-neutral-200 active:scale-95 transition disabled:opacity-60 ${FOCUS_RING_CLASS}`}
             >
               {loading ? "Generating…" : "Generate Payment Link"}
             </button>
             {error && (
-              <p className="text-red-500 text-sm text-center">{error}</p>
+              <p role="alert" className="text-red-400 text-sm text-center">{error}</p>
             )}
           </div>
 
@@ -866,13 +890,13 @@ export default function Generator() {
             </div>
 
             <div className="space-y-4 p-8 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-xl">
-              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-600">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-300">
                 Canonical query (from API)
               </label>
 
-              <div className="bg-neutral-900 border border-white/5 p-4 rounded-xl font-mono text-neutral-400 text-xs break-all min-h-[3rem]">
+              <div className="bg-neutral-900 border border-white/5 p-4 rounded-xl font-mono text-neutral-200 text-xs break-all min-h-[3rem]">
                 {canonicalPreview ?? (
-                  <span className="text-neutral-600 italic">
+                  <span className="text-neutral-400 italic">
                     Generate to fetch metadata from the backend.
                   </span>
                 )}
@@ -886,7 +910,8 @@ export default function Generator() {
                     void navigator.clipboard.writeText(canonicalPreview);
                   }
                 }}
-                className="w-full py-3 bg-white/10 text-white rounded-xl border border-white/5 text-xs uppercase tracking-widest hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Copy canonical query parameters"
+                className={`w-full py-3 bg-white/10 text-white rounded-xl border border-white/5 text-xs uppercase tracking-widest hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING_CLASS}`}
               >
                 Copy canonical params
               </button>

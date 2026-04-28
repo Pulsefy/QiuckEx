@@ -67,6 +67,7 @@ use types::{
 pub struct QuickexContract;
 
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl QuickexContract {
     /// Withdraw escrowed funds by proving commitment ownership.
     ///
@@ -169,7 +170,7 @@ impl QuickexContract {
         privacy::get_privacy(&env, owner)
     }
 
-    /// Deposit funds and create an escrow entry keyed by `SHA256(owner || amount || salt)`.
+    /// Deposit funds and create an escrow entry keyed by `KECCAK256(owner || amount || salt)`.
     ///
     /// Transfers `amount` from `owner` to the contract and stores an escrow entry.
     ///
@@ -236,8 +237,9 @@ impl QuickexContract {
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
     ///
-    /// Computes `SHA256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
-    /// always yield the same hash. Use for API shape validation and audit trails.
+    /// Computes `KECCAK256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
+    /// always yield the same hash. Legacy `SHA256(owner || amount || salt)` commitments remain
+    /// accepted by verification paths for backwards compatibility.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -341,6 +343,88 @@ impl QuickexContract {
             timeout_secs,
             arbiter,
         )
+    }
+
+    /// Deposit funds with a target amount higher than the initial payment.
+    ///
+    /// Transfers `initial_payment` from `owner` to the contract and stores an escrow
+    /// with `amount_due` set to the target amount. This enables multi-payment escrows
+    /// where the full amount can be paid over time via `partial_payment`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `token` - Token contract address
+    /// * `amount_due` - Target amount to be paid
+    /// * `initial_payment` - Initial payment amount
+    /// * `owner` - Owner of the funds (must authorize)
+    /// * `salt` - Random salt (0–1024 bytes) for uniqueness
+    /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - initial_payment ≤ 0 or amount_due ≤ 0
+    /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    /// * `ContractPaused` - Contract is currently paused
+    #[allow(clippy::too_many_arguments)]
+    pub fn deposit_partial(
+        env: Env,
+        token: Address,
+        amount_due: i128,
+        initial_payment: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiter: Option<Address>,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
+        escrow::deposit_partial(
+            &env,
+            token,
+            amount_due,
+            initial_payment,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+        )
+    }
+
+    /// Make a partial payment towards an existing escrow.
+    ///
+    /// Transfers `payment_amount` from `payer` to the contract and increments the
+    /// escrow's `amount_paid` field. Rejects overpayment. Emits a `PartialPayment` event.
+    /// If the payment completes the escrow, emits an `EscrowFinalized` event.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `payer` - Address making the payment (must authorize)
+    /// * `payment_amount` - Amount to pay; must be positive and not exceed remaining balance
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Payment amount is zero or negative
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `AlreadySpent` - Escrow is already in a terminal state
+    /// * `Overpayment` - Payment amount exceeds the remaining amount due
+    pub fn partial_payment(
+        env: Env,
+        commitment: BytesN<32>,
+        payer: Address,
+        payment_amount: i128,
+    ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
+        escrow::partial_payment(&env, commitment, payer, payment_amount)
     }
 
     /// Refund an expired escrow back to its original owner.
@@ -593,16 +677,18 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        // optimized: move owner directly
-        let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
+        let commitment_result = commitment::amount_commitment_hashes(&env, &owner, amount, &salt);
 
-        let commitment = match commitment_result {
+        let (commitment, legacy_commitment) = match commitment_result {
             Ok(c) => c,
             Err(_) => return false,
         };
 
         let commitment_bytes: Bytes = commitment.into();
-        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes).or_else(|| {
+            let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+            get_escrow(&env, &legacy_commitment_bytes)
+        });
 
         match entry {
             Some(e) => {
@@ -612,7 +698,7 @@ impl QuickexContract {
                 if e.expires_at > 0 && env.ledger().timestamp() >= e.expires_at {
                     return false;
                 }
-                e.amount == amount
+                e.amount_due == amount
             }
             None => false,
         }
@@ -651,7 +737,8 @@ impl QuickexContract {
         if show_sensitive {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
-                amount: Some(entry.amount),
+                amount_due: Some(entry.amount_due),
+                amount_paid: Some(entry.amount_paid),
                 owner: Some(entry.owner),
                 status: entry.status,
                 created_at: entry.created_at,
@@ -661,7 +748,8 @@ impl QuickexContract {
         } else {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
-                amount: None,
+                amount_due: None,
+                amount_paid: None,
                 owner: None,
                 status: entry.status,
                 created_at: entry.created_at,
