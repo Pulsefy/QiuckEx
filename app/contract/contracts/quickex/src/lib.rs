@@ -16,6 +16,9 @@ mod events;
 mod fee;
 #[cfg(test)]
 mod fee_test;
+pub mod nonce;
+#[cfg(test)]
+mod nonce_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;

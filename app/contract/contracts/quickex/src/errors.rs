@@ -55,4 +55,9 @@ pub enum QuickexError {
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
     InvalidTimeout = 901,
+    // Replay protection (500-599)
+    /// The (signer, nonce) pair has already been consumed; replay detected.
+    NonceAlreadyUsed = 500,
+    /// The signature's valid_until timestamp has passed; signature expired.
+    SignatureExpired = 501,
 }
