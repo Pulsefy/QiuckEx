@@ -6,6 +6,21 @@ import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { getQuickexApiBase } from "@/lib/api";
+import {
+  buildInvoicePreview,
+  calculateTemplateSubtotal,
+  calculateTemplateTax,
+  calculateTemplateTotal,
+  CUSTOMER_STORAGE_KEY,
+  CustomerProfile,
+  DEFAULT_CUSTOMERS,
+  DEFAULT_TEMPLATES,
+  formatCurrencyAmount,
+  InvoiceLineItem,
+  InvoiceTemplate,
+  TEMPLATE_STORAGE_KEY,
+  toBulkLinkPayload,
+} from "./bulk-invoicing";
 import '@/lib/i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -70,6 +85,21 @@ type ComposeError = {
   error?: string;
 };
 
+type BulkGenerateSuccess = {
+  success: boolean;
+  total: number;
+  links: Array<{
+    id: string;
+    url: string;
+    canonical: string;
+    amount: string;
+    asset: string;
+    username?: string;
+    destination?: string;
+    referenceId?: string;
+  }>;
+};
+
 export default function Generator() {
   const { t } = useTranslation();
   const apiBase = useMemo(() => getQuickexApiBase(), []);
@@ -108,6 +138,32 @@ export default function Generator() {
   >(null);
 
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [templates, setTemplates] = useState<InvoiceTemplate[]>(DEFAULT_TEMPLATES);
+  const [customers, setCustomers] = useState<CustomerProfile[]>(DEFAULT_CUSTOMERS);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    DEFAULT_TEMPLATES[0]?.id ?? "",
+  );
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>(
+    DEFAULT_CUSTOMERS.map((customer) => customer.id),
+  );
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<BulkGenerateSuccess | null>(null);
+  const [templateForm, setTemplateForm] = useState({
+    name: "Monthly Hosting",
+    asset: "USDC",
+    notes: "Net 7 payment terms.",
+    taxRate: "7.5",
+    lineItemsText: "Hosting retainer|1|120\nSupport hours|3|40",
+  });
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    email: "",
+    address: "",
+    username: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +194,37 @@ export default function Generator() {
       cancelled = true;
     };
   }, [apiBase, t]);
+
+  useEffect(() => {
+    try {
+      const storedTemplates = window.localStorage.getItem(TEMPLATE_STORAGE_KEY);
+      const storedCustomers = window.localStorage.getItem(CUSTOMER_STORAGE_KEY);
+      if (storedTemplates) {
+        const parsed = JSON.parse(storedTemplates) as InvoiceTemplate[];
+        if (parsed.length > 0) {
+          setTemplates(parsed);
+          setSelectedTemplateId(parsed[0].id);
+        }
+      }
+      if (storedCustomers) {
+        const parsed = JSON.parse(storedCustomers) as CustomerProfile[];
+        if (parsed.length > 0) {
+          setCustomers(parsed);
+          setSelectedCustomerIds(parsed.map((customer) => customer.id));
+        }
+      }
+    } catch {
+      // Preserve defaults if local storage is unavailable or malformed.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+  }, [templates]);
+
+  useEffect(() => {
+    window.localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(customers));
+  }, [customers]);
 
   const recipientRef = useMemo(() => {
     const a = verifiedAssets.find(
@@ -421,6 +508,31 @@ export default function Generator() {
     return "generic";
   }, [pathError]);
 
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) ?? null,
+    [selectedTemplateId, templates],
+  );
+
+  const selectedCustomers = useMemo(
+    () => customers.filter((customer) => selectedCustomerIds.includes(customer.id)),
+    [customers, selectedCustomerIds],
+  );
+
+  const invoicePreviewRows = useMemo(() => {
+    if (!selectedTemplate) {
+      return [];
+    }
+
+    return selectedCustomers.map((customer, index) =>
+      buildInvoicePreview(selectedTemplate, customer, index),
+    );
+  }, [selectedCustomers, selectedTemplate]);
+
+  const previewGenerationPayload = useMemo(
+    () => invoicePreviewRows.map((row) => toBulkLinkPayload(row)),
+    [invoicePreviewRows],
+  );
+
   const getPathLegs = (path: PathRow) => {
     const route = [path.sourceAsset, ...path.pathHops, path.destinationAsset];
     return route.slice(0, -1).map((fromAsset, idx) => ({
@@ -428,6 +540,182 @@ export default function Generator() {
       toAsset: route[idx + 1],
       poolLabel: `Pool ${idx + 1}`,
     }));
+  };
+
+  const parseLineItems = (lineItemsText: string): InvoiceLineItem[] =>
+    lineItemsText
+      .split("\n")
+      .map((line, index) => {
+        const [description, quantity, unitPrice] = line.split("|").map((part) => part.trim());
+        if (!description || !quantity || !unitPrice) {
+          return null;
+        }
+        return {
+          id: `line-${Date.now()}-${index}`,
+          description,
+          quantity: Number(quantity),
+          unitPrice: Number(unitPrice),
+        };
+      })
+      .filter((item): item is InvoiceLineItem => Boolean(item));
+
+  const resetTemplateForm = () => {
+    setTemplateForm({
+      name: "",
+      asset: "USDC",
+      notes: "",
+      taxRate: "0",
+      lineItemsText: "",
+    });
+    setEditingTemplateId(null);
+  };
+
+  const resetCustomerForm = () => {
+    setCustomerForm({
+      name: "",
+      email: "",
+      address: "",
+      username: "",
+    });
+    setEditingCustomerId(null);
+  };
+
+  const saveTemplate = () => {
+    const lineItems = parseLineItems(templateForm.lineItemsText);
+    if (!templateForm.name.trim() || lineItems.length === 0) {
+      setBulkError("Template name and at least one valid line item are required.");
+      return;
+    }
+
+    const nextTemplate: InvoiceTemplate = {
+      id: editingTemplateId ?? `template-${Date.now()}`,
+      name: templateForm.name.trim(),
+      asset: templateForm.asset.trim() || "USDC",
+      notes: templateForm.notes.trim(),
+      taxRate: Number(templateForm.taxRate) || 0,
+      lineItems,
+    };
+
+    setTemplates((current) => {
+      const remaining = current.filter((template) => template.id !== nextTemplate.id);
+      return [...remaining, nextTemplate];
+    });
+    setSelectedTemplateId(nextTemplate.id);
+    setBulkError(null);
+    resetTemplateForm();
+  };
+
+  const editTemplate = (template: InvoiceTemplate) => {
+    setEditingTemplateId(template.id);
+    setTemplateForm({
+      name: template.name,
+      asset: template.asset,
+      notes: template.notes,
+      taxRate: String(template.taxRate),
+      lineItemsText: template.lineItems
+        .map((item) => `${item.description}|${item.quantity}|${item.unitPrice}`)
+        .join("\n"),
+    });
+  };
+
+  const deleteTemplate = (templateId: string) => {
+    const nextTemplates = templates.filter((template) => template.id !== templateId);
+    setTemplates(nextTemplates.length > 0 ? nextTemplates : DEFAULT_TEMPLATES);
+    if (selectedTemplateId === templateId) {
+      setSelectedTemplateId((nextTemplates[0] ?? DEFAULT_TEMPLATES[0]).id);
+    }
+  };
+
+  const saveCustomer = () => {
+    if (!customerForm.name.trim() || !customerForm.email.trim()) {
+      setBulkError("Customer name and email are required.");
+      return;
+    }
+
+    const nextCustomer: CustomerProfile = {
+      id: editingCustomerId ?? `customer-${Date.now()}`,
+      name: customerForm.name.trim(),
+      email: customerForm.email.trim(),
+      address: customerForm.address.trim(),
+      username: customerForm.username.trim(),
+    };
+
+    setCustomers((current) => {
+      const remaining = current.filter((customer) => customer.id !== nextCustomer.id);
+      return [...remaining, nextCustomer];
+    });
+    setSelectedCustomerIds((current) =>
+      current.includes(nextCustomer.id) ? current : [...current, nextCustomer.id],
+    );
+    setBulkError(null);
+    resetCustomerForm();
+  };
+
+  const editCustomer = (customer: CustomerProfile) => {
+    setEditingCustomerId(customer.id);
+    setCustomerForm({
+      name: customer.name,
+      email: customer.email,
+      address: customer.address,
+      username: customer.username,
+    });
+  };
+
+  const deleteCustomer = (customerId: string) => {
+    setCustomers((current) => current.filter((customer) => customer.id !== customerId));
+    setSelectedCustomerIds((current) => current.filter((id) => id !== customerId));
+  };
+
+  const toggleCustomerSelection = (customerId: string) => {
+    setSelectedCustomerIds((current) =>
+      current.includes(customerId)
+        ? current.filter((id) => id !== customerId)
+        : [...current, customerId],
+    );
+  };
+
+  const generateBulkInvoices = async () => {
+    if (!selectedTemplate) {
+      setBulkError("Choose a template before generating invoices.");
+      return;
+    }
+
+    if (previewGenerationPayload.length === 0) {
+      setBulkError("Select at least one saved customer for bulk generation.");
+      return;
+    }
+
+    if (previewGenerationPayload.some((item) => !item.username && !item.destination)) {
+      setBulkError("Each selected customer needs either a username or a Stellar address.");
+      return;
+    }
+
+    setBulkLoading(true);
+    setBulkError(null);
+
+    try {
+      const response = await fetch(`${apiBase}/links/bulk/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links: previewGenerationPayload }),
+      });
+      const payload = (await response.json()) as BulkGenerateSuccess & {
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message ?? `Bulk generation failed (${response.status})`);
+      }
+      setBulkResult(payload);
+    } catch (generationError) {
+      setBulkError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Unable to generate invoices.",
+      );
+      setBulkResult(null);
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   return (
@@ -918,6 +1206,369 @@ export default function Generator() {
             </div>
           </div>
         </div>
+
+        <section className="mt-20 max-w-7xl space-y-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-indigo-300">
+                Bulk Invoicing v2
+              </p>
+              <h2 className="text-3xl font-black text-white mt-2">
+                Templates, saved customers, and preview before generation
+              </h2>
+              <p className="text-neutral-400 mt-3 max-w-3xl">
+                Reuse one invoice template across your customer directory, then generate the final payment links from the same preview payload.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBulkResult(null)}
+              className={`rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+            >
+              Clear generated results
+            </button>
+          </div>
+
+          <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-8">
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                <div className="flex items-center justify-between gap-4 mb-5">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Invoice templates</h3>
+                    <p className="text-sm text-neutral-400">Line items, tax, notes, and destination asset.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetTemplateForm}
+                    className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                  >
+                    New template
+                  </button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 mb-5">
+                  <input
+                    type="text"
+                    value={templateForm.name}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    placeholder="Template name"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="text"
+                    value={templateForm.asset}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({ ...current, asset: event.target.value.toUpperCase() }))
+                    }
+                    placeholder="Asset code"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="number"
+                    value={templateForm.taxRate}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({ ...current, taxRate: event.target.value }))
+                    }
+                    placeholder="Tax %"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="text"
+                    value={templateForm.notes}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    placeholder="Notes"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                </div>
+
+                <textarea
+                  value={templateForm.lineItemsText}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({ ...current, lineItemsText: event.target.value }))
+                  }
+                  rows={5}
+                  placeholder="Description|Qty|Unit Price"
+                  className={`w-full rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                />
+                <p className="mt-2 text-xs text-neutral-500">
+                  One line item per row using <span className="font-mono">Description|Qty|Unit Price</span>
+                </p>
+
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <button
+                    type="button"
+                    onClick={saveTemplate}
+                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                  >
+                    {editingTemplateId ? "Update template" : "Save template"}
+                  </button>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(event) => setSelectedTemplateId(event.target.value)}
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  >
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className={`rounded-2xl border px-4 py-4 ${
+                        selectedTemplateId === template.id
+                          ? "border-indigo-400/60 bg-indigo-500/10"
+                          : "border-white/10 bg-white/[0.03]"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="font-semibold text-white">{template.name}</p>
+                          <p className="text-sm text-neutral-400">
+                            {template.asset} • subtotal {formatCurrencyAmount(calculateTemplateSubtotal(template))} • tax {formatCurrencyAmount(calculateTemplateTax(template))} • total {formatCurrencyAmount(calculateTemplateTotal(template))}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editTemplate(template)}
+                            className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTemplate(template.id)}
+                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                <div className="flex items-center justify-between gap-4 mb-5">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Saved customers</h3>
+                    <p className="text-sm text-neutral-400">Store contact info plus username or Stellar destination.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetCustomerForm}
+                    className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                  >
+                    New customer
+                  </button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 mb-5">
+                  <input
+                    type="text"
+                    value={customerForm.name}
+                    onChange={(event) =>
+                      setCustomerForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    placeholder="Customer name"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="email"
+                    value={customerForm.email}
+                    onChange={(event) =>
+                      setCustomerForm((current) => ({ ...current, email: event.target.value }))
+                    }
+                    placeholder="Email"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="text"
+                    value={customerForm.address}
+                    onChange={(event) =>
+                      setCustomerForm((current) => ({ ...current, address: event.target.value }))
+                    }
+                    placeholder="Stellar address"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                  <input
+                    type="text"
+                    value={customerForm.username}
+                    onChange={(event) =>
+                      setCustomerForm((current) => ({ ...current, username: event.target.value }))
+                    }
+                    placeholder="Username"
+                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveCustomer}
+                  className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                >
+                  {editingCustomerId ? "Update customer" : "Save customer"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {customers.map((customer) => (
+                    <div key={customer.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <label className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedCustomerIds.includes(customer.id)}
+                            onChange={() => toggleCustomerSelection(customer.id)}
+                            className="mt-1 h-4 w-4"
+                          />
+                          <div>
+                            <p className="font-semibold text-white">{customer.name}</p>
+                            <p className="text-sm text-neutral-400">{customer.email}</p>
+                            <p className="text-xs text-neutral-500">
+                              {customer.username || customer.address || "Missing payment route"}
+                            </p>
+                          </div>
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editCustomer(customer)}
+                            className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteCustomer(customer.id)}
+                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Preview</h3>
+                    <p className="text-sm text-neutral-400">These rows are transformed directly into the bulk API payload.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void generateBulkInvoices()}
+                    disabled={bulkLoading}
+                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 disabled:opacity-50 ${FOCUS_RING_CLASS}`}
+                  >
+                    {bulkLoading ? "Generating..." : "Generate invoices"}
+                  </button>
+                </div>
+
+                {bulkError && (
+                  <p className="mb-4 rounded-md border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    {bulkError}
+                  </p>
+                )}
+
+                <div className="space-y-4">
+                  {invoicePreviewRows.map((row) => (
+                    <div key={row.id} className="rounded-2xl border border-white/10 bg-neutral-950/50 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="font-semibold text-white">{row.customerName}</p>
+                          <p className="text-sm text-neutral-400">{row.email}</p>
+                          <p className="text-xs text-neutral-500">
+                            {row.username ?? row.destination ?? "Missing payment route"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-white">
+                            {formatCurrencyAmount(row.total)} {row.asset}
+                          </p>
+                          <p className="text-xs text-neutral-500">{row.referenceId}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {row.lineItems.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between text-sm text-neutral-300">
+                            <span>{item.description}</span>
+                            <span className="font-mono">
+                              {item.quantity} × {formatCurrencyAmount(item.unitPrice)}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="border-t border-white/10 pt-2 text-sm text-neutral-300">
+                          <div className="flex items-center justify-between">
+                            <span>Subtotal</span>
+                            <span>{formatCurrencyAmount(row.subtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Tax</span>
+                            <span>{formatCurrencyAmount(row.taxAmount)}</span>
+                          </div>
+                          <div className="flex items-center justify-between font-semibold text-white">
+                            <span>Total</span>
+                            <span>{formatCurrencyAmount(row.total)}</span>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-300">
+                          <p className="font-semibold text-neutral-200">Generated memo</p>
+                          <p>{row.memo}</p>
+                        </div>
+                        {row.notes && (
+                          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-300">
+                            <p className="font-semibold text-neutral-200">Notes</p>
+                            <p>{row.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {invoicePreviewRows.length === 0 && (
+                    <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-neutral-400">
+                      Select a template and at least one saved customer to build the preview.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Generated output</h3>
+                <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 text-xs text-neutral-300">
+                  <pre className="overflow-x-auto whitespace-pre-wrap">
+                    {JSON.stringify({ links: previewGenerationPayload }, null, 2)}
+                  </pre>
+                </div>
+                {bulkResult && (
+                  <div className="mt-5 space-y-3">
+                    {bulkResult.links.map((link) => (
+                      <div key={link.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                        <p className="font-semibold text-white">{link.referenceId ?? link.id}</p>
+                        <p className="mt-1 break-all text-xs text-neutral-400">{link.url}</p>
+                        <p className="mt-2 text-xs text-neutral-500">{link.canonical}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );

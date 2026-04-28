@@ -1,39 +1,92 @@
-import { Activity, Clock, ServerCrash } from "lucide-react";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Activity, DatabaseZap, ShieldAlert } from "lucide-react";
+
+import { getQuickexApiBase } from "@/lib/api";
+
+type HealthResponse = {
+  status: string;
+  uptime: number;
+};
+
+type FlagHealthResponse = {
+  flags: unknown[];
+  source: string;
+  storeAvailable: boolean;
+};
 
 export function SystemHealth() {
+  const apiBase = useMemo(() => getQuickexApiBase(), []);
+  const [apiStatus, setApiStatus] = useState("Checking");
+  const [uptime, setUptime] = useState("--");
+  const [flagStore, setFlagStore] = useState("Checking");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [healthResponse, flagsResponse] = await Promise.all([
+          fetch(`${apiBase}/health`, { cache: "no-store" }),
+          fetch(`${apiBase}/admin/feature-flags`, { cache: "no-store" }),
+        ]);
+
+        if (!healthResponse.ok) {
+          throw new Error("Health endpoint unavailable");
+        }
+
+        const health = (await healthResponse.json()) as HealthResponse;
+        const flags = flagsResponse.ok
+          ? ((await flagsResponse.json()) as FlagHealthResponse)
+          : null;
+
+        if (!cancelled) {
+          setApiStatus(health.status === "ok" ? "Operational" : health.status);
+          setUptime(`${Math.floor((health.uptime ?? 0) / 60)}m`);
+          setFlagStore(flags?.storeAvailable ? "Persistent" : flags?.source === "bootstrap" ? "Bootstrap" : "Unavailable");
+        }
+      } catch {
+        if (!cancelled) {
+          setApiStatus("Unavailable");
+          setFlagStore("Unavailable");
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">System Health</h2>
-      
-      <div className="grid grid-cols-2 gap-4">
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 bg-green-50 rounded-lg border border-green-100">
           <div className="flex items-center space-x-2 text-green-600 mb-2">
             <Activity className="h-5 w-5" />
             <span className="font-medium">API Status</span>
           </div>
-          <p className="text-2xl font-bold text-gray-800">Operational</p>
+          <p className="text-2xl font-bold text-gray-800">{apiStatus}</p>
         </div>
 
-        <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-          <div className="flex items-center space-x-2 text-yellow-600 mb-2">
-            <Clock className="h-5 w-5" />
-            <span className="font-medium">Ingestion Lag</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-800">1.2s</p>
-        </div>
-
-        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 col-span-2">
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
           <div className="flex items-center space-x-2 text-blue-600 mb-2">
-            <ServerCrash className="h-5 w-5" />
-            <span className="font-medium">Webhook Backlog</span>
+            <DatabaseZap className="h-5 w-5" />
+            <span className="font-medium">Flag Store</span>
           </div>
-          <div className="flex items-end justify-between">
-            <p className="text-2xl font-bold text-gray-800">42</p>
-            <span className="text-sm text-blue-600 font-medium">Processing...</span>
+          <p className="text-2xl font-bold text-gray-800">{flagStore}</p>
+        </div>
+
+        <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+          <div className="flex items-center space-x-2 text-amber-600 mb-2">
+            <ShieldAlert className="h-5 w-5" />
+            <span className="font-medium">Uptime</span>
           </div>
-          <div className="w-full bg-blue-200 rounded-full h-2 mt-3">
-            <div className="bg-blue-600 h-2 rounded-full" style={{ width: '45%' }}></div>
-          </div>
+          <p className="text-2xl font-bold text-gray-800">{uptime}</p>
         </div>
       </div>
     </div>

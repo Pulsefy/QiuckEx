@@ -95,6 +95,14 @@ export class AppConfigService {
     return this.configService.get('CACHE_TTL_MS', { infer: true });
   }
 
+  get featureFlagsCacheTtlMs(): number {
+    return this.configService.get('FEATURE_FLAGS_CACHE_TTL_MS', { infer: true });
+  }
+
+  get featureFlagsBootstrapJson(): string | undefined {
+    return this.configService.get('FEATURE_FLAGS_BOOTSTRAP_JSON', { infer: true });
+  }
+
   /**
    * Max records processed per entity type per reconciliation run
    */

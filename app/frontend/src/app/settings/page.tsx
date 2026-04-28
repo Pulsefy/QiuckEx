@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
@@ -345,9 +346,11 @@ function ProfilePreview({
       {/* Avatar */}
       <div className="flex justify-center mb-4 sm:mb-6">
         {avatarUrl ? (
-          <img
+          <Image
             src={avatarUrl}
             alt={username}
+            width={96}
+            height={96}
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 object-cover"
             style={{ borderColor: primaryColor }}
           />
