@@ -1,5 +1,12 @@
-use crate::{types::{FeeConfig, HookEventKind, OracleFeeConfig}, QuickexContract, QuickexContractClient};
-use soroban_sdk::{contract, contractimpl, testutils::{Address as _, Ledger}, token, Address, Bytes, BytesN, Env, Symbol};
+use crate::{
+    types::{FeeConfig, HookEventKind, OracleFeeConfig},
+    QuickexContract, QuickexContractClient,
+};
+use soroban_sdk::{
+    contract, contractimpl,
+    testutils::{Address as _, Ledger},
+    token, Address, Bytes, BytesN, Env, Symbol,
+};
 
 #[contract]
 pub struct HookStubContract;
@@ -23,7 +30,10 @@ impl HookStubContract {
     }
 
     pub fn get_invocations(env: Env) -> i128 {
-        env.storage().persistent().get(&Symbol::short("invocations")).unwrap_or(0)
+        env.storage()
+            .persistent()
+            .get(&Symbol::short("invocations"))
+            .unwrap_or(0)
     }
 }
 
@@ -77,8 +87,16 @@ impl MockOracleContract {
     }
 
     pub fn get_price(env: Env) -> Result<(i128, u64), ()> {
-        let price: i128 = env.storage().persistent().get(&Symbol::short("price")).unwrap_or(0);
-        let timestamp: u64 = env.storage().persistent().get(&Symbol::short("timestamp")).unwrap_or(0);
+        let price: i128 = env
+            .storage()
+            .persistent()
+            .get(&Symbol::short("price"))
+            .unwrap_or(0);
+        let timestamp: u64 = env
+            .storage()
+            .persistent()
+            .get(&Symbol::short("timestamp"))
+            .unwrap_or(0);
         if price <= 0 {
             return Err(());
         }

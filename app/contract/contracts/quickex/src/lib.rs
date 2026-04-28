@@ -14,9 +14,9 @@ mod escrow_id;
 mod escrow_id_test;
 mod events;
 mod fee;
-mod hook;
 #[cfg(test)]
 mod fee_test;
+mod hook;
 #[cfg(test)]
 mod hook_oracle_test;
 mod oracle;

@@ -304,9 +304,7 @@ pub fn set_platform_wallet(env: &Env, wallet: &Address) {
 }
 
 pub fn get_oracle_fee_config(env: &Env) -> Option<crate::types::OracleFeeConfig> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::OracleFeeConfig)
+    env.storage().persistent().get(&DataKey::OracleFeeConfig)
 }
 
 pub fn set_oracle_fee_config(env: &Env, config: &crate::types::OracleFeeConfig) {
