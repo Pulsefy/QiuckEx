@@ -555,7 +555,14 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         }
     }
 
-    events::publish_escrow_withdrawn(env, commitment, to.clone(), token_ref.clone(), amount_paid, fee_amount);
+    events::publish_escrow_withdrawn(
+        env,
+        commitment,
+        to.clone(),
+        token_ref.clone(),
+        amount_paid,
+        fee_amount,
+    );
 
     hook::invoke_hooks(
         env,
@@ -627,7 +634,13 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let token_client = token::Client::new(env, &token_ref);
     token_client.transfer(&env.current_contract_address(), &owner_ref, &amount_paid);
 
-    events::publish_escrow_refunded(env, owner_ref.clone(), commitment, token_ref.clone(), amount_paid);
+    events::publish_escrow_refunded(
+        env,
+        owner_ref.clone(),
+        commitment,
+        token_ref.clone(),
+        amount_paid,
+    );
 
     hook::invoke_hooks(
         env,
