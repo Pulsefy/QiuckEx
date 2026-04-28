@@ -1,0 +1,3452 @@
+openapi: 3.0.3
+info:
+  title: QuickEx Backend API
+  description: >
+    QuickEx is a Stellar-based payment platform enabling payment links,
+    recurring subscriptions, username resolution, marketplace trading,
+    fiat on/off ramps, and webhook-driven event notifications.
+
+    **Base URL (production):** `https://api.quickex.example.com`
+    **Base URL (development):** `http://localhost:3000`
+
+    Interactive Swagger UI is available at `/docs` when the server is running.
+  version: 1.0.0
+  contact:
+    name: QuickEx API Support
+    url: https://github.com/quickex/quickex
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://api.quickex.example.com
+    description: Production
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: usernames
+    description: Username management and public profile discovery
+  - name: links
+    description: Payment link validation, metadata, and bulk generation
+  - name: payment-links
+    description: Payment link status queries
+  - name: recurring-payments
+    description: Subscription-style recurring payment links
+  - name: scam-alerts
+    description: Fraud detection and link scanning
+  - name: transactions
+    description: Stellar transaction and payment history
+  - name: payments
+    description: Recent payment queries
+  - name: stellar
+    description: Verified assets, path preview, quotes, and Soroban preflight
+  - name: Webhooks
+    description: Webhook endpoint management and delivery
+  - name: Notifications
+    description: Notification preference management
+  - name: marketplace
+    description: Username marketplace listings and bids
+  - name: api-keys
+    description: API key management
+  - name: fiat-ramps
+    description: Fiat on/off ramp integrations (SEP-24)
+  - name: admin/refunds
+    description: Refund initiation and management (admin)
+  - name: exports
+    description: Asynchronous data export
+  - name: Telegram
+    description: Telegram bot account linkage and notification settings
+  - name: reconciliation
+    description: Reconciliation worker status and backfill (admin)
+  - name: Admin - Job Queue
+    description: Job queue monitoring and management (admin)
+  - name: metrics
+    description: Prometheus metrics endpoints
+  - name: assets
+    description: Asset metadata, branding, and cache management
+  - name: admin/audit
+    description: Audit log querying and retention (admin)
+  - name: feature-flags
+    description: Feature flag evaluation and admin management
+
+security:
+  - ApiKeyAuth: []
+  - {}
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Health check (liveness)
+      description: Returns application health status. Used for liveness probes.
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service not ready
+
+  /ready:
+    get:
+      tags: [health]
+      operationId: getReadiness
+      summary: Readiness check
+      description: >
+        Returns readiness status including dependency checks (Supabase, environment).
+        Used for readiness probes.
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+        "503":
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+
+  # ---------------------------------------------------------------------------
+  # Usernames
+  # ---------------------------------------------------------------------------
+  /username:
+    post:
+      tags: [usernames]
+      operationId: createUsername
+      summary: Create a new username
+      description: >
+        Registers a new username for a Stellar wallet. Username must be 3-32 characters,
+        lowercase alphanumeric with underscores. Duplicate usernames return 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUsernameRequest"
+      responses:
+        "201":
+          description: Username created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUsernameResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Wallet has reached maximum usernames
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags: [usernames]
+      operationId: listUsernames
+      summary: List usernames for a wallet
+      description: Returns all usernames registered for the given Stellar public key.
+      parameters:
+        - name: publicKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stellar public key (G...)
+      responses:
+        "200":
+          description: List of usernames
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUsernamesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /username/search:
+    get:
+      tags: [usernames]
+      operationId: searchUsernames
+      summary: Search public profiles (fuzzy)
+      description: >
+        Fuzzy search for public usernames sorted by similarity score.
+        Only profiles with public visibility enabled appear in results.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Search term (min 2 characters)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque pagination cursor
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchUsernamesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /username/trending:
+    get:
+      tags: [usernames]
+      operationId: getTrendingCreators
+      summary: Get trending creators
+      description: Returns trending creator profiles ranked by transaction volume.
+      parameters:
+        - name: timeWindowHours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 720
+            default: 24
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trending creators
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingCreatorsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /username/recently-active:
+    get:
+      tags: [usernames]
+      operationId: getRecentlyActive
+      summary: Get recently active users
+      description: Returns users recently active based on payment activity.
+      parameters:
+        - name: timeWindowHours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 24
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recently active users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecentlyActiveResponse"
+
+  /username/toggle-public:
+    post:
+      tags: [usernames]
+      operationId: togglePublicProfile
+      summary: Toggle public profile visibility
+      description: Enable or disable public profile visibility for a username.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TogglePublicRequest"
+      responses:
+        "200":
+          description: Visibility toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Links
+  # ---------------------------------------------------------------------------
+  /links/metadata:
+    post:
+      tags: [links]
+      operationId: generateLinkMetadata
+      summary: Generate canonical link metadata
+      description: Validates payment link parameters and generates canonical metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkMetadataRequest"
+      responses:
+        "200":
+          description: Metadata generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/LinkMetadataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimit"
+
+  /links/bulk/generate:
+    post:
+      tags: [links]
+      operationId: generateBulkLinks
+      summary: Generate bulk payment links (JSON)
+      description: Generate up to 500 payment links in a single request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkPaymentLinkRequest"
+      responses:
+        "200":
+          description: Links generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkPaymentLinkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /links/bulk/generate/csv:
+    post:
+      tags: [links]
+      operationId: generateBulkLinksCSV
+      summary: Generate bulk payment links from CSV
+      description: >
+        Upload a CSV file to generate payment links. CSV must have an "amount" column.
+        Supports: amount, asset, memo, memoType, username, destination, referenceId,
+        privacy, expirationDays, acceptedAssets (pipe-separated).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Links generated from CSV
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkPaymentLinkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /links/scan:
+    post:
+      tags: [scam-alerts]
+      operationId: scanLink
+      summary: Scan a payment link for scam indicators
+      description: Analyzes a payment link using heuristic rules to detect potential scams.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanLinkRequest"
+      responses:
+        "200":
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ---------------------------------------------------------------------------
+  # Payment Links
+  # ---------------------------------------------------------------------------
+  /payment-links/status:
+    get:
+      tags: [payment-links]
+      operationId: getPaymentLinkStatus
+      summary: Get payment link status
+      description: >
+        Returns the current state (active/expired/paid/refunded) of a payment link.
+        Checks on-chain to determine if paid.
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: asset
+          in: query
+          schema:
+            type: string
+            default: XLM
+        - name: memo
+          in: query
+          schema:
+            type: string
+        - name: acceptedAssets
+          in: query
+          schema:
+            type: string
+          description: Comma-separated list of accepted assets
+      responses:
+        "200":
+          description: Payment link status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Recurring Payments
+  # ---------------------------------------------------------------------------
+  /links/recurring:
+    post:
+      tags: [recurring-payments]
+      operationId: createRecurringLink
+      summary: Create a recurring payment link
+      description: Creates a subscription-style payment link with specified frequency.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecurringPaymentLinkRequest"
+      responses:
+        "201":
+          description: Recurring link created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/RecurringPaymentLinkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+    get:
+      tags: [recurring-payments]
+      operationId: listRecurringLinks
+      summary: List recurring payment links
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/RecurringStatus"
+        - name: username
+          in: query
+          schema:
+            type: string
+        - name: destination
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: List of recurring payment links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRecurringPaymentsResponse"
+
+  /links/recurring/{id}:
+    get:
+      tags: [recurring-payments]
+      operationId: getRecurringLink
+      summary: Get recurring payment link by ID
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      responses:
+        "200":
+          description: Recurring link details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/RecurringPaymentLinkResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [recurring-payments]
+      operationId: updateRecurringLink
+      summary: Update recurring payment link
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecurringPaymentLinkRequest"
+      responses:
+        "200":
+          description: Link updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/RecurringPaymentLinkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /links/recurring/{id}/cancel:
+    post:
+      tags: [recurring-payments]
+      operationId: cancelRecurringLink
+      summary: Cancel recurring payment link
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      responses:
+        "200":
+          description: Link cancelled
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /links/recurring/{id}/pause:
+    post:
+      tags: [recurring-payments]
+      operationId: pauseRecurringLink
+      summary: Pause recurring payment link
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      responses:
+        "200":
+          description: Link paused
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /links/recurring/{id}/resume:
+    post:
+      tags: [recurring-payments]
+      operationId: resumeRecurringLink
+      summary: Resume recurring payment link
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      responses:
+        "200":
+          description: Link resumed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /links/recurring/{id}/executions:
+    get:
+      tags: [recurring-payments]
+      operationId: getExecutionHistory
+      summary: Get execution history
+      parameters:
+        - $ref: "#/components/parameters/RecurringLinkId"
+      responses:
+        "200":
+          description: Execution history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecurringPaymentExecution"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Transactions
+  # ---------------------------------------------------------------------------
+  /transactions:
+    get:
+      tags: [transactions]
+      operationId: getTransactions
+      summary: Fetch recent Stellar transactions (payments)
+      description: >
+        Fetches recent payment operations for a given account with caching and resilience.
+        Results are cached (default 60s TTL) and support pagination.
+      parameters:
+        - name: accountId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stellar public key (G...)
+        - name: asset
+          in: query
+          schema:
+            type: string
+          description: Filter by asset (XLM, USDC, AQUA, yXLM)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Pagination cursor
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimit"
+        "502":
+          description: Bad gateway (Horizon error)
+        "503":
+          description: Horizon rate limit or backoff
+
+  /transactions/compose:
+    post:
+      tags: [transactions]
+      operationId: composeTransaction
+      summary: Compose a Soroban transaction
+      description: Builds and simulates a Soroban contract invocation transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComposeTransactionRequest"
+      responses:
+        "200":
+          description: Composed transaction result
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ---------------------------------------------------------------------------
+  # Payments
+  # ---------------------------------------------------------------------------
+  /payments/recent:
+    get:
+      tags: [payments]
+      operationId: getRecentPayments
+      summary: Fetch recent payments for an address
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: since
+          in: query
+          schema:
+            type: string
+          description: ISO timestamp or epoch ms
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Recent payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionItem"
+
+  # ---------------------------------------------------------------------------
+  # Stellar
+  # ---------------------------------------------------------------------------
+  /stellar/verified-assets:
+    get:
+      tags: [stellar]
+      operationId: getVerifiedAssets
+      summary: List verified assets with metadata
+      description: Returns all verified assets with branding metadata from TOML files.
+      responses:
+        "200":
+          description: Verified assets list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetListResponse"
+
+  /stellar/path-preview:
+    post:
+      tags: [stellar]
+      operationId: pathPreview
+      summary: Strict-receive path preview
+      description: Returns candidate paths for a fixed destination amount.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PathPreviewRequest"
+      responses:
+        "200":
+          description: Path preview results
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /stellar/path-preview/strict-send:
+    post:
+      tags: [stellar]
+      operationId: strictSendPathPreview
+      summary: Strict-send path preview
+      description: Returns candidate paths for a fixed source amount.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrictSendPathPreviewRequest"
+      responses:
+        "200":
+          description: Path preview results
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /stellar/soroban-preflight:
+    post:
+      tags: [stellar]
+      operationId: sorobanPreflight
+      summary: Run Soroban preflight simulation
+      description: Uses the same pipeline as POST /transactions/compose for health_check.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SorobanPreflightRequest"
+      responses:
+        "200":
+          description: Preflight result
+        "503":
+          description: QUICKEX_CONTRACT_ID not configured
+
+  /stellar/quote:
+    post:
+      tags: [stellar]
+      operationId: createQuote
+      summary: Create a path payment quote
+      description: >
+        Computes path payment routes with slippage tolerance and TTL.
+        Returns a quote ID retrievable until expiry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuoteRequest"
+      responses:
+        "200":
+          description: Quote created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /stellar/quote/{quoteId}:
+    get:
+      tags: [stellar]
+      operationId: getQuote
+      summary: Retrieve a quote by ID
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quote details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: Quote expired
+
+  # ---------------------------------------------------------------------------
+  # Webhooks
+  # ---------------------------------------------------------------------------
+  /webhooks/{publicKey}:
+    post:
+      tags: [Webhooks]
+      operationId: createWebhook
+      summary: Register a new webhook
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Stellar public key (G...)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+    get:
+      tags: [Webhooks]
+      operationId: listWebhooks
+      summary: List webhooks for a public key
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WebhookResponse"
+
+  /webhooks/{publicKey}/{id}:
+    get:
+      tags: [Webhooks]
+      operationId: getWebhook
+      summary: Get webhook details
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Webhook details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Webhooks]
+      operationId: updateWebhook
+      summary: Update webhook configuration
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWebhookRequest"
+      responses:
+        "200":
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Webhooks]
+      operationId: deleteWebhook
+      summary: Delete a webhook
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Webhook deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /webhooks/{publicKey}/{id}/regenerate-secret:
+    post:
+      tags: [Webhooks]
+      operationId: regenerateSecret
+      summary: Regenerate webhook secret
+      description: Generate a new signing secret. The old secret immediately stops working.
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: New secret generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: string
+                    example: whsec_xxxxxxxxxxxxxxxx
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /webhooks/{publicKey}/{id}/logs:
+    get:
+      tags: [Webhooks]
+      operationId: getDeliveryLogs
+      summary: Get webhook delivery logs
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WebhookDeliveryLog"
+                  next_cursor:
+                    type: string
+                    nullable: true
+                  has_more:
+                    type: boolean
+
+  /webhooks/{publicKey}/{id}/stats:
+    get:
+      tags: [Webhooks]
+      operationId: getWebhookStats
+      summary: Get webhook delivery statistics
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Webhook statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookStats"
+
+  /webhooks/{publicKey}/{id}/redeliver:
+    post:
+      tags: [Webhooks]
+      operationId: redeliverEvent
+      summary: Redeliver a specific event
+      description: Trigger immediate redelivery of a previously failed event.
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeliverWebhookRequest"
+      responses:
+        "200":
+          description: Redelivery status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:
+                    type: boolean
+                  message:
+                    type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Notifications
+  # ---------------------------------------------------------------------------
+  /notifications/preferences/{publicKey}:
+    get:
+      tags: [Notifications]
+      operationId: listPreferences
+      summary: List notification preferences for a wallet
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of preferences
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationPreference"
+
+    put:
+      tags: [Notifications]
+      operationId: upsertPreference
+      summary: Create or update a notification channel preference
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertNotificationPreference"
+      responses:
+        "200":
+          description: Preference updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreference"
+
+  /notifications/preferences/{publicKey}/{channel}:
+    delete:
+      tags: [Notifications]
+      operationId: disableChannel
+      summary: Opt-out of a notification channel
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channel
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [email, push, webhook]
+      responses:
+        "204":
+          description: Channel disabled
+
+  # ---------------------------------------------------------------------------
+  # Marketplace
+  # ---------------------------------------------------------------------------
+  /marketplace/list:
+    post:
+      tags: [marketplace]
+      operationId: listUsername
+      summary: List a username for sale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListUsernameRequest"
+      responses:
+        "201":
+          description: Listing created
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Username not owned
+        "409":
+          description: Username already listed
+
+  /marketplace:
+    get:
+      tags: [marketplace]
+      operationId: getActiveListings
+      summary: Get all active listings
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Active listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketplaceListingsResponse"
+
+  /marketplace/{listingId}:
+    get:
+      tags: [marketplace]
+      operationId: getListing
+      summary: Get a specific listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Listing details
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [marketplace]
+      operationId: cancelListing
+      summary: Cancel a listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelListingRequest"
+      responses:
+        "200":
+          description: Listing cancelled
+        "403":
+          description: Not the seller
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /marketplace/{listingId}/bid:
+    post:
+      tags: [marketplace]
+      operationId: placeBid
+      summary: Place a bid on a listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceBidRequest"
+      responses:
+        "201":
+          description: Bid placed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /marketplace/{listingId}/bids:
+    get:
+      tags: [marketplace]
+      operationId: getBids
+      summary: Get all bids for a listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of bids
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /marketplace/{listingId}/accept-bid/{bidId}:
+    post:
+      tags: [marketplace]
+      operationId: acceptBid
+      summary: Accept a bid (transfers ownership)
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptBidRequest"
+      responses:
+        "200":
+          description: Bid accepted, ownership transferred
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Not the seller
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # API Keys
+  # ---------------------------------------------------------------------------
+  /api-keys:
+    post:
+      tags: [api-keys]
+      operationId: createApiKey
+      summary: Create a new API key
+      description: The raw key is returned ONCE in the response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        "201":
+          description: API key created
+
+    get:
+      tags: [api-keys]
+      operationId: listApiKeys
+      summary: List API keys (masked)
+      parameters:
+        - name: owner_id
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paginated list of API keys
+
+  /api-keys/usage:
+    get:
+      tags: [api-keys]
+      operationId: getApiKeyUsage
+      summary: Get API key usage/quota stats
+      parameters:
+        - name: owner_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Usage statistics
+
+  /api-keys/{id}:
+    delete:
+      tags: [api-keys]
+      operationId: revokeApiKey
+      summary: Revoke (soft-delete) an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Key revoked
+
+  /api-keys/{id}/rotate:
+    post:
+      tags: [api-keys]
+      operationId: rotateApiKey
+      summary: Rotate an API key
+      description: Invalidates current key and issues a new one.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Key rotated
+
+  # ---------------------------------------------------------------------------
+  # Fiat Ramps
+  # ---------------------------------------------------------------------------
+  /fiat-ramps/anchors:
+    get:
+      tags: [fiat-ramps]
+      operationId: getAnchors
+      summary: Fetch available anchors
+      parameters:
+        - name: assetCode
+          in: query
+          schema:
+            type: string
+        - name: country
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available anchors
+
+  /fiat-ramps/deposit:
+    post:
+      tags: [fiat-ramps]
+      operationId: initiateDeposit
+      summary: Initiate SEP-24 hosted deposit flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FiatRampRequest"
+      responses:
+        "201":
+          description: Deposit flow initiated
+
+  /fiat-ramps/withdraw:
+    post:
+      tags: [fiat-ramps]
+      operationId: initiateWithdrawal
+      summary: Initiate SEP-24 hosted withdrawal flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FiatRampRequest"
+      responses:
+        "201":
+          description: Withdrawal flow initiated
+
+  /fiat-ramps/kyc/callback:
+    post:
+      tags: [fiat-ramps]
+      operationId: handleKycCallback
+      summary: Handle KYC redirects
+      responses:
+        "200":
+          description: Callback processed
+
+  /fiat-ramps/transaction/status:
+    post:
+      tags: [fiat-ramps]
+      operationId: updateTransactionStatus
+      summary: Handle transaction status updates
+      responses:
+        "200":
+          description: Status updated
+
+  # ---------------------------------------------------------------------------
+  # Admin / Refunds
+  # ---------------------------------------------------------------------------
+  /admin/refunds:
+    post:
+      tags: [admin/refunds]
+      operationId: initiateRefund
+      summary: Initiate a refund (idempotent)
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiateRefundRequest"
+      responses:
+        "200":
+          description: Refund created or existing returned
+        "409":
+          description: Entity not refundable
+
+    get:
+      tags: [admin/refunds]
+      operationId: listRefunds
+      summary: List all refund attempts
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Refund attempts list
+
+  /admin/refunds/{id}/approve:
+    post:
+      tags: [admin/refunds]
+      operationId: approveRefund
+      summary: Approve a pending refund
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Refund approved
+        "409":
+          description: Refund not in pending state
+
+  /admin/refunds/{id}/reject:
+    post:
+      tags: [admin/refunds]
+      operationId: rejectRefund
+      summary: Reject a pending refund
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Refund rejected
+        "409":
+          description: Refund not in pending state
+
+  # ---------------------------------------------------------------------------
+  # Exports
+  # ---------------------------------------------------------------------------
+  /exports:
+    post:
+      tags: [exports]
+      operationId: requestExport
+      summary: Request a data export
+      description: Enqueues an async export job.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestExport"
+      responses:
+        "201":
+          description: Export job enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ---------------------------------------------------------------------------
+  # Telegram
+  # ---------------------------------------------------------------------------
+  /telegram/status/{telegramId}:
+    get:
+      tags: [Telegram]
+      operationId: getTelegramStatus
+      summary: Check Telegram account linkage status
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Telegram user ID
+      responses:
+        "200":
+          description: Linkage status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramLinkStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /telegram/verify/{telegramId}:
+    post:
+      tags: [Telegram]
+      operationId: verifyTelegramLink
+      summary: Verify Telegram account linkage
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verificationCode]
+              properties:
+                verificationCode:
+                  type: string
+      responses:
+        "200":
+          description: Verification successful
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /telegram/settings/{telegramId}:
+    put:
+      tags: [Telegram]
+      operationId: updateTelegramSettings
+      summary: Update Telegram notification settings
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTelegramSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /telegram/link/{telegramId}:
+    delete:
+      tags: [Telegram]
+      operationId: unlinkTelegram
+      summary: Unlink Telegram account
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Account unlinked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Reconciliation
+  # ---------------------------------------------------------------------------
+  /reconciliation/status:
+    get:
+      tags: [reconciliation]
+      operationId: getReconciliationStatus
+      summary: Get reconciliation worker status
+      responses:
+        "200":
+          description: Worker status and last report
+
+  /reconciliation/trigger:
+    post:
+      tags: [reconciliation]
+      operationId: triggerReconciliation
+      summary: Manually trigger a reconciliation run
+      responses:
+        "200":
+          description: Reconciliation completed
+        "409":
+          description: Already running
+
+  /reconciliation/backfill:
+    post:
+      tags: [reconciliation]
+      operationId: startBackfill
+      summary: Trigger a backfill job for a ledger range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackfillConfig"
+      responses:
+        "200":
+          description: Backfill completed
+        "409":
+          description: Backfill already running
+
+  /reconciliation/backfill/status:
+    get:
+      tags: [reconciliation]
+      operationId: getBackfillStatus
+      summary: Get current backfill progress
+      responses:
+        "200":
+          description: Backfill progress
+
+  # ---------------------------------------------------------------------------
+  # Job Queue Admin
+  # ---------------------------------------------------------------------------
+  /admin/jobs:
+    get:
+      tags: [Admin - Job Queue]
+      operationId: listJobs
+      summary: List jobs with filters
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - name: createdAfter
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: createdBefore
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paginated job list
+
+  /admin/jobs/metrics/summary:
+    get:
+      tags: [Admin - Job Queue]
+      operationId: getJobMetrics
+      summary: Get job metrics summary
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Job metrics by type and status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobMetrics"
+
+  /admin/jobs/dlq:
+    get:
+      tags: [Admin - Job Queue]
+      operationId: getDeadLetterQueue
+      summary: Get dead letter queue jobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: DLQ jobs
+
+  /admin/jobs/bulk-retry:
+    post:
+      tags: [Admin - Job Queue]
+      operationId: bulkRetryJobs
+      summary: Bulk retry jobs by type
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkRetryRequest"
+      responses:
+        "200":
+          description: Bulk retry completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkRetryResponse"
+
+  /admin/jobs/{id}:
+    get:
+      tags: [Admin - Job Queue]
+      operationId: getJob
+      summary: Get job details by ID
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job details
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/jobs/{id}/cancel:
+    post:
+      tags: [Admin - Job Queue]
+      operationId: cancelJob
+      summary: Cancel a job
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job cancelled
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/jobs/{id}/retry:
+    post:
+      tags: [Admin - Job Queue]
+      operationId: retryJob
+      summary: Manually retry a failed job
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job retry scheduled
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Metrics
+  # ---------------------------------------------------------------------------
+  /metrics:
+    get:
+      tags: [metrics]
+      operationId: getPrometheusMetrics
+      summary: Get Prometheus metrics
+      description: Returns metrics in Prometheus exposition format.
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Metrics registry not initialized
+
+  /metrics/content-type:
+    get:
+      tags: [metrics]
+      operationId: getMetricsContentType
+      summary: Get metrics content type
+      responses:
+        "200":
+          description: Content type
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: "text/plain; version=0.0.4; charset=utf-8"
+
+  # ---------------------------------------------------------------------------
+  # Asset Metadata
+  # ---------------------------------------------------------------------------
+  /assets:
+    get:
+      tags: [assets]
+      operationId: listAssets
+      summary: List all verified assets with metadata
+      description: Returns all verified assets with branding, icons, and TOML metadata.
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetListResponse"
+
+  /assets/{code}:
+    get:
+      tags: [assets]
+      operationId: getAssetMetadata
+      summary: Get metadata for a specific asset
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Asset code (e.g., USDC, XLM, AQUA)
+      responses:
+        "200":
+          description: Asset metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetMetadataResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /assets/{code}/refresh:
+    post:
+      tags: [assets]
+      operationId: refreshAssetMetadata
+      summary: Refresh asset metadata cache
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset metadata refreshed
+
+  /assets/cache/stats:
+    get:
+      tags: [assets]
+      operationId: getAssetCacheStats
+      summary: Get cache statistics
+      responses:
+        "200":
+          description: Cache statistics
+
+  /assets/cache/clear:
+    post:
+      tags: [assets]
+      operationId: clearAssetCache
+      summary: Clear asset metadata cache
+      responses:
+        "204":
+          description: Cache cleared
+
+  # ---------------------------------------------------------------------------
+  # Audit
+  # ---------------------------------------------------------------------------
+  /admin/audit:
+    get:
+      tags: [admin/audit]
+      operationId: queryAuditLogs
+      summary: Query audit logs
+      responses:
+        "200":
+          description: Audit logs
+
+  /admin/audit/export:
+    get:
+      tags: [admin/audit]
+      operationId: exportAuditCsv
+      summary: Export audit logs as CSV
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /admin/audit/retention:
+    delete:
+      tags: [admin/audit]
+      operationId: applyAuditRetention
+      summary: Apply 90-day retention policy
+      responses:
+        "200":
+          description: Retention applied
+
+  # ---------------------------------------------------------------------------
+  # Feature Flags
+  # ---------------------------------------------------------------------------
+  /admin/feature-flags:
+    get:
+      tags: [feature-flags]
+      operationId: listFeatureFlags
+      summary: List feature flags
+      responses:
+        "200":
+          description: Feature flags list
+
+  /admin/feature-flags/{key}:
+    get:
+      tags: [feature-flags]
+      operationId: getFeatureFlag
+      summary: Get a single feature flag
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feature flag details
+
+    patch:
+      tags: [feature-flags]
+      operationId: updateFeatureFlag
+      summary: Update a feature flag
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-admin-actor
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFeatureFlagRequest"
+      responses:
+        "200":
+          description: Flag updated
+
+  /feature-flags/{key}/evaluate:
+    get:
+      tags: [feature-flags]
+      operationId: evaluateFeatureFlag
+      summary: Evaluate a feature flag
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evaluation result
+
+components:
+  # -------------------------------------------------------------------------
+  # Security Schemes
+  # -------------------------------------------------------------------------
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Optional API key for higher rate limits
+
+  # -------------------------------------------------------------------------
+  # Parameters
+  # -------------------------------------------------------------------------
+  parameters:
+    RecurringLinkId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Recurring payment link ID
+
+  # -------------------------------------------------------------------------
+  # Reusable Responses
+  # -------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimit:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  # -------------------------------------------------------------------------
+  # Schemas
+  # -------------------------------------------------------------------------
+  schemas:
+    # --- Error ---
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+            request_id:
+              type: string
+              format: uuid
+            fields:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+            details:
+              type: object
+
+    # --- Health ---
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+
+    ReadyResponse:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+
+    # --- Usernames ---
+    CreateUsernameRequest:
+      type: object
+      required: [username, publicKey]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: "^[a-z0-9_]+$"
+          example: alice_123
+        publicKey:
+          type: string
+          example: GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR
+
+    CreateUsernameResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+
+    ListUsernamesResponse:
+      type: object
+      properties:
+        usernames:
+          type: array
+          items:
+            type: object
+            properties:
+              username:
+                type: string
+              publicKey:
+                type: string
+              isPublic:
+                type: boolean
+
+    PublicProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        publicKey:
+          type: string
+        similarityScore:
+          type: number
+        lastActiveAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    SearchUsernamesResponse:
+      type: object
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfile"
+        total:
+          type: integer
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    TrendingCreatorsResponse:
+      type: object
+      properties:
+        creators:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/PublicProfile"
+              - type: object
+                properties:
+                  transactionVolume:
+                    type: number
+                  transactionCount:
+                    type: integer
+        timeWindowHours:
+          type: integer
+        calculatedAt:
+          type: string
+          format: date-time
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    RecentlyActiveResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfile"
+        timeWindowHours:
+          type: integer
+        calculatedAt:
+          type: string
+          format: date-time
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    TogglePublicRequest:
+      type: object
+      required: [username, publicKey, isPublic]
+      properties:
+        username:
+          type: string
+          example: alice
+        publicKey:
+          type: string
+        isPublic:
+          type: boolean
+
+    # --- Links ---
+    LinkMetadataRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          example: 50.5
+          minimum: 0.0000001
+          maximum: 1000000000
+        memo:
+          type: string
+          maxLength: 28
+        memoType:
+          type: string
+          enum: [text, id, hash, return]
+        asset:
+          type: string
+          enum: [XLM, USDC, AQUA, yXLM]
+        privacy:
+          type: boolean
+          default: false
+        expirationDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        username:
+          type: string
+          minLength: 1
+          maxLength: 32
+        destination:
+          type: string
+          pattern: "^G[A-Z0-9]{55}$"
+        referenceId:
+          type: string
+          maxLength: 64
+        acceptedAssets:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    LinkMetadataResponse:
+      type: object
+      properties:
+        amount:
+          type: string
+          example: "50.5000000"
+        memo:
+          type: string
+          nullable: true
+        memoType:
+          type: string
+        asset:
+          type: string
+        privacy:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        canonical:
+          type: string
+        username:
+          type: string
+          nullable: true
+        destination:
+          type: string
+          nullable: true
+        referenceId:
+          type: string
+          nullable: true
+        acceptedAssets:
+          type: array
+          items:
+            type: string
+          nullable: true
+        swapOptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathPreviewRow"
+          nullable: true
+        metadata:
+          type: object
+          properties:
+            normalized:
+              type: boolean
+            warnings:
+              type: array
+              items:
+                type: string
+
+    PathPreviewRow:
+      type: object
+      properties:
+        sourceAmount:
+          type: string
+        sourceAsset:
+          type: string
+        destinationAmount:
+          type: string
+        destinationAsset:
+          type: string
+        hopCount:
+          type: integer
+        pathHops:
+          type: array
+          items:
+            type: string
+        rateDescription:
+          type: string
+
+    BulkPaymentLinkItem:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          minimum: 0.0000001
+        asset:
+          type: string
+        memo:
+          type: string
+          maxLength: 28
+        memoType:
+          type: string
+          enum: [text, id, hash, return]
+        username:
+          type: string
+          maxLength: 32
+        destination:
+          type: string
+        referenceId:
+          type: string
+          maxLength: 64
+        privacy:
+          type: boolean
+        expirationDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        acceptedAssets:
+          type: array
+          items:
+            type: string
+
+    BulkPaymentLinkRequest:
+      type: object
+      required: [links]
+      properties:
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkPaymentLinkItem"
+          maxItems: 500
+
+    BulkPaymentLinkResponseItem:
+      type: object
+      properties:
+        id:
+          type: string
+        canonical:
+          type: string
+        url:
+          type: string
+          format: uri
+        amount:
+          type: string
+        asset:
+          type: string
+        username:
+          type: string
+        destination:
+          type: string
+        referenceId:
+          type: string
+        index:
+          type: integer
+
+    BulkPaymentLinkResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkPaymentLinkResponseItem"
+        processingTimeMs:
+          type: integer
+
+    ScanLinkRequest:
+      type: object
+      required: [assetCode, amount]
+      properties:
+        assetCode:
+          type: string
+          enum: [XLM, USDC, AQUA, yXLM]
+        amount:
+          type: number
+        memo:
+          type: string
+          maxLength: 28
+        recipientAddress:
+          type: string
+
+    ScanResult:
+      type: object
+      properties:
+        riskScore:
+          type: integer
+        flags:
+          type: array
+          items:
+            type: string
+        recommendation:
+          type: string
+
+    # --- Payment Links ---
+    PaymentLinkStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [DRAFT, ACTIVE, EXPIRED, PAID, REFUNDED]
+        username:
+          type: string
+        amount:
+          type: string
+        asset:
+          type: string
+        memo:
+          type: string
+          nullable: true
+        destinationPublicKey:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        transactionHash:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        swapOptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathPreviewRow"
+          nullable: true
+        acceptsMultipleAssets:
+          type: boolean
+        acceptedAssets:
+          type: array
+          items:
+            type: string
+          nullable: true
+        userMessage:
+          type: string
+        availableActions:
+          type: array
+          items:
+            type: string
+
+    # --- Recurring Payments ---
+    RecurringStatus:
+      type: string
+      enum: [active, paused, completed, cancelled]
+
+    FrequencyType:
+      type: string
+      enum: [daily, weekly, monthly, yearly]
+
+    CreateRecurringPaymentLinkRequest:
+      type: object
+      required: [amount, asset, frequency]
+      properties:
+        amount:
+          type: number
+          minimum: 1
+        asset:
+          type: string
+        assetIssuer:
+          type: string
+        username:
+          type: string
+        destination:
+          type: string
+        frequency:
+          $ref: "#/components/schemas/FrequencyType"
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        totalPeriods:
+          type: integer
+          minimum: 1
+        memo:
+          type: string
+        memoType:
+          type: string
+          enum: [text, id, hash, return]
+        referenceId:
+          type: string
+        privacyEnabled:
+          type: boolean
+          default: false
+
+    UpdateRecurringPaymentLinkRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 1
+        frequency:
+          $ref: "#/components/schemas/FrequencyType"
+        endDate:
+          type: string
+          format: date-time
+        totalPeriods:
+          type: integer
+          minimum: 1
+        memo:
+          type: string
+        referenceId:
+          type: string
+
+    RecurringPaymentLinkResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        destination:
+          type: string
+        amount:
+          type: number
+        asset:
+          type: string
+        assetIssuer:
+          type: string
+        frequency:
+          $ref: "#/components/schemas/FrequencyType"
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        totalPeriods:
+          type: integer
+        executedCount:
+          type: integer
+        nextExecutionDate:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/RecurringStatus"
+        memo:
+          type: string
+        memoType:
+          type: string
+        referenceId:
+          type: string
+        privacyEnabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RecurringPaymentExecution:
+      type: object
+      properties:
+        id:
+          type: string
+        periodNumber:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        executedAt:
+          type: string
+          format: date-time
+        amount:
+          type: number
+        asset:
+          type: string
+        status:
+          type: string
+          enum: [pending, success, failed, skipped]
+        transactionHash:
+          type: string
+        failureReason:
+          type: string
+        retryCount:
+          type: integer
+        notificationSent:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ListRecurringPaymentsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecurringPaymentLinkResponse"
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+        limit:
+          type: integer
+
+    # --- Transactions ---
+    TransactionItem:
+      type: object
+      properties:
+        hash:
+          type: string
+        ledger:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        sourceAccount:
+          type: string
+        type:
+          type: string
+        assetCode:
+          type: string
+          nullable: true
+        assetIssuer:
+          type: string
+          nullable: true
+        amount:
+          type: string
+        destinationAccount:
+          type: string
+          nullable: true
+        memo:
+          type: string
+          nullable: true
+        memoType:
+          type: string
+          nullable: true
+
+    TransactionResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionItem"
+        pagination:
+          type: object
+          properties:
+            limit:
+              type: integer
+            cursor:
+              type: string
+            hasMore:
+              type: boolean
+
+    ComposeTransactionRequest:
+      type: object
+      required: [contractId, method, params, sourceAccount]
+      properties:
+        contractId:
+          type: string
+        method:
+          type: string
+        params:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              value: {}
+        sourceAccount:
+          type: string
+        networkPassphrase:
+          type: string
+
+    # --- Stellar ---
+    AssetRef:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          example: USDC
+        issuer:
+          type: string
+          nullable: true
+
+    PathPreviewRequest:
+      type: object
+      required: [destinationAmount, destinationAsset, sourceAssets]
+      properties:
+        destinationAmount:
+          type: string
+          example: "10.5"
+        destinationAsset:
+          $ref: "#/components/schemas/AssetRef"
+        sourceAssets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetRef"
+          minItems: 1
+
+    StrictSendPathPreviewRequest:
+      type: object
+      required: [sourceAmount, sourceAsset, destinationAssets]
+      properties:
+        sourceAmount:
+          type: string
+          example: "10.5"
+        sourceAsset:
+          $ref: "#/components/schemas/AssetRef"
+        destinationAssets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetRef"
+          minItems: 1
+
+    SorobanPreflightRequest:
+      type: object
+      required: [sourceAccount]
+      properties:
+        sourceAccount:
+          type: string
+          pattern: "^G[A-Z0-9]{55}$"
+
+    CreateQuoteRequest:
+      type: object
+      required: [destinationAmount, destinationAsset, sourceAssets]
+      properties:
+        destinationAmount:
+          type: string
+        destinationAsset:
+          $ref: "#/components/schemas/AssetRef"
+        sourceAssets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetRef"
+        maxSlippageBps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+          default: 50
+        ttlSeconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          default: 30
+        preflight:
+          type: boolean
+          default: false
+
+    QuotePath:
+      type: object
+      properties:
+        sourceAsset:
+          type: string
+        sourceAmount:
+          type: string
+        sourceAmountWithSlippage:
+          type: string
+        destinationAsset:
+          type: string
+        destinationAmount:
+          type: string
+        pathHops:
+          type: array
+          items:
+            type: string
+        rateDescription:
+          type: string
+
+    QuoteResponse:
+      type: object
+      properties:
+        quoteId:
+          type: string
+        paths:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuotePath"
+        expiresAt:
+          type: string
+          format: date-time
+        maxSlippageBps:
+          type: integer
+        horizonUrl:
+          type: string
+        preflight:
+          type: object
+          properties:
+            feasible:
+              type: boolean
+            error:
+              type: string
+
+    AssetListResponse:
+      type: object
+      properties:
+        assets:
+          type: array
+          items:
+            type: object
+
+    # --- Webhooks ---
+    CreateWebhookRequest:
+      type: object
+      required: [webhookUrl]
+      properties:
+        webhookUrl:
+          type: string
+          format: uri
+        label:
+          type: string
+          maxLength: 100
+        events:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Event types to subscribe to. null = all events.
+        minAmountStroops:
+          type: integer
+          minimum: 0
+        secret:
+          type: string
+          maxLength: 128
+
+    UpdateWebhookRequest:
+      type: object
+      properties:
+        webhookUrl:
+          type: string
+          format: uri
+        label:
+          type: string
+          maxLength: 100
+        events:
+          type: array
+          items:
+            type: string
+          nullable: true
+        minAmountStroops:
+          type: integer
+        enabled:
+          type: boolean
+
+    WebhookResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        publicKey:
+          type: string
+        webhookUrl:
+          type: string
+        label:
+          type: string
+        secret:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+          nullable: true
+        minAmountStroops:
+          type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookDeliveryLog:
+      type: object
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+        eventId:
+          type: string
+        status:
+          type: string
+        attempts:
+          type: integer
+        lastError:
+          type: string
+        httpStatus:
+          type: integer
+        responseBody:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+
+    WebhookStats:
+      type: object
+      properties:
+        totalSent:
+          type: integer
+        totalFailed:
+          type: integer
+        pendingRetries:
+          type: integer
+        lastDeliveryAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+
+    RedeliverWebhookRequest:
+      type: object
+      required: [eventId, eventType]
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+
+    # --- Notifications ---
+    NotificationPreference:
+      type: object
+      properties:
+        id:
+          type: string
+        publicKey:
+          type: string
+        channel:
+          type: string
+          enum: [email, push, webhook]
+        email:
+          type: string
+        pushToken:
+          type: string
+        webhookUrl:
+          type: string
+        webhookSecret:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+          nullable: true
+        minAmountStroops:
+          type: string
+        enabled:
+          type: boolean
+
+    UpsertNotificationPreference:
+      type: object
+      required: [channel, enabled]
+      properties:
+        channel:
+          type: string
+          enum: [email, push, webhook]
+        email:
+          type: string
+        pushToken:
+          type: string
+        webhookUrl:
+          type: string
+        webhookSecret:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+          nullable: true
+        minAmountStroops:
+          type: number
+        enabled:
+          type: boolean
+
+    # --- Marketplace ---
+    ListUsernameRequest:
+      type: object
+      required: [username, sellerPublicKey, askingPrice]
+      properties:
+        username:
+          type: string
+        sellerPublicKey:
+          type: string
+        askingPrice:
+          type: number
+          minimum: 0.0000001
+
+    PlaceBidRequest:
+      type: object
+      required: [bidderPublicKey, bidAmount]
+      properties:
+        bidderPublicKey:
+          type: string
+        bidAmount:
+          type: number
+          minimum: 0.0000001
+
+    AcceptBidRequest:
+      type: object
+      required: [sellerPublicKey]
+      properties:
+        sellerPublicKey:
+          type: string
+
+    CancelListingRequest:
+      type: object
+      required: [sellerPublicKey]
+      properties:
+        sellerPublicKey:
+          type: string
+
+    MarketplaceListingsResponse:
+      type: object
+      properties:
+        listings:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    # --- API Keys ---
+    CreateApiKeyRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [links:read, links:write, transactions:read, usernames:read, refunds:write, admin]
+          minItems: 1
+        owner_id:
+          type: string
+
+    # --- Fiat Ramps ---
+    FiatRampRequest:
+      type: object
+      required: [assetCode, amount, userAccount, anchorDomain]
+      properties:
+        assetCode:
+          type: string
+        amount:
+          type: number
+        userAccount:
+          type: string
+        anchorDomain:
+          type: string
+
+    # --- Refunds ---
+    InitiateRefundRequest:
+      type: object
+      required: [entityType, entityId, idempotencyKey, reasonCode]
+      properties:
+        entityType:
+          type: string
+          enum: [payment, escrow, link]
+        entityId:
+          type: string
+        idempotencyKey:
+          type: string
+        reasonCode:
+          type: string
+          enum: [DUPLICATE, FRAUD, CUSTOMER_REQUEST, TECHNICAL_ERROR]
+        notes:
+          type: string
+
+    # --- Exports ---
+    RequestExport:
+      type: object
+      required: [userId, exportType, format, deliveryMethod]
+      properties:
+        userId:
+          type: string
+        exportType:
+          type: string
+          enum: [transactions, links, payments]
+        filters:
+          type: object
+        format:
+          type: string
+          enum: [csv, json]
+        deliveryMethod:
+          type: string
+          enum: [webhook, email, download]
+
+    # --- Feature Flags ---
+    UpdateFeatureFlagRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        description:
+          type: string
+        rules:
+          type: object
+
+    # --- Telegram ---
+    TelegramLinkStatus:
+      type: object
+      properties:
+        isLinked:
+          type: boolean
+        isVerified:
+          type: boolean
+        publicKey:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+          nullable: true
+        minAmountXlm:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    UpdateTelegramSettingsRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        minAmountStroops:
+          type: string
+
+    # --- Reconciliation ---
+    BackfillConfig:
+      type: object
+      properties:
+        startLedger:
+          type: integer
+        endLedger:
+          type: integer
+
+    # --- Job Queue ---
+    BulkRetryRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+
+    BulkRetryResponse:
+      type: object
+      properties:
+        retriedCount:
+          type: integer
+        jobIds:
+          type: array
+          items:
+            type: string
+
+    JobMetrics:
+      type: object
+      properties:
+        byType:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              pending:
+                type: integer
+              running:
+                type: integer
+              completed:
+                type: integer
+              failed:
+                type: integer
+              cancelled:
+                type: integer
+        dlqCount:
+          type: integer
+
+    # --- Asset Metadata ---
+    AssetMetadataResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        issuer:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+          format: uri
+        tomlUrl:
+          type: string
+          format: uri
