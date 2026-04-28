@@ -1,5 +1,5 @@
 # QuickEx Privacy Contract
-
+//Comment
 Soroban smart contract implementing X-Ray privacy features for QuickEx.
 
 ## Overview
