@@ -57,7 +57,15 @@ pub fn invoke_hooks(
     let hooks = storage::get_registered_hooks(env);
     for hook in hooks {
         // TODO: Implement hook invocation once hook contract is defined
-        let _ = (hook, event_kind, escrow_id, owner.clone(), token.clone(), amount, fee);
+        let _ = (
+            hook,
+            event_kind,
+            escrow_id,
+            owner.clone(),
+            token.clone(),
+            amount,
+            fee,
+        );
     }
     storage::set_reentrancy_guard(env, &false);
 }

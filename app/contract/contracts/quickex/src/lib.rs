@@ -17,12 +17,10 @@ mod fee;
 #[cfg(test)]
 mod fee_test;
 mod hook;
-#[cfg(test)]
-mod hook_oracle_test;
-mod oracle;
 pub mod nonce;
 #[cfg(test)]
 mod nonce_test;
+mod oracle;
 mod privacy;
 #[cfg(test)]
 mod role_test;
