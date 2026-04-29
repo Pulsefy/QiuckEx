@@ -200,11 +200,12 @@ pub fn deposit(
     put_escrow_id_mapping(env, &escrow_id, &commitment);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
 
+    let token_address = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
         owner.clone(),
-        token_client.address,
+        token_address.clone(),
         amount,
         amount,
         expires_at,
@@ -215,7 +216,7 @@ pub fn deposit(
         HookEventKind::Create,
         &commitment,
         owner,
-        token_client.address,
+        token_address,
         amount,
         0,
     );
@@ -279,11 +280,12 @@ pub fn deposit_with_commitment(
     };
 
     put_escrow(env, &commitment_bytes, &entry);
+    let token_addr = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
         from_ref.clone(),
-        token_client.address,
+        token_addr.clone(),
         amount,
         amount,
         expires_at,
@@ -294,7 +296,7 @@ pub fn deposit_with_commitment(
         HookEventKind::Create,
         &commitment,
         from_ref,
-        token_client.address,
+        token_addr,
         amount,
         0,
     );
@@ -360,11 +362,12 @@ pub fn deposit_partial(
     put_escrow(env, &commitment_bytes, &entry);
     token_client.transfer(&owner, env.current_contract_address(), &initial_payment);
 
+    let token_addr = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
         owner.clone(),
-        token_client.address,
+        token_addr.clone(),
         amount_due,
         initial_payment,
         expires_at,
@@ -375,7 +378,7 @@ pub fn deposit_partial(
         HookEventKind::Create,
         &commitment,
         owner,
-        token_client.address,
+        token_addr,
         initial_payment,
         0,
     );
@@ -534,6 +537,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     // optimized: destructure what we need, move entry instead of cloning
     let token_ref = entry.token.clone();
     let amount_paid = entry.amount_paid;
+    let owner = entry.owner.clone();
 
     let mut updated = entry;
     updated.status = EscrowStatus::Spent;
@@ -557,7 +561,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 
     events::publish_escrow_withdrawn(
         env,
-        commitment,
+        commitment.clone(),
         to.clone(),
         token_ref.clone(),
         amount_paid,
@@ -568,7 +572,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         env,
         HookEventKind::Settle,
         &commitment,
-        entry.owner,
+        owner,
         token_ref,
         amount_paid,
         fee_amount,
@@ -637,7 +641,7 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     events::publish_escrow_refunded(
         env,
         owner_ref.clone(),
-        commitment,
+        commitment.clone(),
         token_ref.clone(),
         amount_paid,
     );
@@ -820,7 +824,7 @@ pub fn resolve_dispute(
         events::publish_escrow_refunded(
             env,
             entry.owner.clone(),
-            commitment,
+            commitment.clone(),
             entry.token.clone(),
             entry.amount_paid,
         );
@@ -828,15 +832,15 @@ pub fn resolve_dispute(
             env,
             HookEventKind::Refund,
             &commitment,
-            entry.owner,
-            entry.token,
+            entry.owner.clone(),
+            entry.token.clone(),
             entry.amount_paid,
             0,
         );
     } else {
         events::publish_escrow_withdrawn(
             env,
-            commitment,
+            commitment.clone(),
             recipient_address.clone(),
             entry.token.clone(),
             entry.amount_paid,
@@ -846,7 +850,7 @@ pub fn resolve_dispute(
             env,
             HookEventKind::Settle,
             &commitment,
-            entry.owner,
+            entry.owner.clone(),
             entry.token,
             entry.amount_paid,
             fee_amount,

@@ -1,23 +1,5 @@
 use crate::{errors::QuickexError, storage, types::HookEventKind};
-use soroban_sdk::{contractclient, Address, BytesN, Env, Vec};
-
-#[contractclient]
-pub struct HookClient<'a> {
-    env: &'a Env,
-    contract_id: &'a Address,
-}
-
-impl<'a> HookClient<'a> {
-    pub fn on_escrow_event(
-        &self,
-        event_kind: u32,
-        escrow_id: BytesN<32>,
-        owner: Address,
-        token: Address,
-        amount: i128,
-        fee: i128,
-    ) -> Result<(), ()>;
-}
+use soroban_sdk::{Address, BytesN, Env, Vec};
 
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
     let mut hooks = storage::get_registered_hooks(env);
@@ -71,18 +53,11 @@ pub fn invoke_hooks(
         return;
     }
 
-    storage::set_reentrancy_guard(env, true);
+    storage::set_reentrancy_guard(env, &true);
     let hooks = storage::get_registered_hooks(env);
     for hook in hooks {
-        let hook_client = HookClient::new(env, &hook);
-        let _ = hook_client.on_escrow_event(
-            event_kind as u32,
-            escrow_id.clone(),
-            owner.clone(),
-            token.clone(),
-            amount,
-            fee,
-        );
+        // TODO: Implement hook invocation once hook contract is defined
+        let _ = (hook, event_kind, escrow_id, owner.clone(), token.clone(), amount, fee);
     }
-    storage::set_reentrancy_guard(env, false);
+    storage::set_reentrancy_guard(env, &false);
 }

@@ -158,7 +158,7 @@ pub struct FeeConfig {
 
 /// Oracle fee configuration for dynamic USD-based fee collection.
 #[contracttype]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct OracleFeeConfig {
     /// External oracle contract address.
     pub oracle: Address,
