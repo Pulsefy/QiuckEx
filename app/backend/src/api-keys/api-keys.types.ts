@@ -3,6 +3,8 @@ export const API_KEY_SCOPES = [
   'links:write',
   'transactions:read',
   'usernames:read',
+  'refunds:write',
+  'admin', // Admin scope for job queue management and other admin operations
 ] as const;
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
@@ -11,6 +13,7 @@ export interface ApiKeyRecord {
   id: string;
   name: string;
   key_hash: string;
+  key_hash_old: string | null;
   key_prefix: string;
   scopes: ApiKeyScope[];
   owner_id: string | null;
@@ -18,6 +21,8 @@ export interface ApiKeyRecord {
   request_count: number;
   monthly_quota: number;
   last_used_at: string | null;
+  rotated_at: string | null;
+  last_reset_at: string;
   created_at: string;
   updated_at: string;
 }

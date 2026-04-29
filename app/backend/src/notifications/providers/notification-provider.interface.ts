@@ -1,6 +1,7 @@
-import { Logger } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
 import * as crypto from "crypto";
 
+import { MetricsService } from "../../metrics/metrics.service";
 import type {
   NotificationChannel,
   NotificationPreference,
@@ -191,6 +192,10 @@ export class WebhookProvider implements INotificationProvider {
   private readonly logger = new Logger(WebhookProvider.name);
   private readonly maxResponseBodyLength = 1000;
 
+  constructor(
+    @Inject(MetricsService) private readonly metrics?: MetricsService,
+  ) {}
+
   async send(
     preference: NotificationPreference,
     payload: BaseNotificationPayload,
@@ -199,9 +204,10 @@ export class WebhookProvider implements INotificationProvider {
       throw new Error("No webhook URL configured for preference");
     }
 
+    const startTime = Date.now();
     const webhookPayload = this.buildWebhookPayload(payload);
     const body = JSON.stringify(webhookPayload);
-    const signature = this.signPayload(body, preference.webhookSecret);
+    const signature = this.signPayload(body, webhookPayload.sentAt, preference.webhookSecret);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -211,37 +217,58 @@ export class WebhookProvider implements INotificationProvider {
       "X-QuickEx-Timestamp": webhookPayload.sentAt,
     };
 
-    const response = await fetch(preference.webhookUrl, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    let responseBody: string | undefined;
     try {
-      const text = await response.text();
-      responseBody =
-        text.length > this.maxResponseBodyLength
-          ? text.slice(0, this.maxResponseBodyLength) + "..."
-          : text;
-    } catch {
-      // Ignore response body read errors
-    }
+      const response = await fetch(preference.webhookUrl, {
+        method: "POST",
+        headers,
+        body,
+      });
 
-    if (!response.ok) {
-      throw new Error(
-        `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}: ${responseBody ?? "no response body"}`,
+      const duration = (Date.now() - startTime) / 1000;
+
+      let responseBody: string | undefined;
+      try {
+        const text = await response.text();
+        responseBody =
+          text.length > this.maxResponseBodyLength
+            ? text.slice(0, this.maxResponseBodyLength) + "..."
+            : text;
+      } catch {
+        // Ignore response body read errors
+      }
+
+      if (!response.ok) {
+        const error = new Error(
+          `Webhook returned HTTP ${response.status} for ${preference.webhookUrl}: ${responseBody ?? "no response body"}`,
+        );
+        if (this.metrics) {
+          this.metrics.recordWebhookDeliveryDuration(payload.eventType, "failed", duration);
+          this.metrics.recordError("webhook", "http_error");
+        }
+        throw error;
+      }
+
+      this.logger.debug(
+        `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
       );
+
+      if (this.metrics) {
+        this.metrics.recordWebhookDeliveryDuration(payload.eventType, "success", duration);
+      }
+
+      return {
+        httpStatus: response.status,
+        responseBody,
+      };
+    } catch (error) {
+      const duration = (Date.now() - startTime) / 1000;
+      const errorType = error instanceof Error ? error.constructor.name : "UnknownError";
+      if (this.metrics) {
+        this.metrics.recordWebhookDeliveryDuration(payload.eventType, "error", duration);
+        this.metrics.recordError("webhook", errorType);
+      }
+      throw error;
     }
-
-    this.logger.debug(
-      `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
-    );
-
-    return {
-      httpStatus: response.status,
-      responseBody,
-    };
   }
 
   private buildWebhookPayload(
@@ -262,7 +289,7 @@ export class WebhookProvider implements INotificationProvider {
     };
   }
 
-  private signPayload(body: string, secret?: string): string {
+  private signPayload(body: string, timestamp: string, secret?: string): string {
     if (!secret) {
       this.logger.warn(
         "Webhook secret not configured - payload will not be signed",
@@ -270,30 +297,51 @@ export class WebhookProvider implements INotificationProvider {
       return "";
     }
 
+    // Sign timestamp + "." + body to prevent replay attacks
     const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(body);
+    hmac.update(`${timestamp}.${body}`);
     const digest = hmac.digest("hex");
     return `sha256=${digest}`;
   }
 
+  /**
+   * Verify an incoming webhook signature.
+   * @param body Raw request body string
+   * @param signature Value of X-QuickEx-Signature header
+   * @param timestamp Value of X-QuickEx-Timestamp header
+   * @param secret Shared webhook secret
+   * @param toleranceMs Replay window in ms (default 5 minutes)
+   */
   static verifySignature(
     body: string,
     signature: string,
+    timestamp: string,
     secret: string,
+    toleranceMs = 5 * 60 * 1000,
   ): boolean {
     if (!signature.startsWith("sha256=")) {
       return false;
     }
 
+    // Reject stale timestamps to prevent replay attacks
+    const ts = new Date(timestamp).getTime();
+    if (isNaN(ts) || Math.abs(Date.now() - ts) > toleranceMs) {
+      return false;
+    }
+
     const expectedDigest = signature.slice(7);
     const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(body);
+    hmac.update(`${timestamp}.${body}`);
     const actualDigest = hmac.digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedDigest, "hex"),
-      Buffer.from(actualDigest, "hex"),
-    );
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(expectedDigest, "hex"),
+        Buffer.from(actualDigest, "hex"),
+      );
+    } catch {
+      return false;
+    }
   }
 }
 

@@ -49,9 +49,9 @@ export class MarketplaceService {
 
   async getActiveListings(
     limit: number = 20,
-    offset: number = 0,
-  ): Promise<{ listings: MarketplaceListing[]; total: number }> {
-    return this.supabase.getActiveListings(limit, offset);
+    cursor: string | null = null,
+  ): Promise<{ listings: MarketplaceListing[]; total: number; next_cursor: string | null; has_more: boolean }> {
+    return this.supabase.getActiveListings(limit, cursor);
   }
 
   async getListing(listingId: string): Promise<MarketplaceListing> {
@@ -109,9 +109,9 @@ export class MarketplaceService {
     return this.supabase.placeBid(listingId, bidderPublicKey, bidAmount);
   }
 
-  async getBids(listingId: string): Promise<MarketplaceBid[]> {
+  async getBids(listingId: string, limit: number = 20, cursor: string | null = null): Promise<{ bids: MarketplaceBid[]; next_cursor: string | null; has_more: boolean }> {
     await this.getListing(listingId);
-    return this.supabase.getBidsByListingId(listingId);
+    return this.supabase.getBidsByListingIdPaginated(listingId, limit, cursor);
   }
 
   async acceptBid(

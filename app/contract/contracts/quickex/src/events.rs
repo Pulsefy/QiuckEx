@@ -1,11 +1,24 @@
 use soroban_sdk::{contractevent, Address, BytesN, Env};
 
+/// Canonical event schema version.
+///
+/// Increment this constant whenever the event payload shape changes
+/// (fields added, removed, or renamed). Indexers MUST check this field
+/// before parsing any event payload so they can route to the correct
+/// decoder for the schema version they understand.
+///
+/// History:
+///   v1 – original schema (no version field)
+///   v2 – added `schema_version` to every event payload (this release)
+pub const EVENT_SCHEMA_VERSION: u32 = 2;
+
 #[contractevent(topics = ["TOPIC_PRIVACY", "PrivacyToggled"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrivacyToggledEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub enabled: bool,
     pub timestamp: u64,
 }
@@ -19,6 +32,7 @@ pub struct EscrowWithdrawnEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub amount: i128,
     pub fee: i128,
@@ -34,8 +48,10 @@ pub struct EscrowDepositedEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub token: Address,
-    pub amount: i128,
+    pub amount_due: i128,
+    pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
 }
@@ -43,6 +59,7 @@ pub struct EscrowDepositedEvent {
 pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) {
     PrivacyToggledEvent {
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         enabled,
         timestamp: env.ledger().timestamp(),
     }
@@ -56,6 +73,7 @@ pub struct ContractPausedEvent {
     #[topic]
     pub admin: Address,
 
+    pub schema_version: u32,
     pub paused: bool,
     pub timestamp: u64,
 }
@@ -64,6 +82,7 @@ pub struct ContractPausedEvent {
 pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool) {
     ContractPausedEvent {
         admin,
+        schema_version: EVENT_SCHEMA_VERSION,
         paused,
         timestamp: env.ledger().timestamp(),
     }
@@ -80,6 +99,7 @@ pub struct AdminChangedEvent {
     #[topic]
     pub new_admin: Address,
 
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
@@ -88,6 +108,7 @@ pub(crate) fn publish_admin_changed(env: &Env, old_admin: Address, new_admin: Ad
     AdminChangedEvent {
         old_admin,
         new_admin,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -102,6 +123,7 @@ pub struct ContractUpgradedEvent {
     #[topic]
     pub admin: Address,
 
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
@@ -109,6 +131,35 @@ pub(crate) fn publish_contract_upgraded(env: &Env, new_wasm_hash: BytesN<32>, ad
     ContractUpgradedEvent {
         new_wasm_hash,
         admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "ContractMigrated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractMigratedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub from_version: u32,
+    pub to_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_contract_migrated(
+    env: &Env,
+    admin: &Address,
+    from_version: u32,
+    to_version: u32,
+) {
+    ContractMigratedEvent {
+        admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        from_version,
+        to_version,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -125,6 +176,7 @@ pub(crate) fn publish_escrow_withdrawn(
     EscrowWithdrawnEvent {
         escrow_id: commitment,
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         amount,
         fee,
@@ -138,14 +190,17 @@ pub(crate) fn publish_escrow_deposited(
     commitment: BytesN<32>,
     owner: Address,
     token: Address,
-    amount: i128,
+    amount_due: i128,
+    amount_paid: i128,
     expires_at: u64,
 ) {
     EscrowDepositedEvent {
         escrow_id: commitment,
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         expires_at,
         timestamp: env.ledger().timestamp(),
     }
@@ -161,8 +216,39 @@ pub struct EscrowRefundedEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ESCROW", "PartialPayment"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PartialPaymentEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub payer: Address,
+
+    pub token: Address,
+    pub payment_amount: i128,
+    pub amount_paid: i128,
+    pub amount_due: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ESCROW", "EscrowFinalized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowFinalizedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub owner: Address,
+
+    pub token: Address,
+    pub total_amount: i128,
     pub timestamp: u64,
 }
 
@@ -175,6 +261,7 @@ pub struct EscrowDisputedEvent {
     #[topic]
     pub arbiter: Address,
 
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
@@ -182,6 +269,7 @@ pub(crate) fn publish_escrow_disputed(env: &Env, commitment: BytesN<32>, arbiter
     EscrowDisputedEvent {
         escrow_id: commitment,
         arbiter,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -197,8 +285,47 @@ pub(crate) fn publish_escrow_refunded(
     EscrowRefundedEvent {
         escrow_id: commitment,
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_partial_payment(
+    env: &Env,
+    commitment: BytesN<32>,
+    payer: Address,
+    token: Address,
+    payment_amount: i128,
+    amount_paid: i128,
+    amount_due: i128,
+) {
+    PartialPaymentEvent {
+        escrow_id: commitment,
+        payer,
+        token,
+        payment_amount,
+        amount_paid,
+        amount_due,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_escrow_finalized(
+    env: &Env,
+    commitment: BytesN<32>,
+    owner: Address,
+    token: Address,
+    total_amount: i128,
+) {
+    EscrowFinalizedEvent {
+        escrow_id: commitment,
+        owner,
+        token,
+        total_amount,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -219,8 +346,10 @@ pub struct EphemeralKeyRegisteredEvent {
     #[topic]
     pub eph_pub: BytesN<32>,
 
+    pub schema_version: u32,
     pub token: Address,
-    pub amount: i128,
+    pub amount_due: i128,
+    pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
 }
@@ -230,14 +359,17 @@ pub(crate) fn publish_ephemeral_key_registered(
     stealth_address: BytesN<32>,
     eph_pub: BytesN<32>,
     token: Address,
-    amount: i128,
+    amount_due: i128,
+    amount_paid: i128,
     expires_at: u64,
 ) {
     EphemeralKeyRegisteredEvent {
         stealth_address,
         eph_pub,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         expires_at,
         timestamp: env.ledger().timestamp(),
     }
@@ -255,6 +387,7 @@ pub struct StealthWithdrawnEvent {
     #[topic]
     pub recipient: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub amount: i128,
     pub timestamp: u64,
@@ -270,6 +403,7 @@ pub(crate) fn publish_stealth_withdrawn(
     StealthWithdrawnEvent {
         stealth_address,
         recipient,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         amount,
         timestamp: env.ledger().timestamp(),
@@ -280,12 +414,14 @@ pub(crate) fn publish_stealth_withdrawn(
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeConfigChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigChangedEvent {
+    pub schema_version: u32,
     pub fee_bps: u32,
     pub timestamp: u64,
 }
 
 pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
     FeeConfigChangedEvent {
+        schema_version: EVENT_SCHEMA_VERSION,
         fee_bps,
         timestamp: env.ledger().timestamp(),
     }
@@ -297,12 +433,14 @@ pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
 pub struct PlatformWalletChangedEvent {
     #[topic]
     pub wallet: Address,
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
 pub(crate) fn publish_platform_wallet_changed(env: &Env, wallet: Address) {
     PlatformWalletChangedEvent {
         wallet,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

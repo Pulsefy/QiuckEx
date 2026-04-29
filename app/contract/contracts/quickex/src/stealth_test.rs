@@ -39,10 +39,12 @@ fn mint(env: &Env, token: &Address, recipient: &Address, amount: i128) {
 }
 
 /// Build a `StealthDepositParams` with the given fields.
+#[allow(clippy::too_many_arguments)]
 fn make_params(
     sender: Address,
     token: Address,
-    amount: i128,
+    amount_due: i128,
+    amount_paid: i128,
     eph_pub: BytesN<32>,
     spend_pub: BytesN<32>,
     stealth_address: BytesN<32>,
@@ -51,7 +53,8 @@ fn make_params(
     StealthDepositParams {
         sender,
         token,
-        amount,
+        amount_due,
+        amount_paid,
         eph_pub,
         spend_pub,
         stealth_address,
@@ -81,6 +84,7 @@ fn test_stealth_full_flow() {
     let returned_stealth = client.register_ephemeral_key(&make_params(
         sender,
         token.clone(),
+        amount,
         amount,
         eph_pub.clone(),
         spend_pub.clone(),
@@ -125,6 +129,7 @@ fn test_register_wrong_stealth_address_fails() {
             sender,
             token,
             amount,
+            amount,
             eph_pub,
             spend_pub,
             wrong_stealth,
@@ -154,6 +159,7 @@ fn test_register_duplicate_stealth_address_fails() {
         sender.clone(),
         token.clone(),
         amount,
+        amount,
         eph_pub.clone(),
         spend_pub.clone(),
         stealth_address.clone(),
@@ -164,6 +170,7 @@ fn test_register_duplicate_stealth_address_fails() {
         .try_register_ephemeral_key(&make_params(
             sender,
             token,
+            amount,
             amount,
             eph_pub,
             spend_pub,
@@ -194,6 +201,7 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
     client.register_ephemeral_key(&make_params(
         sender,
         token,
+        amount,
         amount,
         eph_pub.clone(),
         spend_pub,
@@ -230,6 +238,7 @@ fn test_stealth_double_withdraw_fails() {
         sender,
         token,
         amount,
+        amount,
         eph_pub.clone(),
         spend_pub.clone(),
         stealth_address.clone(),
@@ -265,6 +274,7 @@ fn test_stealth_withdraw_after_expiry_fails() {
         sender,
         token,
         amount,
+        amount,
         eph_pub.clone(),
         spend_pub.clone(),
         stealth_address.clone(),
@@ -296,6 +306,7 @@ fn test_stealth_register_zero_amount_fails() {
         .try_register_ephemeral_key(&make_params(
             sender,
             token,
+            0,
             0,
             eph_pub,
             spend_pub,
@@ -338,6 +349,7 @@ fn test_stealth_register_fails_when_paused() {
         .try_register_ephemeral_key(&make_params(
             sender,
             token,
+            amount,
             amount,
             eph_pub,
             spend_pub,

@@ -134,6 +134,8 @@ soroban contract deploy \
 - `set_paused(caller, new_state)` – pause/unpause (caller must be admin).
 - `set_admin(caller, new_admin)` – transfer admin.
 - `upgrade(caller, new_wasm_hash)` – upgrade contract (caller must authorize).
+- `migrate(caller)` – run post-upgrade storage migration steps for the current release.
+- `get_version()` – inspect the stored schema version (`0` means a legacy deployment with no version key yet).
 
 ### 5. Read-only queries
 - `get_commitment_state(commitment)` – escrow status (Pending/Spent/Expired).

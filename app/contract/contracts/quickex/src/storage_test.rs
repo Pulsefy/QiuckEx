@@ -19,7 +19,8 @@ fn test_escrow_storage() {
 
         let entry = EscrowEntry {
             token: token.clone(),
-            amount,
+            amount_due: amount,
+            amount_paid: amount,
             owner: owner.clone(),
             status: EscrowStatus::Pending,
             created_at,
@@ -36,7 +37,8 @@ fn test_escrow_storage() {
         // Test get_escrow
         let retrieved_entry = get_escrow(&env, &commitment).unwrap();
         assert_eq!(retrieved_entry.token, token);
-        assert_eq!(retrieved_entry.amount, amount);
+        assert_eq!(retrieved_entry.amount_due, amount);
+        assert_eq!(retrieved_entry.amount_paid, amount);
         assert_eq!(retrieved_entry.owner, owner);
         assert_eq!(retrieved_entry.status, EscrowStatus::Pending);
         assert_eq!(retrieved_entry.created_at, created_at);
@@ -61,7 +63,8 @@ fn test_escrow_status_update() {
 
         let mut entry = EscrowEntry {
             token: token.clone(),
-            amount,
+            amount_due: amount,
+            amount_paid: amount,
             owner: owner.clone(),
             status: EscrowStatus::Pending,
             created_at,
@@ -104,6 +107,18 @@ fn test_escrow_counter() {
 
         assert_eq!(increment_escrow_counter(&env), 3);
         assert_eq!(get_escrow_counter(&env), 3);
+    });
+}
+
+#[test]
+fn test_contract_version_storage() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        assert_eq!(get_contract_version(&env), None);
+
+        set_contract_version(&env, CURRENT_CONTRACT_VERSION);
+        assert_eq!(get_contract_version(&env), Some(CURRENT_CONTRACT_VERSION));
     });
 }
 

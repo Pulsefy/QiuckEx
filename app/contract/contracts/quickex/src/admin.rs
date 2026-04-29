@@ -1,5 +1,5 @@
 use crate::errors::QuickexError;
-use crate::events::{publish_admin_changed, publish_contract_paused};
+use crate::events::{publish_admin_changed, publish_contract_migrated, publish_contract_paused};
 use crate::storage;
 use crate::types::{FeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
@@ -16,6 +16,7 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
     // Set initial admin address (singleton for compatibility).
     storage::set_admin(env, &admin);
     storage::set_paused(env, false);
+    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
 
     // Grant Admin role to the initial administrator.
     let mut roles = Vec::new(env);
@@ -137,6 +138,55 @@ pub fn is_paused(env: &Env) -> bool {
     storage::is_paused(env)
 }
 
+pub fn get_version(env: &Env) -> u32 {
+    storage::get_contract_version(env).unwrap_or(storage::LEGACY_CONTRACT_VERSION)
+}
+
+pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
+    let from_version = get_version(env);
+    if from_version == storage::LEGACY_CONTRACT_VERSION {
+        caller.require_auth();
+
+        let admin = storage::get_admin(env).ok_or(QuickexError::Unauthorized)?;
+        if admin != *caller {
+            return Err(QuickexError::InsufficientRole);
+        }
+
+        // Legacy deployments may not have role assignments. Seed Admin role so
+        // post-migration admin checks continue to work.
+        let mut roles = storage::get_roles(env, caller);
+        if !roles.contains(Role::Admin) {
+            roles.push_back(Role::Admin);
+            storage::set_roles(env, caller, &roles);
+        }
+    } else {
+        require_admin(env, caller)?;
+    }
+
+    if from_version > storage::CURRENT_CONTRACT_VERSION {
+        return Err(QuickexError::InvalidContractVersion);
+    }
+
+    let mut version = from_version;
+    while version < storage::CURRENT_CONTRACT_VERSION {
+        version = match version {
+            storage::LEGACY_CONTRACT_VERSION => migrate_legacy_to_v1(env),
+            _ => return Err(QuickexError::InvalidContractVersion),
+        };
+    }
+
+    if version != from_version {
+        publish_contract_migrated(env, caller, from_version, version);
+    }
+
+    Ok(version)
+}
+
+fn migrate_legacy_to_v1(env: &Env) -> u32 {
+    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
+    storage::CURRENT_CONTRACT_VERSION
+}
+
 /// Require that the contract is not paused.
 #[allow(dead_code)]
 pub fn require_not_paused(env: &Env) -> Result<(), QuickexError> {
@@ -165,6 +215,17 @@ pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<
 
     storage::set_fee_config(env, &config);
     crate::events::publish_fee_config_changed(env, config.fee_bps);
+    Ok(())
+}
+
+pub fn set_oracle_fee_config(
+    env: &Env,
+    caller: &Address,
+    config: crate::types::OracleFeeConfig,
+) -> Result<(), QuickexError> {
+    require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
+
+    storage::set_oracle_fee_config(env, &config);
     Ok(())
 }
 

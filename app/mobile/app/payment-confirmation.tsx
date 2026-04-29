@@ -10,6 +10,9 @@ import { SwapAssetSelector } from "@/components/swap-asset-selector";
 import { SwapRateDetails } from "@/components/swap-rate-details";
 import type { PathPreviewRow } from "@/services/link-metadata";
 import { useTheme } from "../src/theme/ThemeContext";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { saveContact } from "../services/contacts";
+import { v4 as uuidv4 } from "uuid";
 
 // List of assets to attempt swaps from (hardcoded whitelist matching backend)
 const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
@@ -17,6 +20,7 @@ const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
   const params = useLocalSearchParams<{
     username: string;
@@ -54,6 +58,14 @@ export default function PaymentConfirmationScreen() {
   );
 
   const handlePayWithWallet = async () => {
+    if (isConnected === false) {
+      Alert.alert(
+        "Offline Mode",
+        "You cannot send payments while offline. Please connect to the internet and try again."
+      );
+      return;
+    }
+
     if (selectedSwapPath && isExpired) {
       Alert.alert(
         "Quote Expired",
@@ -103,8 +115,6 @@ export default function PaymentConfirmationScreen() {
   };
 
   const [savingContact, setSavingContact] = React.useState(false);
-  const { saveContact } = require("../services/contacts");
-  const { v4: uuidv4 } = require("uuid");
 
   if (!isValid) {
     return (
@@ -131,6 +141,13 @@ export default function PaymentConfirmationScreen() {
 
   // Save Contact logic
   async function handleSaveContact() {
+    if (isConnected === false) {
+      Alert.alert(
+        "Offline Mode",
+        "Saving contacts is unavailable while offline."
+      );
+      return;
+    }
     setSavingContact(true);
     try {
       await saveContact({
@@ -154,7 +171,7 @@ export default function PaymentConfirmationScreen() {
         <View style={styles.content}>
           <Text style={[styles.heading, { color: theme.textPrimary }]}>Confirm Payment</Text>
           <Text style={[styles.subheading, { color: theme.textSecondary }]}>
-            Review the details below before paying
+            {isConnected === false ? "Read-only mode: payment is disabled" : "Review the details below before paying"}
           </Text>
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
@@ -251,8 +268,18 @@ export default function PaymentConfirmationScreen() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={handlePayWithWallet}>
-          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>Pay with Wallet</Text>
+        <Pressable 
+          style={[
+            styles.primaryBtn, 
+            { backgroundColor: theme.buttonPrimaryBg },
+            isConnected === false && { opacity: 0.5 }
+          ]} 
+          onPress={handlePayWithWallet}
+          disabled={isConnected === false}
+        >
+          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>
+            {isConnected === false ? "Offline: Payment Disabled" : "Pay with Wallet"}
+          </Text>
         </Pressable>
         <Pressable
           style={styles.secondaryBtn}
@@ -263,9 +290,9 @@ export default function PaymentConfirmationScreen() {
         <Pressable
           style={[styles.secondaryBtn, { marginTop: 8 }]}
           onPress={handleSaveContact}
-          disabled={savingContact}
+          disabled={savingContact || isConnected === false}
         >
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }, isConnected === false && { opacity: 0.5 }]}>
             {savingContact ? "Saving..." : "Save Recipient as Contact"}
           </Text>
         </Pressable>

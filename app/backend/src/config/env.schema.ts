@@ -29,6 +29,25 @@ export const envSchema = Joi.object({
     .required()
     .description("Supabase anonymous key"),
 
+  SUPABASE_SERVICE_ROLE_KEY: Joi.string()
+    .optional()
+    .description("Supabase service role key for admin operations"),
+
+  // Stellar Horizon configuration (required for blockchain operations)
+  HORIZON_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Custom Horizon URL (overrides network default)"),
+
+  // Stellar signing keys (required for payment operations)
+  STELLAR_SECRET_KEY: Joi.string()
+    .optional()
+    .description("Stellar account secret key for signing transactions (starts with S)"),
+
+  STELLAR_PUBLIC_KEY: Joi.string()
+    .optional()
+    .description("Stellar account public key (starts with G)"),
+
   // Node environment
   NODE_ENV: Joi.string()
     .valid("development", "production", "test")
@@ -55,8 +74,20 @@ export const envSchema = Joi.object({
     .default(60000)
     .description("Cache TTL in milliseconds for transaction responses"),
 
+  FEATURE_FLAGS_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(15000)
+    .description("Cache TTL in milliseconds for feature flag snapshots"),
+
+  FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
+    .empty("")
+    .optional()
+    .description("Optional JSON array of bootstrap feature flags used when the store is unavailable"),
+
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Soroban contract ID to stream events from (enables Stellar ingestion service)",
@@ -68,15 +99,18 @@ export const envSchema = Joi.object({
 
   // SendGrid email channel
   SENDGRID_API_KEY: Joi.string()
+    .empty("")
     .optional()
     .description("SendGrid API key — enables email notification channel"),
 
   SENDGRID_FROM_EMAIL: Joi.string()
+    .empty("")
     .optional()
     .description("From address for SendGrid emails (e.g. noreply@quickex.to)"),
 
   // Expo push channel
   EXPO_ACCESS_TOKEN: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Expo server access token — enhances push notification delivery priority",
@@ -95,6 +129,7 @@ export const envSchema = Joi.object({
   // Rate limiting — optional bcrypt-hashed API keys (comma-separated)
   // Generate a hash: node -e "require('bcrypt').hash('MY_KEY', 10).then(console.log)"
   API_KEYS: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Comma-separated list of bcrypt-hashed API keys for trusted clients. " +
@@ -177,16 +212,19 @@ export const envSchema = Joi.object({
 
   SENTRY_DSN: Joi.string()
     .uri({ scheme: ["http", "https"] })
+    .empty("")
     .optional()
     .description("Sentry DSN for error reporting — omit to disable Sentry"),
 
   SENTRY_ENVIRONMENT: Joi.string()
+    .empty("")
     .optional()
     .description(
       "Sentry environment tag (e.g. production, staging). Falls back to NODE_ENV.",
     ),
 
   SENTRY_RELEASE: Joi.string()
+    .empty("")
     .optional()
     .description("Sentry release identifier (e.g. quickex-backend@1.2.3)"),
 
@@ -215,10 +253,16 @@ export interface EnvConfig {
   NETWORK: "testnet" | "mainnet";
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  HORIZON_URL?: string;
+  STELLAR_SECRET_KEY?: string;
+  STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
+  FEATURE_FLAGS_CACHE_TTL_MS: number;
+  FEATURE_FLAGS_BOOTSTRAP_JSON?: string;
   QUICKEX_CONTRACT_ID?: string;
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;

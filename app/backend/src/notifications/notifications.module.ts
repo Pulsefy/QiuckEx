@@ -1,6 +1,8 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 
 import { SupabaseModule } from "../supabase/supabase.module";
+import { MetricsModule } from "../metrics/metrics.module";
+import { MetricsService } from "../metrics/metrics.service";
 import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
@@ -18,6 +20,8 @@ import { TelegramNotificationProvider } from "./telegram/telegram.provider";
 import { TelegramController } from "./telegram/telegram.controller";
 import { WebhookService } from "./webhook.service";
 import { WebhooksController } from "./webhooks.controller";
+import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
+import { JobQueueModule } from "../job-queue/job-queue.module";
 
 /**
  * Notification engine module.
@@ -31,7 +35,7 @@ import { WebhooksController } from "./webhooks.controller";
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, MetricsModule, forwardRef(() => JobQueueModule)],
   controllers: [
     NotificationPreferencesController,
     TelegramController,
@@ -43,12 +47,14 @@ import { WebhooksController } from "./webhooks.controller";
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
+    WebhookRetryScheduler,
     WebhookService,
     {
       provide: NOTIFICATION_PROVIDERS,
       useFactory: (
         telegramBot: TelegramBotService,
         telegramRepo: TelegramRepository,
+        metrics: MetricsService,
       ) => {
         const providers = [];
 
@@ -67,7 +73,7 @@ import { WebhooksController } from "./webhooks.controller";
           providers.push(new NoopNotificationProvider("push"));
         }
 
-        providers.push(new WebhookProvider());
+        providers.push(new WebhookProvider(metrics));
 
         // Add Telegram provider if bot is initialized
         const telegramToken = process.env["TELEGRAM_BOT_TOKEN"];
@@ -81,13 +87,14 @@ import { WebhooksController } from "./webhooks.controller";
 
         return providers;
       },
-      inject: [TelegramBotService, TelegramRepository],
+      inject: [TelegramBotService, TelegramRepository, MetricsService],
     },
     NotificationService,
   ],
   exports: [
     NotificationService,
     NotificationPreferencesRepository,
+    NotificationLogRepository,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,

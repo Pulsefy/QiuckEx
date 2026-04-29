@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "associatedDomains": ["applinks:quickex.to"],
+      "associatedDomains": ["applinks:quickex.to", "applinks:www.quickex.to"],
       "infoPlist": {
         "UIBackgroundModes": ["fetch"]
       }
@@ -32,6 +32,11 @@
             {
               "scheme": "https",
               "host": "quickex.to",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.quickex.to",
               "pathPrefix": "/"
             }
           ],

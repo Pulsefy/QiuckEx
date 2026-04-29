@@ -13,6 +13,8 @@ import { AppModule } from "../src/app.module";
 import { UsernamesService } from "../src/usernames/usernames.service";
 import { HealthService } from "../src/health/health.service";
 import { mapValidationErrors } from "../src/common/utils/validation-error.mapper";
+import { ApiKeyGuard } from "../src/auth/guards/api-key.guard";
+import { CustomThrottlerGuard } from "../src/auth/guards/custom-throttler.guard";
 
 describe("App endpoints", () => {
   let app: INestApplication;
@@ -22,6 +24,10 @@ describe("App endpoints", () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     })
+      .overrideProvider(ApiKeyGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .overrideProvider(CustomThrottlerGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .overrideProvider(UsernamesService)
       .useValue({
         create: jest.fn().mockResolvedValue({ ok: true }),

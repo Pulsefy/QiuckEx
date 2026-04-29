@@ -10,16 +10,17 @@
 //! |------------------------|----------------|-------------|
 //! | [`Escrow`](DataKey::Escrow) | `EscrowEntry`  | Escrow entry keyed by commitment hash (32 bytes). One entry per unique deposit. |
 //! | [`EscrowCounter`](DataKey::EscrowCounter) | `u64`       | Global monotonic counter for escrow creation. |
+//! | [`ContractVersion`](DataKey::ContractVersion) | `u32` | Stored schema/version marker for upgrade migrations. |
 //! | [`Admin`](DataKey::Admin) | `Address`     | Contract admin address. Set during initialisation, transferable by admin. |
 //! | [`Paused`](DataKey::Paused) | `bool`       | Global pause flag. When true, critical operations may be blocked. |
 //! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Numeric privacy level per account (0 = off). Used by `enable_privacy`. |
 //! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Per-account history of privacy level changes (chronological). |
 //!
-//! ## Related Keys (outside `DataKey`)
+//! ## Related Keys (legacy compatibility)
 //!
 //! | Key                    | Format                    | Value Type | Description |
 //! |------------------------|---------------------------|------------|-------------|
-//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Boolean privacy on/off per account. Used by `set_privacy` / `get_privacy`. |
+//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy boolean privacy on/off key. Read as a fallback and migrated to [`DataKey::PrivacyEnabled`] on write. |
 //!
 //! ## Relations
 //!
@@ -28,7 +29,7 @@
 //!   status, and created_at.
 //! - **Admin ↔ Paused**: Admin can set the paused flag. Both are singleton keys.
 //! - **PrivacyLevel ↔ PrivacyHistory**: Same account may have both; level is current, history is append-only.
-//! - **PrivacyLevel / PrivacyHistory ↔ privacy_enabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
+//! - **PrivacyLevel / PrivacyHistory ↔ PrivacyEnabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
 //!
 //! ## Backwards Compatibility
 //!
@@ -46,10 +47,13 @@ use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 // Key constants (for keys not using DataKey)
 // -----------------------------------------------------------------------------
 
-/// Symbol string for the boolean privacy-enabled flag.
+/// Symbol string for the legacy boolean privacy-enabled flag.
 /// Used as `(Symbol::new(env, PRIVACY_ENABLED_KEY), Address)` in persistent storage.
-/// See [`crate::privacy`] module.
+/// See [`crate::privacy`] module for fallback/migration behaviour.
 pub const PRIVACY_ENABLED_KEY: &str = "privacy_enabled";
+
+pub const LEGACY_CONTRACT_VERSION: u32 = 0;
+pub const CURRENT_CONTRACT_VERSION: u32 = 1;
 
 pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
 pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
@@ -83,6 +87,8 @@ pub enum DataKey {
     Escrow(Bytes),
     /// Global escrow counter (singleton).
     EscrowCounter,
+    /// Current contract schema version (singleton).
+    ContractVersion,
     /// Admin address (singleton).
     Admin,
     /// Paused state (singleton).
@@ -99,6 +105,14 @@ pub enum DataKey {
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
     PlatformWallet,
+    /// Oracle fee configuration for dynamic USD-based fees.
+    OracleFeeConfig,
+    /// Registered hook contract addresses.
+    HookRegistry,
+    /// Reentrancy guard to prevent callback-based reentry during hook execution.
+    ReentrancyGuard,
+    /// Boolean privacy flag per account.
+    PrivacyEnabled(Address),
     /// Maps a deterministic 32-byte `escrow_id` (see [`crate::escrow_id`])
     /// to the commitment key of the escrow it identifies. Enables
     /// idempotent deduplication of identical creation requests.
@@ -163,6 +177,16 @@ pub fn increment_escrow_counter(env: &Env) -> u64 {
     count += 1;
     env.storage().persistent().set(&key, &count);
     count
+}
+
+pub fn get_contract_version(env: &Env) -> Option<u32> {
+    env.storage().persistent().get(&DataKey::ContractVersion)
+}
+
+pub fn set_contract_version(env: &Env, version: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::ContractVersion, &version);
 }
 
 // -----------------------------------------------------------------------------
@@ -277,6 +301,42 @@ pub fn set_platform_wallet(env: &Env, wallet: &Address) {
     env.storage()
         .persistent()
         .set(&DataKey::PlatformWallet, wallet);
+}
+
+pub fn get_oracle_fee_config(env: &Env) -> Option<crate::types::OracleFeeConfig> {
+    env.storage().persistent().get(&DataKey::OracleFeeConfig)
+}
+
+pub fn set_oracle_fee_config(env: &Env, config: &crate::types::OracleFeeConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::OracleFeeConfig, config);
+}
+
+pub fn get_registered_hooks(env: &Env) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::HookRegistry)
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn set_registered_hooks(env: &Env, hooks: &Vec<Address>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::HookRegistry, hooks);
+}
+
+pub fn get_reentrancy_guard(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::ReentrancyGuard)
+        .unwrap_or(false)
+}
+
+pub fn set_reentrancy_guard(env: &Env, value: &bool) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::ReentrancyGuard, value);
 }
 
 // -----------------------------------------------------------------------------

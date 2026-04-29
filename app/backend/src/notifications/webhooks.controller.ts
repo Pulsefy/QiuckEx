@@ -28,6 +28,7 @@ import {
   WebhookResponseDto,
   WebhookDeliveryLogDto,
   WebhookStatsDto,
+  RedeliverWebhookDto,
 } from "./dto/webhook.dto";
 import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 
@@ -71,6 +72,8 @@ export class WebhooksController {
     name: "publicKey",
     description: "Stellar public key (G...)",
   })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({
     status: 200,
     description: "List of webhooks",
@@ -78,8 +81,10 @@ export class WebhooksController {
   })
   async listWebhooks(
     @Param("publicKey") publicKey: string,
-  ): Promise<WebhookResponseDto[]> {
-    return this.webhookService.listWebhooks(publicKey);
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.webhookService.listWebhooks(publicKey, cursor, Number(limit || 20));
   }
 
   @Get(":publicKey/:id")
@@ -197,6 +202,7 @@ export class WebhooksController {
     description: "Maximum number of logs to return",
     example: 50,
   })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({
     status: 200,
     description: "Delivery logs",
@@ -206,13 +212,14 @@ export class WebhooksController {
     @Param("publicKey") publicKey: string,
     @Param("id") id: string,
     @Query("limit") limit?: number,
-  ): Promise<WebhookDeliveryLogDto[]> {
+    @Query('cursor') cursor?: string,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
     const webhook = await this.webhookService.getWebhook(id);
     if (!webhook || webhook.publicKey !== publicKey) {
       throw new NotFoundException("Webhook not found");
     }
 
-    return this.webhookService.getDeliveryLogs(publicKey, limit);
+    return this.webhookService.getDeliveryLogs(publicKey, limit ? Number(limit) : undefined, cursor);
   }
 
   @Get(":publicKey/:id/stats")
@@ -234,5 +241,54 @@ export class WebhooksController {
     }
 
     return this.webhookService.getStats(publicKey);
+  }
+
+  @Post(":publicKey/:id/redeliver")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Redeliver a specific event",
+    description:
+      "Trigger immediate redelivery of a previously failed or specific event. Useful for consumers to replay events without waiting for the retry scheduler.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiResponse({
+    status: 200,
+    description: "Redelivery triggered",
+    schema: {
+      type: "object",
+      properties: {
+        queued: { type: "boolean" },
+        message: { type: "string" },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: "Webhook not found" })
+  async redeliverEvent(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Body() dto: RedeliverWebhookDto,
+  ): Promise<{ queued: boolean; message: string }> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    const queued = await this.webhookService.redeliverEvent(
+      publicKey,
+      dto.eventId,
+      dto.eventType,
+    );
+
+    this.logger.log(
+      `Redeliver requested: ${dto.eventType}/${dto.eventId} for ${publicKey.slice(0, 8)}... -> ${queued ? "queued" : "failed"}`,
+    );
+
+    return {
+      queued,
+      message: queued
+        ? "Event redelivery triggered successfully"
+        : "Redelivery failed — check delivery logs for details",
+    };
   }
 }

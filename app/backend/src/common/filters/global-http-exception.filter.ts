@@ -16,6 +16,8 @@ interface ErrorResponseBody {
   error: {
     code: string;
     message: string | string[];
+    /** Stable alias for correlationId — used by clients to trace requests */
+    request_id?: string;
     correlationId?: string;
     fields?: unknown;
     details?: unknown;
@@ -109,7 +111,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
               code: "VALIDATION_ERROR",
               message: validation.message ?? "Validation failed",
               fields: validation.fields ?? [],
-              ...(correlationId ? { correlationId } : {}),
+              ...(correlationId ? { request_id: correlationId, correlationId } : {}),
             },
           });
         }
@@ -139,7 +141,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       error: {
         code,
         message,
-        ...(correlationId ? { correlationId } : {}),
+        ...(correlationId ? { request_id: correlationId, correlationId } : {}),
         ...(details && !isProduction ? { details } : {}),
       },
     };

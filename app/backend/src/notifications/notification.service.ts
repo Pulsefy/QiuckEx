@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, Inject, Optional } from "@nestjs/common";
 import { OnEvent } from "@nestjs/event-emitter";
 import { Cron, CronExpression } from "@nestjs/schedule";
 
@@ -17,17 +17,22 @@ import type {
   EscrowRefundedPayload,
   PaymentReceivedPayload,
   UsernameClaimedPayload,
+  AutoReconciliationSucceededNotificationPayload,
 } from "./types/notification.types";
 import {
   NotificationEvent,
   PaymentReceivedEvent,
   UsernameClaimedEvent,
+  AutoReconciliationSucceededEvent,
 } from "../events/notification.events";
 import type {
   EscrowDepositedEvent,
   EscrowWithdrawnEvent,
   EscrowRefundedEvent,
 } from "../ingestion/types/contract-event.types";
+import { JobQueueService } from "../job-queue/job-queue.service";
+import { JobType } from "../job-queue/types";
+import type { WebhookDeliveryPayload } from "../job-queue/types/job-payloads.types";
 
 const MAX_ATTEMPTS = 3;
 
@@ -42,6 +47,7 @@ export class NotificationService implements OnModuleInit {
     private readonly providers: INotificationProvider[],
     private readonly prefsRepo: NotificationPreferencesRepository,
     private readonly logRepo: NotificationLogRepository,
+    @Optional() private readonly jobQueueService?: JobQueueService,
   ) {}
 
   onModuleInit(): void {
@@ -140,6 +146,33 @@ export class NotificationService implements OnModuleInit {
       txHash: event.txHash,
       sender: event.sender,
       metadata: { txHash: event.txHash, sender: event.sender },
+    };
+    await this.dispatch(payload);
+  }
+
+  @OnEvent("auto_reconciliation.succeeded", { async: true })
+  async onAutoReconciliationSucceeded(event: AutoReconciliationSucceededEvent): Promise<void> {
+    const payload: AutoReconciliationSucceededNotificationPayload = {
+      eventType: "auto_reconciliation.succeeded",
+      eventId: event.txHash,
+      recipientPublicKey: event.ownerPublicKey,
+      title: "Payment Link Fulfilled",
+      body:
+        "Your payment link for " +
+        event.amount +
+        " " +
+        event.assetCode +
+        " has been automatically matched and marked as paid.",
+      occurredAt: event.matchedAt,
+      linkId: event.linkId,
+      txHash: event.txHash,
+      assetCode: event.assetCode,
+      confidence: event.confidence,
+      metadata: {
+        linkId: event.linkId,
+        txHash: event.txHash,
+        confidence: event.confidence,
+      },
     };
     await this.dispatch(payload);
   }
@@ -279,6 +312,12 @@ export class NotificationService implements OnModuleInit {
       return;
     }
 
+    // Special handling for webhook channel: enqueue job instead of direct delivery
+    if (channel === "webhook" && this.jobQueueService) {
+      await this.enqueueWebhookJob(pref, payload);
+      return;
+    }
+
     const provider = this.providerMap.get(channel);
 
     if (!provider) {
@@ -337,5 +376,84 @@ export class NotificationService implements OnModuleInit {
   private formatAmount(stroops: bigint): string {
     const xlm = Number(stroops) / 10_000_000;
     return xlm.toFixed(7) + " XLM";
+  }
+
+  /**
+   * Enqueue a webhook delivery job instead of sending directly
+   * 
+   * Creates a WebhookDeliveryPayload and enqueues it to the job queue.
+   * The job will be picked up by the JobExecutor and handled by WebhookDeliveryHandler.
+   * 
+   * **Validates: Requirement 7.2**
+   */
+  private async enqueueWebhookJob(
+    pref: NotificationPreference,
+    payload: NotificationPayload,
+  ): Promise<void> {
+    const { publicKey, webhookUrl } = pref;
+    const { eventType, eventId } = payload;
+
+    if (!webhookUrl) {
+      this.logger.warn(
+        "No webhook URL configured for " + publicKey + " - skipping",
+      );
+      return;
+    }
+
+    // Create pending log entry (will be updated by WebhookDeliveryHandler)
+    await this.logRepo.createPending(publicKey, "webhook", eventType, eventId);
+
+    try {
+      // Build WebhookDeliveryPayload
+      const jobPayload: WebhookDeliveryPayload = {
+        recipientPublicKey: publicKey,
+        webhookUrl,
+        eventType,
+        eventId,
+        payload: {
+          title: payload.title,
+          body: payload.body,
+          occurredAt: payload.occurredAt,
+          amountStroops: payload.amountStroops?.toString(),
+          metadata: payload.metadata,
+        },
+      };
+
+      // Enqueue webhook delivery job
+      const jobId = await this.jobQueueService!.enqueue(
+        JobType.WEBHOOK_DELIVERY,
+        jobPayload,
+      );
+
+      this.logger.log(
+        "[webhook] Enqueued job " +
+          jobId +
+          " for " +
+          eventType +
+          " to " +
+          publicKey.slice(0, 8) +
+          "...",
+      );
+    } catch (err) {
+      const msg = (err as Error).message;
+
+      // Mark as failed if enqueue fails
+      await this.logRepo.markFailed(
+        publicKey,
+        "webhook",
+        eventType,
+        eventId,
+        "Failed to enqueue webhook job: " + msg,
+      );
+
+      this.logger.error(
+        "[webhook] Failed to enqueue job for " +
+          eventType +
+          " to " +
+          publicKey.slice(0, 8) +
+          "...: " +
+          msg,
+      );
+    }
   }
 }

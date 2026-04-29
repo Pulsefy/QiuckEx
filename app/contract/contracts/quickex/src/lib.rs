@@ -16,6 +16,11 @@ mod events;
 mod fee;
 #[cfg(test)]
 mod fee_test;
+mod hook;
+pub mod nonce;
+#[cfg(test)]
+mod nonce_test;
+mod oracle;
 mod privacy;
 #[cfg(test)]
 mod role_test;
@@ -34,7 +39,8 @@ mod types;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PrivacyAwareEscrowView, Role,
+    StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -67,6 +73,7 @@ use types::{
 pub struct QuickexContract;
 
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl QuickexContract {
     /// Withdraw escrowed funds by proving commitment ownership.
     ///
@@ -103,6 +110,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Withdrawal) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::withdraw(&env, amount, to, salt)
     }
 
@@ -169,7 +177,7 @@ impl QuickexContract {
         privacy::get_privacy(&env, owner)
     }
 
-    /// Deposit funds and create an escrow entry keyed by `SHA256(owner || amount || salt)`.
+    /// Deposit funds and create an escrow entry keyed by `KECCAK256(owner || amount || salt)`.
     ///
     /// Transfers `amount` from `owner` to the contract and stores an escrow entry.
     ///
@@ -202,6 +210,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
     }
 
@@ -236,8 +245,9 @@ impl QuickexContract {
 
     /// Create a deterministic commitment hash for an amount (off-chain / pre-deposit use).
     ///
-    /// Computes `SHA256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
-    /// always yield the same hash. Use for API shape validation and audit trails.
+    /// Computes `KECCAK256(owner || amount || salt)`. Not a zero-knowledge proof; same inputs
+    /// always yield the same hash. Legacy `SHA256(owner || amount || salt)` commitments remain
+    /// accepted by verification paths for backwards compatibility.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -332,6 +342,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit_with_commitment(
             &env,
             from,
@@ -341,6 +352,90 @@ impl QuickexContract {
             timeout_secs,
             arbiter,
         )
+    }
+
+    /// Deposit funds with a target amount higher than the initial payment.
+    ///
+    /// Transfers `initial_payment` from `owner` to the contract and stores an escrow
+    /// with `amount_due` set to the target amount. This enables multi-payment escrows
+    /// where the full amount can be paid over time via `partial_payment`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `token` - Token contract address
+    /// * `amount_due` - Target amount to be paid
+    /// * `initial_payment` - Initial payment amount
+    /// * `owner` - Owner of the funds (must authorize)
+    /// * `salt` - Random salt (0–1024 bytes) for uniqueness
+    /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiter` - Optional arbiter address who can resolve disputes
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - initial_payment ≤ 0 or amount_due ≤ 0
+    /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    /// * `ContractPaused` - Contract is currently paused
+    #[allow(clippy::too_many_arguments)]
+    pub fn deposit_partial(
+        env: Env,
+        token: Address,
+        amount_due: i128,
+        initial_payment: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiter: Option<Address>,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
+        hook::assert_not_reentrant(&env)?;
+        escrow::deposit_partial(
+            &env,
+            token,
+            amount_due,
+            initial_payment,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+        )
+    }
+
+    /// Make a partial payment towards an existing escrow.
+    ///
+    /// Transfers `payment_amount` from `payer` to the contract and increments the
+    /// escrow's `amount_paid` field. Rejects overpayment. Emits a `PartialPayment` event.
+    /// If the payment completes the escrow, emits an `EscrowFinalized` event.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `payer` - Address making the payment (must authorize)
+    /// * `payment_amount` - Amount to pay; must be positive and not exceed remaining balance
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Payment amount is zero or negative
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `AlreadySpent` - Escrow is already in a terminal state
+    /// * `Overpayment` - Payment amount exceeds the remaining amount due
+    pub fn partial_payment(
+        env: Env,
+        commitment: BytesN<32>,
+        payer: Address,
+        payment_amount: i128,
+    ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            return Err(QuickexError::OperationPaused);
+        }
+        hook::assert_not_reentrant(&env)?;
+        escrow::partial_payment(&env, commitment, payer, payment_amount)
     }
 
     /// Refund an expired escrow back to its original owner.
@@ -366,6 +461,7 @@ impl QuickexContract {
             return Err(QuickexError::OperationPaused);
         }
 
+        hook::assert_not_reentrant(&env)?;
         escrow::refund(&env, commitment, caller)
     }
 
@@ -400,6 +496,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::dispute(&env, commitment)
     }
 
@@ -429,6 +526,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
     }
 
@@ -444,6 +542,21 @@ impl QuickexContract {
     /// * `AlreadyInitialized` - Contract has already been initialized
     pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
         admin::initialize(&env, admin)
+    }
+
+    /// Get the stored contract schema version.
+    ///
+    /// Returns `0` for legacy deployments created before version tracking existed.
+    pub fn get_version(env: Env) -> u32 {
+        admin::get_version(&env)
+    }
+
+    /// Run any pending data migrations for the current contract code (**Admin only**).
+    ///
+    /// This entrypoint is intended to be called immediately after upgrading the contract WASM
+    /// whenever the new release introduces storage or schema changes.
+    pub fn migrate(env: Env, caller: Address) -> Result<u32, QuickexError> {
+        admin::migrate(&env, &caller)
     }
 
     /// Pause or unpause the contract (**Admin only**).
@@ -531,13 +644,46 @@ impl QuickexContract {
         storage::get_fee_config(&env)
     }
 
+    /// Register an external hook contract to receive escrow lifecycle callbacks.
+    pub fn register_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        hook::register_hook(&env, hook_contract)
+    }
+
+    /// Unregister a hook contract.
+    pub fn unregister_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        hook::unregister_hook(&env, hook_contract)
+    }
+
+    /// Get the list of registered hook contracts.
+    pub fn get_registered_hooks(env: Env) -> Vec<Address> {
+        hook::get_registered_hooks(&env)
+    }
+
     /// Set the fee configuration (**Admin only**).
     pub fn set_fee_config(
         env: Env,
         caller: Address,
         config: FeeConfig,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_fee_config(&env, &caller, config)
+    }
+
+    /// Set oracle fee configuration (**Admin or Operator only**).
+    pub fn set_oracle_fee_config(
+        env: Env,
+        caller: Address,
+        config: OracleFeeConfig,
+    ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        admin::set_oracle_fee_config(&env, &caller, config)
+    }
+
+    /// Get the current oracle fee configuration.
+    pub fn get_oracle_fee_config(env: Env) -> Option<OracleFeeConfig> {
+        oracle::get_oracle_fee_config(&env)
     }
 
     /// Get the platform wallet address (read-only).
@@ -551,6 +697,7 @@ impl QuickexContract {
         caller: Address,
         wallet: Address,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_platform_wallet(&env, &caller, wallet)
     }
 
@@ -578,16 +725,18 @@ impl QuickexContract {
     /// * `salt` - Salt used when creating the deposit
     /// * `owner` - Owner of the escrow
     pub fn verify_proof_view(env: Env, amount: i128, salt: Bytes, owner: Address) -> bool {
-        // optimized: move owner directly
-        let commitment_result = commitment::create_amount_commitment(&env, owner, amount, salt);
+        let commitment_result = commitment::amount_commitment_hashes(&env, &owner, amount, &salt);
 
-        let commitment = match commitment_result {
+        let (commitment, legacy_commitment) = match commitment_result {
             Ok(c) => c,
             Err(_) => return false,
         };
 
         let commitment_bytes: Bytes = commitment.into();
-        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
+        let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes).or_else(|| {
+            let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+            get_escrow(&env, &legacy_commitment_bytes)
+        });
 
         match entry {
             Some(e) => {
@@ -597,7 +746,7 @@ impl QuickexContract {
                 if e.expires_at > 0 && env.ledger().timestamp() >= e.expires_at {
                     return false;
                 }
-                e.amount == amount
+                e.amount_due == amount
             }
             None => false,
         }
@@ -636,7 +785,8 @@ impl QuickexContract {
         if show_sensitive {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
-                amount: Some(entry.amount),
+                amount_due: Some(entry.amount_due),
+                amount_paid: Some(entry.amount_paid),
                 owner: Some(entry.owner),
                 status: entry.status,
                 created_at: entry.created_at,
@@ -646,7 +796,8 @@ impl QuickexContract {
         } else {
             Some(PrivacyAwareEscrowView {
                 token: entry.token,
-                amount: None,
+                amount_due: None,
+                amount_paid: None,
                 owner: None,
                 status: entry.status,
                 created_at: entry.created_at,
@@ -743,6 +894,20 @@ impl QuickexContract {
     /// Upgrade the contract to a new WASM implementation (**Admin only**).
     ///
     /// Caller must have the [`Role::Admin`] role and authorize.
+    /// The new WASM must be pre-uploaded to the network.
+    /// Emits an upgrade event for audit.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must have admin role; must authorize)
+    /// * `new_wasm_hash` - 32-byte hash of the new WASM code
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not the admin, or admin not set
+    ///
+    /// # Security
+    /// Updates the contract's executable code. Call [`migrate`](QuickexContract::migrate)
+    /// afterwards if the new release requires storage migration.
     pub fn upgrade(
         env: Env,
         caller: Address,

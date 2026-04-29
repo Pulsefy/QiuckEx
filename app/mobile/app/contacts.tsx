@@ -7,9 +7,11 @@ import { getContacts, deleteContact } from "../services/contacts";
 import { TagFilter, ContactTag } from "../components/TagFilter";
 import { SearchBar } from "../components/SearchBar";
 import { useTheme } from "../src/theme/ThemeContext";
+import { useNetworkStatus } from "../hooks/use-network-status";
 
 export default function ContactsScreen() {
   const { theme } = useTheme();
+  const { isConnected } = useNetworkStatus();
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
@@ -27,9 +29,14 @@ export default function ContactsScreen() {
 
   async function loadContacts() {
     setLoading(true);
-    const data = await getContacts();
-    setContacts(data);
-    setLoading(false);
+    try {
+      const data = await getContacts();
+      setContacts(data);
+    } catch (e) {
+      console.error("Failed to load contacts", e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function filterContacts() {
@@ -62,6 +69,10 @@ export default function ContactsScreen() {
   }
 
   function handleQuickPay(contact: Contact) {
+    if (isConnected === false) {
+      Alert.alert("Offline Mode", "Payments are unavailable while offline.");
+      return;
+    }
     router.push({
       pathname: "/payment-confirmation",
       params: { 
@@ -73,6 +84,10 @@ export default function ContactsScreen() {
   }
 
   function confirmDelete(contact: Contact) {
+    if (isConnected === false) {
+      Alert.alert("Offline Mode", "Modifying contacts is unavailable while offline.");
+      return;
+    }
     Alert.alert(
       "Delete Contact",
       `Are you sure you want to delete ${contact.nickname || contact.address}?`,
@@ -146,8 +161,15 @@ export default function ContactsScreen() {
       
       <View style={styles.addButtonContainer}>
         <TouchableOpacity 
-          style={[styles.addButton, { backgroundColor: theme.primary }]}
-          onPress={() => router.push("/add-contact")}
+          style={[styles.addButton, { backgroundColor: theme.primary }, isConnected === false && { opacity: 0.5 }]}
+          onPress={() => {
+            if (isConnected === false) {
+              Alert.alert("Offline Mode", "Adding contacts is unavailable while offline.");
+              return;
+            }
+            router.push("/add-contact");
+          }}
+          disabled={isConnected === false}
         >
           <Text style={[styles.addButtonText, { color: theme.primaryForeground }]}>+ Add New Contact</Text>
         </TouchableOpacity>

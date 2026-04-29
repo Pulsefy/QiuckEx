@@ -125,4 +125,22 @@ export interface ReconciliationReport {
     irreconcilable: number;
     results: PaymentReconciliationResult[];
   };
+  /** Comparison of expected vs observed totals for discrepancy detection */
+  totalsComparison?: {
+    payments: {
+      expectedCount: number;
+      observedCount: number;
+      countDiscrepancy: number;
+      expectedTotalAmount: string;
+      observedTotalAmount: string;
+      amountDiscrepancy: string;
+      exceedsThreshold: boolean;
+    };
+  };
+  /** Alert if discrepancies exceed configured threshold */
+  alert?: {
+    severity: 'warning' | 'critical';
+    message: string;
+    details: string;
+  };
 }
