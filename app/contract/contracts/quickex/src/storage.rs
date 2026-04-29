@@ -41,7 +41,7 @@
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
+use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -119,6 +119,8 @@ pub enum DataKey {
     EscrowIdMap(BytesN<32>),
     /// Roles assigned to an address.
     UserRole(Address),
+    /// Tracks arbiter votes for disputed escrows. Keyed by (commitment, arbiter).
+    DisputeVote(Bytes, Address),
 }
 
 // -----------------------------------------------------------------------------
@@ -395,4 +397,40 @@ pub fn put_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>, commitment: &Byt
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+// -----------------------------------------------------------------------------
+// Dispute vote helpers
+// -----------------------------------------------------------------------------
+
+/// Store an arbiter's vote for a disputed escrow.
+pub fn put_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address, vote: &DisputeVote) {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().set(&key, vote);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+/// Get an arbiter's vote for a disputed escrow.
+pub fn get_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address) -> Option<DisputeVote> {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().get(&key)
+}
+
+/// Check if an arbiter has already voted on a dispute.
+pub fn has_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address) -> bool {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().has(&key)
+}
+
+/// Count the number of votes for a disputed escrow.
+pub fn count_dispute_votes(env: &Env, commitment: &Bytes, arbiters: &Vec<Address>) -> u32 {
+    let mut count = 0;
+    for arbiter in arbiters.iter() {
+        if has_dispute_vote(env, commitment, &arbiter) {
+            count += 1;
+        }
+    }
+    count
 }
