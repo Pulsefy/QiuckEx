@@ -164,6 +164,7 @@ async function bootstrap() {
     .addTag("links", "Payment link validation and metadata endpoints")
     .addTag("transactions", "Stellar transaction and payment history")
     .addTag("scam-alerts", "Fraud detection and link scanning")
+    .addTag("analytics", "Dashboard analytics, time-series insights, and report exports")
     .addTag("metrics", "Application performance and health metrics")
     .addTag("stellar", "Verified assets, path preview, Soroban preflight")
     .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
