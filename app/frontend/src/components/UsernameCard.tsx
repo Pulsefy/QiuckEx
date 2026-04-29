@@ -6,6 +6,7 @@ import { useWatchlist } from "@/contexts/WatchlistContext";
 type UsernameCardProps = {
   listing: MarketplaceListing;
   onBid: (listing: MarketplaceListing) => void;
+  onViewDetails: (listing: MarketplaceListing) => void;
 };
 
 const CATEGORY_LABELS: Record<MarketplaceListing["category"], string> = {
@@ -45,7 +46,7 @@ function UrgencyBar({ endsAt }: { endsAt: Date }) {
   );
 }
 
-export function UsernameCard({ listing, onBid }: UsernameCardProps) {
+export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProps) {
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
   const catColor = CATEGORY_COLORS[listing.category];
   const catLabel = CATEGORY_LABELS[listing.category];
@@ -149,14 +150,23 @@ export function UsernameCard({ listing, onBid }: UsernameCardProps) {
           </p>
         )}
 
-        {/* CTA Button */}
-        <button
-          id={`bid-btn-${listing.id}`}
-          onClick={() => onBid(listing)}
-          className="mt-auto w-full py-3.5 bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/30 hover:border-indigo-500 text-indigo-300 hover:text-white font-black rounded-2xl transition-all duration-200 hover:shadow-[0_8px_32px_-10px_rgba(99,102,241,0.6)] active:scale-95 text-sm tracking-wide"
-        >
-          Place Bid →
-        </button>
+        <div className="mt-auto grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onViewDetails(listing)}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-bold tracking-wide text-neutral-100 transition-all duration-200 hover:bg-white/10"
+          >
+            View Details
+          </button>
+          <button
+            id={`bid-btn-${listing.id}`}
+            type="button"
+            onClick={() => onBid(listing)}
+            className="w-full rounded-2xl border border-indigo-500/30 bg-indigo-500/10 py-3.5 text-sm font-black tracking-wide text-indigo-300 transition-all duration-200 hover:border-indigo-500 hover:bg-indigo-500 hover:text-white hover:shadow-[0_8px_32px_-10px_rgba(99,102,241,0.6)] active:scale-95"
+          >
+            Place Bid
+          </button>
+        </div>
       </div>
     </div>
   );
