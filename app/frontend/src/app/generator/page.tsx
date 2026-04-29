@@ -865,29 +865,32 @@ export default function Generator() {
         <nav className="flex-1 px-4 py-20 space-y-2" aria-label="Generator navigation">
           <Link
             href="/dashboard"
-            className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
+            className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
           >
-            <span>📊</span> {t('dashboard')}
+            <span aria-hidden="true">📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             aria-current="page"
             className={`flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner ${FOCUS_RING_CLASS}`}
           >
-            <span className="text-indigo-400">⚡</span> {t('linkGenerator')}
+            <span aria-hidden="true" className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
-          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
-            <span>⚙️</span> {t('profileSettings')}
+          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
+            <span aria-hidden="true">⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
 
       <main id="generator-main" className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
         <header className="mb-10 sm:mb-16 max-w-3xl">
-          <nav className="flex items-center gap-2 text-xs font-black text-neutral-600 uppercase tracking-widest mb-4">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-2 text-xs font-black text-neutral-300 uppercase tracking-widest mb-4"
+          >
             <span>{t('services')}</span>
-            <span>/</span>
-            <span className="text-neutral-400">{t('linkGenerator')}</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-neutral-100">{t('linkGenerator')}</span>
           </nav>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-4">
@@ -897,7 +900,7 @@ export default function Generator() {
             </span>
           </h1>
 
-          <p className="text-neutral-500 text-lg max-w-xl">
+          <p className="text-neutral-300 text-lg max-w-xl">
             {t('advancedModeDescription')}
           </p>
         </header>
