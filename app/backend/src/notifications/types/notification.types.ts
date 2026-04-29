@@ -23,7 +23,8 @@ export type NotificationEventType =
   | "recurring.link.updated"
   | "recurring.link.paused"
   | "recurring.link.resumed"
-  | "recurring.link.completed";
+  | "recurring.link.completed"
+  | "auto_reconciliation.succeeded";
 
 export interface BaseNotificationPayload {
   /** The event kind — used to match against user preference filters. */
@@ -127,6 +128,15 @@ export interface UsernameClaimedPayload extends BaseNotificationPayload {
   username: string;
 }
 
+export interface AutoReconciliationSucceededNotificationPayload extends BaseNotificationPayload {
+  eventType: "auto_reconciliation.succeeded";
+  linkId: string;
+  txHash: string;
+  assetCode: string;
+  /** 0–100 confidence score that triggered the auto-match. */
+  confidence: number;
+}
+
 export type NotificationPayload =
   | EscrowDepositedPayload
   | EscrowWithdrawnPayload
@@ -136,7 +146,8 @@ export type NotificationPayload =
   | RecurringPaymentDuePayload
   | RecurringPaymentExecutedPayload
   | RecurringPaymentFailedPayload
-  | RecurringLinkStatusPayload;
+  | RecurringLinkStatusPayload
+  | AutoReconciliationSucceededNotificationPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences

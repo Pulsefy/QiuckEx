@@ -117,10 +117,7 @@ export class UsernamesService {
   ): Promise<{ data: SearchProfileResult[]; next_cursor: string | null; has_more: boolean }> {
     const normalizedQuery = this.normalizeUsername(query);
 
-    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
-    if (cursor) {
-      decodeCursor(cursor);
-    }
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
 
     if (!normalizedQuery || normalizedQuery.length < 2) {
       throw new UsernameValidationError(
@@ -130,15 +127,36 @@ export class UsernamesService {
       );
     }
 
-    // For search endpoints, fetch limit+1 results to detect has_more
     const effectiveLimit = Math.min(100, Math.max(1, limit));
+    // When a cursor is present we need a wider window so we can advance
+    // from the previous page marker even though the underlying query
+    // does not yet support server-side cursor filtering.
+    const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
     const results = await this.supabase.searchPublicUsernames(
       normalizedQuery,
-      effectiveLimit + 1,
+      fetchWindow,
     );
 
-    const hasMore = results.length > effectiveLimit;
-    const data = hasMore ? results.slice(0, effectiveLimit) : results;
+    let windowed = results;
+    if (decodedCursor) {
+      const cursorIndex = results.findIndex(
+        (row) =>
+          row.id === decodedCursor.id && row.created_at === decodedCursor.pk,
+      );
+      if (cursorIndex >= 0) {
+        windowed = results.slice(cursorIndex + 1);
+      } else {
+        // Fallback comparator for cursor continuity when the exact row is no longer in range.
+        windowed = results.filter(
+          (row) =>
+            row.created_at < decodedCursor.pk ||
+            (row.created_at === decodedCursor.pk && row.id < decodedCursor.id),
+        );
+      }
+    }
+
+    const hasMore = windowed.length > effectiveLimit;
+    const data = hasMore ? windowed.slice(0, effectiveLimit) : windowed;
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {

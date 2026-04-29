@@ -20,6 +20,9 @@ mod hook;
 #[cfg(test)]
 mod hook_oracle_test;
 mod oracle;
+pub mod nonce;
+#[cfg(test)]
+mod nonce_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
