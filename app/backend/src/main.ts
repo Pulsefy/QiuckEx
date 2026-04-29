@@ -166,6 +166,7 @@ async function bootstrap() {
     .addTag("scam-alerts", "Fraud detection and link scanning")
     .addTag("metrics", "Application performance and health metrics")
     .addTag("stellar", "Verified assets, path preview, Soroban preflight")
+    .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

@@ -98,6 +98,24 @@ export class ApiKeysService {
     return { ...this.toPublic(updated), key: rawKey };
   }
 
+  async emergencyRotate(id: string): Promise<ApiKeyCreated> {
+    const record = await this.repo.findById(id);
+    if (!record) throw new NotFoundException('API key not found');
+
+    const rawKey = this.generateRawKey();
+    const prefix = rawKey.slice(0, KEY_PREFIX_LENGTH + 3);
+    const hash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
+
+    const updated = await this.repo.emergencyUpdateKey(id, {
+      key_hash: hash,
+      key_prefix: prefix,
+    });
+
+    this.logger.log(`API key emergency-rotated: id=${id}`);
+
+    return { ...this.toPublic(updated), key: rawKey };
+  }
+
   async getUsage(owner_id?: string) {
     return this.repo.getUsageSummary(owner_id);
   }
