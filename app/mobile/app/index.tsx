@@ -12,10 +12,6 @@ import { useTranslation } from 'react-i18next';
 export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { hasCompletedOnboarding, isLoading } = useOnboarding();
-
-export default function HomeScreen() {
-  const router = useRouter();
   const { theme } = useTheme();
   const { hasCompletedOnboarding, isLoading } = useOnboarding();
   const {
@@ -25,6 +21,7 @@ export default function HomeScreen() {
     recentActivity,
     syncNow,
   } = useNotifications();
+
   useEffect(() => {
     if (!isLoading && !hasCompletedOnboarding) {
       router.replace("/onboarding");
@@ -36,124 +33,57 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View style={styles.headerCopy}>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>
-              QuickEx
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Notifications, badges, and recent activity stay fresh even when
-              you are not actively using the app.
-            </Text>
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={{ position: "absolute", top: 12, right: 16, zIndex: 100 }}>
-        {/* Bell */}
-        <NotificationCenter />
-      </View>
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('appTitle')}</Text>
-
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          {t('appSubtitle')}
-        </Text>
-
-        {/* Pay Again Shortcut */}
-        {recentContacts.length > 0 && (
-          <View style={{ width: "100%", marginBottom: 20 }}>
-            <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8, color: theme.textPrimary }}>{t('payAgain')}</Text>
-            {recentContacts.map((contact) => (
-              <Link
-                key={contact.id}
-                href={{ pathname: "/payment-confirmation", params: { username: contact.address } }}
-                asChild
-              >
-                <TouchableOpacity style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 8, marginBottom: 8 }}>
-                  <Text style={{ fontWeight: "bold", fontSize: 16, color: theme.textPrimary }}>{contact.nickname || contact.address}</Text>
-                  <Text style={{ color: theme.textSecondary }}>{contact.address}</Text>
-                </TouchableOpacity>
-              </Link>
-            ))}
+            <Text style={[styles.title, { color: theme.textPrimary }]}>{t("appTitle")}</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{t("appSubtitle")}</Text>
           </View>
           <NotificationCenter />
         </View>
 
-        <View
-          style={[
-            styles.heroCard,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
-            Background Sync
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('instantPayments')}</Text>
-          <Text style={[styles.cardText, { color: theme.textSecondary }]}>
-            {t('instantPaymentsDesc')}
-          </Text>
-          <Text style={[styles.heroText, { color: theme.textSecondary }]}>
+        <View style={[styles.heroCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+          <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>{t("instantPayments")}</Text>
+          <Text style={[styles.cardText, { color: theme.textSecondary }]}>{t("instantPaymentsDesc")}</Text>
+          <Text style={[styles.heroText, { color: theme.textSecondary }]}> 
             {currentAccountId
               ? `Watching ${shorten(currentAccountId)} for new activity.`
               : "Connect a wallet to start syncing activity and badge counts."}
           </Text>
           <View style={styles.heroMetaRow}>
-            <Text style={[styles.heroMeta, { color: theme.textMuted }]}>
+            <Text style={[styles.heroMeta, { color: theme.textMuted }]}> 
               {isSyncing
                 ? "Syncing now..."
                 : lastSyncedAt
-                  ? `Last synced ${new Date(lastSyncedAt).toLocaleTimeString()}`
-                  : "Not synced yet"}
+                ? `Last synced ${new Date(lastSyncedAt).toLocaleTimeString()}`
+                : "Not synced yet"}
             </Text>
             <Pressable
-              style={[
-                styles.syncButton,
-                { backgroundColor: theme.buttonPrimaryBg },
-              ]}
+              style={[styles.syncButton, { backgroundColor: theme.buttonPrimaryBg }]}
               onPress={() => {
                 void syncNow();
               }}
             >
-              <Text
-                style={[
-                  styles.syncButtonText,
-                  { color: theme.buttonPrimaryText },
-                ]}
-              >
-                Sync Now
+              <Text style={[styles.syncButtonText, { color: theme.buttonPrimaryText }]}> 
+                {t("syncNow")}
               </Text>
             </Pressable>
           </View>
         </View>
 
-        <View
-          style={[
-            styles.sectionCard,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-        >
+        <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              Recent Activity
-            </Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t("recentActivityTitle")}</Text>
             <Link
               href={{
                 pathname: "/transactions",
-                params: currentAccountId
-                  ? { accountId: currentAccountId }
-                  : undefined,
+                params: currentAccountId ? { accountId: currentAccountId } : undefined,
               }}
               asChild
             >
               <Pressable>
-                <Text style={[styles.linkText, { color: theme.link }]}>
-                  View All
-                </Text>
+                <Text style={[styles.linkText, { color: theme.link }]}>{t("viewAll")}</Text>
               </Pressable>
             </Link>
           </View>
@@ -162,73 +92,37 @@ export default function HomeScreen() {
             recentActivity.slice(0, 5).map((item) => {
               const incoming = item.destination === currentAccountId;
               return (
-                <View
-                  key={item.pagingToken}
-                  style={[
-                    styles.activityRow,
-                    { borderColor: theme.borderLight },
-                  ]}
-                >
+                <View key={item.pagingToken} style={[styles.activityRow, { borderColor: theme.borderLight }]}> 
                   <View style={styles.activityCopy}>
-                    <Text
-                      style={[styles.activityTitle, { color: theme.textPrimary }]}
-                    >
-                      {incoming ? "Received" : "Sent"} {formatAmount(item.amount)}{" "}
-                      {assetCode(item.asset)}
+                    <Text style={[styles.activityTitle, { color: theme.textPrimary }]}> 
+                      {incoming ? t("received") : t("sent")} {formatAmount(item.amount)} {assetCode(item.asset)}
                     </Text>
-                    <Text
-                      style={[
-                        styles.activitySubtitle,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {incoming ? "From" : "To"}{" "}
-                      {shorten(
-                        incoming ? item.source ?? "" : item.destination ?? "",
-                      )}{" "}
-                      • {new Date(item.timestamp).toLocaleString()}
+                    <Text style={[styles.activitySubtitle, { color: theme.textSecondary }]}> 
+                      {incoming ? t("from") : t("to")} {shorten(incoming ? item.source ?? "" : item.destination ?? "")} • {new Date(item.timestamp).toLocaleString()}
                     </Text>
                   </View>
                 </View>
               );
             })
           ) : (
-            <Text style={[styles.emptyState, { color: theme.textSecondary }]}>
-              No recent activity yet. Connect a wallet and background sync will
-              keep this list warm.
+            <Text style={[styles.emptyState, { color: theme.textSecondary }]}> 
+              {t("noRecentActivity")}
             </Text>
           )}
         </View>
 
         <View style={styles.buttonGroup}>
-          <NavButton href="/scan-to-pay" label="Scan to Pay" />
-          <NavButton href="/wallet-connect" label="Connect Wallet" />
-          <NavButton href="/quick-receive" label="Quick Receive" />
-          <NavButton href="/contacts" label="Contacts" />
-          <NavButton href="/settings" label="Settings" secondary />
-          <NavButton href="/security" label="Security Settings" secondary />
+          <NavButton href="/scan-to-pay" label={t("scanToPay")} />
+          <NavButton href="/wallet-connect" label={t("connectWallet")} />
+          <NavButton href="/quick-receive" label={t("quickReceive")} />
+          <NavButton href="/contacts" label={t("contacts")} />
+          <NavButton href="/settings" label={t("settings")} secondary />
+          <NavButton href="/security" label={t("securitySettings")} secondary />
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-        <Link href="/scan-to-pay" asChild>
-          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('scanToPay')}</Text>
-          </TouchableOpacity>
-        </Link>
-
-        <Link href="/wallet-connect" asChild>
-          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('connectWallet')}</Text>
-          </TouchableOpacity>
-        </Link>
-
-        <Link href="/contacts" asChild>
-          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.buttonPrimaryBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonPrimaryText }]}>{t('contacts')}</Text>
-          </TouchableOpacity>
-        </Link>
 
 function NavButton({
   href,
@@ -320,6 +214,11 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 20,
     fontWeight: "700",
+  },
+  cardText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
   },
   heroText: {
     fontSize: 14,

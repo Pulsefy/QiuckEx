@@ -35,7 +35,6 @@ import { SentryModule } from "./sentry";
 import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 import { RefundsModule } from "./refunds/refunds.module";
 import { ExportsModule } from "./exports/exports.module";
-import { AnalyticsModule } from "./analytics/analytics.module";
 import { JobQueueModule } from "./job-queue/job-queue.module";
 import { AuditModule } from "./audit/audit.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
@@ -77,7 +76,6 @@ type AppImport =
       MarketplaceModule,
       FiatRampsModule,
       RefundsModule,
-      AnalyticsModule,
       ExportsModule,
       JobQueueModule,
       AuditModule,
