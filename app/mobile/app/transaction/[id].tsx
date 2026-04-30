@@ -5,6 +5,7 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    Switch,
     Share,
     ActivityIndicator,
     Alert,
@@ -13,12 +14,33 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { StatusTimeline } from '../../components/transaction/StatusTimeline';
 import { CopyableRow } from '../../components/transaction/CopyableRow';
 import { findTransactionInCache } from '../../services/cache';
 import type { TransactionItem } from '../../types/transaction';
+
+const fileSystemCompat = FileSystem as typeof FileSystem & {
+    cacheDirectory?: string | null;
+};
+
+type ReceiptVisibilityOptions = {
+    showSender: boolean;
+    showRecipient: boolean;
+    showMemo: boolean;
+    showHash: boolean;
+};
+
+const DEFAULT_RECEIPT_VISIBILITY: ReceiptVisibilityOptions = {
+    showSender: false,
+    showRecipient: true,
+    showMemo: true,
+    showHash: true,
+};
 
 interface DetailParams {
     id: string;
@@ -108,7 +130,7 @@ function buildTimelineSteps(
 
 function buildShareMessage(transaction: TransactionItem): string {
     const asset = formatAsset(transaction.asset);
-    const deepLink = `https://quickex.to/transaction/${transaction.pagingToken}`;
+    const deepLink = buildReceiptLink(transaction);
     const lines = [
         'QuickEx Transaction Receipt',
         '───────────────────────────',
@@ -126,6 +148,92 @@ function buildShareMessage(transaction: TransactionItem): string {
     return lines.join('\n');
 }
 
+function buildReceiptLink(transaction: TransactionItem): string {
+    return `https://quickex.to/transaction/${transaction.pagingToken}`;
+}
+
+function escapeXml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function buildReceiptSvg(
+    transaction: TransactionItem,
+    visibility: ReceiptVisibilityOptions,
+): string {
+    const accentColor =
+        transaction.status === 'Success' ? '#34D399' : '#F59E0B';
+    const surfaceColor = '#0B1220';
+    const secondarySurfaceColor = '#121A2B';
+    const link = buildReceiptLink(transaction);
+    const rows = [
+        `Amount|${transaction.amount} ${formatAsset(transaction.asset)}`,
+        `Status|${transaction.status}`,
+        `Date|${formatDate(transaction.timestamp)}`,
+        visibility.showRecipient
+            ? `Recipient|${transaction.destination || 'Hidden'}`
+            : null,
+        visibility.showSender ? `Sender|${transaction.source || 'Hidden'}` : null,
+        visibility.showMemo ? `Memo|${transaction.memo || 'None'}` : null,
+        visibility.showHash ? `Tx Hash|${transaction.txHash}` : null,
+        `Receipt Link|${link}`,
+    ].filter(Boolean) as string[];
+
+    const rowMarkup = rows
+        .map((entry, index) => {
+            const [label, value] = entry.split('|');
+            const y = 214 + index * 50;
+            return `
+        <text x="48" y="${y}" fill="#91A3BF" font-family="Arial" font-size="15" font-weight="700">${escapeXml(
+                label,
+            )}</text>
+        <text x="48" y="${y + 22}" fill="#F8FAFC" font-family="Arial" font-size="18">${escapeXml(
+                value,
+            )}</text>
+      `;
+        })
+        .join('');
+
+    return `
+<svg width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#172554" />
+      <stop offset="60%" stop-color="${surfaceColor}" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="${accentColor}" />
+      <stop offset="100%" stop-color="#60A5FA" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" rx="36" fill="url(#bg)" />
+  <circle cx="1060" cy="120" r="180" fill="#1D4ED8" opacity="0.14" />
+  <circle cx="120" cy="620" r="220" fill="#10B981" opacity="0.12" />
+  <rect x="40" y="40" width="1120" height="640" rx="32" fill="${secondarySurfaceColor}" opacity="0.92" />
+  <rect x="48" y="48" width="1104" height="10" rx="5" fill="url(#accent)" />
+  <text x="48" y="112" fill="#93C5FD" font-family="Arial" font-size="24" font-weight="700">QuickEx Receipt v2</text>
+  <text x="48" y="176" fill="#FFFFFF" font-family="Arial" font-size="72" font-weight="700">${escapeXml(
+        transaction.amount,
+    )} ${escapeXml(formatAsset(transaction.asset))}</text>
+  <text x="48" y="620" fill="#93C5FD" font-family="Arial" font-size="20" font-weight="700">Shareable receipt link</text>
+  <text x="48" y="652" fill="#E2E8F0" font-family="Arial" font-size="24">${escapeXml(
+        link,
+    )}</text>
+  <rect x="860" y="88" width="240" height="88" rx="24" fill="#0F172A" opacity="0.85" />
+  <text x="892" y="126" fill="#94A3B8" font-family="Arial" font-size="18" font-weight="700">Status</text>
+  <text x="892" y="158" fill="${accentColor}" font-family="Arial" font-size="30" font-weight="700">${escapeXml(
+        transaction.status,
+    )}</text>
+  ${rowMarkup}
+</svg>
+  `.trim();
+}
+
 export default function TransactionDetailScreen() {
     const { theme, isDark } = useTheme();
     const router = useRouter();
@@ -134,6 +242,8 @@ export default function TransactionDetailScreen() {
     const [hydrating, setHydrating] = useState(false);
     const [transaction, setTransaction] = useState<TransactionItem | null>(null);
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+    const [receiptVisibility, setReceiptVisibility] =
+        useState<ReceiptVisibilityOptions>(DEFAULT_RECEIPT_VISIBILITY);
 
     const hasFullParams = Boolean(
         params.amount && params.asset && params.txHash,
@@ -186,26 +296,58 @@ export default function TransactionDetailScreen() {
         () => buildTimelineSteps(tx.timestamp, tx.status),
         [tx.timestamp, tx.status],
     );
+    const receiptLink = useMemo(() => buildReceiptLink(tx), [tx]);
 
     const handleShare = useCallback(async () => {
         try {
             await Haptics.selectionAsync();
+            const svg = buildReceiptSvg(tx, receiptVisibility);
+            const cacheDirectory = fileSystemCompat.cacheDirectory ?? '';
+            if (cacheDirectory) {
+                const fileUri = `${cacheDirectory}quickex-receipt-${tx.pagingToken}.svg`;
+                await FileSystem.writeAsStringAsync(fileUri, svg, {
+                    encoding: 'utf8',
+                });
+                const canShareFile = await Sharing.isAvailableAsync();
+                if (canShareFile) {
+                    await Sharing.shareAsync(fileUri, {
+                        mimeType: 'image/svg+xml',
+                        dialogTitle: 'Share QuickEx receipt',
+                        UTI: 'public.svg-image',
+                    });
+                    await Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Success,
+                    );
+                    return;
+                }
+            }
+
             const message = buildShareMessage(tx);
-            const result = await Share.share({
+            await Share.share({
                 message,
                 title: 'QuickEx Transaction Receipt',
             });
-
-            if (result.action === Share.sharedAction) {
-                await Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Success,
-                );
-            }
+            await Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+            );
         } catch (error) {
             // User dismissed or share failed silently
             console.debug('Share dismissed or failed', error);
         }
-    }, [tx]);
+    }, [receiptVisibility, tx]);
+
+    const handleCopyReceiptLink = useCallback(async () => {
+        try {
+            await Haptics.selectionAsync();
+            await Clipboard.setStringAsync(receiptLink);
+            setCopyFeedback('Receipt link copied');
+            await Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+            );
+        } catch (error) {
+            console.debug('Link copy failed', error);
+        }
+    }, [receiptLink]);
 
     const showCopyFeedback = useCallback(
         (label: string) => {
@@ -362,6 +504,181 @@ export default function TransactionDetailScreen() {
                     >
                         {formatDate(tx.timestamp)}
                     </Text>
+                </View>
+
+                <View style={styles.section}>
+                    <Text
+                        style={[
+                            styles.sectionTitle,
+                            { color: theme.textPrimary },
+                        ]}
+                    >
+                        Shareable Receipt
+                    </Text>
+                    <View
+                        style={[
+                            styles.card,
+                            styles.receiptCard,
+                            {
+                                backgroundColor: theme.surfaceElevated,
+                                borderColor: theme.border,
+                            },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.receiptPreview,
+                                { backgroundColor: theme.primary },
+                            ]}
+                        >
+                            <View style={styles.receiptGlow} />
+                            <Text style={styles.receiptEyebrow}>QuickEx Receipt v2</Text>
+                            <Text style={styles.receiptAmount}>
+                                {formattedAmount} {assetLabel}
+                            </Text>
+                            <Text style={styles.receiptStatus}>
+                                {tx.status} • {formatShortDate(tx.timestamp)}
+                            </Text>
+                            <View style={styles.receiptPreviewRows}>
+                                <Text style={styles.receiptPreviewRow}>
+                                    Recipient: {receiptVisibility.showRecipient ? shorten(tx.destination, 8, 8) : 'Hidden'}
+                                </Text>
+                                <Text style={styles.receiptPreviewRow}>
+                                    Memo: {receiptVisibility.showMemo ? tx.memo || 'None' : 'Hidden'}
+                                </Text>
+                                <Text style={styles.receiptPreviewRow}>
+                                    Tx Hash: {receiptVisibility.showHash ? shorten(tx.txHash, 8, 8) : 'Hidden'}
+                                </Text>
+                            </View>
+                            <Text style={styles.receiptLinkPreview}>
+                                {receiptLink}
+                            </Text>
+                        </View>
+
+                        <View style={styles.receiptActionsRow}>
+                            <TouchableOpacity
+                                onPress={handleShare}
+                                activeOpacity={0.8}
+                                style={[
+                                    styles.secondaryActionButton,
+                                    { backgroundColor: theme.buttonPrimaryBg },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="image-outline"
+                                    size={18}
+                                    color={theme.buttonPrimaryText}
+                                />
+                                <Text
+                                    style={[
+                                        styles.secondaryActionText,
+                                        { color: theme.buttonPrimaryText },
+                                    ]}
+                                >
+                                    Share image
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={handleCopyReceiptLink}
+                                activeOpacity={0.8}
+                                style={[
+                                    styles.secondaryActionButton,
+                                    {
+                                        backgroundColor: theme.surface,
+                                        borderColor: theme.border,
+                                    },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="link-outline"
+                                    size={18}
+                                    color={theme.textPrimary}
+                                />
+                                <Text
+                                    style={[
+                                        styles.secondaryActionText,
+                                        { color: theme.textPrimary },
+                                    ]}
+                                >
+                                    Copy link
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.privacySection}>
+                            <Text
+                                style={[
+                                    styles.privacyTitle,
+                                    { color: theme.textPrimary },
+                                ]}
+                            >
+                                Privacy controls
+                            </Text>
+                            {[
+                                {
+                                    key: 'showRecipient' as const,
+                                    label: 'Show recipient',
+                                    description: 'Include the payout destination on the shared receipt.',
+                                },
+                                {
+                                    key: 'showSender' as const,
+                                    label: 'Show sender',
+                                    description: 'Reveal the sender address on the exported image.',
+                                },
+                                {
+                                    key: 'showMemo' as const,
+                                    label: 'Show memo',
+                                    description: 'Include the payment memo in the shareable receipt.',
+                                },
+                                {
+                                    key: 'showHash' as const,
+                                    label: 'Show transaction hash',
+                                    description: 'Attach the full transaction reference to the shared image.',
+                                },
+                            ].map((option) => (
+                                <View
+                                    key={option.key}
+                                    style={[
+                                        styles.privacyRow,
+                                        { borderBottomColor: theme.border },
+                                    ]}
+                                >
+                                    <View style={styles.privacyCopy}>
+                                        <Text
+                                            style={[
+                                                styles.privacyLabel,
+                                                { color: theme.textPrimary },
+                                            ]}
+                                        >
+                                            {option.label}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.privacyDescription,
+                                                { color: theme.textSecondary },
+                                            ]}
+                                        >
+                                            {option.description}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        value={receiptVisibility[option.key]}
+                                        onValueChange={(value) =>
+                                            setReceiptVisibility((current) => ({
+                                                ...current,
+                                                [option.key]: value,
+                                            }))
+                                        }
+                                        trackColor={{
+                                            false: theme.border,
+                                            true: theme.primary,
+                                        }}
+                                        thumbColor="#FFFFFF"
+                                    />
+                                </View>
+                            ))}
+                        </View>
+                    </View>
                 </View>
 
                 {/* Timeline Section */}
@@ -624,6 +941,105 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1,
         overflow: 'hidden',
+    },
+    receiptCard: {
+        padding: 16,
+        gap: 16,
+    },
+    receiptPreview: {
+        borderRadius: 24,
+        padding: 20,
+        overflow: 'hidden',
+        gap: 10,
+    },
+    receiptGlow: {
+        position: 'absolute',
+        top: -40,
+        right: -30,
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+    },
+    receiptEyebrow: {
+        color: 'rgba(255,255,255,0.72)',
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    receiptAmount: {
+        color: '#FFFFFF',
+        fontSize: 28,
+        fontWeight: '800',
+    },
+    receiptStatus: {
+        color: 'rgba(255,255,255,0.84)',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    receiptPreviewRows: {
+        marginTop: 8,
+        gap: 6,
+    },
+    receiptPreviewRow: {
+        color: 'rgba(255,255,255,0.88)',
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    receiptLinkPreview: {
+        marginTop: 10,
+        color: 'rgba(255,255,255,0.74)',
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    receiptActionsRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    secondaryActionButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingVertical: 14,
+        paddingHorizontal: 12,
+    },
+    secondaryActionText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    privacySection: {
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    privacyTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 10,
+    },
+    privacyRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        gap: 12,
+    },
+    privacyCopy: {
+        flex: 1,
+        gap: 4,
+    },
+    privacyLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    privacyDescription: {
+        fontSize: 12,
+        lineHeight: 17,
     },
     timelinePadding: {
         padding: 16,

@@ -35,9 +35,11 @@ import { SentryModule } from "./sentry";
 import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 import { RefundsModule } from "./refunds/refunds.module";
 import { ExportsModule } from "./exports/exports.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { JobQueueModule } from "./job-queue/job-queue.module";
 import { AuditModule } from "./audit/audit.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
+import { DeveloperModule } from "./developer/developer.module";
 import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 
@@ -75,6 +77,7 @@ type AppImport =
       MarketplaceModule,
       FiatRampsModule,
       RefundsModule,
+      AnalyticsModule,
       ExportsModule,
       JobQueueModule,
       AuditModule,
@@ -94,6 +97,7 @@ type AppImport =
       if (!isLocalSupabase) {
         baseImports.push(ReconciliationModule as AppImport);
         baseImports.push(NotificationsModule as AppImport);
+        baseImports.push(DeveloperModule as AppImport);
       } else {
         // eslint-disable-next-line no-console
         console.log(
@@ -104,6 +108,7 @@ type AppImport =
       // If anything goes wrong, default to including the modules.
       baseImports.push(ReconciliationModule as AppImport);
       baseImports.push(NotificationsModule as AppImport);
+      baseImports.push(DeveloperModule as AppImport);
     }
     return baseImports;
   })(),

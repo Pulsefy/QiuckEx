@@ -87,3 +87,15 @@ export class UsernameClaimedEvent {
     public readonly publicKey: string,
   ) {}
 }
+
+export class AutoReconciliationSucceededEvent {
+  constructor(
+    public readonly linkId: string,
+    public readonly ownerPublicKey: string,
+    public readonly txHash: string,
+    public readonly amount: string,
+    public readonly assetCode: string,
+    public readonly confidence: number,
+    public readonly matchedAt: string,
+  ) {}
+}

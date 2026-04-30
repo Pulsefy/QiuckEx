@@ -218,6 +218,17 @@ pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<
     Ok(())
 }
 
+pub fn set_oracle_fee_config(
+    env: &Env,
+    caller: &Address,
+    config: crate::types::OracleFeeConfig,
+) -> Result<(), QuickexError> {
+    require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
+
+    storage::set_oracle_fee_config(env, &config);
+    Ok(())
+}
+
 /// Set platform wallet address (**Admin only**).
 pub fn set_platform_wallet(
     env: &Env,

@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AnalyticsService } from './analytics.service';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { SupabaseModule } from '../supabase/supabase.module';
 import { AnalyticsController } from './analytics.controller';
-import { TransactionsModule } from '../transactions/transactions.module';
+import { AnalyticsService } from './analytics.service';
 
 @Module({
-    imports: [TransactionsModule],
-    providers: [AnalyticsService],
-    controllers: [AnalyticsController],
-    exports: [AnalyticsService],
+  imports: [SupabaseModule, ApiKeysModule],
+  controllers: [AnalyticsController],
+  providers: [AnalyticsService],
+  exports: [AnalyticsService],
 })
-export class AnalyticsModule { }
+export class AnalyticsModule {}
+

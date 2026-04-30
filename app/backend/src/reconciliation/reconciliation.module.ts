@@ -8,6 +8,8 @@ import { JobQueueModule } from "../job-queue/job-queue.module";
 import { ReconciliationService } from "./reconciliation.service";
 import { ReconciliationWorkerService } from "./reconciliation-worker.service";
 import { BackfillService } from "./backfill.service";
+import { AutoMatchService } from "./auto-match.service";
+import { UnmatchedQueueRepository } from "./unmatched-queue.repository";
 import { ReconciliationController } from "./reconciliation.controller";
 
 /**
@@ -15,14 +17,26 @@ import { ReconciliationController } from "./reconciliation.controller";
  */
 @Module({
   imports: [
-    AppConfigModule, 
+    AppConfigModule,
     SupabaseModule,
     MetricsModule,
     IngestionModule,
     forwardRef(() => JobQueueModule),
   ],
-  providers: [ReconciliationService, ReconciliationWorkerService, BackfillService],
+  providers: [
+    ReconciliationService,
+    ReconciliationWorkerService,
+    BackfillService,
+    AutoMatchService,
+    UnmatchedQueueRepository,
+  ],
   controllers: [ReconciliationController],
-  exports: [ReconciliationService, ReconciliationWorkerService, BackfillService],
+  exports: [
+    ReconciliationService,
+    ReconciliationWorkerService,
+    BackfillService,
+    AutoMatchService,
+    UnmatchedQueueRepository,
+  ],
 })
 export class ReconciliationModule {}

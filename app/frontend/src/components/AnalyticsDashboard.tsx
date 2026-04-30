@@ -30,6 +30,7 @@ import type {
 } from "recharts/types/component/DefaultTooltipContent";
 import {
   fetchAnalytics,
+  exportAnalyticsReport,
   type DateRange,
   type AnalyticsData,
 } from "@/hooks/analyticsApi";
@@ -171,6 +172,9 @@ export default function AnalyticsDashboard() {
   const [range, setRange] = useState<DateRange>("30d");
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportType, setReportType] = useState<"accounting" | "tax">("accounting");
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   const load = useCallback((r: DateRange) => {
     setLoading(true);
@@ -183,6 +187,26 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     load(range);
   }, [range, load]);
+
+  useEffect(() => {
+    if (!exportMessage) return;
+    const timer = window.setTimeout(() => setExportMessage(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [exportMessage]);
+
+  const handleExport = useCallback(async (format: "csv" | "pdf") => {
+    setExporting(format);
+    setExportMessage(null);
+    try {
+      await exportAnalyticsReport(range, format, reportType);
+      setExportMessage(`${format.toUpperCase()} report generated.`);
+    } catch (error) {
+      console.error(error);
+      setExportMessage(`Failed to export ${format.toUpperCase()} report.`);
+    } finally {
+      setExporting(null);
+    }
+  }, [range, reportType]);
 
   const { summary, volume, txCount, assetDist } = data ?? {
     summary: null,
@@ -209,7 +233,41 @@ export default function AnalyticsDashboard() {
             Payment volume, transaction counts &amp; asset distribution
           </p>
         </div>
-        <DateRangeFilter active={range} onChange={setRange} />
+        <div className="flex flex-col gap-3 sm:items-end">
+          <DateRangeFilter active={range} onChange={setRange} />
+          <div className="flex items-center gap-2">
+            <select
+              value={reportType}
+              onChange={(event) =>
+                setReportType(event.target.value as "accounting" | "tax")
+              }
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-black text-neutral-200"
+              aria-label="Select report type"
+            >
+              <option value="accounting">Accounting</option>
+              <option value="tax">Tax</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleExport("csv")}
+              disabled={exporting !== null}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-neutral-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {exporting === "csv" ? "Exporting..." : "Export CSV"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("pdf")}
+              disabled={exporting !== null}
+              className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-black text-indigo-100 transition hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {exporting === "pdf" ? "Exporting..." : "Export PDF"}
+            </button>
+          </div>
+          {exportMessage ? (
+            <p className="text-[11px] font-bold text-neutral-300">{exportMessage}</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="p-6 sm:p-10 space-y-10">

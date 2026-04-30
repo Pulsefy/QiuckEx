@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { getQuickexApiBase } from "@/lib/api";
 import {
+  buildGeneratedLinksCsv,
+  BulkCsvDraftRow,
   buildInvoicePreview,
   calculateTemplateSubtotal,
   calculateTemplateTax,
   calculateTemplateTotal,
   CUSTOMER_STORAGE_KEY,
+  parseBulkInvoiceCsv,
   CustomerProfile,
   DEFAULT_CUSTOMERS,
   DEFAULT_TEMPLATES,
@@ -20,6 +23,8 @@ import {
   InvoiceTemplate,
   TEMPLATE_STORAGE_KEY,
   toBulkLinkPayload,
+  toBulkLinkPayloadFromCsvRow,
+  validateBulkCsvDraftRow,
 } from "./bulk-invoicing";
 import '@/lib/i18n';
 import { useTranslation } from 'react-i18next';
@@ -100,10 +105,21 @@ type BulkGenerateSuccess = {
   }>;
 };
 
+type BulkLinkRequestItem = {
+  amount: number;
+  asset: string;
+  memo?: string;
+  referenceId?: string;
+  username?: string;
+  destination?: string;
+  acceptedAssets?: string[];
+};
+
 export default function Generator() {
   const { t } = useTranslation();
   const apiBase = useMemo(() => getQuickexApiBase(), []);
   const { error, loading, callApi, data } = useApi<LinkMetadataSuccess>();
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState({
     amount: "",
@@ -151,6 +167,12 @@ export default function Generator() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkGenerateSuccess | null>(null);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkSource, setBulkSource] = useState<"directory" | "csv" | null>(null);
+  const [csvDragActive, setCsvDragActive] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvFileErrors, setCsvFileErrors] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<BulkCsvDraftRow[]>([]);
   const [templateForm, setTemplateForm] = useState({
     name: "Monthly Hosting",
     asset: "USDC",
@@ -533,6 +555,11 @@ export default function Generator() {
     [invoicePreviewRows],
   );
 
+  const validCsvRows = useMemo(
+    () => csvRows.filter((row) => row.errors.length === 0),
+    [csvRows],
+  );
+
   const getPathLegs = (path: PathRow) => {
     const route = [path.sourceAsset, ...path.pathHops, path.destinationAsset];
     return route.slice(0, -1).map((fromAsset, idx) => ({
@@ -674,6 +701,117 @@ export default function Generator() {
     );
   };
 
+  const downloadBrowserFile = useCallback(
+    (filename: string, contents: string, mimeType: string) => {
+      const blob = new Blob([contents], { type: mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
+  const submitBulkLinks = useCallback(
+    async (
+      linksPayload: BulkLinkRequestItem[],
+      source: "directory" | "csv",
+    ) => {
+      setBulkLoading(true);
+      setBulkError(null);
+      setBulkResult(null);
+      setBulkSource(source);
+      setBulkProgress(6);
+
+      const progressTimer = window.setInterval(() => {
+        setBulkProgress((current) => (current >= 92 ? current : current + 11));
+      }, 250);
+
+      try {
+        const response = await fetch(`${apiBase}/links/bulk/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ links: linksPayload }),
+        });
+        const payload = (await response.json()) as BulkGenerateSuccess & {
+          message?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.message ?? `Bulk generation failed (${response.status})`);
+        }
+        window.clearInterval(progressTimer);
+        setBulkProgress(100);
+        setBulkResult(payload);
+      } catch (generationError) {
+        window.clearInterval(progressTimer);
+        setBulkProgress(0);
+        setBulkError(
+          generationError instanceof Error
+            ? generationError.message
+            : "Unable to generate invoices.",
+        );
+        setBulkResult(null);
+      } finally {
+        setBulkLoading(false);
+      }
+    },
+    [apiBase],
+  );
+
+  const applyCsvContents = useCallback((csvText: string, filename: string) => {
+    const parsed = parseBulkInvoiceCsv(csvText);
+    setCsvFileName(filename);
+    setCsvFileErrors(parsed.fileErrors);
+    setCsvRows(parsed.rows);
+    setBulkResult(null);
+    setBulkSource(null);
+    setBulkProgress(0);
+  }, []);
+
+  const loadCsvFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        applyCsvContents(String(reader.result ?? ""), file.name);
+      };
+      reader.readAsText(file);
+    },
+    [applyCsvContents],
+  );
+
+  const updateCsvRow = useCallback(
+    (rowId: string, field: keyof BulkCsvDraftRow, value: string) => {
+      setCsvRows((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? validateBulkCsvDraftRow({
+                ...row,
+                [field]: value,
+              })
+            : row,
+        ),
+      );
+    },
+    [],
+  );
+
+  const removeCsvRow = useCallback((rowId: string) => {
+    setCsvRows((current) => current.filter((row) => row.id !== rowId));
+  }, []);
+
+  const resetCsvReview = useCallback(() => {
+    setCsvRows([]);
+    setCsvFileErrors([]);
+    setCsvFileName("");
+    setCsvDragActive(false);
+    setBulkProgress(0);
+    if (csvInputRef.current) {
+      csvInputRef.current.value = "";
+    }
+  }, []);
+
   const generateBulkInvoices = async () => {
     if (!selectedTemplate) {
       setBulkError("Choose a template before generating invoices.");
@@ -690,32 +828,24 @@ export default function Generator() {
       return;
     }
 
-    setBulkLoading(true);
-    setBulkError(null);
+    await submitBulkLinks(previewGenerationPayload, "directory");
+  };
 
-    try {
-      const response = await fetch(`${apiBase}/links/bulk/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ links: previewGenerationPayload }),
-      });
-      const payload = (await response.json()) as BulkGenerateSuccess & {
-        message?: string;
-      };
-      if (!response.ok) {
-        throw new Error(payload.message ?? `Bulk generation failed (${response.status})`);
-      }
-      setBulkResult(payload);
-    } catch (generationError) {
-      setBulkError(
-        generationError instanceof Error
-          ? generationError.message
-          : "Unable to generate invoices.",
-      );
-      setBulkResult(null);
-    } finally {
-      setBulkLoading(false);
+  const generateCsvInvoices = async () => {
+    if (csvRows.length === 0) {
+      setBulkError("Upload a CSV before generating batch links.");
+      return;
     }
+
+    if (validCsvRows.length === 0) {
+      setBulkError("Resolve the invalid CSV rows before generating links.");
+      return;
+    }
+
+    await submitBulkLinks(
+      validCsvRows.map((row) => toBulkLinkPayloadFromCsvRow(row)),
+      "csv",
+    );
   };
 
   return (
@@ -735,29 +865,32 @@ export default function Generator() {
         <nav className="flex-1 px-4 py-20 space-y-2" aria-label="Generator navigation">
           <Link
             href="/dashboard"
-            className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
+            className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
           >
-            <span>📊</span> {t('dashboard')}
+            <span aria-hidden="true">📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             aria-current="page"
             className={`flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner ${FOCUS_RING_CLASS}`}
           >
-            <span className="text-indigo-400">⚡</span> {t('linkGenerator')}
+            <span aria-hidden="true" className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
-          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-300 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
-            <span>⚙️</span> {t('profileSettings')}
+          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
+            <span aria-hidden="true">⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
       </aside>
 
       <main id="generator-main" className="relative z-10 px-4 sm:px-6 md:px-12 pt-10 md:ml-72">
         <header className="mb-10 sm:mb-16 max-w-3xl">
-          <nav className="flex items-center gap-2 text-xs font-black text-neutral-600 uppercase tracking-widest mb-4">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-2 text-xs font-black text-neutral-300 uppercase tracking-widest mb-4"
+          >
             <span>{t('services')}</span>
-            <span>/</span>
-            <span className="text-neutral-400">{t('linkGenerator')}</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-neutral-100">{t('linkGenerator')}</span>
           </nav>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-4">
@@ -767,7 +900,7 @@ export default function Generator() {
             </span>
           </h1>
 
-          <p className="text-neutral-500 text-lg max-w-xl">
+          <p className="text-neutral-300 text-lg max-w-xl">
             {t('advancedModeDescription')}
           </p>
         </header>
@@ -1227,6 +1360,278 @@ export default function Generator() {
             >
               Clear generated results
             </button>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/30 p-6 md:p-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
+                  CSV Batch Uploader
+                </p>
+                <h3 className="mt-2 text-2xl font-black text-white">
+                  Drag in a customer invoice CSV, review each row, then generate links in one batch
+                </h3>
+                <p className="mt-3 max-w-3xl text-sm text-neutral-400">
+                  Accepted columns: <span className="font-mono text-neutral-300">amount, asset, memo, referenceId, username, destination, acceptedAssets, customerName, email</span>.
+                  Each row needs a positive amount and either a QuickEx username or a Stellar destination.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0];
+                    if (nextFile) {
+                      loadCsvFile(nextFile);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => csvInputRef.current?.click()}
+                  className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-neutral-100 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                >
+                  Choose CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={resetCsvReview}
+                  className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-neutral-300 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                >
+                  Clear CSV
+                </button>
+              </div>
+            </div>
+
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => csvInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  csvInputRef.current?.click();
+                }
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setCsvDragActive(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setCsvDragActive(true);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                if (event.currentTarget === event.target) {
+                  setCsvDragActive(false);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setCsvDragActive(false);
+                const nextFile = event.dataTransfer.files?.[0];
+                if (nextFile) {
+                  loadCsvFile(nextFile);
+                }
+              }}
+              className={`mt-6 rounded-[28px] border border-dashed px-6 py-10 text-center transition ${
+                csvDragActive
+                  ? "border-emerald-400 bg-emerald-500/10"
+                  : "border-white/15 bg-neutral-950/40 hover:border-white/25 hover:bg-white/[0.03]"
+              }`}
+            >
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/5 text-2xl">
+                📄
+              </div>
+              <p className="mt-4 text-lg font-bold text-white">
+                {csvFileName ? `Loaded ${csvFileName}` : "Drop a CSV here or click to upload"}
+              </p>
+              <p className="mt-2 text-sm text-neutral-400">
+                We parse the file in-browser first so you can fix invalid amounts, addresses, or routing before submission.
+              </p>
+            </div>
+
+            {csvFileErrors.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                {csvFileErrors.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            )}
+
+            {csvRows.length > 0 && (
+              <div className="mt-8 space-y-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="text-xl font-bold text-white">Review table</h4>
+                    <p className="text-sm text-neutral-400">
+                      {validCsvRows.length} of {csvRows.length} rows are valid for generation.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void generateCsvInvoices()}
+                    disabled={bulkLoading}
+                    className={`rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-black hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS_RING_CLASS}`}
+                  >
+                    {bulkLoading && bulkSource === "csv" ? "Generating batch..." : "Generate batch links"}
+                  </button>
+                </div>
+
+                {bulkLoading && bulkSource === "csv" && (
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                    <div className="flex items-center justify-between text-sm font-semibold text-emerald-100">
+                      <span>Processing batch invoices</span>
+                      <span>{bulkProgress}%</span>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
+                      <div
+                        className="h-full rounded-full bg-emerald-300 transition-all duration-300"
+                        style={{ width: `${bulkProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {csvRows.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className={`rounded-3xl border p-4 ${
+                        row.errors.length === 0
+                          ? "border-white/10 bg-neutral-950/50"
+                          : "border-amber-400/40 bg-amber-500/10"
+                      }`}
+                    >
+                      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            Row {index + 1} {row.customerName ? `• ${row.customerName}` : ""}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {row.email || "No email supplied"} {row.referenceId ? `• ${row.referenceId}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCsvRow(row.id)}
+                          className={`rounded-xl border border-red-500/25 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                        >
+                          Delete row
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <input
+                          type="text"
+                          value={row.amount}
+                          onChange={(event) => updateCsvRow(row.id, "amount", event.target.value)}
+                          placeholder="Amount"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.asset}
+                          onChange={(event) => updateCsvRow(row.id, "asset", event.target.value)}
+                          placeholder="Asset"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.username}
+                          onChange={(event) => updateCsvRow(row.id, "username", event.target.value)}
+                          placeholder="QuickEx username"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.destination}
+                          onChange={(event) => updateCsvRow(row.id, "destination", event.target.value)}
+                          placeholder="Stellar destination"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.memo}
+                          onChange={(event) => updateCsvRow(row.id, "memo", event.target.value)}
+                          placeholder="Memo"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.referenceId}
+                          onChange={(event) => updateCsvRow(row.id, "referenceId", event.target.value)}
+                          placeholder="Reference ID"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.customerName}
+                          onChange={(event) => updateCsvRow(row.id, "customerName", event.target.value)}
+                          placeholder="Customer name"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                        <input
+                          type="text"
+                          value={row.acceptedAssets}
+                          onChange={(event) => updateCsvRow(row.id, "acceptedAssets", event.target.value)}
+                          placeholder="Accepted assets (XLM|USDC)"
+                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                        />
+                      </div>
+
+                      {row.errors.length > 0 && (
+                        <div className="mt-3 rounded-2xl border border-amber-300/20 bg-black/20 p-3 text-xs text-amber-100">
+                          {row.errors.map((message) => (
+                            <p key={`${row.id}-${message}`}>{message}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {bulkResult && bulkSource === "csv" && (
+              <div className="mt-8 rounded-[32px] border border-emerald-300/25 bg-emerald-500/10 p-6">
+                <p className="text-xs font-black uppercase tracking-widest text-emerald-200">
+                  Batch Success
+                </p>
+                <h4 className="mt-2 text-2xl font-black text-white">
+                  {bulkResult.total} payment link{bulkResult.total === 1 ? "" : "s"} generated
+                </h4>
+                <p className="mt-2 max-w-2xl text-sm text-emerald-100/80">
+                  Review the exported CSV or copy individual links from the generated output panel below.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadBrowserFile(
+                        `quickex-batch-links-${new Date().toISOString().slice(0, 10)}.csv`,
+                        buildGeneratedLinksCsv(bulkResult.links),
+                        "text/csv;charset=utf-8",
+                      )
+                    }
+                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-black text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                  >
+                    Download links CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(bulkResult.links.map((link) => link.url).join("\n"))}
+                    className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                  >
+                    Copy all links
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
