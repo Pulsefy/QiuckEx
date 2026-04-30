@@ -156,6 +156,28 @@ pub struct FeeConfig {
     pub fee_bps: u32,
 }
 
+/// Oracle fee configuration for dynamic USD-based fee collection.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeeConfig {
+    /// External oracle contract address.
+    pub oracle: Address,
+    /// Target fee in microdollars (1 USD = 1_000_000 microdollars).
+    pub usd_fee_micros: i128,
+    /// Maximum age of oracle price data before falling back.
+    pub stale_threshold_secs: u64,
+}
+
+/// Hook event kinds used for external callbacks.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum HookEventKind {
+    Create = 1,
+    Settle = 2,
+    Refund = 3,
+}
+
 /// Privileged roles for contract governance and operations.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

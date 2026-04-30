@@ -16,6 +16,11 @@ mod events;
 mod fee;
 #[cfg(test)]
 mod fee_test;
+mod hook;
+pub mod nonce;
+#[cfg(test)]
+mod nonce_test;
+mod oracle;
 mod privacy;
 #[cfg(test)]
 mod role_test;
@@ -34,7 +39,8 @@ mod types;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    EscrowEntry, EscrowStatus, FeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PrivacyAwareEscrowView, Role,
+    StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -104,6 +110,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Withdrawal) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::withdraw(&env, amount, to, salt)
     }
 
@@ -197,12 +204,16 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
     }
 
@@ -328,12 +339,16 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit_with_commitment(
             &env,
             from,
@@ -343,6 +358,20 @@ impl QuickexContract {
             timeout_secs,
             arbiter,
         )
+    }
+    /// Activate emergency mode (irreversible). Only admin can call. Emits event.
+    pub fn activate_emergency_mode(env: Env, caller: Address) -> Result<(), QuickexError> {
+        // Only admin can activate
+        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        if caller != admin {
+            return Err(QuickexError::Unauthorized);
+        }
+        if storage::is_emergency_mode(&env) {
+            return Ok(()); // Already set
+        }
+        storage::set_emergency_mode(&env);
+        events::publish_emergency_mode_activated(&env, caller);
+        Ok(())
     }
 
     /// Deposit funds with a target amount higher than the initial payment.
@@ -382,6 +411,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::deposit_partial(
             &env,
             token,
@@ -424,6 +454,7 @@ impl QuickexContract {
         if is_feature_paused(&env, PauseFlag::Deposit) {
             return Err(QuickexError::OperationPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::partial_payment(&env, commitment, payer, payment_amount)
     }
 
@@ -450,6 +481,7 @@ impl QuickexContract {
             return Err(QuickexError::OperationPaused);
         }
 
+        hook::assert_not_reentrant(&env)?;
         escrow::refund(&env, commitment, caller)
     }
 
@@ -484,6 +516,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::dispute(&env, commitment)
     }
 
@@ -513,6 +546,7 @@ impl QuickexContract {
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
+        hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
     }
 
@@ -557,6 +591,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_paused(&env, caller, new_state)
     }
 
@@ -579,6 +616,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn pause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_pause_flags(&env, &caller, mask, 0)
     }
 
@@ -593,6 +633,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn unpause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_pause_flags(&env, &caller, 0, mask)
     }
 
@@ -608,6 +651,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_admin(&env, caller, new_admin)
     }
 
@@ -630,13 +676,46 @@ impl QuickexContract {
         storage::get_fee_config(&env)
     }
 
+    /// Register an external hook contract to receive escrow lifecycle callbacks.
+    pub fn register_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        hook::register_hook(&env, hook_contract)
+    }
+
+    /// Unregister a hook contract.
+    pub fn unregister_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        hook::unregister_hook(&env, hook_contract)
+    }
+
+    /// Get the list of registered hook contracts.
+    pub fn get_registered_hooks(env: Env) -> Vec<Address> {
+        hook::get_registered_hooks(&env)
+    }
+
     /// Set the fee configuration (**Admin only**).
     pub fn set_fee_config(
         env: Env,
         caller: Address,
         config: FeeConfig,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_fee_config(&env, &caller, config)
+    }
+
+    /// Set oracle fee configuration (**Admin or Operator only**).
+    pub fn set_oracle_fee_config(
+        env: Env,
+        caller: Address,
+        config: OracleFeeConfig,
+    ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        admin::set_oracle_fee_config(&env, &caller, config)
+    }
+
+    /// Get the current oracle fee configuration.
+    pub fn get_oracle_fee_config(env: Env) -> Option<OracleFeeConfig> {
+        oracle::get_oracle_fee_config(&env)
     }
 
     /// Get the platform wallet address (read-only).
@@ -650,6 +729,7 @@ impl QuickexContract {
         caller: Address,
         wallet: Address,
     ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
         admin::set_platform_wallet(&env, &caller, wallet)
     }
 

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo } from "react";
 import { UsernameCard } from "@/components/UsernameCard";
+import { ListingDetailModal } from "@/components/ListingDetailModal";
 import {
   fetchListings,
   MarketplaceListing,
@@ -79,9 +80,10 @@ function MarketplacePageContent() {
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [sortKey, setSortKey] = useState("ending");
   const [activeListing, setActiveListing] = useState<MarketplaceListing | null>(null);
+  const [detailListing, setDetailListing] = useState<MarketplaceListing | null>(null);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
-  const { watchlist, isInWatchlist } = useWatchlist();
+  const { watchlist, isInWatchlist, toggleWatchlist } = useWatchlist();
   const { isConnected, lastUpdate, subscribeToListing, unsubscribeFromListing, onBidUpdate } = useRealtimeUpdates();
 
   useEffect(() => {
@@ -128,6 +130,11 @@ function MarketplacePageContent() {
           : l
       )
     );
+  }
+
+  function handleOpenBid(listing: MarketplaceListing) {
+    setDetailListing(null);
+    setActiveListing(listing);
   }
 
   const filtered = useMemo(() => {
@@ -391,12 +398,21 @@ function MarketplacePageContent() {
               <UsernameCard
                 key={listing.id}
                 listing={listing}
-                onBid={setActiveListing}
+                onBid={handleOpenBid}
+                onViewDetails={setDetailListing}
               />
             ))}
           </div>
         )}
       </div>
+
+      <ListingDetailModal
+        listing={detailListing}
+        isWatched={detailListing ? isInWatchlist(detailListing.id) : false}
+        onClose={() => setDetailListing(null)}
+        onToggleWatchlist={(listing) => toggleWatchlist(listing.id, listing.username)}
+        onPlaceBid={handleOpenBid}
+      />
 
       {/* ── BID MODAL ─────────────────────────────── */}
       <BidModal

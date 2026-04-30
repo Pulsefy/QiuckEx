@@ -152,6 +152,29 @@ export class ApiKeysRepository {
     return row as ApiKeyRecord;
   }
 
+  async emergencyUpdateKey(
+    id: string,
+    data: { key_hash: string; key_prefix: string },
+  ): Promise<ApiKeyRecord> {
+    const { data: row, error } = await this.client
+      .from('api_keys')
+      .update({
+        key_hash: data.key_hash,
+        key_prefix: data.key_prefix,
+        key_hash_old: null,
+        rotated_at: new Date().toISOString(),
+        request_count: 0,
+        last_used_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return row as ApiKeyRecord;
+  }
+
   async incrementUsage(id: string): Promise<void> {
     const { error } = await this.client.rpc('increment_api_key_usage', {
       key_id: id,

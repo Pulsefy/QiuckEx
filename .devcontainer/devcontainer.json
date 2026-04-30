@@ -1,0 +1,13 @@
+{
+  "name": "Stella Wave DevContainer",
+  "dockerFile": "Dockerfile",
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "postCreateCommand": "pnpm install && rustup update && cargo install --locked --git https://github.com/stellar/soroban-tools soroban-cli",
+  "forwardPorts": [3000, 4000, 8000],
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  }
+}
