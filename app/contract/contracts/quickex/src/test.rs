@@ -1,27 +1,3 @@
-//! QuickEx contract integration tests.
-//!
-//! ## Upgrade / regression suite
-//!
-//! A minimal set of **golden path** tests is maintained for upgrade safety: after contract or
-//! SDK upgrades, re-run these to ensure existing escrows and commitments still behave correctly.
-//!
-//! **Golden path tests (regression suite):**
-//! - **Escrows & commitments:** `test_deposit`, `test_successful_withdrawal`, `test_commitment_cycle`
-//! - **Privacy toggle:** `test_set_privacy_toggle_cycle_succeeds`, `test_set_and_get_privacy`
-//! - **Refunds:** `test_refund_successful`
-//! - **Single full-flow smoke test:** `regression_golden_path_full_flow`
-//! - **Upgrade migration:** `test_upgrade_migration_preserves_legacy_escrow_data`
-//!
-//! How to re-run only the regression suite:
-//!
-//! ```sh
-//! cargo test regression_
-//! cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle test_upgrade_migration_preserves_legacy_escrow_data
-//! ```
-//!
-//! Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
-//! contract directory for how to extend the suite when adding new features.
-
 use crate::{
     errors::QuickexError,
     storage::{
@@ -30,6 +6,7 @@ use crate::{
     },
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
+
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Events as _, Ledger},
@@ -37,6 +14,81 @@ use soroban_sdk::{
     xdr::ToXdr,
     Address, Bytes, BytesN, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
+
+/// QuickEx contract integration tests.
+///
+/// ## Upgrade / regression suite
+///
+/// A minimal set of **golden path** tests is maintained for upgrade safety: after contract or
+/// SDK upgrades, re-run these to ensure existing escrows and commitments still behave correctly.
+///
+/// **Golden path tests (regression suite):**
+/// - **Escrows & commitments:** `test_deposit`, `test_successful_withdrawal`, `test_commitment_cycle`
+/// - **Privacy toggle:** `test_set_privacy_toggle_cycle_succeeds`, `test_set_and_get_privacy`
+/// - **Refunds:** `test_refund_successful`
+/// - **Single full-flow smoke test:** `regression_golden_path_full_flow`
+/// - **Upgrade migration:** `test_upgrade_migration_preserves_legacy_escrow_data`
+///
+/// How to re-run only the regression suite:
+///
+/// ```sh
+/// cargo test regression_
+/// cargo test test_deposit test_successful_withdrawal test_refund_successful test_set_privacy_toggle_cycle_succeeds test_set_and_get_privacy test_commitment_cycle test_upgrade_migration_preserves_legacy_escrow_data
+/// ```
+///
+/// Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
+/// contract directory for how to extend the suite when adding new features.
+#[test]
+fn test_emergency_mode_blocks_risky_entry_points_and_allows_safe_paths() {
+    let (env, client) = setup();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = create_test_token(&env);
+    let amount: i128 = 1000;
+
+    client.initialize(&admin);
+
+    let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &token);
+    env.mock_all_auths();
+    sac_client.mint(&user, &2000);
+    sac_client.mint(&client.address, &amount);
+
+    let salt = BytesN::from_array(&env, &[0u8; 32]);
+    let commitment: BytesN<32> = env.crypto().sha256(&salt.clone().into()).into();
+
+    setup_escrow_with_owner(
+        &env,
+        &client.address,
+        &token,
+        &user,
+        amount,
+        commitment.clone(),
+        100,
+    );
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 1000;
+    });
+
+    client.activate_emergency_mode(&admin);
+
+    let salt_bytes = salt.into();
+    let deposit_res = client.try_deposit(&token, &amount, &user, &salt_bytes, &0u64, &Option::None);
+    assert!(deposit_res.is_err());
+
+    env.mock_all_auths();
+
+    let refund_res = client.try_refund(&commitment, &user);
+
+    match refund_res {
+        Ok(Ok(_)) => (),
+        Ok(Err(e)) => panic!("Contract Logic Error (Check Status/Expiry): {:?}", e),
+        Err(e) => panic!("Host Auth Error 10 (Check Auth/Account existence): {:?}", e),
+    }
+
+    assert!(client.try_cleanup_escrow(&commitment).is_ok());
+}
 
 #[contract]
 pub struct LegacyQuickexContract;

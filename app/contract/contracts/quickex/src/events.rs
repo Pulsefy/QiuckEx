@@ -1,3 +1,20 @@
+#[contractevent(topics = ["TOPIC_ADMIN", "EmergencyModeActivated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyModeActivatedEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_emergency_mode_activated(env: &Env, admin: Address) {
+    EmergencyModeActivatedEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
 use soroban_sdk::{contractevent, Address, BytesN, Env};
 
 /// Canonical event schema version.

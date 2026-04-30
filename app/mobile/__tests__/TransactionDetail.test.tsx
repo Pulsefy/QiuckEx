@@ -25,6 +25,16 @@ jest.mock('expo-clipboard', () => ({
     setStringAsync: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('expo-file-system', () => ({
+    writeAsStringAsync: jest.fn(() => Promise.resolve()),
+    cacheDirectory: 'file:///tmp/',
+}));
+
+jest.mock('expo-sharing', () => ({
+    isAvailableAsync: jest.fn(() => Promise.resolve(true)),
+    shareAsync: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock('expo-haptics', () => ({
     selectionAsync: jest.fn(),
     notificationAsync: jest.fn(),
@@ -119,5 +129,7 @@ describe('<TransactionDetailScreen />', () => {
 
         const texts = collectText(tree!.toJSON());
         expect(texts.some((t) => t.includes('Share Receipt'))).toBe(true);
+        expect(texts.some((t) => t.includes('Copy link'))).toBe(true);
+        expect(texts.some((t) => t.includes('Privacy controls'))).toBe(true);
     });
 });

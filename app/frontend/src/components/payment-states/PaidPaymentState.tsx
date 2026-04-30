@@ -25,12 +25,16 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center">
-        <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+        <div
+          aria-hidden="true"
+          className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse motion-reduce:animate-none"
+        >
           <svg
-            className="w-12 h-12 text-green-500"
+            className="w-12 h-12 text-green-400"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            focusable="false"
           >
             <path
               strokeLinecap="round"
@@ -40,51 +44,51 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             />
           </svg>
         </div>
-        <h1 className="text-4xl font-bold mb-3 text-green-400">
+        <h1 className="text-4xl font-bold mb-3 text-green-300">
           Payment Complete!
         </h1>
-        <p className="text-neutral-400 text-lg">{status.userMessage}</p>
+        <p className="text-neutral-300 text-lg">{status.userMessage}</p>
       </div>
 
       {/* Payment Success Card */}
-      <div className="bg-gradient-to-br from-green-500/10 to-indigo-500/10 border border-green-500/20 rounded-2xl p-8">
+      <div className="bg-gradient-to-br from-green-500/10 to-indigo-500/10 border border-green-400/30 rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Summary</h2>
 
-        <div className="space-y-4">
+        <dl className="space-y-4">
           <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <span className="text-neutral-400">Paid To</span>
-            <span className="font-semibold">@{status.username}</span>
+            <dt className="text-neutral-300">Paid To</dt>
+            <dd className="font-semibold">@{status.username}</dd>
           </div>
 
           <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <span className="text-neutral-400">Amount Paid</span>
-            <span className="text-3xl font-bold text-green-400">
+            <dt className="text-neutral-300">Amount Paid</dt>
+            <dd className="text-3xl font-bold text-green-300">
               {status.amount} {status.asset}
-            </span>
+            </dd>
           </div>
 
           {status.memo && (
             <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <span className="text-neutral-400">Memo</span>
-              <span className="font-mono text-sm">{status.memo}</span>
+              <dt className="text-neutral-300">Memo</dt>
+              <dd className="font-mono text-sm">{status.memo}</dd>
             </div>
           )}
 
           {status.paidAt && (
             <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <span className="text-neutral-400">Completed At</span>
-              <span className="text-sm">
+              <dt className="text-neutral-300">Completed At</dt>
+              <dd className="text-sm">
                 {new Date(status.paidAt).toLocaleString()}
-              </span>
+              </dd>
             </div>
           )}
-        </div>
+        </dl>
       </div>
 
       {/* Transaction Hash */}
       {status.transactionHash && (
         <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-6">
-          <h3 className="text-sm font-semibold text-neutral-400 mb-3">
+          <h3 className="text-sm font-semibold text-neutral-200 mb-3">
             Transaction Hash
           </h3>
           <div className="bg-black/50 rounded-xl p-4 font-mono text-xs break-all">
@@ -96,10 +100,13 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors"
+              aria-label="View transaction on Stellar explorer (opens in new tab)"
+              className="mt-4 inline-flex items-center gap-2 text-indigo-300 hover:text-indigo-200 underline-offset-4 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
             >
               <span>View on Explorer</span>
               <svg
+                aria-hidden="true"
+                focusable="false"
                 className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
@@ -118,14 +125,15 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       )}
 
       {/* Success Message */}
-      <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
+      <div className="bg-green-500/10 border border-green-400/30 rounded-xl p-6">
         <div className="flex gap-4">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0" aria-hidden="true">
             <svg
-              className="w-6 h-6 text-green-500"
+              className="w-6 h-6 text-green-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              focusable="false"
             >
               <path
                 strokeLinecap="round"
@@ -136,10 +144,10 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             </svg>
           </div>
           <div>
-            <h3 className="font-semibold text-green-400 mb-2">
+            <h3 className="font-semibold text-green-300 mb-2">
               What&apos;s next?
             </h3>
-            <p className="text-sm text-green-400/80">
+            <p className="text-sm text-green-200/90">
               Your payment has been confirmed on the Stellar network. The
               recipient has been notified and the funds are now available in
               their account.
@@ -152,17 +160,19 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors"
+          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           Back to Homepage
         </Link>
 
         {status.transactionHash && (
           <button
+            type="button"
+            aria-label="Copy transaction hash to clipboard"
             onClick={() => {
               navigator.clipboard.writeText(status.transactionHash!);
             }}
-            className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors"
+            className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             Copy Transaction Hash
           </button>
