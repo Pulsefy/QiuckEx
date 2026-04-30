@@ -7,7 +7,6 @@ import { BadRequestException } from '@nestjs/common';
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
-  let horizonService: HorizonService;
 
   const mockHorizonService = {
     getPayments: jest.fn(),
@@ -25,7 +24,6 @@ describe('AnalyticsService', () => {
     }).compile();
 
     service = module.get<AnalyticsService>(AnalyticsService);
-    horizonService = module.get<HorizonService>(HorizonService);
   });
 
   afterEach(() => {
