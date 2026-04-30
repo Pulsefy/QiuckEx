@@ -102,7 +102,7 @@ pub struct PrivacyAwareEscrowView {
 /// Stored under [`DataKey::DisputeVote`](crate::storage::DataKey::DisputeVote)(commitment, arbiter).
 /// Tracks each arbiter's vote for a specific dispute.
 #[contracttype]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DisputeVote {
     /// The arbiter who cast this vote.
     pub arbiter: Address,

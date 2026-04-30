@@ -43,6 +43,46 @@ use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
 use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
+/// Record type for TTL policy selection.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RecordType {
+    Escrow,
+    FeeConfig,
+    StealthEscrow,
+    EscrowIdMap,
+}
+
+/// TTL policy configuration.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct TtlPolicy {
+    /// Threshold in ledgers for TTL extension.
+    pub threshold: u32,
+    /// TTL in ledgers for this record type.
+    pub ttl: u32,
+}
+
+/// Get TTL policy for a given record type.
+fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
+    match record_type {
+        RecordType::Escrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::FeeConfig => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::StealthEscrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::EscrowIdMap => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
 // -----------------------------------------------------------------------------

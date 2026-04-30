@@ -22,7 +22,7 @@ use crate::{
     storage::{put_escrow, DataKey, PRIVACY_ENABLED_KEY},
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
-use soroban_sdk::{
+use soroban_sdk::{Vec, 
     testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env, Symbol,
 };
 
@@ -62,6 +62,8 @@ fn seed_escrow(
         created_at: env.ledger().timestamp(),
         expires_at: 0,
         arbiter: None,
+        arbiters: Vec::new(&env),
+        arbiter_threshold: 0,
     };
     env.as_contract(contract_id, || {
         let key: Bytes = commitment.into();

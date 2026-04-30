@@ -1,4 +1,4 @@
-use soroban_sdk::testutils::Ledger;
+use soroban_sdk::{testutils::Ledger, Vec};
 #[test]
 fn test_ttl_auto_extend_on_activity() {
     // No need to import Ledger trait; only use set_timestamp
@@ -19,7 +19,7 @@ fn test_ttl_auto_extend_on_activity() {
             created_at,
             expires_at: 0,
             arbiter: None,
-            arbiters: Vec::new(env),
+            arbiters: Vec::new(&env),
             arbiter_threshold: 0,
         };
         put_escrow(&env, &commitment, &entry);
@@ -53,7 +53,7 @@ fn test_ttl_expiry_of_inactive_record() {
             created_at,
             expires_at: 0,
             arbiter: None,
-            arbiters: Vec::new(env),
+            arbiters: Vec::new(&env),
             arbiter_threshold: 0,
         };
         put_escrow(&env, &commitment, &entry);
@@ -85,7 +85,7 @@ fn test_cleanup_does_not_remove_active_escrow() {
             created_at,
             expires_at: 0,
             arbiter: None,
-            arbiters: Vec::new(env),
+            arbiters: Vec::new(&env),
             arbiter_threshold: 0,
         };
         put_escrow(&env, &commitment, &entry);
@@ -123,7 +123,7 @@ fn test_escrow_storage() {
             created_at,
             expires_at: 0,
             arbiter: None,
-            arbiters: Vec::new(env),
+            arbiters: Vec::new(&env),
             arbiter_threshold: 0,
         };
 
@@ -169,7 +169,7 @@ fn test_escrow_status_update() {
             created_at,
             expires_at: 0,
             arbiter: None,
-            arbiters: Vec::new(env),
+            arbiters: Vec::new(&env),
             arbiter_threshold: 0,
         };
 
