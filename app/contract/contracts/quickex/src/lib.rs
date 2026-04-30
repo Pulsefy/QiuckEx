@@ -204,6 +204,9 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -336,6 +339,9 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -352,6 +358,20 @@ impl QuickexContract {
             timeout_secs,
             arbiter,
         )
+    }
+    /// Activate emergency mode (irreversible). Only admin can call. Emits event.
+    pub fn activate_emergency_mode(env: Env, caller: Address) -> Result<(), QuickexError> {
+        // Only admin can activate
+        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
+        if caller != admin {
+            return Err(QuickexError::Unauthorized);
+        }
+        if storage::is_emergency_mode(&env) {
+            return Ok(()); // Already set
+        }
+        storage::set_emergency_mode(&env);
+        events::publish_emergency_mode_activated(&env, caller);
+        Ok(())
     }
 
     /// Deposit funds with a target amount higher than the initial payment.
@@ -571,6 +591,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_paused(&env, caller, new_state)
     }
 
@@ -593,6 +616,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn pause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_pause_flags(&env, &caller, mask, 0)
     }
 
@@ -607,6 +633,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn unpause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_pause_flags(&env, &caller, 0, mask)
     }
 
@@ -622,6 +651,9 @@ impl QuickexContract {
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
     pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         admin::set_admin(&env, caller, new_admin)
     }
 

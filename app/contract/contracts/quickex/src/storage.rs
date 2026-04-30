@@ -42,6 +42,54 @@
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
 use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
+// -----------------------------------------------------------------------------
+// TTL Policy Struct and Per-Record Policies
+// -----------------------------------------------------------------------------
+
+/// TTL policy for a record type.
+pub struct TtlPolicy {
+    /// Minimum remaining TTL (in ledgers) before extension is triggered.
+    pub threshold: u32,
+    /// TTL to set/extend to (in ledgers) when extension is triggered.
+    pub ttl: u32,
+}
+
+/// Record types for TTL policy selection.
+pub enum RecordType {
+    Escrow,
+    StealthEscrow,
+    EscrowIdMap,
+    FeeConfig,
+    #[allow(dead_code)]
+    Nonce,
+    // Add more as needed
+}
+
+/// Returns the TTL policy for a given record type.
+pub fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
+    match record_type {
+        RecordType::Escrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::StealthEscrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::EscrowIdMap => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::FeeConfig => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::Nonce => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Key constants (for keys not using DataKey)
@@ -93,6 +141,8 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
+    /// Emergency mode (singleton, immutable once set true).
+    EmergencyMode,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -122,6 +172,25 @@ pub enum DataKey {
 }
 
 // -----------------------------------------------------------------------------
+// Emergency Mode helpers (module scope)
+// -----------------------------------------------------------------------------
+/// Set emergency mode. Once set to true, cannot be reverted.
+pub fn set_emergency_mode(env: &Env) {
+    let key = DataKey::EmergencyMode;
+    let already_set: bool = env.storage().persistent().get(&key).unwrap_or(false);
+    if !already_set {
+        env.storage().persistent().set(&key, &true);
+    }
+    // If already set, do nothing (immutable)
+}
+
+/// Get emergency mode state.
+pub fn is_emergency_mode(env: &Env) -> bool {
+    let key = DataKey::EmergencyMode;
+    env.storage().persistent().get(&key).unwrap_or(false)
+}
+
+// -----------------------------------------------------------------------------
 // Escrow helpers
 // -----------------------------------------------------------------------------
 
@@ -132,10 +201,7 @@ pub enum DataKey {
 pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
     let key = DataKey::Escrow(commitment.clone());
     env.storage().persistent().set(&key, entry);
-    // Extend TTL for 6 months if current TTL < 10 days
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+    set_or_extend_ttl(env, &key, RecordType::Escrow);
 }
 
 /// Remove an escrow entry from storage and reclaim the storage deposit.
@@ -149,7 +215,11 @@ pub fn remove_escrow(env: &Env, commitment: &Bytes) {
 /// **Contract**: Returns `None` if no escrow exists for the commitment.
 pub fn get_escrow(env: &Env, commitment: &Bytes) -> Option<EscrowEntry> {
     let key = DataKey::Escrow(commitment.clone());
-    env.storage().persistent().get(&key)
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        set_or_extend_ttl(env, &key, RecordType::Escrow);
+    }
+    result
 }
 
 /// Check if an escrow entry exists in storage.
@@ -205,6 +275,18 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
+}
+
+// -----------------------------------------------------------------------------
+// TTL Helper
+// -----------------------------------------------------------------------------
+
+/// Set or extend TTL for a storage key based on record type policy.
+pub fn set_or_extend_ttl(env: &Env, key: &DataKey, record_type: RecordType) {
+    let policy = get_ttl_policy(record_type);
+    env.storage()
+        .persistent()
+        .extend_ttl(key, policy.threshold, policy.ttl);
 }
 
 /// Set paused state.
@@ -283,14 +365,18 @@ pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
 // -----------------------------------------------------------------------------
 
 pub fn get_fee_config(env: &Env) -> FeeConfig {
-    env.storage()
-        .persistent()
-        .get(&DataKey::FeeConfig)
-        .unwrap_or(FeeConfig { fee_bps: 0 })
+    let key = DataKey::FeeConfig;
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+    }
+    result.unwrap_or(FeeConfig { fee_bps: 0 })
 }
 
 pub fn set_fee_config(env: &Env, config: &FeeConfig) {
-    env.storage().persistent().set(&DataKey::FeeConfig, config);
+    let key = DataKey::FeeConfig;
+    env.storage().persistent().set(&key, config);
+    set_or_extend_ttl(env, &key, RecordType::FeeConfig);
 }
 
 pub fn get_platform_wallet(env: &Env) -> Option<Address> {
@@ -345,15 +431,17 @@ pub fn set_reentrancy_guard(env: &Env, value: &bool) {
 
 pub fn get_stealth_escrow(env: &Env, stealth_address: &BytesN<32>) -> Option<StealthEscrowEntry> {
     let key = DataKey::StealthEscrow(stealth_address.clone());
-    env.storage().persistent().get(&key)
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        set_or_extend_ttl(env, &key, RecordType::StealthEscrow);
+    }
+    result
 }
 
 pub fn put_stealth_escrow(env: &Env, stealth_address: &BytesN<32>, entry: &StealthEscrowEntry) {
     let key = DataKey::StealthEscrow(stealth_address.clone());
     env.storage().persistent().set(&key, entry);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+    set_or_extend_ttl(env, &key, RecordType::StealthEscrow);
 }
 
 // -----------------------------------------------------------------------------
@@ -382,9 +470,12 @@ pub fn set_roles(env: &Env, address: &Address, roles: &Vec<Role>) {
 
 /// Look up the 32-byte commitment associated with a deterministic `escrow_id`.
 pub fn get_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>) -> Option<BytesN<32>> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::EscrowIdMap(escrow_id.clone()))
+    let key = DataKey::EscrowIdMap(escrow_id.clone());
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        set_or_extend_ttl(env, &key, RecordType::EscrowIdMap);
+    }
+    result
 }
 
 /// Record the mapping `escrow_id → commitment` so future identical creates
@@ -392,7 +483,5 @@ pub fn get_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>) -> Option<BytesN
 pub fn put_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>, commitment: &BytesN<32>) {
     let key = DataKey::EscrowIdMap(escrow_id.clone());
     env.storage().persistent().set(&key, commitment);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+    set_or_extend_ttl(env, &key, RecordType::EscrowIdMap);
 }
