@@ -67,9 +67,9 @@ use crate::{
     errors::QuickexError,
     escrow_id, events, fee, hook,
     storage::{
-        get_escrow, get_escrow_id_mapping, get_platform_wallet, has_escrow, put_escrow,
-        put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
-        count_dispute_votes, has_dispute_vote, put_dispute_vote,
+        count_dispute_votes, get_escrow, get_escrow_id_mapping, get_platform_wallet,
+        has_dispute_vote, has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping,
+        remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };

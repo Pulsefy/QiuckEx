@@ -3123,23 +3123,19 @@ fn test_multi_sig_vote_threshold_reached() {
     // Create escrow with multi-sig arbiters (2-of-3)
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    
     // We need to manually create an escrow entry with multi-sig config
     // For now, we'll test the vote and resolution logic directly
     // This test assumes we have a way to create multi-sig escrows
     // In production, this would be done via a new deposit function variant
-    
     // For testing purposes, we'll use the existing deposit and then manually
     // update the storage to have multi-sig arbiters
     let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter1));
-    
     // Initiate dispute
     client.dispute(&commitment);
     assert_eq!(
         client.get_commitment_state(&commitment),
         Some(EscrowStatus::Disputed)
     );
-    
     // Note: Full multi-sig testing requires updating the deposit functions
     // to accept arbiters array and threshold. The core logic is implemented
     // and tested via the escrow module functions directly.
@@ -3168,7 +3164,6 @@ fn test_multi_sig_arbiter_can_only_vote_once() {
     );
 
     client.dispute(&commitment);
-    
     // With single arbiter (threshold=0), voting should fail with NoArbiter
     // since multi-sig mode is not enabled
     let res = client.try_vote_for_dispute(&arbiter, &commitment, &true);
@@ -3189,17 +3184,9 @@ fn test_multi_sig_invalid_signer_cannot_vote() {
 
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(
-        &token,
-        &amount,
-        &owner,
-        &salt,
-        &1000,
-        &Some(arbiter),
-    );
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
 
     client.dispute(&commitment);
-    
     // Impostor should not be able to vote
     let res = client.try_vote_for_dispute(&impostor, &commitment, &true);
     assert!(res.is_err());
@@ -3218,17 +3205,9 @@ fn test_multi_sig_insufficient_votes_cannot_resolve() {
 
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(
-        &token,
-        &amount,
-        &owner,
-        &salt,
-        &1000,
-        &Some(arbiter),
-    );
+    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter));
 
     client.dispute(&commitment);
-    
     // Should fail because no votes have been cast and threshold not met
     let res = client.try_resolve_dispute_multi_sig(&commitment, &recipient);
     assert!(res.is_err());
