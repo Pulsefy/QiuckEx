@@ -57,12 +57,12 @@ export const NotificationCenter: React.FC = () => {
           ]}
         >
           <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-            Notifications
+            {t("notificationsTitle")}
           </Text>
-        <View style={[styles.modalHeader, { borderColor: theme.border, backgroundColor: theme.background }]}>
-          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('notificationsTitle')}</Text>
+        </View>
+        <View style={[styles.modalHeader, { borderColor: theme.border, backgroundColor: theme.background }]}> 
           <Pressable onPress={() => setOpen(false)}>
-            <Text style={[styles.close, { color: theme.link }]}>{t('close')}</Text>
+            <Text style={[styles.close, { color: theme.link }]}>{t("close")}</Text>
           </Pressable>
         </View>
 
@@ -89,9 +89,6 @@ export const NotificationCenter: React.FC = () => {
                 {item.direction === "outgoing" ? "To" : "From"}{" "}
                 {item.sender ? shorten(item.sender) : "Unknown"} •{" "}
                 {new Date(item.receivedAt).toLocaleString()}
-              <Text style={[styles.itemSubtitle, { color: theme.textSecondary }]}>
-                {item.sender ? `${shorten(item.sender)}` : ""} •{" "}
-                {new Date(item.receivedAt).toLocaleString(i18n.language || 'en')}
               </Text>
               {item.memo ? (
                 <Text style={[styles.itemMeta, { color: theme.textMuted }]}>

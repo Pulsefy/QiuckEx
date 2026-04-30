@@ -18,6 +18,7 @@ import { StellarModule } from "./stellar/stellar.module";
 import { SupabaseModule } from "./supabase/supabase.module";
 import { UsernamesModule } from "./usernames/usernames.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { LinksModule } from "./links/links.module";
 import { ScamAlertsModule } from "./scam-alerts/scam-alerts.module";
 import { TransactionsModule } from "./transactions/transactions.module";
@@ -34,7 +35,6 @@ import { SentryModule } from "./sentry";
 import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 import { RefundsModule } from "./refunds/refunds.module";
 import { ExportsModule } from "./exports/exports.module";
-import { AnalyticsModule } from "./analytics/analytics.module";
 import { JobQueueModule } from "./job-queue/job-queue.module";
 import { AuditModule } from "./audit/audit.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
@@ -66,6 +66,7 @@ type AppImport =
       StellarModule,
       UsernamesModule,
       MetricsModule,
+      AnalyticsModule,
       LinksModule,
       ScamAlertsModule,
       TransactionsModule,
@@ -75,7 +76,6 @@ type AppImport =
       MarketplaceModule,
       FiatRampsModule,
       RefundsModule,
-      AnalyticsModule,
       ExportsModule,
       JobQueueModule,
       AuditModule,
