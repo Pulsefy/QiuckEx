@@ -153,6 +153,7 @@ fn setup_escrow(
         created_at: env.ledger().timestamp(),
         expires_at,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
     };
@@ -187,6 +188,7 @@ fn setup_escrow_with_owner(
         created_at: env.ledger().timestamp(),
         expires_at,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
     };
@@ -1230,6 +1232,7 @@ fn test_get_commitment_state_spent() {
         created_at: env.ledger().timestamp(),
         expires_at: 0,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
     };
@@ -1380,6 +1383,7 @@ fn test_verify_proof_view_spent_commitment() {
         created_at: env.ledger().timestamp(),
         expires_at: 0,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
     };
@@ -1478,6 +1482,7 @@ fn test_get_escrow_details_spent_status() {
         created_at: env.ledger().timestamp(),
         expires_at: 0,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
     };
@@ -2530,6 +2535,7 @@ mod tests {
                 created_at: 0,
                 expires_at,
                 arbiter: None,
+                #[allow(clippy::needless_borrow)]
                 arbiters: Vec::new(&env),
                 arbiter_threshold: 0,
             }
@@ -2616,6 +2622,7 @@ mod tests {
                 created_at: 0,
                 expires_at,
                 arbiter: None,
+                #[allow(clippy::needless_borrow)]
                 arbiters: Vec::new(&env),
                 arbiter_threshold: 0,
             }
