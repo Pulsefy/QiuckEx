@@ -141,6 +141,8 @@ pub enum DataKey {
     Admin,
     /// Paused state (singleton).
     Paused,
+    /// Emergency mode (singleton, immutable once set true).
+    EmergencyMode,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -167,6 +169,25 @@ pub enum DataKey {
     EscrowIdMap(BytesN<32>),
     /// Roles assigned to an address.
     UserRole(Address),
+}
+
+// -----------------------------------------------------------------------------
+// Emergency Mode helpers (module scope)
+// -----------------------------------------------------------------------------
+/// Set emergency mode. Once set to true, cannot be reverted.
+pub fn set_emergency_mode(env: &Env) {
+    let key = DataKey::EmergencyMode;
+    let already_set: bool = env.storage().persistent().get(&key).unwrap_or(false);
+    if !already_set {
+        env.storage().persistent().set(&key, &true);
+    }
+    // If already set, do nothing (immutable)
+}
+
+/// Get emergency mode state.
+pub fn is_emergency_mode(env: &Env) -> bool {
+    let key = DataKey::EmergencyMode;
+    env.storage().persistent().get(&key).unwrap_or(false)
 }
 
 // -----------------------------------------------------------------------------
