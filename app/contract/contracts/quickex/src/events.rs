@@ -462,3 +462,51 @@ pub(crate) fn publish_platform_wallet_changed(env: &Env, wallet: Address) {
     }
     .publish(env);
 }
+
+// ---- Fee Router v2 events (Issue #305) -----
+
+#[contractevent(topics = ["TOPIC_ADMIN", "FeeCollectorRotated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeCollectorRotatedEvent {
+    #[topic]
+    pub new_collector: Address,
+    pub rotation_index: u32,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_fee_collector_rotated(
+    env: &Env,
+    new_collector: Address,
+    rotation_index: u32,
+) {
+    FeeCollectorRotatedEvent {
+        new_collector,
+        rotation_index,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PerAssetFeeSet"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PerAssetFeeSetEvent {
+    #[topic]
+    pub token: Address,
+    pub fee_bps: u32,
+    pub arbiter_bps: u32,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
+    PerAssetFeeSetEvent {
+        token,
+        fee_bps,
+        arbiter_bps,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}

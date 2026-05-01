@@ -14,6 +14,9 @@ mod escrow_id;
 mod escrow_id_test;
 mod events;
 mod fee;
+mod fee_router;
+#[cfg(test)]
+mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
 mod hook;
@@ -41,8 +44,8 @@ mod upgrade_test;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PrivacyAwareEscrowView, Role,
-    StealthDepositParams,
+    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
+    PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -705,6 +708,22 @@ impl QuickexContract {
         admin::set_fee_config(&env, &caller, config)
     }
 
+    /// Set per-asset fee configuration (**Admin or Operator only**).
+    pub fn set_per_asset_fee(
+        env: Env,
+        caller: Address,
+        token: Address,
+        config: PerAssetFeeConfig,
+    ) -> Result<(), QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        admin::set_per_asset_fee(&env, &caller, token, config)
+    }
+
+    /// Get per-asset fee configuration for a token.
+    pub fn get_per_asset_fee(env: Env, token: Address) -> Option<PerAssetFeeConfig> {
+        storage::get_per_asset_fee(&env, &token)
+    }
+
     /// Set oracle fee configuration (**Admin or Operator only**).
     pub fn set_oracle_fee_config(
         env: Env,
@@ -733,6 +752,21 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         hook::assert_not_reentrant(&env)?;
         admin::set_platform_wallet(&env, &caller, wallet)
+    }
+
+    /// Rotate active fee collector (**Admin only**).
+    pub fn rotate_fee_collector(
+        env: Env,
+        caller: Address,
+        new_collector: Address,
+    ) -> Result<u32, QuickexError> {
+        hook::assert_not_reentrant(&env)?;
+        admin::rotate_fee_collector(&env, &caller, new_collector)
+    }
+
+    /// Read current active fee collector (rotation-aware).
+    pub fn get_active_fee_collector(env: Env) -> Option<Address> {
+        fee_router::active_collector(&env)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).

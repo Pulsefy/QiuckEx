@@ -169,6 +169,12 @@ pub enum DataKey {
     EscrowIdMap(BytesN<32>),
     /// Roles assigned to an address.
     UserRole(Address),
+    /// Per-asset fee override keyed by token address (Fee Router v2).
+    PerAssetFee(Address),
+    /// Current active fee collector rotation index (Fee Router v2, singleton).
+    FeeCollectorIndex,
+    /// Fee collector address at a given rotation index (Fee Router v2).
+    FeeCollector(u32),
 }
 
 // -----------------------------------------------------------------------------
@@ -462,6 +468,55 @@ pub fn set_roles(env: &Env, address: &Address, roles: &Vec<Role>) {
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+// -----------------------------------------------------------------------------
+// Escrow-id map helpers (Issue #304)
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Fee Router v2 helpers (Issue #305)
+// -----------------------------------------------------------------------------
+
+/// Get per-asset fee config for `token`.
+pub fn get_per_asset_fee(env: &Env, token: &Address) -> Option<crate::types::PerAssetFeeConfig> {
+    let key = DataKey::PerAssetFee(token.clone());
+    env.storage().persistent().get(&key)
+}
+
+/// Set per-asset fee config for `token`.
+pub fn set_per_asset_fee(env: &Env, token: &Address, config: &crate::types::PerAssetFeeConfig) {
+    let key = DataKey::PerAssetFee(token.clone());
+    env.storage().persistent().set(&key, config);
+}
+
+/// Get current fee collector rotation index (default 0).
+pub fn get_fee_collector_index(env: &Env) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::FeeCollectorIndex)
+        .unwrap_or(0)
+}
+
+/// Set current fee collector rotation index.
+pub fn set_fee_collector_index(env: &Env, index: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::FeeCollectorIndex, &index);
+}
+
+/// Get fee collector address at a specific rotation index.
+pub fn get_fee_collector_at(env: &Env, index: u32) -> Option<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::FeeCollector(index))
+}
+
+/// Set fee collector address at a specific rotation index.
+pub fn set_fee_collector_at(env: &Env, index: u32, collector: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::FeeCollector(index), collector);
 }
 
 // -----------------------------------------------------------------------------

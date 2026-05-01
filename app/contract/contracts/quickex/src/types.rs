@@ -156,6 +156,24 @@ pub struct FeeConfig {
     pub fee_bps: u32,
 }
 
+/// Per-asset fee configuration (Fee Router v2 — Issue #305).
+///
+/// Stored under [`DataKey::PerAssetFee`](crate::storage::DataKey::PerAssetFee)`(token)` in
+/// persistent storage. When present for a token, overrides the global [`FeeConfig`] for
+/// that token only. A value of `fee_bps = 0` explicitly disables fees for that token even
+/// if the global config is non-zero.
+#[contracttype]
+#[derive(Clone, Copy, Debug)]
+pub struct PerAssetFeeConfig {
+    /// Fee in basis points for this specific token. Overrides the global `FeeConfig`.
+    /// Range: 0 (no fee) to 10000 (100%).
+    pub fee_bps: u32,
+    /// Arbiter's share of the collected fee, expressed in basis points of the fee itself.
+    /// 0 = no arbiter split — entire fee goes to the collector.
+    /// Example: fee_bps=200 (2%), arbiter_bps=2000 (20%) → arbiter gets 0.4%, collector 1.6%.
+    pub arbiter_bps: u32,
+}
+
 /// Oracle fee configuration for dynamic USD-based fee collection.
 #[contracttype]
 #[derive(Clone, Debug)]

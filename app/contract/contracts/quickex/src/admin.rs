@@ -1,7 +1,11 @@
 use crate::errors::QuickexError;
-use crate::events::{publish_admin_changed, publish_contract_migrated, publish_contract_paused};
+use crate::events::{
+    publish_admin_changed, publish_contract_migrated, publish_contract_paused,
+    publish_fee_collector_rotated, publish_per_asset_fee_set,
+};
+use crate::fee_router;
 use crate::storage;
-use crate::types::{FeeConfig, Role};
+use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
 
 /// Initialize the contract with an admin address.
@@ -218,6 +222,24 @@ pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<
     Ok(())
 }
 
+/// Set per-asset fee configuration (**Admin or Operator only**).
+pub fn set_per_asset_fee(
+    env: &Env,
+    caller: &Address,
+    token: Address,
+    config: PerAssetFeeConfig,
+) -> Result<(), QuickexError> {
+    require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
+
+    if config.fee_bps > 10_000 || config.arbiter_bps > 10_000 {
+        return Err(QuickexError::InvalidAmount);
+    }
+
+    storage::set_per_asset_fee(env, &token, &config);
+    publish_per_asset_fee_set(env, token, config.fee_bps, config.arbiter_bps);
+    Ok(())
+}
+
 pub fn set_oracle_fee_config(
     env: &Env,
     caller: &Address,
@@ -240,4 +262,17 @@ pub fn set_platform_wallet(
     storage::set_platform_wallet(env, &wallet);
     crate::events::publish_platform_wallet_changed(env, wallet);
     Ok(())
+}
+
+/// Rotate active fee collector (**Admin only**).
+pub fn rotate_fee_collector(
+    env: &Env,
+    caller: &Address,
+    new_collector: Address,
+) -> Result<u32, QuickexError> {
+    require_admin(env, caller)?;
+
+    let next_index = fee_router::rotate_collector(env, &new_collector);
+    publish_fee_collector_rotated(env, new_collector, next_index);
+    Ok(next_index)
 }
