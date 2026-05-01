@@ -576,12 +576,7 @@ pub struct PerAssetFeeSetEvent {
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_per_asset_fee_set(
-    env: &Env,
-    token: Address,
-    fee_bps: u32,
-    arbiter_bps: u32,
-) {
+pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
     PerAssetFeeSetEvent {
         token,
         fee_bps,

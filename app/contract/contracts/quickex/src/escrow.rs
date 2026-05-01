@@ -67,9 +67,9 @@ use crate::{
     errors::QuickexError,
     escrow_id, events, fee_router, hook,
     storage::{
-        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping,
-    has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
-        put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
+        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping, has_dispute_vote,
+        has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping, remove_escrow,
+        LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
@@ -1014,7 +1014,13 @@ pub fn resolve_dispute_multi_sig(
     put_escrow(env, &commitment_bytes, &updated);
 
     let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        fee_router::route_payout(env, &entry.token, &recipient_address, entry.amount_paid, None)
+        fee_router::route_payout(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            None,
+        )
     } else {
         let token_client = token::Client::new(env, &entry.token);
         token_client.transfer(
