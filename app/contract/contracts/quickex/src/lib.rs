@@ -35,6 +35,8 @@ mod test;
 #[cfg(test)]
 mod test_context;
 mod types;
+#[cfg(test)]
+mod upgrade_test;
 
 use errors::QuickexError;
 use storage::*;
