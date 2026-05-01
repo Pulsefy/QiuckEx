@@ -11,7 +11,7 @@ export class TemplateService {
   }
 
   getTemplate(event: NotificationEventType): { title: string; body: string } | null {
-    const templates: Record<NotificationEventType, { title: string; body: string } | undefined> = {
+    const templates: Partial<Record<NotificationEventType, { title: string; body: string }>> = {
       EscrowDeposited: {
         title: "Escrow Deposit",
         body: "You deposited {{amountStroops}} into escrow.",
