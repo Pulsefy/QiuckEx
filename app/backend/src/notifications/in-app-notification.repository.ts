@@ -1,5 +1,8 @@
 // src/notifications/in-app-notification.repository.ts
 
+import { Injectable } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+
 @Injectable()
 export class InAppNotificationRepository {
   constructor(private readonly db: SupabaseService) {}

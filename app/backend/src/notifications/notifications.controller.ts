@@ -1,7 +1,10 @@
 import { Controller, Get, Post, Req, Query, Param } from '@nestjs/common';
+import { InAppNotificationRepository } from './in-app-notification.repository';
 
 @Controller('notifications')
 export class NotificationsController {
+  constructor(private readonly inAppRepo: InAppNotificationRepository) {}
+
   @Get('in-app')
   getInApp(@Req() req, @Query('page') page = 1, @Query('limit') limit = 20) {
     return this.inAppRepo.findByUser(req.user.publicKey, page, limit);

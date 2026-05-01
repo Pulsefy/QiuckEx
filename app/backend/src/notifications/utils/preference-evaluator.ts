@@ -1,3 +1,6 @@
+import type { NotificationPreference } from '../types/notification.types';
+import type { NotificationPayload } from '../types/notification.types';
+
 export function shouldSendNotification(
   pref: NotificationPreference,
   payload: NotificationPayload,

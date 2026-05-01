@@ -1,13 +1,16 @@
+import { Injectable } from '@nestjs/common';
+
 @Injectable()
 export class TemplateService {
-  render(template: string, data: Record<string, unknown>) {
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-      return data[key] ?? "";
+  render(template: string, data: Record<string, unknown>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key: string): string => {
+      const value = data[key];
+      return typeof value === 'string' ? value : ``;
     });
   }
 
-  getTemplate(eventType: string) {
-    const templates = {
+  getTemplate(eventType: string): { title: string; body: string } | undefined {
+    const templates: Record<string, { title: string; body: string }> = {
       EscrowDeposited: {
         title: "Escrow Deposit Confirmed",
         body: "Your escrow of {{amount}} has been deposited.",

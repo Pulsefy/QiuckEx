@@ -213,10 +213,10 @@ export class NotificationService implements OnModuleInit {
     const renderedPayload: NotificationPayload = {
       ...payload,
       title: template
-        ? this.templateService.render(template.title, payload as NotificationPayload)
+        ? this.templateService.render(template.title, payload as Record<string, unknown>)
         : payload.title,
       body: template
-        ? this.templateService.render(template.body, payload as NotificationPayload)
+        ? this.templateService.render(template.body, payload as Record<string, unknown>)
         : payload.body,
     };
 
