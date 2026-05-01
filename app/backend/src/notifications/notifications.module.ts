@@ -22,6 +22,9 @@ import { WebhookService } from "./webhook.service";
 import { WebhooksController } from "./webhooks.controller";
 import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
 import { JobQueueModule } from "../job-queue/job-queue.module";
+import { InAppNotificationRepository } from "./in-app-notification.repository";
+import { TemplateService } from "./template.service";
+import { NotificationsController } from "./notifications.controller";
 
 /**
  * Notification engine module.
@@ -40,10 +43,13 @@ import { JobQueueModule } from "../job-queue/job-queue.module";
     NotificationPreferencesController,
     TelegramController,
     WebhooksController,
+    NotificationsController,
   ],
   providers: [
     NotificationPreferencesRepository,
     NotificationLogRepository,
+    InAppNotificationRepository,
+    TemplateService,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
