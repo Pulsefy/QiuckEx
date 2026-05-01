@@ -15,7 +15,7 @@ export class InAppNotificationRepository {
     body: string;
     metadata?: Record<string, unknown>;
   }) {
-    return this.db.from("in_app_notifications").insert({
+    return this.db.getClient().from("in_app_notifications").insert({
       ...data,
       read: false,
       createdAt: new Date().toISOString(),
@@ -24,6 +24,7 @@ export class InAppNotificationRepository {
 
   async findByUser(publicKey: string, page = 1, limit = 20) {
     return this.db
+      .getClient()
       .from("in_app_notifications")
       .select("*")
       .eq("publicKey", publicKey)
@@ -32,11 +33,12 @@ export class InAppNotificationRepository {
   }
 
   async markAsRead(id: string) {
-    return this.db.from("in_app_notifications").update({ read: true }).eq("id", id);
+    return this.db.getClient().from("in_app_notifications").update({ read: true }).eq("id", id);
   }
 
   async markAllAsRead(publicKey: string) {
     return this.db
+      .getClient()
       .from("in_app_notifications")
       .update({ read: true })
       .eq("publicKey", publicKey);
