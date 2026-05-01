@@ -23,7 +23,7 @@ use crate::{
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
-    testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env, Symbol,
+    testutils::Address as _, token, xdr::ToXdr, Address, Bytes, BytesN, Env, Symbol, Vec,
 };
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,9 @@ fn seed_escrow(
         created_at: env.ledger().timestamp(),
         expires_at: 0,
         arbiter: None,
+        #[allow(clippy::needless_borrow)]
+        arbiters: Vec::new(&env),
+        arbiter_threshold: 0,
     };
     env.as_contract(contract_id, || {
         let key: Bytes = commitment.into();

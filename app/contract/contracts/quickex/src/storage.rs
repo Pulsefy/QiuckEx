@@ -41,34 +41,34 @@
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
-use crate::types::{EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
-// -----------------------------------------------------------------------------
-// TTL Policy Struct and Per-Record Policies
-// -----------------------------------------------------------------------------
+use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
-/// TTL policy for a record type.
+/// Record type for TTL policy selection.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RecordType {
+    Escrow,
+    FeeConfig,
+    StealthEscrow,
+    EscrowIdMap,
+}
+
+/// TTL policy configuration.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TtlPolicy {
-    /// Minimum remaining TTL (in ledgers) before extension is triggered.
+    /// Threshold in ledgers for TTL extension.
     pub threshold: u32,
-    /// TTL to set/extend to (in ledgers) when extension is triggered.
+    /// TTL in ledgers for this record type.
     pub ttl: u32,
 }
 
-/// Record types for TTL policy selection.
-pub enum RecordType {
-    Escrow,
-    StealthEscrow,
-    EscrowIdMap,
-    FeeConfig,
-    #[allow(dead_code)]
-    Nonce,
-    // Add more as needed
-}
-
-/// Returns the TTL policy for a given record type.
-pub fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
+/// Get TTL policy for a given record type.
+fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
     match record_type {
         RecordType::Escrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::FeeConfig => TtlPolicy {
             threshold: LEDGER_THRESHOLD,
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
@@ -77,14 +77,6 @@ pub fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
         RecordType::EscrowIdMap => TtlPolicy {
-            threshold: LEDGER_THRESHOLD,
-            ttl: SIX_MONTHS_IN_LEDGERS,
-        },
-        RecordType::FeeConfig => TtlPolicy {
-            threshold: LEDGER_THRESHOLD,
-            ttl: SIX_MONTHS_IN_LEDGERS,
-        },
-        RecordType::Nonce => TtlPolicy {
             threshold: LEDGER_THRESHOLD,
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
@@ -175,6 +167,8 @@ pub enum DataKey {
     FeeCollectorIndex,
     /// Fee collector address at a given rotation index (Fee Router v2).
     FeeCollector(u32),
+    /// Tracks arbiter votes for disputed escrows. Keyed by (commitment, arbiter).
+    DisputeVote(Bytes, Address),
 }
 
 // -----------------------------------------------------------------------------
@@ -539,4 +533,40 @@ pub fn put_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>, commitment: &Byt
     let key = DataKey::EscrowIdMap(escrow_id.clone());
     env.storage().persistent().set(&key, commitment);
     set_or_extend_ttl(env, &key, RecordType::EscrowIdMap);
+}
+
+// -----------------------------------------------------------------------------
+// Dispute vote helpers
+// -----------------------------------------------------------------------------
+
+/// Store an arbiter's vote for a disputed escrow.
+pub fn put_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address, vote: &DisputeVote) {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().set(&key, vote);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS);
+}
+
+/// Get an arbiter's vote for a disputed escrow.
+pub fn get_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address) -> Option<DisputeVote> {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().get(&key)
+}
+
+/// Check if an arbiter has already voted on a dispute.
+pub fn has_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address) -> bool {
+    let key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+    env.storage().persistent().has(&key)
+}
+
+/// Count the number of votes for a disputed escrow.
+pub fn count_dispute_votes(env: &Env, commitment: &Bytes, arbiters: &Vec<Address>) -> u32 {
+    let mut count = 0;
+    for arbiter in arbiters.iter() {
+        if has_dispute_vote(env, commitment, &arbiter) {
+            count += 1;
+        }
+    }
+    count
 }

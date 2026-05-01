@@ -2,7 +2,7 @@
 //!
 //! See [`crate::storage`] for the storage schema and key layout.
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 /// Escrow entry status.
 ///
@@ -49,8 +49,14 @@ pub struct EscrowEntry {
     /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
-    /// Optional arbiter address for dispute resolution.
+    /// Optional single arbiter address for dispute resolution (legacy).
     pub arbiter: Option<Address>,
+    /// Array of arbiter addresses for multi-sig dispute resolution.
+    pub arbiters: Vec<Address>,
+    /// Threshold: number of arbiter votes required to resolve a dispute (M-of-N).
+    /// A value of 0 means single-arbiter mode (uses `arbiter` field).
+    /// A value > 0 means multi-sig mode (uses `arbiters` array).
+    pub arbiter_threshold: u32,
 }
 
 /// Privacy-aware view of an escrow entry.
@@ -89,6 +95,21 @@ pub struct PrivacyAwareEscrowView {
     pub expires_at: u64,
     /// Arbiter address for dispute resolution. `None` if not set.
     pub arbiter: Option<Address>,
+}
+
+/// Arbiter vote on a disputed escrow.
+///
+/// Stored under [`DataKey::DisputeVote`](crate::storage::DataKey::DisputeVote)(commitment, arbiter).
+/// Tracks each arbiter's vote for a specific dispute.
+#[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DisputeVote {
+    /// The arbiter who cast this vote.
+    pub arbiter: Address,
+    /// True if voting to refund to owner, false if voting to pay recipient.
+    pub resolve_for_owner: bool,
+    /// Ledger timestamp when the vote was cast.
+    pub voted_at: u64,
 }
 
 /// Parameters for registering an ephemeral key (stealth deposit).

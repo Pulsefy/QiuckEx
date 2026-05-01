@@ -51,6 +51,12 @@ pub enum QuickexError {
     HookAlreadyRegistered = 317,
     /// Hook contract was not registered.
     HookNotRegistered = 318,
+    /// Caller is not one of the assigned multi-sig arbiters.
+    NotAnArbiter = 319,
+    /// Arbiter has already voted on this dispute.
+    ArbiterAlreadyVoted = 320,
+    /// Insufficient arbiter votes to reach the threshold for resolution.
+    InsufficientVotes = 321,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

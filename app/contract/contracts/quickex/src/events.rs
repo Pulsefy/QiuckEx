@@ -463,6 +463,82 @@ pub(crate) fn publish_platform_wallet_changed(env: &Env, wallet: Address) {
     .publish(env);
 }
 
+// ---------------------------------------------------------------------------
+// Multi-sig arbiter events
+// ---------------------------------------------------------------------------
+
+#[contractevent(topics = ["TOPIC_DISPUTE", "ArbiterVoteCast"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArbiterVoteCastEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub arbiter: Address,
+
+    pub schema_version: u32,
+    pub resolve_for_owner: bool,
+    pub vote_count: u32,
+    pub threshold: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_arbiter_vote_cast(
+    env: &Env,
+    commitment: BytesN<32>,
+    arbiter: Address,
+    resolve_for_owner: bool,
+    vote_count: u32,
+    threshold: u32,
+) {
+    ArbiterVoteCastEvent {
+        escrow_id: commitment,
+        arbiter,
+        schema_version: EVENT_SCHEMA_VERSION,
+        resolve_for_owner,
+        vote_count,
+        threshold,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_DISPUTE", "DisputeResolved"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisputeResolvedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub resolved_for_owner: bool,
+
+    pub schema_version: u32,
+    pub total_votes: u32,
+    pub threshold: u32,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_dispute_resolved(
+    env: &Env,
+    commitment: BytesN<32>,
+    resolved_for_owner: bool,
+    total_votes: u32,
+    threshold: u32,
+    amount: i128,
+) {
+    DisputeResolvedEvent {
+        escrow_id: commitment,
+        resolved_for_owner,
+        schema_version: EVENT_SCHEMA_VERSION,
+        total_votes,
+        threshold,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 // ---- Fee Router v2 events (Issue #305) -----
 
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeCollectorRotated"])]
@@ -500,7 +576,12 @@ pub struct PerAssetFeeSetEvent {
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
+pub(crate) fn publish_per_asset_fee_set(
+    env: &Env,
+    token: Address,
+    fee_bps: u32,
+    arbiter_bps: u32,
+) {
     PerAssetFeeSetEvent {
         token,
         fee_bps,

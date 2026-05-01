@@ -555,6 +555,61 @@ impl QuickexContract {
         escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
     }
 
+    /// Cast a vote on a disputed escrow (multi-sig mode).
+    ///
+    /// Only callable by one of the assigned arbiters. Each arbiter can vote once.
+    /// When the threshold is reached, anyone can call `resolve_dispute_multi_sig`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - The arbiter casting the vote (must authorize)
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `resolve_for_owner` - If true, voting to refund to owner; if false, voting to pay recipient
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `NotAnArbiter` - Caller is not one of the assigned arbiters
+    /// * `ArbiterAlreadyVoted` - Caller has already voted on this dispute
+    pub fn vote_for_dispute(
+        env: Env,
+        caller: Address,
+        commitment: BytesN<32>,
+        resolve_for_owner: bool,
+    ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        hook::assert_not_reentrant(&env)?;
+        escrow::vote_for_dispute(&env, caller, commitment, resolve_for_owner)
+    }
+
+    /// Resolve a disputed escrow using multi-sig arbitration.
+    ///
+    /// Can be called by anyone once the threshold is met. The outcome is determined
+    /// by majority vote among the votes cast.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    /// * `recipient` - Address to receive funds when resolving for recipient
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `InsufficientVotes` - Threshold has not been reached yet
+    pub fn resolve_dispute_multi_sig(
+        env: Env,
+        commitment: BytesN<32>,
+        recipient: Address,
+    ) -> Result<(), QuickexError> {
+        if admin::is_paused(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        hook::assert_not_reentrant(&env)?;
+        escrow::resolve_dispute_multi_sig(&env, commitment, recipient)
+    }
+
     /// Initialize the contract with an admin address (one-time only).
     ///
     /// Sets the admin who can pause/unpause, transfer admin, and upgrade the contract.
