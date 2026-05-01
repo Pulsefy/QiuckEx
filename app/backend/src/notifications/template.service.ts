@@ -1,6 +1,6 @@
 @Injectable()
 export class TemplateService {
-  render(template: string, data: Record<string, any>) {
+  render(template: string, data: Record<string, unknown>) {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
       return data[key] ?? "";
     });
