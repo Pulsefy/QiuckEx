@@ -65,11 +65,11 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env, Vec};
 use crate::{
     admin, commitment,
     errors::QuickexError,
-    escrow_id, events, fee, hook,
+    escrow_id, events, fee_router, hook,
     storage::{
-        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping,
-        get_platform_wallet, has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
-        put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
+        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping, has_dispute_vote,
+        has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping, remove_escrow,
+        LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
@@ -550,21 +550,8 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     updated.status = EscrowStatus::Spent;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let fee_amount = fee::calculate_fee(env, amount_paid);
-    let payout_amount = amount_paid.saturating_sub(fee_amount);
-
-    let token_client = token::Client::new(env, &token_ref);
-    token_client.transfer(&env.current_contract_address(), &to, &payout_amount);
-
-    if fee_amount > 0 {
-        if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(
-                &env.current_contract_address(),
-                &platform_wallet,
-                &fee_amount,
-            );
-        }
-    }
+    let (_payout_amount, fee_amount) =
+        fee_router::route_payout(env, &token_ref, &to, amount_paid, None);
 
     events::publish_escrow_withdrawn(
         env,
@@ -747,7 +734,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 
 /// Resolve a disputed escrow by determining the recipient of funds.
 ///
-/// - Only callable by the assigned arbiter.
+/// - Only callable by the assigned arbiter (or a globally authorized Arbiter role).
 /// - Escrow must be in `Disputed` status (INV4).
 /// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
 ///
@@ -795,7 +782,6 @@ pub fn resolve_dispute(
     let (final_status, recipient_address) = if resolve_for_owner {
         (EscrowStatus::Refunded, entry.owner.clone())
     } else {
-        recipient.require_auth();
         (EscrowStatus::Spent, recipient)
     };
 
@@ -803,29 +789,24 @@ pub fn resolve_dispute(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        let fee = fee::calculate_fee(env, entry.amount_paid);
-        (entry.amount_paid.saturating_sub(fee), fee)
+    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+        fee_router::route_payout(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            Some(&caller),
+        )
     } else {
+        // Refund path — no fee, direct transfer to owner.
+        let token_client = token::Client::new(env, &entry.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient_address,
+            &entry.amount_paid,
+        );
         (entry.amount_paid, 0)
     };
-
-    let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(
-        &env.current_contract_address(),
-        &recipient_address,
-        &payout_amount,
-    );
-
-    if fee_amount > 0 {
-        if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(
-                &env.current_contract_address(),
-                &platform_wallet,
-                &fee_amount,
-            );
-        }
-    }
 
     if resolve_for_owner {
         events::publish_escrow_refunded(
@@ -1025,7 +1006,6 @@ pub fn resolve_dispute_multi_sig(
     let (final_status, recipient_address) = if resolve_for_owner {
         (EscrowStatus::Refunded, entry.owner.clone())
     } else {
-        recipient.require_auth();
         (EscrowStatus::Spent, recipient)
     };
 
@@ -1033,29 +1013,23 @@ pub fn resolve_dispute_multi_sig(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        let fee = fee::calculate_fee(env, entry.amount_paid);
-        (entry.amount_paid.saturating_sub(fee), fee)
+    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+        fee_router::route_payout(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            None,
+        )
     } else {
+        let token_client = token::Client::new(env, &entry.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient_address,
+            &entry.amount_paid,
+        );
         (entry.amount_paid, 0)
     };
-
-    let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(
-        &env.current_contract_address(),
-        &recipient_address,
-        &payout_amount,
-    );
-
-    if fee_amount > 0 {
-        if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(
-                &env.current_contract_address(),
-                &platform_wallet,
-                &fee_amount,
-            );
-        }
-    }
 
     // Emit dispute resolved event
     events::publish_dispute_resolved(

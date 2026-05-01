@@ -1,9 +1,9 @@
 //! 플랫폼 fee calculation logic.
 
 use crate::{oracle, storage};
-use soroban_sdk::Env;
+use soroban_sdk::{Address, Env};
 
-/// Calculate the 플랫폼 fee for a given amount.
+/// Calculate the platform fee for a given amount using the global config.
 ///
 /// Uses dynamic oracle pricing when configured and falls back to the static
 /// fee basis points if the oracle is unavailable or stale.
@@ -38,4 +38,25 @@ pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
 
     let bps = config.fee_bps as i128;
     (amount * bps) / 10000
+}
+
+/// Calculate the platform fee for a specific token (Fee Router v2).
+///
+/// Priority:
+/// 1. Per-asset fee config for `token` (if set).
+/// 2. Oracle dynamic pricing (if configured and fresh).
+/// 3. Global static `FeeConfig` basis points.
+pub fn calculate_fee_for_token(env: &Env, token: &Address, amount: i128) -> i128 {
+    if amount <= 0 {
+        return 0;
+    }
+    // Per-asset override is highest priority and bypasses oracle.
+    if let Some(per_asset) = storage::get_per_asset_fee(env, token) {
+        if per_asset.fee_bps == 0 {
+            return 0;
+        }
+        return (amount * per_asset.fee_bps as i128) / 10000;
+    }
+    // Fall back to oracle + global bps path.
+    calculate_fee(env, amount)
 }
