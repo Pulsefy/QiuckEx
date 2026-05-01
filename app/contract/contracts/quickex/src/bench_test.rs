@@ -327,3 +327,37 @@ fn bench_verify_proof_view() {
     let _ = client.verify_proof_view(&amount, &salt, &owner);
     print_budget(&env, "verify_proof_view");
 }
+
+/// Benchmark: resolve_dispute (recipient path)
+///
+/// Captures the disputed-escrow settlement path when funds are awarded to a
+/// recipient. This is the path optimized in issue #309 to minimize redundant
+/// signature prompts.
+#[test]
+fn bench_resolve_dispute_recipient() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let amount: i128 = 1_000_000;
+    let salt = Bytes::from_slice(&env, b"bench_salt_resolve_dispute");
+
+    // Setup: create and dispute escrow — excluded from measurement.
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000u64,
+        &Some(arbiter.clone()),
+    );
+    client.dispute(&commitment);
+
+    // --- Reset budget immediately before the hot path ---
+    env.cost_estimate().budget().reset_default();
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
+    print_budget(&env, "resolve_dispute_recipient");
+}

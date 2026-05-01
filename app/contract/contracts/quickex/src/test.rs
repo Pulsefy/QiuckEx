@@ -1983,7 +1983,7 @@ fn test_resolve_dispute_fails_for_non_arbiter() {
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
     let arbiter = Address::generate(&env);
-    let _impostor = Address::generate(&env);
+    let impostor = Address::generate(&env);
     let amount: i128 = 5000;
     let salt = Bytes::from_slice(&env, b"impostor_salt");
 
@@ -2002,11 +2002,9 @@ fn test_resolve_dispute_fails_for_non_arbiter() {
     // Initiate dispute
     client.dispute(&commitment);
 
-    // For this test, we'll just verify the dispute resolution logic works
-    // The authorization check is tested in the integration tests
-    let res = client.try_resolve_dispute(&arbiter, &commitment, &true, &owner);
-    // Note: With mock_all_auths, this will succeed, but the logic is still tested
-    assert_eq!(res, Ok(Ok(())));
+    // Non-arbiter caller must be blocked even when recipient is otherwise valid.
+    let res = client.try_resolve_dispute(&impostor, &commitment, &true, &owner);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::NotArbiter)));
 }
 
 #[test]

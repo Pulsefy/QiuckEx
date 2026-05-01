@@ -740,7 +740,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 
 /// Resolve a disputed escrow by determining the recipient of funds.
 ///
-/// - Only callable by the assigned arbiter.
+/// - Only callable by the assigned arbiter (or a globally authorized Arbiter role).
 /// - Escrow must be in `Disputed` status (INV4).
 /// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
 ///
@@ -788,7 +788,6 @@ pub fn resolve_dispute(
     let (final_status, recipient_address) = if resolve_for_owner {
         (EscrowStatus::Refunded, entry.owner.clone())
     } else {
-        recipient.require_auth();
         (EscrowStatus::Spent, recipient)
     };
 
