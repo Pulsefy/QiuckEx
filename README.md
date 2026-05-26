@@ -144,8 +144,9 @@ Deployment is automated for most components, but requires platform-specific conf
 
 2. **Mobile (Expo)**:
    - Install Expo CLI if needed: `npm install -g @expo/cli`.
-   - From `app/mobile`: `expo publish` for over-the-air updates, or build via `expo build:ios` / `expo build:android`.
-   - Use Expo's dashboard to manage credentials and submissions to app stores.
+   - For internal testing builds, use EAS and the GitHub workflow defined in `./.github/workflows/mobile-release.yml`.
+   - From `app/mobile`: run `npx eas build --profile production --platform android` or `npx eas build --profile production --platform ios` when credentials are configured.
+   - Ensure `EAS_TOKEN` is stored in GitHub secrets and not exposed in logs.
 
 3. **Contracts (Soroban)**:
    - Build and deploy via CI/CD (e.g., GitHub Actions in `app/contract`).

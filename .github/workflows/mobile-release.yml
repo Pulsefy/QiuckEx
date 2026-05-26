@@ -1,0 +1,104 @@
+name: Mobile Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      runMatrix:
+        description: 'Build dev, staging, and production internal artifacts'
+        required: false
+        default: 'true'
+
+jobs:
+  production-release:
+    if: github.event_name == 'push'
+    name: Production Release Tag Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/mobile
+    strategy:
+      matrix:
+        platform: [android, ios]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint and type-check
+        run: pnpm run build
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@latest
+
+      - name: Authenticate EAS
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+        run: eas login --token "$EAS_TOKEN"
+
+      - name: Build production internal artifact
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          GIT_TAG: ${{ github.ref_name }}
+        run: |
+          eas build --platform ${{ matrix.platform }} --profile production --non-interactive
+
+  environment-matrix:
+    if: github.event_name == 'workflow_dispatch'
+    name: Environment Matrix Internal Builds
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/mobile
+    strategy:
+      matrix:
+        platform: [android, ios]
+        app_env: [dev, staging, production]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint and type-check
+        run: pnpm run build
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@latest
+
+      - name: Authenticate EAS
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+        run: eas login --token "$EAS_TOKEN"
+
+      - name: Build internal artifact
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          GIT_TAG: ${{ github.ref_name }}
+        run: |
+          eas build --platform ${{ matrix.platform }} --profile ${{ matrix.app_env }} --non-interactive
