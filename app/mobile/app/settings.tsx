@@ -1,6 +1,7 @@
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import React from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +16,8 @@ import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 import { ThemeSelector } from "../components/ThemeSelector";
+import { useWallet } from "../hooks/useWallet";
+import { clearLocalData } from "../services/local-data";
 import {
   SYNC_INTERVALS_MINUTES,
   type SyncFrequency,
@@ -44,7 +47,9 @@ const FREQUENCY_OPTIONS: Array<{
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { theme } = useTheme();
+  const { disconnect } = useWallet();
   const {
     backgroundSyncSettings,
     backgroundTaskAvailable,
@@ -55,6 +60,36 @@ export default function SettingsScreen() {
     setSoundEnabled,
     syncNow,
   } = useNotifications();
+
+  const handleClearLocalData = () => {
+    Alert.alert(
+      "Clear Local Data",
+      "This action will remove cached app data, sign you out, and clear secure storage. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear Data",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await disconnect();
+              await clearLocalData();
+              Alert.alert(
+                "Local Data Cleared",
+                "All local app data has been removed. Please reconnect your wallet.",
+              );
+              router.replace("/");
+            } catch (error) {
+              Alert.alert(
+                "Unable to Clear Data",
+                "Something went wrong while clearing local data. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView
@@ -293,6 +328,23 @@ export default function SettingsScreen() {
           <OnboardingResetButton />
         </View>
 
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Privacy & Data</Text>
+          <Pressable
+            style={[
+              styles.clearDataButton,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.status.error,
+              },
+            ]}
+            onPress={handleClearLocalData}
+          >
+            <Text style={[styles.clearDataText, { color: theme.status.error }]}>Clear Local Data</Text>
+          </Pressable>
+          <Text style={[styles.helper, { color: theme.textMuted }]}>Remove all cached and secure data, sign out, and reset the app state.</Text>
+        </View>
+
         {Platform.OS !== "web" ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
@@ -395,6 +447,17 @@ const styles = StyleSheet.create({
   },
   syncNowButtonText: {
     fontSize: 13,
+    fontWeight: "700",
+  },
+  clearDataButton: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  clearDataText: {
+    fontSize: 15,
     fontWeight: "700",
   },
   section: {
