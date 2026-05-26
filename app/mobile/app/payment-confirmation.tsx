@@ -14,6 +14,10 @@ import { useNetworkStatus } from "@/hooks/use-network-status";
 import { saveContact } from "../services/contacts";
 import { v4 as uuidv4 } from "uuid";
 
+import { ActivityIndicator } from "react-native";
+import { useContractRegistry } from "../hooks/useContractRegistry";
+import ErrorState from "@/components/resilience/error-state";
+
 // List of assets to attempt swaps from (hardcoded whitelist matching backend)
 const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
 
@@ -22,6 +26,8 @@ export default function PaymentConfirmationScreen() {
   const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
+  const backendUrl = process.env.EXPO_PUBLIC_API_URL || "https://api.quickex.com";
+  const { isReady, error: registryError } = useContractRegistry(["Escrow"], backendUrl);
   const params = useLocalSearchParams<{
     username: string;
     amount: string;
@@ -115,6 +121,30 @@ export default function PaymentConfirmationScreen() {
   };
 
   const [savingContact, setSavingContact] = React.useState(false);
+  
+if (registryError) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
+        <ErrorState 
+          title="Security Alert"
+          message={registryError} 
+          actionLabel="Go Back"
+          onAction={() => router.back()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isReady) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 10 }}>
+          Verifying secure contracts...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   if (!isValid) {
     return (
