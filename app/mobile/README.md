@@ -48,6 +48,15 @@ Run unit tests:
 pnpm --filter=mobile test
 ```
 
+## Internal Release Builds
+
+Internal testing builds for Android and iOS are produced using EAS. The pipeline is configured in `./.github/workflows/mobile-release.yml` and supports `dev`, `staging`, and `production` build profiles.
+
+- Ensure `EAS_TOKEN` is set in the repository secrets.
+- Release tags matching `v*` generate production internal artifacts automatically.
+- Build metadata and environment labels are surfaced in the app Settings screen.
+- For release readiness and privacy review, see `RELEASE_CHECKLIST.md`.
+
 ## Universal Links / App Links
 
 QuickEx deep-link verification files now live in:

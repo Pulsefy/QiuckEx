@@ -20,6 +20,13 @@ import {
   type SyncFrequency,
 } from "../services/background-sync";
 import { useTheme } from "../src/theme/ThemeContext";
+import {
+  APP_ENVIRONMENT,
+  APP_VERSION,
+  BUILD_METADATA,
+  BUILD_TAG,
+  STELLAR_NETWORK,
+} from "../src/config/build";
 
 const FREQUENCY_OPTIONS: Array<{
   value: SyncFrequency;
@@ -286,8 +293,54 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Build Info</Text>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Version</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {APP_VERSION}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Build</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {BUILD_METADATA}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Environment</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {APP_ENVIRONMENT}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Network</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {STELLAR_NETWORK}
+            </Text>
+          </View>
+
+          {BUILD_TAG ? (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Tag</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}> 
+                {BUILD_TAG}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}> 
             Onboarding
           </Text>
           <OnboardingResetButton />
