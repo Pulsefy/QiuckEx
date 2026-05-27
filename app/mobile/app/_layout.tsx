@@ -242,6 +242,7 @@ function AppShell() {
         <Stack.Screen name="escrow/[id]" />
         <Stack.Screen name="listing/[id]" />
         <Stack.Screen name="notification-debug" />
+        <Stack.Screen name="qa-smoke-checklist" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
