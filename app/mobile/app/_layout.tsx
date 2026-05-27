@@ -21,6 +21,8 @@ import ToastNotification from "../components/notifications/ToastNotification";
 import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { WalletProvider } from "../hooks/useWalletContext";
+import { NetworkGuardProvider } from "../contexts/NetworkGuardContext";
+import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { parsePaymentLink } from "@/utils/parse-payment-link";
@@ -198,18 +200,21 @@ function ThemeBridge() {
     <ThemeProvider value={navTheme}>
       <SecurityProvider>
         <WalletProvider>
-          <NotificationProvider>
-            <WalletSyncBridge />
-            {/* Dev-only global poller: ensures polling runs on web during development
-              even if the wallet screen isn't active. */}
-            {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
-              // start polling for demo address used by send_test_payment.js
-              // eslint-disable-next-line react/jsx-no-useless-fragment
-              <DevPoller />
-            ) : null}
-            <AppShell />
-            <ToastNotification />
-          </NotificationProvider>
+          <NetworkGuardProvider expectedNetwork="testnet">
+            <NotificationProvider>
+              <GlobalNetworkBanner />
+              <WalletSyncBridge />
+              {/* Dev-only global poller: ensures polling runs on web during development
+                even if the wallet screen isn't active. */}
+              {typeof process !== 'undefined' && process.env.NODE_ENV !== "production" ? (
+                // start polling for demo address used by send_test_payment.js
+                // eslint-disable-next-line react/jsx-no-useless-fragment
+                <DevPoller />
+              ) : null}
+              <AppShell />
+              <ToastNotification />
+            </NotificationProvider>
+          </NetworkGuardProvider>
         </WalletProvider>
       </SecurityProvider>
       <StatusBar style={isDark ? "light" : "dark"} />
