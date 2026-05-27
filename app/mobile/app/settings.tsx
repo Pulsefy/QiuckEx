@@ -352,9 +352,16 @@ export default function SettingsScreen() {
 
           <View style={styles.row}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>Environment</Text>
-            <Text style={[styles.helper, { color: theme.textMuted }]}> 
-              {APP_ENVIRONMENT}
-            </Text>
+            <View style={styles.envBadgeRow}>
+              {APP_ENVIRONMENT === 'staging' ? (
+                <View style={[styles.envBadge, { backgroundColor: '#F3E8FF', borderColor: '#A855F7' }]}>
+                  <Text style={[styles.envBadgeText, { color: '#6B21A8' }]}>STAGING</Text>
+                </View>
+              ) : null}
+              <Text style={[styles.helper, { color: theme.textMuted }]}> 
+                {APP_ENVIRONMENT}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.row}>
@@ -414,6 +421,20 @@ export default function SettingsScreen() {
                   style={[styles.debugButtonText, { color: theme.textPrimary }]}
                 >
                   Open Notification Simulator
+                </Text>
+              </Pressable>
+            </Link>
+            <Link href="/qa-smoke-checklist" asChild>
+              <Pressable
+                style={[
+                  styles.debugButton,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text
+                  style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                >
+                  QA Smoke Checklist
                 </Text>
               </Pressable>
             </Link>
@@ -529,5 +550,21 @@ const styles = StyleSheet.create({
   debugButtonText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  envBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  envBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  envBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
 });
