@@ -52,6 +52,18 @@ export interface MarketplaceBid {
   updated_at: string;
 }
 
+export interface VerifiedAssetDbRecord {
+  id: string;
+  code: string;
+  issuer: string | null;
+  type: "native" | "credit_alphanum4" | "credit_alphanum12";
+  decimals: number;
+  icon_url: string | null;
+  verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
@@ -753,5 +765,104 @@ export class SupabaseService {
       p_seller_public_key: sellerPublicKey,
     });
     if (error) this.handleError(error);
+  }
+
+  async fetchVerifiedAssets(): Promise<VerifiedAssetDbRecord[]> {
+    const { data, error } = await this.client
+      .from("verified_assets")
+      .select("*")
+      .order("code", { ascending: true });
+    if (error) this.handleError(error);
+    return (data ?? []) as VerifiedAssetDbRecord[];
+  }
+
+  async searchVerifiedAssets(query: string): Promise<VerifiedAssetDbRecord[]> {
+    const pattern = `%${query.trim().toLowerCase()}%`;
+    const { data, error } = await this.client
+      .from("verified_assets")
+      .select("*")
+      .or(`code.ilike.${pattern},issuer.ilike.${pattern}`)
+      .order("code", { ascending: true });
+    if (error) this.handleError(error);
+    return (data ?? []) as VerifiedAssetDbRecord[];
+  }
+
+  async upsertVerifiedAsset(asset: {
+    code: string;
+    issuer: string | null;
+    type: "native" | "credit_alphanum4" | "credit_alphanum12";
+    decimals: number;
+    icon_url: string | null;
+    verified: boolean;
+  }): Promise<VerifiedAssetDbRecord> {
+    let selectQuery = this.client
+      .from("verified_assets")
+      .select("*")
+      .eq("code", asset.code);
+
+    if (asset.issuer === null) {
+      selectQuery = selectQuery.is("issuer", null);
+    } else {
+      selectQuery = selectQuery.eq("issuer", asset.issuer);
+    }
+
+    const { data: existing, error: selectError } = await selectQuery.maybeSingle();
+    if (selectError) this.handleError(selectError);
+
+    if (existing) {
+      const { data, error } = await this.client
+        .from("verified_assets")
+        .update({
+          type: asset.type,
+          decimals: asset.decimals,
+          icon_url: asset.icon_url,
+          verified: asset.verified,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+      if (error) this.handleError(error);
+      return data as VerifiedAssetDbRecord;
+    } else {
+      const { data, error } = await this.client
+        .from("verified_assets")
+        .insert({
+          code: asset.code,
+          issuer: asset.issuer,
+          type: asset.type,
+          decimals: asset.decimals,
+          icon_url: asset.icon_url,
+          verified: asset.verified,
+        })
+        .select()
+        .single();
+      if (error) this.handleError(error);
+      return data as VerifiedAssetDbRecord;
+    }
+  }
+
+  async updateAssetVerificationStatus(
+    code: string,
+    issuer: string | null,
+    verified: boolean,
+  ): Promise<VerifiedAssetDbRecord | null> {
+    let query = this.client
+      .from("verified_assets")
+      .update({
+        verified,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("code", code);
+
+    if (issuer === null) {
+      query = query.is("issuer", null);
+    } else {
+      query = query.eq("issuer", issuer);
+    }
+
+    const { data, error } = await query.select().maybeSingle();
+    if (error) this.handleError(error);
+    return data as VerifiedAssetDbRecord | null;
   }
 }
