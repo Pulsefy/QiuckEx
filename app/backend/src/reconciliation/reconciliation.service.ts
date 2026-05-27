@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Horizon } from 'stellar-sdk';
+import { Horizon } from '@stellar/stellar-sdk';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AppConfigService } from '../config/app-config.service';

@@ -1,5 +1,5 @@
 import { Logger } from "@nestjs/common";
-import { xdr, scValToNative, Address } from "stellar-sdk";
+import { xdr, scValToNative, Address } from "@stellar/stellar-sdk";
 
 import type {
   QuickExContractEvent,
