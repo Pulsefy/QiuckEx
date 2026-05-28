@@ -20,6 +20,8 @@ export interface BaseContractEvent {
   ledgerSequence: number;
   pagingToken: string;
   contractTimestamp: bigint;
+  /** Schema version read from the event payload (1 = legacy, 2+ = versioned). */
+  schemaVersion: number;
 }
 
 export interface EscrowDepositedEvent extends BaseContractEvent {
@@ -109,5 +111,10 @@ export type EscrowEvent =
   | EscrowDepositedEvent
   | EscrowWithdrawnEvent
   | EscrowRefundedEvent;
+
+export type AdminEvent =
+  | ContractPausedEvent
+  | AdminChangedEvent
+  | ContractUpgradedEvent;
 
 export type StealthEvent = EphemeralKeyRegisteredEvent | StealthWithdrawnEvent;

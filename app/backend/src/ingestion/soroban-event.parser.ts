@@ -15,6 +15,9 @@ import type {
   StealthWithdrawnEvent,
 } from "./types/contract-event.types";
 
+/** Maximum schema version this indexer understands. */
+export const MAX_SUPPORTED_SCHEMA_VERSION = 2;
+
 /**
  * Raw Horizon contract event record shape (subset we need).
  */
@@ -30,6 +33,13 @@ export interface RawHorizonContractEvent {
   value: { xdr: string }; // base64-encoded XDR ScVal
 }
 
+/** Called when an event carries a schema_version the indexer does not support. */
+export type UnknownSchemaVersionHandler = (
+  eventName: string,
+  schemaVersion: number,
+  pagingToken: string,
+) => void;
+
 /**
  * Parses raw Horizon Soroban contract event records into typed domain events.
  *
@@ -38,13 +48,23 @@ export interface RawHorizonContractEvent {
  *  Topic[1+] = indexed fields (commitment, owner, admin, etc.)
  *
  * Data = struct with remaining fields encoded as XDR ScVal.
+ *
+ * Schema version handling (events-schema.md §Schema versioning):
+ *  - v1: no `schema_version` key in data map → decoded as version 1.
+ *  - v2: `schema_version == 2` → decoded with v2 decoder (same shape for now).
+ *  - v>2: unknown → `onUnknownSchemaVersion` is called and the event is skipped.
  */
 export class SorobanEventParser {
   private readonly logger = new Logger(SorobanEventParser.name);
 
+  constructor(
+    private readonly onUnknownSchemaVersion?: UnknownSchemaVersionHandler,
+  ) {}
+
   /**
    * Attempt to parse a raw Horizon contract event.
-   * Returns null when the event is unrecognised or malformed.
+   * Returns null when the event is unrecognised, malformed, or carries an
+   * unsupported schema version.
    */
   parse(raw: RawHorizonContractEvent): QuickExContractEvent | null {
     try {
@@ -56,11 +76,23 @@ export class SorobanEventParser {
       const eventName = this.decodeSymbol(topics[0]);
       if (!eventName) return null;
 
+      // ── Schema version gate ──────────────────────────────────────────────
+      const schemaVersion = this.extractSchemaVersion(dataVal);
+      if (schemaVersion > MAX_SUPPORTED_SCHEMA_VERSION) {
+        this.logger.warn(
+          `Skipping event ${eventName} paging_token=${raw.paging_token}: ` +
+            `schema_version=${schemaVersion} exceeds max supported (${MAX_SUPPORTED_SCHEMA_VERSION})`,
+        );
+        this.onUnknownSchemaVersion?.(eventName, schemaVersion, raw.paging_token);
+        return null;
+      }
+
       const base = {
         txHash: raw.transaction_hash,
         ledgerSequence: raw.ledger,
         pagingToken: raw.paging_token,
         contractTimestamp: this.extractTimestampFromData(dataVal),
+        schemaVersion,
       };
 
       switch (eventName as SorobanEventType) {
@@ -334,5 +366,22 @@ export class SorobanEventParser {
       // ignore
     }
     return 0n;
+  }
+
+  /**
+   * Reads `schema_version` from the data map.
+   * - Absent → v1 (legacy events without the field).
+   * - Present → the numeric value.
+   */
+  private extractSchemaVersion(data: xdr.ScVal): number {
+    try {
+      const map = this.dataToMap(data);
+      if (map["schema_version"]) {
+        return Number(scValToNative(map["schema_version"]));
+      }
+    } catch {
+      // ignore
+    }
+    return 1; // v1: no schema_version field
   }
 }
