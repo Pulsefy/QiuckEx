@@ -15,6 +15,7 @@ import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { JobQueueModule } from "../job-queue/job-queue.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
+import { PrivacyModule } from "../privacy/privacy.module";
 
 @Module({
   controllers: [
@@ -45,6 +46,7 @@ import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
     StellarModule,
     ApiKeysModule,
     FeatureFlagsModule,
+    PrivacyModule,
     forwardRef(() => JobQueueModule),
   ],
 })

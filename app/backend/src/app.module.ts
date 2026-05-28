@@ -39,6 +39,7 @@ import { JobQueueModule } from "./job-queue/job-queue.module";
 import { AuditModule } from "./audit/audit.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
 import { DeveloperModule } from "./developer/developer.module";
+import { PrivacyModule } from "./privacy/privacy.module";
 import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 
@@ -80,6 +81,7 @@ type AppImport =
       JobQueueModule,
       AuditModule,
       FeatureFlagsModule,
+      PrivacyModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't
