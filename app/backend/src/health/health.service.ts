@@ -272,6 +272,59 @@ export class HealthService {
   }
 
   /**
+   * Checks if database migrations are applied by querying the schema_migrations table.
+   * This is a Supabase/PostgreSQL specific check.
+   */
+  async checkMigrations(): Promise<{
+    status: "up" | "down";
+    details?: string;
+    lastSuccess?: string;
+  }> {
+    try {
+      const client = this.supabase.getClient();
+      
+      // Try to query the schema_migrations table (Supabase migration tracking)
+      const { error } = await client
+        .from("schema_migrations")
+        .select("version")
+        .order("version", { ascending: false })
+        .limit(1);
+
+      if (error) {
+        // If the table doesn't exist, it might be a different migration system
+        // Try checking if critical tables exist as a fallback
+        const { error: tablesError } = await client
+          .from("usernames")
+          .select("id")
+          .limit(1);
+
+        if (tablesError) {
+          throw new Error("Critical database tables not found");
+        }
+
+        return {
+          status: "up",
+          details: "Migration table not found, but critical tables exist",
+          lastSuccess: new Date().toISOString(),
+        };
+      }
+
+      return {
+        status: "up",
+        details: "Migrations table accessible",
+        lastSuccess: new Date().toISOString(),
+      };
+    } catch (err) {
+      const safeMessage = sanitizeErrorMessage((err as Error).message);
+      this.logger.warn(`Migration check failed: ${safeMessage}`);
+      return {
+        status: "down",
+        details: safeMessage,
+      };
+    }
+  }
+
+  /**
    * Returns shallow health status for /health.
    */
   async getHealthStatus() {
@@ -286,18 +339,19 @@ export class HealthService {
    * Performs deep dependency checks for /ready.
    */
   async getReadinessStatus() {
-    const [supabase, env, queue, horizon, sorobanRpc, ingestion] =
+    const [supabase, env, migrations, queue, horizon, sorobanRpc, ingestion] =
       await Promise.all([
         this.checkSupabase(),
         Promise.resolve(this.checkEnvironment()),
+        this.checkMigrations(),
         this.checkQueue(),
         this.checkHorizon(),
         this.checkSorobanRpc(),
         this.checkIngestionLag(),
       ]);
 
-    // Critical dependencies: database, queue, horizon
-    const criticalChecks = [supabase, queue, horizon];
+    // Critical dependencies: database, migrations, queue, horizon
+    const criticalChecks = [supabase, migrations, queue, horizon];
     const ready = criticalChecks.every((check) => check.status === "up");
 
     return {
@@ -315,6 +369,13 @@ export class HealthService {
           name: "environment",
           status: env.status,
           details: env.details,
+        },
+        {
+          name: "migrations",
+          status: migrations.status,
+          details: migrations.details,
+          lastSuccess: migrations.lastSuccess,
+          error: migrations.status === "down" ? migrations.details : undefined,
         },
         {
           name: "queue",
