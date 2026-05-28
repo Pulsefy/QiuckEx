@@ -13,6 +13,8 @@ export class MetricsService implements OnModuleInit {
   private webhookDeliveryDuration: client.Histogram<string>;
   private externalCallDuration: client.Histogram<string>;
   private errorRate: client.Counter<string>;
+  private sorobanRpcFailoverTotal: client.Counter<string>;
+  private sorobanRpcActiveEndpoint: client.Gauge<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -77,6 +79,18 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["service", "error_type"],
       });
 
+      this.sorobanRpcFailoverTotal = new client.Counter({
+        name: "soroban_rpc_failover_total",
+        help: "Total number of Soroban RPC failover events",
+        labelNames: ["from_endpoint", "to_endpoint", "reason"],
+      });
+
+      this.sorobanRpcActiveEndpoint = new client.Gauge({
+        name: "soroban_rpc_active_endpoint",
+        help: "Currently active Soroban RPC endpoint (1=active, 0=inactive)",
+        labelNames: ["endpoint"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -86,6 +100,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.webhookDeliveryDuration);
       this.register.registerMetric(this.externalCallDuration);
       this.register.registerMetric(this.errorRate);
+      this.register.registerMetric(this.sorobanRpcFailoverTotal);
+      this.register.registerMetric(this.sorobanRpcActiveEndpoint);
 
       this.initialized = true;
     } catch (error) {
@@ -202,6 +218,26 @@ export class MetricsService implements OnModuleInit {
 
     try {
       this.errorRate.labels(service, errorType).inc();
+    } catch (error) {}
+  }
+
+  recordSorobanRpcFailover(fromEndpoint: string, toEndpoint: string, reason: string) {
+    if (!this.initialized || !this.sorobanRpcFailoverTotal) {
+      return;
+    }
+    try {
+      this.sorobanRpcFailoverTotal.labels(fromEndpoint, toEndpoint, reason).inc();
+    } catch (error) {}
+  }
+
+  setSorobanRpcActiveEndpoint(endpoint: string, allEndpoints: string[]) {
+    if (!this.initialized || !this.sorobanRpcActiveEndpoint) {
+      return;
+    }
+    try {
+      for (const url of allEndpoints) {
+        this.sorobanRpcActiveEndpoint.labels(url).set(url === endpoint ? 1 : 0);
+      }
     } catch (error) {}
   }
 }

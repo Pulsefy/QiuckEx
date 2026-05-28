@@ -49,6 +49,23 @@ export const envSchema = Joi.object({
     .optional()
     .description("Custom Soroban RPC URL (overrides network default)"),
 
+  SOROBAN_RPC_URLS: Joi.string()
+    .optional()
+    .description("Comma-separated fallback Soroban RPC URLs for failover"),
+
+  SOROBAN_RPC_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Timeout in milliseconds for Soroban RPC requests"),
+
+  SOROBAN_RPC_MAX_RETRIES: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(3)
+    .description("Max retry attempts for transient Soroban RPC failures"),
+
   STELLAR_EXPLORER_URL: Joi.string()
     .uri({ scheme: ["http", "https"] })
     .optional()
@@ -272,6 +289,9 @@ export interface EnvConfig {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   HORIZON_URL?: string;
   SOROBAN_RPC_URL?: string;
+  SOROBAN_RPC_URLS?: string;
+  SOROBAN_RPC_TIMEOUT_MS: number;
+  SOROBAN_RPC_MAX_RETRIES: number;
   STELLAR_EXPLORER_URL?: string;
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
