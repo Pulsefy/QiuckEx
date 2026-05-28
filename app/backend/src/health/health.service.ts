@@ -209,8 +209,7 @@ export class HealthService {
       );
 
       // Try to get network info from Soroban RPC
-      const server = this.sorobanRpcService.getServer();
-      const check = Promise.race([server.getNetwork(), timeout]);
+      const check = Promise.race([this.sorobanRpcService.getNetworkPassphrase(), timeout]);
 
       await check;
       const latency = Date.now() - start;
