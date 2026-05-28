@@ -16,6 +16,7 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
 import { AppModule } from "./app.module";
 import { AppConfigService } from "./config";
+import { resolveNetworkSnapshot } from "./config/network.config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 import { SentryExceptionFilter, SentryService } from "./sentry";
@@ -46,6 +47,12 @@ function validateCriticalConfig(
   // Network is required
   if (!config.network) {
     errors.push('NETWORK is required (must be "testnet" or "mainnet")');
+  }
+
+  try {
+    resolveNetworkSnapshot();
+  } catch (error) {
+    errors.push(`Network config invalid: ${(error as Error).message}`);
   }
 
   // If there are critical errors, fail fast
@@ -81,10 +88,16 @@ async function bootstrap() {
     SUPABASE_ANON_KEY: configService.supabaseAnonKey,
     NETWORK: configService.network,
     HORIZON_URL: configService.horizonUrl,
+    SOROBAN_RPC_URL: configService.sorobanRpcUrl,
+    STELLAR_EXPLORER_URL: configService.stellarExplorerUrl,
     STELLAR_SECRET_KEY: configService.stellarSecretKey,
     STELLAR_PUBLIC_KEY: configService.stellarPublicKey,
   });
   logger.log(envSummary);
+  const networkSnapshot = resolveNetworkSnapshot();
+  logger.log(
+    `Active network: ${networkSnapshot.network} (${networkSnapshot.passphrase}); horizon=${networkSnapshot.horizonUrl}; soroban=${networkSnapshot.sorobanRpcUrl}; explorer=${networkSnapshot.explorerUrl}`,
+  );
 
   // Use Helmet for security headers
   app.use(helmet());

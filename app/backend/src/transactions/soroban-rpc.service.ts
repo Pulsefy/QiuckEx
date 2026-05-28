@@ -10,10 +10,9 @@ export class SorobanRpcService {
   private readonly rpcUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.rpcUrl = this.configService.get<string>(
-      "SOROBAN_RPC_URL",
-      "https://soroban-testnet.stellar.org",
-    );
+    this.rpcUrl =
+      this.configService.get<string>('stellar.sorobanRpcUrl') ??
+      'https://soroban-testnet.stellar.org';
   }
 
   getServer(): SorobanRpc.Server {

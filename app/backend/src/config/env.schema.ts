@@ -18,6 +18,11 @@ export const envSchema = Joi.object({
     .required()
     .description("Stellar network to connect to (testnet or mainnet)"),
 
+  STELLAR_NETWORK: Joi.string()
+    .valid("testnet", "mainnet")
+    .optional()
+    .description("Optional alias for NETWORK; must match NETWORK when both are set"),
+
   // Supabase configuration (required for database operations)
   SUPABASE_URL: Joi.string()
     .uri({ scheme: ["http", "https"] })
@@ -38,6 +43,16 @@ export const envSchema = Joi.object({
     .uri({ scheme: ["http", "https"] })
     .optional()
     .description("Custom Horizon URL (overrides network default)"),
+
+  SOROBAN_RPC_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Custom Soroban RPC URL (overrides network default)"),
+
+  STELLAR_EXPLORER_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .optional()
+    .description("Custom Stellar explorer URL (overrides network default)"),
 
   // Stellar signing keys (required for payment operations)
   STELLAR_SECRET_KEY: Joi.string()
@@ -251,10 +266,13 @@ export const envSchema = Joi.object({
 export interface EnvConfig {
   PORT: number;
   NETWORK: "testnet" | "mainnet";
+  STELLAR_NETWORK?: "testnet" | "mainnet";
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   HORIZON_URL?: string;
+  SOROBAN_RPC_URL?: string;
+  STELLAR_EXPLORER_URL?: string;
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
