@@ -17,6 +17,7 @@ const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
   key_prefix: 'qx_live_abc',
   scopes: ['links:read'],
   owner_id: null,
+  organization_id: null,
   is_active: true,
   request_count: 0,
   monthly_quota: 10000,
@@ -126,7 +127,7 @@ describe('ApiKeysService', () => {
     it('forwards owner_id filter to repository', async () => {
       repo.findAll.mockResolvedValue([]);
       await service.list('wallet-abc');
-      expect(repo.findAll).toHaveBeenCalledWith('wallet-abc');
+      expect(repo.findAll).toHaveBeenCalledWith('wallet-abc', undefined);
     });
   });
 

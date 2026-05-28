@@ -27,6 +27,7 @@ import { ReconciliationModule } from "./reconciliation/reconciliation.module";
 import { MetricsMiddleware } from "./metrics/metrics.middleware";
 import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+import { OrganizationContextMiddleware } from "./common/middleware/organization-context.middleware";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
@@ -40,6 +41,7 @@ import { AuditModule } from "./audit/audit.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
 import { DeveloperModule } from "./developer/developer.module";
 import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
+import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 
 type AppImport =
@@ -119,10 +121,16 @@ type AppImport =
       provide: APP_INTERCEPTOR,
       useClass: MetricsInterceptor,
     },
+    {
+      provide: APP_GUARD,
+      useClass: OrganizationRoleGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(MetricsMiddleware, CorrelationIdMiddleware).forRoutes("*");
+    consumer
+      .apply(MetricsMiddleware, CorrelationIdMiddleware, OrganizationContextMiddleware)
+      .forRoutes("*");
   }
 }

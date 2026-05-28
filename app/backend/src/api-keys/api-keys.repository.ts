@@ -17,6 +17,7 @@ export class ApiKeysRepository {
     key_prefix: string;
     scopes: ApiKeyScope[];
     owner_id: string | null;
+    organization_id: string | null;
     monthly_quota: number;
   }): Promise<ApiKeyRecord> {
     const { data: row, error } = await this.client
@@ -29,7 +30,7 @@ export class ApiKeysRepository {
     return row as ApiKeyRecord;
   }
 
-  async findAll(owner_id?: string): Promise<ApiKeyRecord[]> {
+  async findAll(owner_id?: string, organization_id?: string): Promise<ApiKeyRecord[]> {
     let query = this.client
       .from('api_keys')
       .select('*')
@@ -38,6 +39,9 @@ export class ApiKeysRepository {
 
     if (owner_id) {
       query = query.eq('owner_id', owner_id);
+    }
+    if (organization_id) {
+      query = query.eq('organization_id', organization_id);
     }
 
     const { data, error } = await query;
@@ -51,6 +55,7 @@ export class ApiKeysRepository {
    */
   async findAllPaginated(
     owner_id: string | undefined,
+    organization_id: string | undefined,
     cursor: CursorPayload | null,
     limit?: number,
   ): Promise<{ data: ApiKeyRecord[]; next_cursor: string | null; has_more: boolean; limit: number }> {
@@ -63,6 +68,9 @@ export class ApiKeysRepository {
 
     if (owner_id) {
       query = query.eq('owner_id', owner_id);
+    }
+    if (organization_id) {
+      query = query.eq('organization_id', organization_id);
     }
 
     // Apply cursor filter
@@ -182,7 +190,7 @@ export class ApiKeysRepository {
     if (error) throw error;
   }
 
-  async getUsageSummary(owner_id?: string): Promise<{
+  async getUsageSummary(owner_id?: string, organization_id?: string): Promise<{
     total_keys: number;
     total_requests: number;
     quota: number;
@@ -194,6 +202,9 @@ export class ApiKeysRepository {
 
     if (owner_id) {
       query = query.eq('owner_id', owner_id);
+    }
+    if (organization_id) {
+      query = query.eq('organization_id', organization_id);
     }
 
     const { data, error } = await query;
