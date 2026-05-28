@@ -46,8 +46,8 @@ mod upgrade_test;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
-    PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
+    PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract

@@ -266,9 +266,7 @@ pub fn get_wasm_hash(env: &Env) -> Option<BytesN<32>> {
 }
 
 pub fn set_wasm_hash(env: &Env, hash: &BytesN<32>) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::WasmHash, hash);
+    env.storage().persistent().set(&DataKey::WasmHash, hash);
 }
 
 // -----------------------------------------------------------------------------
