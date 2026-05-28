@@ -41,6 +41,7 @@ export class ApiKeysService {
       key_prefix: prefix,
       scopes: dto.scopes,
       owner_id: dto.owner_id ?? null,
+      organization_id: dto.organization_id ?? null,
       monthly_quota: DEFAULT_QUOTA,
     });
 
@@ -49,19 +50,25 @@ export class ApiKeysService {
     return { ...this.toPublic(record), key: rawKey };
   }
 
-  async list(owner_id?: string): Promise<ApiKeyPublic[]> {
-    const records = await this.repo.findAll(owner_id);
+  async list(owner_id?: string, organization_id?: string): Promise<ApiKeyPublic[]> {
+    const records = await this.repo.findAll(owner_id, organization_id);
     return records.map((r) => this.toPublic(r));
   }
 
   async listPaginated(
     owner_id: string | undefined,
+    organization_id: string | undefined,
     cursor?: string,
     limit?: number,
   ): Promise<{ data: ApiKeyPublic[]; pagination: PaginationMetaDto }> {
     const decodedCursor = cursor ? decodeCursor(cursor) : null;
     const effectiveLimit = clampLimit(limit);
-    const result = await this.repo.findAllPaginated(owner_id, decodedCursor, effectiveLimit);
+    const result = await this.repo.findAllPaginated(
+      owner_id,
+      organization_id,
+      decodedCursor,
+      effectiveLimit,
+    );
     return {
       data: result.data.map((r) => this.toPublic(r)),
       pagination: {
@@ -116,8 +123,8 @@ export class ApiKeysService {
     return { ...this.toPublic(updated), key: rawKey };
   }
 
-  async getUsage(owner_id?: string) {
-    return this.repo.getUsageSummary(owner_id);
+  async getUsage(owner_id?: string, organization_id?: string) {
+    return this.repo.getUsageSummary(owner_id, organization_id);
   }
 
   // ---------------------------------------------------------------------------
