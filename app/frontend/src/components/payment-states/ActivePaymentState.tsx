@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SigningSummary } from "@/components/SigningSummary";
 
 interface PaymentLinkStatus {
   username: string;
@@ -40,20 +41,42 @@ export function ActivePaymentState({
     null,
   );
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const selectedSwapOption = status.swapOptions?.find(
+    (option) => option.sourceAsset === selectedSourceAsset,
+  );
+
+  const feeValue = selectedSwapOption
+    ? Math.max(
+        0,
+        parseFloat(selectedSwapOption.sourceAmount) - parseFloat(status.amount),
+      )
+    : 0;
+
+  const feePercentage = selectedSwapOption
+    ? parseFloat(status.amount) > 0
+      ? (feeValue / parseFloat(status.amount)) * 100
+      : 0
+    : undefined;
+
+  const networkLabel =
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
+      ? "Stellar Mainnet"
+      : "Stellar Testnet";
 
   const handlePay = async () => {
+    if (!showPreview) {
+      setShowPreview(true);
+      return;
+    }
+
     setIsProcessing(true);
     onPaymentInitiated();
 
     try {
-      // Construct Stellar payment URI
       const uri = constructPaymentURI(status, selectedSourceAsset);
-
-      // Try to open Stellar wallet
       window.location.href = uri;
-
-      // For demo purposes, simulate completion
-      // In production, you'd poll for payment confirmation
       setTimeout(() => {
         onPaymentCompleted("pending_confirmation");
       }, 2000);
@@ -77,9 +100,32 @@ export function ActivePaymentState({
 
   const hasSwapOptions = status.swapOptions && status.swapOptions.length > 0;
 
+  const summaryDetails = [
+    { label: "Destination", value: status.destinationPublicKey },
+    { label: "Recipient", value: `@${status.username}` },
+    { label: "Payment Asset", value: `${status.amount} ${status.asset}` },
+    { label: "Memo", value: status.memo ?? "None" },
+    {
+      label: "Expires",
+      value: status.expiresAt
+        ? new Date(status.expiresAt).toLocaleString()
+        : "No expiry",
+    },
+  ];
+
+  if (selectedSourceAsset && selectedSourceAsset !== status.asset) {
+    summaryDetails.push({
+      label: "Source Asset",
+      value: selectedSourceAsset,
+    });
+    summaryDetails.push({
+      label: "Estimated Send",
+      value: `${selectedSwapOption?.sourceAmount ?? "?"} ${selectedSourceAsset}`,
+    });
+  }
+
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="text-center">
         <div
           aria-hidden="true"
@@ -104,7 +150,6 @@ export function ActivePaymentState({
         <p className="text-neutral-300">{status.userMessage}</p>
       </div>
 
-      {/* Payment Details Card */}
       <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Details</h2>
 
@@ -139,7 +184,6 @@ export function ActivePaymentState({
         </dl>
       </div>
 
-      {/* Swap Options (if available) */}
       {hasSwapOptions && status.acceptsMultipleAssets && (
         <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
           <h2 id="payment-options-heading" className="text-xl font-bold mb-4">
@@ -154,7 +198,6 @@ export function ActivePaymentState({
             aria-labelledby="payment-options-heading"
             className="space-y-3"
           >
-            {/* Direct payment option */}
             <button
               type="button"
               role="radio"
@@ -177,7 +220,6 @@ export function ActivePaymentState({
               </div>
             </button>
 
-            {/* Swap options */}
             {status.swapOptions?.map((option, index) => (
               <button
                 key={index}
@@ -214,7 +256,31 @@ export function ActivePaymentState({
         </div>
       )}
 
-      {/* Action Buttons */}
+      {showPreview && (
+        <div className="mb-6">
+          <SigningSummary
+            action="purchase"
+            amount={{ value: parseFloat(status.amount), asset: status.asset }}
+            details={summaryDetails}
+            expiry={status.expiresAt ? new Date(status.expiresAt) : undefined}
+            network={networkLabel}
+            targetNetwork={networkLabel}
+            fee={
+              selectedSwapOption
+                ? {
+                    value: feeValue,
+                    asset: selectedSwapOption.sourceAsset,
+                    label: "Estimated Path Cost",
+                    percentage: feePercentage,
+                    thresholdPercent: 3,
+                    isHigh: feePercentage !== undefined && feePercentage >= 3,
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
+
       <div className="space-y-4">
         <button
           type="button"
@@ -223,12 +289,14 @@ export function ActivePaymentState({
           aria-label={
             isProcessing
               ? "Opening wallet"
-              : `Pay ${status.amount} ${status.asset} to ${status.username}`
+              : showPreview
+              ? `Confirm payment to ${status.username}`
+              : `Review payment details for ${status.username}`
           }
           aria-busy={isProcessing}
           className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-700 disabled:cursor-not-allowed rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
-          {isProcessing ? "Opening Wallet..." : "Pay Now"}
+          {isProcessing ? "Opening Wallet..." : showPreview ? "Open Wallet" : "Review Payment"}
         </button>
 
         <button
@@ -245,12 +313,9 @@ export function ActivePaymentState({
         </p>
       </div>
 
-      {/* Info */}
       <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-4">
         <p className="text-sm text-blue-200">
-          <strong>How it works:</strong> Clicking &quot;Pay Now&quot; will open
-          your Stellar wallet. Review and sign the transaction to complete the
-          payment.
+          <strong>How it works:</strong> Review the transaction summary before your Stellar wallet opens. After confirmation, your wallet will request the signature for this exact payload.
         </p>
       </div>
     </div>
@@ -276,7 +341,6 @@ function constructPaymentURI(
   }
 
   if (sourceAsset && sourceAsset !== status.asset) {
-    // Path payment
     params.set("send_asset", sourceAsset);
   }
 
