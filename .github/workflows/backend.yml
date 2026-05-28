@@ -1,52 +1,15 @@
-name: Backend CI
-
+# This workflow has been superseded by:
+#   .github/workflows/backend-ci.yml      (CI: lint, type-check, test)
+#   .github/workflows/backend-release.yml (Release: build, migrate, deploy)
+#
+# This file is kept as a placeholder to avoid broken branch protection rules
+# that reference the old workflow name. It can be deleted once branch rules
+# are updated to reference the new workflow files.
+name: Backend CI (deprecated — see backend-ci.yml)
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'app/backend/**'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'app/backend/**'
-
+  workflow_dispatch:
 jobs:
-  build-and-test:
-    name: Build and Test
+  noop:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app/backend
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Lint
-        run: pnpm run lint
-
-      - name: Build
-        run: pnpm run build
-
-      # Tests are run separately to avoid CI failures during development
-      # Uncomment when tests are stable
-      # - name: Run Unit Tests
-      #   run: pnpm run test:unit
-      #   env:
-      #     NODE_ENV: test
-      #     STELLAR_NETWORK: testnet
-      #     SUPABASE_URL: https://test.supabase.co
-      #     SUPABASE_ANON_KEY: test-key
+      - run: echo "Use backend-ci.yml and backend-release.yml instead."
