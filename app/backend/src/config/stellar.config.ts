@@ -173,6 +173,7 @@ export const stellarConfig = registerAs('stellar', () => {
     network,
     horizonBaseUrl: snapshot.horizonUrl,
     sorobanRpcUrl: snapshot.sorobanRpcUrl,
+    sorobanRpcUrls: snapshot.sorobanRpcUrls,
     explorerUrl: snapshot.explorerUrl,
     networkPassphrase: snapshot.passphrase,
     supportedAssets: SUPPORTED_ASSETS,

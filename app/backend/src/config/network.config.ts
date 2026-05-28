@@ -7,6 +7,7 @@ export type NetworkSnapshot = {
   passphrase: string;
   horizonUrl: string;
   sorobanRpcUrl: string;
+  sorobanRpcUrls: string[];
   explorerUrl: string;
 };
 
@@ -22,12 +23,14 @@ const DEFAULT_ENDPOINTS: Record<
     passphrase: StellarSdk.Networks.TESTNET,
     horizonUrl: 'https://horizon-testnet.stellar.org',
     sorobanRpcUrl: 'https://soroban-testnet.stellar.org',
+    sorobanRpcUrls: ['https://soroban-testnet.stellar.org'],
     explorerUrl: 'https://stellar.expert/explorer/testnet',
   },
   mainnet: {
     passphrase: StellarSdk.Networks.PUBLIC,
     horizonUrl: 'https://horizon.stellar.org',
     sorobanRpcUrl: 'https://soroban-rpc.mainnet.stellar.gateway.fm',
+    sorobanRpcUrls: ['https://soroban-rpc.mainnet.stellar.gateway.fm'],
     explorerUrl: 'https://stellar.expert/explorer/public',
   },
 };
@@ -70,6 +73,13 @@ export function resolveNetworkSnapshot(
 
   const horizonUrl = env.HORIZON_URL?.trim() || defaults.horizonUrl;
   const sorobanRpcUrl = env.SOROBAN_RPC_URL?.trim() || defaults.sorobanRpcUrl;
+  const sorobanRpcUrls = [
+    sorobanRpcUrl,
+    ...(env.SOROBAN_RPC_URLS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ];
   const explorerUrl = env.STELLAR_EXPLORER_URL?.trim() || defaults.explorerUrl;
 
   if (!isValidHttpUrl(horizonUrl)) {
@@ -91,6 +101,7 @@ export function resolveNetworkSnapshot(
     passphrase: defaults.passphrase,
     horizonUrl,
     sorobanRpcUrl,
+    sorobanRpcUrls: Array.from(new Set(sorobanRpcUrls)),
     explorerUrl,
   };
 }
