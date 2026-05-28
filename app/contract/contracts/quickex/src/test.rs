@@ -1,4 +1,8 @@
 use crate::{
+    events::{
+        EVENT_COMPATIBILITY, EVENT_SCHEMAS, EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN,
+        EVENT_TOPIC_ESCROW, EVENT_TOPIC_PRIVACY,
+    },
     errors::QuickexError,
     storage::{
         put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
@@ -372,6 +376,58 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
     data.try_into_val(env).unwrap()
 }
 
+#[test]
+fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
+    assert_eq!(EVENT_SCHEMA_VERSION, 2);
+    assert_eq!(EVENT_SCHEMAS.len(), 20);
+
+    let escrow_deposited = EVENT_SCHEMAS
+        .iter()
+        .find(|schema| schema.name == "EscrowDeposited")
+        .unwrap();
+    assert_eq!(
+        escrow_deposited.topics,
+        &[EVENT_TOPIC_ESCROW, "EscrowDeposited", "escrow_id", "owner"]
+    );
+    assert_eq!(
+        escrow_deposited.payload_keys,
+        &[
+            "amount_due",
+            "amount_paid",
+            "expires_at",
+            "schema_version",
+            "timestamp",
+            "token"
+        ]
+    );
+
+    for schema in EVENT_SCHEMAS {
+        assert_eq!(schema.schema_version, EVENT_SCHEMA_VERSION);
+        assert!(!schema.name.is_empty());
+        assert!(schema.topics.len() >= 2);
+        assert!(schema.payload_keys.contains(&"schema_version"));
+        assert_eq!(schema.topics[1], schema.name);
+        for pair in schema.payload_keys.windows(2) {
+            assert!(
+                pair[0] <= pair[1],
+                "{} payload keys are not deterministic: {:?}",
+                schema.name,
+                schema.payload_keys
+            );
+        }
+    }
+}
+
+#[test]
+fn test_event_compatibility_map_includes_current_schema_version() {
+    for compatibility in EVENT_COMPATIBILITY {
+        assert_eq!(compatibility.current_version, EVENT_SCHEMA_VERSION);
+        assert!(compatibility
+            .compatible_versions
+            .contains(&EVENT_SCHEMA_VERSION));
+    }
+}
+
 /// Regression suite: golden path withdrawal — deposit then withdraw by proof.
 #[test]
 fn test_successful_withdrawal() {
@@ -601,11 +657,17 @@ fn test_event_snapshot_privacy_toggled_schema() {
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
     let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_PRIVACY"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_PRIVACY));
     assert_eq!(t1, Symbol::new(&env, "PrivacyToggled"));
     assert_eq!(t2, account);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "enabled")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
@@ -736,12 +798,18 @@ fn test_event_snapshot_escrow_deposited_schema() {
     let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
     let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ESCROW));
     assert_eq!(t1, Symbol::new(&env, "EscrowDeposited"));
     assert_eq!(t2, commitment);
     assert_eq!(t3, user);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount_due")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount_paid")).is_some());
@@ -778,12 +846,18 @@ fn test_event_snapshot_escrow_withdrawn_schema() {
     let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
     let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ESCROW));
     assert_eq!(t1, Symbol::new(&env, "EscrowWithdrawn"));
     assert_eq!(t2, commitment);
     assert_eq!(t3, to);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
@@ -814,12 +888,18 @@ fn test_event_snapshot_escrow_refunded_schema() {
     let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
     let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ESCROW));
     assert_eq!(t1, Symbol::new(&env, "EscrowRefunded"));
     assert_eq!(t2, commitment);
     assert_eq!(t3, owner);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
@@ -847,12 +927,18 @@ fn test_event_snapshot_escrow_disputed_schema() {
     let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
     let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ESCROW"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ESCROW));
     assert_eq!(t1, Symbol::new(&env, "EscrowDisputed"));
     assert_eq!(t2, commitment);
     assert_eq!(t3, arbiter);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
@@ -870,11 +956,17 @@ fn test_event_snapshot_contract_paused_schema() {
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
     let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "ContractPaused"));
     assert_eq!(t2, admin);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "paused")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
@@ -1145,12 +1237,18 @@ fn test_event_snapshot_admin_changed_schema() {
     let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
     let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
 
-    assert_eq!(t0, Symbol::new(&env, "TOPIC_ADMIN"));
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "AdminChanged"));
     assert_eq!(t2, old_admin);
     assert_eq!(t3, new_admin);
 
     let data_map = event_data_map(&env, data);
+    let version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 

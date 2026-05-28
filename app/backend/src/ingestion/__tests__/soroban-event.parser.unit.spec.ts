@@ -3,6 +3,11 @@ import {
   SorobanEventParser,
   RawHorizonContractEvent,
 } from "../soroban-event.parser";
+import {
+  QUICKEX_EVENT_SCHEMA_CONTRACTS,
+  QUICKEX_EVENT_SCHEMA_VERSION,
+  QUICKEX_EVENT_TOPICS,
+} from "../event-schema";
 
 function symVal(s: string): xdr.ScVal {
   return xdr.ScVal.scvSymbol(s);
@@ -54,6 +59,38 @@ describe("SorobanEventParser", () => {
   });
 
   describe("EscrowDeposited", () => {
+    it("parses canonical testnet topics with schema versioned payload", () => {
+      const topics = [
+        symVal(QUICKEX_EVENT_TOPICS.escrow),
+        symVal("EscrowDeposited"),
+        bytesVal(COMMITMENT_HEX),
+        addressVal(OWNER),
+      ];
+      const data = mapVal({
+        amount_due: nativeToScVal(5_000_000n, { type: "i128" }),
+        amount_paid: nativeToScVal(2_500_000n, { type: "i128" }),
+        expires_at: nativeToScVal(1800000000n, { type: "u64" }),
+        schema_version: nativeToScVal(QUICKEX_EVENT_SCHEMA_VERSION, {
+          type: "u32",
+        }),
+        timestamp: nativeToScVal(1700000000n, { type: "u64" }),
+        token: addressVal(TOKEN),
+      });
+
+      const result = parser.parse(makeRaw(topics, data));
+
+      expect(result?.eventType).toBe("EscrowDeposited");
+      if (result?.eventType !== "EscrowDeposited") return;
+      expect(result.topicNamespace).toBe(QUICKEX_EVENT_TOPICS.escrow);
+      expect(result.schemaVersion).toBe(QUICKEX_EVENT_SCHEMA_VERSION);
+      expect(result.commitment).toBe(COMMITMENT_HEX);
+      expect(result.owner).toBe(OWNER);
+      expect(result.amount).toBe(5_000_000n);
+      expect(result.amountPaid).toBe(2_500_000n);
+      expect(result.expiresAt).toBe(1800000000n);
+      expect(result.contractTimestamp).toBe(1700000000n);
+    });
+
     it("parses a valid EscrowDeposited event", () => {
       const topics = [
         symVal("EscrowDeposited"),
@@ -72,7 +109,10 @@ describe("SorobanEventParser", () => {
       if (result?.eventType !== "EscrowDeposited") return;
       expect(result.commitment).toBe(COMMITMENT_HEX);
       expect(result.owner).toBe(OWNER);
+      expect(result.schemaVersion).toBe(1);
+      expect(result.topicNamespace).toBe("LEGACY");
       expect(result.amount).toBe(5_000_000n);
+      expect(result.amountPaid).toBe(5_000_000n);
       expect(result.expiresAt).toBe(1800000000n);
       expect(result.contractTimestamp).toBe(1700000000n);
     });
@@ -157,12 +197,52 @@ describe("SorobanEventParser", () => {
       ).toBeNull();
     });
 
+    it("returns null for unsupported schema versions", () => {
+      const topics = [
+        symVal(QUICKEX_EVENT_TOPICS.privacy),
+        symVal("PrivacyToggled"),
+        addressVal(OWNER),
+      ];
+      const data = mapVal({
+        enabled: nativeToScVal(true),
+        schema_version: nativeToScVal(999, { type: "u32" }),
+        timestamp: nativeToScVal(1700003000n, { type: "u64" }),
+      });
+
+      expect(parser.parse(makeRaw(topics, data))).toBeNull();
+    });
+
     it("returns null and does not throw on malformed XDR", () => {
       const raw = makeRaw([], xdr.ScVal.scvVoid(), {
         topic: ["not-valid-base64!!!"],
       });
       expect(() => parser.parse(raw)).not.toThrow();
       expect(parser.parse(raw)).toBeNull();
+    });
+  });
+
+  describe("event schema contracts", () => {
+    it("locks canonical topics and deterministic payload key order", () => {
+      expect(QUICKEX_EVENT_SCHEMA_CONTRACTS.EscrowDeposited).toEqual({
+        topic: QUICKEX_EVENT_TOPICS.escrow,
+        eventName: "EscrowDeposited",
+        indexedFields: ["escrow_id", "owner"],
+        payloadKeys: [
+          "amount_due",
+          "amount_paid",
+          "expires_at",
+          "schema_version",
+          "timestamp",
+          "token",
+        ],
+        schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
+        compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+      });
+
+      for (const contract of Object.values(QUICKEX_EVENT_SCHEMA_CONTRACTS)) {
+        expect(contract.payloadKeys).toEqual([...contract.payloadKeys].sort());
+        expect(contract.compatibleVersions).toContain(contract.schemaVersion);
+      }
     });
   });
 });

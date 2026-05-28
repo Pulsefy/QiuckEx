@@ -1,3 +1,227 @@
+use soroban_sdk::{contractevent, Address, BytesN, Env};
+
+/// Canonical event schema version.
+///
+/// Increment this constant whenever the event payload shape changes
+/// (fields added, removed, or renamed). Indexers MUST check this field
+/// before parsing any event payload so they can route to the correct
+/// decoder for the schema version they understand.
+///
+/// History:
+///   v1 – original schema (no version field)
+///   v2 – added `schema_version` to every event payload (this release)
+pub const EVENT_SCHEMA_VERSION: u32 = 2;
+
+/// Testnet event topic namespace used as topic[0] for every QuickEx event.
+pub const EVENT_TOPIC_ADMIN: &str = "TOPIC_ADMIN";
+pub const EVENT_TOPIC_DISPUTE: &str = "TOPIC_DISPUTE";
+pub const EVENT_TOPIC_ESCROW: &str = "TOPIC_ESCROW";
+pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
+pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EventSchema {
+    pub name: &'static str,
+    pub topics: &'static [&'static str],
+    pub payload_keys: &'static [&'static str],
+    pub schema_version: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EventCompatibility {
+    pub name: &'static str,
+    pub current_version: u32,
+    pub compatible_versions: &'static [u32],
+}
+
+pub const EVENT_SCHEMAS: &[EventSchema] = &[
+    EventSchema {
+        name: "AdminChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "AdminChanged", "old_admin", "new_admin"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ArbiterVoteCast",
+        topics: &[EVENT_TOPIC_DISPUTE, "ArbiterVoteCast", "escrow_id", "arbiter"],
+        payload_keys: &[
+            "resolve_for_owner",
+            "schema_version",
+            "threshold",
+            "timestamp",
+            "vote_count",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractMigrated",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractMigrated", "admin"],
+        payload_keys: &["from_version", "schema_version", "timestamp", "to_version"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractPaused",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
+        payload_keys: &["paused", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractUpgraded",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractUpgraded", "new_wasm_hash", "admin"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "DisputeResolved",
+        topics: &[
+            EVENT_TOPIC_DISPUTE,
+            "DisputeResolved",
+            "escrow_id",
+            "resolved_for_owner",
+        ],
+        payload_keys: &["amount", "schema_version", "threshold", "timestamp", "total_votes"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EmergencyModeActivated",
+        topics: &[EVENT_TOPIC_ADMIN, "EmergencyModeActivated", "admin"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EphemeralKeyRegistered",
+        topics: &[
+            EVENT_TOPIC_STEALTH,
+            "EphemeralKeyRegistered",
+            "stealth_address",
+            "eph_pub",
+        ],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "expires_at",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowDeposited",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowDeposited", "escrow_id", "owner"],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "expires_at",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowDisputed",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowDisputed", "escrow_id", "arbiter"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowFinalized",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowFinalized", "escrow_id", "owner"],
+        payload_keys: &["schema_version", "timestamp", "token", "total_amount"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowRefunded",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowRefunded", "escrow_id", "owner"],
+        payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowWithdrawn",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowWithdrawn", "escrow_id", "owner"],
+        payload_keys: &["amount", "fee", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "FeeCollectorRotated",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeCollectorRotated", "new_collector"],
+        payload_keys: &["rotation_index", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "FeeConfigChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeConfigChanged"],
+        payload_keys: &["fee_bps", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PartialPayment",
+        topics: &[EVENT_TOPIC_ESCROW, "PartialPayment", "escrow_id", "payer"],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "payment_amount",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PerAssetFeeSet",
+        topics: &[EVENT_TOPIC_ADMIN, "PerAssetFeeSet", "token"],
+        payload_keys: &["arbiter_bps", "fee_bps", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PlatformWalletChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "PlatformWalletChanged", "wallet"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PrivacyToggled",
+        topics: &[EVENT_TOPIC_PRIVACY, "PrivacyToggled", "owner"],
+        payload_keys: &["enabled", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "StealthWithdrawn",
+        topics: &[EVENT_TOPIC_STEALTH, "StealthWithdrawn", "stealth_address", "recipient"],
+        payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+];
+
+pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
+    EventCompatibility {
+        name: "AdminChanged",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowDeposited",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowRefunded",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowWithdrawn",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "PrivacyToggled",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+];
+
 #[contractevent(topics = ["TOPIC_ADMIN", "EmergencyModeActivated"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmergencyModeActivatedEvent {
@@ -15,19 +239,6 @@ pub(crate) fn publish_emergency_mode_activated(env: &Env, admin: Address) {
     }
     .publish(env);
 }
-use soroban_sdk::{contractevent, Address, BytesN, Env};
-
-/// Canonical event schema version.
-///
-/// Increment this constant whenever the event payload shape changes
-/// (fields added, removed, or renamed). Indexers MUST check this field
-/// before parsing any event payload so they can route to the correct
-/// decoder for the schema version they understand.
-///
-/// History:
-///   v1 – original schema (no version field)
-///   v2 – added `schema_version` to every event payload (this release)
-pub const EVENT_SCHEMA_VERSION: u32 = 2;
 
 #[contractevent(topics = ["TOPIC_PRIVACY", "PrivacyToggled"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -248,6 +459,7 @@ pub struct PartialPaymentEvent {
     #[topic]
     pub payer: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub payment_amount: i128,
     pub amount_paid: i128,
@@ -264,6 +476,7 @@ pub struct EscrowFinalizedEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub total_amount: i128,
     pub timestamp: u64,
@@ -322,6 +535,7 @@ pub(crate) fn publish_partial_payment(
     PartialPaymentEvent {
         escrow_id: commitment,
         payer,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         payment_amount,
         amount_paid,
@@ -341,6 +555,7 @@ pub(crate) fn publish_escrow_finalized(
     EscrowFinalizedEvent {
         escrow_id: commitment,
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         total_amount,
         timestamp: env.ledger().timestamp(),

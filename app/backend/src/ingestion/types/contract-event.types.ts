@@ -16,6 +16,8 @@ export type SorobanEventType =
 
 export interface BaseContractEvent {
   eventType: SorobanEventType;
+  schemaVersion?: number;
+  topicNamespace?: string;
   txHash: string;
   ledgerSequence: number;
   pagingToken: string;
@@ -28,6 +30,7 @@ export interface EscrowDepositedEvent extends BaseContractEvent {
   owner: string;
   token: string;
   amount: bigint;
+  amountPaid?: bigint;
   expiresAt: bigint;
 }
 
