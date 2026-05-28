@@ -20,6 +20,8 @@ mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
 mod hook;
+#[cfg(test)]
+mod metadata_test;
 pub mod nonce;
 #[cfg(test)]
 mod nonce_test;
@@ -44,7 +46,7 @@ mod upgrade_test;
 use errors::QuickexError;
 use storage::*;
 use types::{
-    EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
     PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
@@ -631,6 +633,27 @@ impl QuickexContract {
         admin::get_version(&env)
     }
 
+    /// Return deployment metadata for compatibility validation.
+    ///
+    /// Clients and indexers can call this view (no auth required) to detect
+    /// version mismatches before interacting with the contract.
+    ///
+    /// The returned [`DeploymentMetadata`] includes:
+    /// - `contract_version` — stored schema version (0 for legacy deployments).
+    /// - `event_schema_version` — current event payload schema version.
+    /// - `wasm_hash` — 32-byte hash of the WASM recorded at the last `upgrade()` call;
+    ///   `None` when the contract has never been upgraded.
+    /// - `contract_id` — on-chain address of this contract instance, which binds
+    ///   the metadata to a specific deployment and network.
+    pub fn get_deployment_metadata(env: Env) -> DeploymentMetadata {
+        DeploymentMetadata {
+            contract_version: admin::get_version(&env),
+            event_schema_version: events::EVENT_SCHEMA_VERSION,
+            wasm_hash: storage::get_wasm_hash(&env),
+            contract_id: env.current_contract_address(),
+        }
+    }
+
     /// Run any pending data migrations for the current contract code (**Admin only**).
     ///
     /// This entrypoint is intended to be called immediately after upgrading the contract WASM
@@ -1038,6 +1061,7 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         admin::require_admin(&env, &caller)?;
 
+        storage::set_wasm_hash(&env, &new_wasm_hash);
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
 
