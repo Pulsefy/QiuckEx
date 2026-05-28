@@ -2,7 +2,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { xdr, nativeToScVal } from "@stellar/stellar-sdk";
 
 import { SorobanEventIndexerService } from "../soroban-event-indexer.service";
-import { SorobanEventParser, RawHorizonContractEvent } from "../soroban-event.parser";
+import { RawHorizonContractEvent } from "../soroban-event.parser";
 import { IndexerCheckpointRepository } from "../indexer-checkpoint.repository";
 import { EscrowEventRepository } from "../escrow-event.repository";
 import { PrivacyEventRepository } from "../privacy-event.repository";
