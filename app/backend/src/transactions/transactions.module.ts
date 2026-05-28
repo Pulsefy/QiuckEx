@@ -11,6 +11,6 @@ import { ApiKeyGuard } from "../auth/guards/api-key.guard";
   imports: [AppConfigModule, ApiKeysModule],
   controllers: [TransactionsController],
   providers: [HorizonService, TransactionsService, SorobanRpcService, ApiKeyGuard],
-  exports: [HorizonService, TransactionsService],
+  exports: [HorizonService, TransactionsService, SorobanRpcService],
 })
 export class TransactionsModule {}
