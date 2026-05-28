@@ -138,6 +138,14 @@ export class AppConfigService {
     return this.configService.get('HORIZON_URL', { infer: true });
   }
 
+  get sorobanRpcUrl(): string | undefined {
+    return this.configService.get('SOROBAN_RPC_URL', { infer: true });
+  }
+
+  get stellarExplorerUrl(): string | undefined {
+    return this.configService.get('STELLAR_EXPLORER_URL', { infer: true });
+  }
+
   /**
    * Stellar secret key (optional). Required for signing transactions.
    */

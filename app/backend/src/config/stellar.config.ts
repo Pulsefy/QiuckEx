@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { resolveNetworkSnapshot } from './network.config';
 
 export type Network = 'testnet' | 'mainnet';
 
@@ -165,11 +166,15 @@ export function syncNetworkFromEnv(
 }
 
 export const stellarConfig = registerAs('stellar', () => {
-  const network = syncNetworkFromEnv();
+  const snapshot = resolveNetworkSnapshot();
+  const network = syncNetworkFromEnv(snapshot.network);
 
   return {
     network,
-    horizonBaseUrl: HORIZON_BASE_URLS[network],
+    horizonBaseUrl: snapshot.horizonUrl,
+    sorobanRpcUrl: snapshot.sorobanRpcUrl,
+    explorerUrl: snapshot.explorerUrl,
+    networkPassphrase: snapshot.passphrase,
     supportedAssets: SUPPORTED_ASSETS,
   };
 });

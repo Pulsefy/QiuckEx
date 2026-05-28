@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppConfigService } from './app-config.service';
 import { envSchema } from './env.schema';
+import { NetworkController } from './network.controller';
 import { stellarConfig } from './stellar.config';
 
 /**
@@ -23,6 +24,7 @@ import { stellarConfig } from './stellar.config';
       },
     }),
   ],
+  controllers: [NetworkController],
   providers: [AppConfigService],
   exports: [AppConfigService],
 })
