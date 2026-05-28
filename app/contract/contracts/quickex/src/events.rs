@@ -43,7 +43,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     },
     EventSchema {
         name: "ArbiterVoteCast",
-        topics: &[EVENT_TOPIC_DISPUTE, "ArbiterVoteCast", "escrow_id", "arbiter"],
+        topics: &[
+            EVENT_TOPIC_DISPUTE,
+            "ArbiterVoteCast",
+            "escrow_id",
+            "arbiter",
+        ],
         payload_keys: &[
             "resolve_for_owner",
             "schema_version",
@@ -67,7 +72,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     },
     EventSchema {
         name: "ContractUpgraded",
-        topics: &[EVENT_TOPIC_ADMIN, "ContractUpgraded", "new_wasm_hash", "admin"],
+        topics: &[
+            EVENT_TOPIC_ADMIN,
+            "ContractUpgraded",
+            "new_wasm_hash",
+            "admin",
+        ],
         payload_keys: &["schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
@@ -79,7 +89,13 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
             "escrow_id",
             "resolved_for_owner",
         ],
-        payload_keys: &["amount", "schema_version", "threshold", "timestamp", "total_votes"],
+        payload_keys: &[
+            "amount",
+            "schema_version",
+            "threshold",
+            "timestamp",
+            "total_votes",
+        ],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -188,7 +204,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     },
     EventSchema {
         name: "StealthWithdrawn",
-        topics: &[EVENT_TOPIC_STEALTH, "StealthWithdrawn", "stealth_address", "recipient"],
+        topics: &[
+            EVENT_TOPIC_STEALTH,
+            "StealthWithdrawn",
+            "stealth_address",
+            "recipient",
+        ],
         payload_keys: &["amount", "schema_version", "timestamp", "token"],
         schema_version: EVENT_SCHEMA_VERSION,
     },

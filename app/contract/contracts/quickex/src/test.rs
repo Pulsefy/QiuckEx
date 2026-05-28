@@ -1,9 +1,9 @@
 use crate::{
+    errors::QuickexError,
     events::{
         EVENT_COMPATIBILITY, EVENT_SCHEMAS, EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN,
         EVENT_TOPIC_ESCROW, EVENT_TOPIC_PRIVACY,
     },
-    errors::QuickexError,
     storage::{
         put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
         PRIVACY_ENABLED_KEY,

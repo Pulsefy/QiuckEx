@@ -16,7 +16,6 @@ import type {
 } from "./types/contract-event.types";
 import {
   QUICKEX_EVENT_SCHEMA_CONTRACTS,
-  QUICKEX_EVENT_SCHEMA_VERSION,
   QUICKEX_EVENT_TOPICS,
   type QuickExEventTopic,
 } from "./event-schema";
