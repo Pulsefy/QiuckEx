@@ -51,6 +51,13 @@ export class QuoteService {
         ? (srcNum * slippageFactor).toFixed(7)
         : p.sourceAmount;
 
+      const destNum = parseFloat(p.destinationAmount);
+      const platformFee = isFinite(destNum) ? (destNum * 0.01).toFixed(7) : "0.0000000";
+      const networkFee = "0.0000100"; // 100 stroops
+      // Combining fees of potentially different assets into a single string is non-trivial without an oracle, 
+      // but for API consistency we return the platform fee as the total fee (assuming the user pays network fee separately in XLM).
+      const totalFee = platformFee;
+
       return {
         sourceAsset: p.sourceAsset,
         sourceAmount: p.sourceAmount,
@@ -59,6 +66,11 @@ export class QuoteService {
         destinationAmount: p.destinationAmount,
         pathHops: p.pathHops,
         rateDescription: p.rateDescription,
+        feeBreakdown: {
+          networkFee,
+          platformFee,
+          totalFee,
+        },
       };
     });
 
