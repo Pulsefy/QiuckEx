@@ -16,6 +16,8 @@ export class MetricsService implements OnModuleInit {
   private sorobanRpcFailoverTotal: client.Counter<string>;
   private sorobanRpcActiveEndpoint: client.Gauge<string>;
   private sorobanIndexerUnknownSchemaVersion: client.Counter<string>;
+  private parityCheckResults: client.Gauge<string>;
+  private shadowTrafficRequests: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -98,6 +100,18 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["event_name", "schema_version"],
       });
 
+      this.parityCheckResults = new client.Gauge({
+        name: "environment_parity_check_results",
+        help: "Environment parity check results by status",
+        labelNames: ["status"],
+      });
+
+      this.shadowTrafficRequests = new client.Counter({
+        name: "shadow_traffic_requests_total",
+        help: "Total number of shadow traffic requests",
+        labelNames: ["method", "route", "status_code", "shadow_status"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -110,6 +124,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.sorobanRpcFailoverTotal);
       this.register.registerMetric(this.sorobanRpcActiveEndpoint);
       this.register.registerMetric(this.sorobanIndexerUnknownSchemaVersion);
+      this.register.registerMetric(this.parityCheckResults);
+      this.register.registerMetric(this.shadowTrafficRequests);
 
       this.initialized = true;
     } catch (error) {
@@ -199,7 +215,11 @@ export class MetricsService implements OnModuleInit {
     } catch (error) {}
   }
 
-  recordWebhookDeliveryDuration(eventType: string, status: string, duration: number) {
+  recordWebhookDeliveryDuration(
+    eventType: string,
+    status: string,
+    duration: number,
+  ) {
     if (!this.initialized || !this.webhookDeliveryDuration) {
       return;
     }
@@ -229,12 +249,18 @@ export class MetricsService implements OnModuleInit {
     } catch (error) {}
   }
 
-  recordSorobanRpcFailover(fromEndpoint: string, toEndpoint: string, reason: string) {
+  recordSorobanRpcFailover(
+    fromEndpoint: string,
+    toEndpoint: string,
+    reason: string,
+  ) {
     if (!this.initialized || !this.sorobanRpcFailoverTotal) {
       return;
     }
     try {
-      this.sorobanRpcFailoverTotal.labels(fromEndpoint, toEndpoint, reason).inc();
+      this.sorobanRpcFailoverTotal
+        .labels(fromEndpoint, toEndpoint, reason)
+        .inc();
     } catch (error) {}
   }
 
@@ -254,6 +280,34 @@ export class MetricsService implements OnModuleInit {
     try {
       this.sorobanIndexerUnknownSchemaVersion
         .labels(eventName, String(schemaVersion))
+        .inc();
+    } catch (error) {}
+  }
+
+  recordParityCheckResult(
+    checkType: string,
+    passed: number,
+    failed: number,
+    warnings: number,
+  ) {
+    if (!this.initialized || !this.parityCheckResults) return;
+    try {
+      this.parityCheckResults.labels("pass").set(passed);
+      this.parityCheckResults.labels("fail").set(failed);
+      this.parityCheckResults.labels("warning").set(warnings);
+    } catch (error) {}
+  }
+
+  recordShadowTrafficRequest(
+    method: string,
+    route: string,
+    statusCode: number,
+    shadowStatus: "success" | "error" | "skipped",
+  ) {
+    if (!this.initialized || !this.shadowTrafficRequests) return;
+    try {
+      this.shadowTrafficRequests
+        .labels(method, route, statusCode.toString(), shadowStatus)
         .inc();
     } catch (error) {}
   }
