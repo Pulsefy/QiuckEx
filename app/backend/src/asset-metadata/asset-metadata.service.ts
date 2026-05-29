@@ -8,12 +8,12 @@ import { AssetMetadataCache } from './cache/asset-metadata.cache';
 import { TomlFetcherService } from './toml-fetcher.service';
 import {
   AssetBranding,
-  CachedAssetMetadata,
 } from './types/asset-metadata.types';
 import {
   AssetMetadataResponseDto,
   AssetListResponseDto,
 } from './dto/asset-metadata.dto';
+import { SupabaseService, VerifiedAssetDbRecord } from '../supabase/supabase.service';
 
 @Injectable()
 export class AssetMetadataService {
@@ -46,65 +46,201 @@ export class AssetMetadataService {
     private readonly cache: AssetMetadataCache,
     private readonly tomlFetcher: TomlFetcherService,
     private readonly horizonService: HorizonService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
-  /**
-   * Get metadata for all verified assets
-   */
-  async getAllAssetsMetadata(): Promise<AssetListResponseDto> {
-    const assets = await Promise.all(
-      VERIFIED_STELLAR_ASSETS.map((asset) => this.getAssetMetadata(asset.code)),
-    );
-
+  private mapDbRecordToRecord(dbRecord: VerifiedAssetDbRecord): VerifiedAssetRecord {
     return {
-      assets,
-      total: assets.length,
+      code: dbRecord.code,
+      type: dbRecord.type,
+      issuer: dbRecord.issuer,
+      verified: dbRecord.verified as true,
+      decimals: dbRecord.decimals,
+      branding: dbRecord.icon_url ? {
+        name: dbRecord.code,
+        icon: dbRecord.icon_url,
+        logo: dbRecord.icon_url,
+      } : undefined,
     };
   }
 
   /**
-   * Get metadata for a specific asset code
+   * Get metadata for all verified assets, optionally filtered by a search query
    */
-  async getAssetMetadata(code: string): Promise<AssetMetadataResponseDto> {
-    const upperCode = code.toUpperCase();
-    const verifiedAsset = VERIFIED_STELLAR_ASSETS.find(
-      (a) => a.code.toUpperCase() === upperCode,
+  async getAllAssetsMetadata(search?: string): Promise<AssetListResponseDto> {
+    const cacheKey = search ? `list:search:${search.toUpperCase()}` : 'list:all';
+    
+    // Check cache first
+    const cachedList = this.cache.get(cacheKey) as AssetListResponseDto | undefined;
+    if (cachedList) {
+      return cachedList;
+    }
+
+    let records: VerifiedAssetRecord[] = [];
+
+    try {
+      let dbRecords: VerifiedAssetDbRecord[] = [];
+      if (search) {
+        dbRecords = await this.supabaseService.searchVerifiedAssets(search);
+      } else {
+        dbRecords = await this.supabaseService.fetchVerifiedAssets();
+      }
+
+      // Filter only verified assets and map them
+      records = dbRecords
+        .filter((r) => r.verified)
+        .map((r) => this.mapDbRecordToRecord(r));
+    } catch (error) {
+      this.logger.warn(`Failed to fetch assets from database: ${error.message}`);
+    }
+
+    // If DB returned nothing or failed, use fallback constant
+    if (records.length === 0) {
+      const fallbackList = VERIFIED_STELLAR_ASSETS.map(asset => ({ ...asset }));
+      if (search) {
+        const upperSearch = search.toUpperCase();
+        records = fallbackList.filter(
+          (a) =>
+            a.code.toUpperCase().includes(upperSearch) ||
+            (a.issuer && a.issuer.toUpperCase().includes(upperSearch)),
+        ) as VerifiedAssetRecord[];
+      } else {
+        records = fallbackList as VerifiedAssetRecord[];
+      }
+    }
+
+    const assets = await Promise.all(
+      records.map((asset) => this.getAssetMetadata(asset.code, asset.issuer)),
     );
+
+    const response: AssetListResponseDto = {
+      assets,
+      total: assets.length,
+    };
+
+    // Cache the list response
+    this.cache.set(cacheKey, response);
+
+    return response;
+  }
+
+  /**
+   * Get metadata for a specific asset code and optional issuer
+   */
+  async getAssetMetadata(code: string, issuer?: string | null): Promise<AssetMetadataResponseDto> {
+    const upperCode = code.toUpperCase();
+    const normIssuer = issuer || null;
+    const cacheKey = normIssuer ? `${upperCode}:${normIssuer.toUpperCase()}` : upperCode;
+
+    // Check cache first
+    const cached = this.cache.get(cacheKey) as {
+      asset: VerifiedAssetRecord;
+      branding: AssetBranding;
+      isFallback: boolean;
+      fetchedAt: Date;
+    } | undefined;
+    if (cached) {
+      return this.mapToResponseDto(cached.asset, cached.branding, cached.isFallback);
+    }
+
+    // Try finding the asset:
+    let verifiedAsset: VerifiedAssetRecord | undefined;
+
+    // 1. Try DB first
+    try {
+      const dbRecords = await this.supabaseService.fetchVerifiedAssets();
+      const dbRecord = dbRecords.find(
+        (r) =>
+          r.code.toUpperCase() === upperCode &&
+          (normIssuer === null
+            ? r.issuer === null
+            : r.issuer?.toUpperCase() === normIssuer.toUpperCase())
+      );
+      if (dbRecord) {
+        verifiedAsset = this.mapDbRecordToRecord(dbRecord);
+      }
+    } catch (error) {
+      this.logger.debug(`Could not check DB for asset metadata: ${error.message}`);
+    }
+
+    // 2. Fall back to constant whitelist
+    if (!verifiedAsset) {
+      const fallback = VERIFIED_STELLAR_ASSETS.find(
+        (a) =>
+          a.code.toUpperCase() === upperCode &&
+          (normIssuer === null
+            ? a.issuer === null
+            : a.issuer?.toUpperCase() === normIssuer.toUpperCase())
+      );
+      if (fallback) {
+        verifiedAsset = { ...fallback } as VerifiedAssetRecord;
+      }
+    }
 
     if (!verifiedAsset) {
       // Return unverified asset with fallback branding
       return this.createUnverifiedResponse(code);
     }
 
-    // Check cache first
-    const cached = this.cache.get(upperCode);
-    if (cached) {
-      return this.mapToResponseDto(verifiedAsset, cached.branding, false);
-    }
-
     // Fetch branding from TOML or use fallback
     const branding = await this.fetchAssetBranding(verifiedAsset);
+    const isFallback = this.isFallbackBranding(branding, verifiedAsset);
 
     // Cache the result
-    const cachedMetadata: CachedAssetMetadata = {
-      code: verifiedAsset.code,
-      issuer: verifiedAsset.issuer,
+    const cachedMetadata = {
+      asset: verifiedAsset,
       branding,
+      isFallback,
       fetchedAt: new Date(),
-      ttl: 1000 * 60 * 60 * 24, // 24 hours
     };
-    this.cache.set(upperCode, cachedMetadata);
+    this.cache.set(cacheKey, cachedMetadata);
 
-    const isFallback = this.isFallbackBranding(branding, verifiedAsset);
     return this.mapToResponseDto(verifiedAsset, branding, isFallback);
   }
 
   /**
    * Refresh metadata for a specific asset (clear cache and re-fetch)
    */
-  async refreshAssetMetadata(code: string): Promise<AssetMetadataResponseDto> {
-    this.cache.delete(code.toUpperCase());
-    return this.getAssetMetadata(code);
+  async refreshAssetMetadata(code: string, issuer?: string | null): Promise<AssetMetadataResponseDto> {
+    const normIssuer = issuer || null;
+    const cacheKey = normIssuer ? `${code.toUpperCase()}:${normIssuer.toUpperCase()}` : code.toUpperCase();
+    this.cache.delete(cacheKey);
+    // Clear list cache to reflect any changes
+    this.cache.clear();
+    return this.getAssetMetadata(code, issuer);
+  }
+
+  /**
+   * Mark an asset as verified/unverified in database and clear cache
+   */
+  async verifyAsset(
+    code: string,
+    issuer: string | null,
+    verified: boolean,
+    additionalData?: {
+      type?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+      decimals?: number;
+      iconUrl?: string | null;
+    }
+  ): Promise<AssetMetadataResponseDto> {
+    const normCode = code.toUpperCase();
+    const normIssuer = issuer || null;
+
+    // Save/update in database
+    await this.supabaseService.upsertVerifiedAsset({
+      code: normCode,
+      issuer: normIssuer,
+      type: additionalData?.type || (normCode === 'XLM' ? 'native' : 'credit_alphanum4'),
+      decimals: additionalData?.decimals ?? 7,
+      icon_url: additionalData?.iconUrl || null,
+      verified,
+    });
+
+    // Clear entire cache immediately so changes are reflected
+    this.cache.clear();
+
+    // Fetch fresh metadata
+    return this.getAssetMetadata(normCode, normIssuer);
   }
 
   /**
