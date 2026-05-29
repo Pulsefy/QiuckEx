@@ -13,12 +13,18 @@ use soroban_sdk::{contractevent, Address, BytesN, Env};
 pub const EVENT_SCHEMA_VERSION: u32 = 2;
 
 /// Testnet event topic namespace used as topic[0] for every QuickEx event.
+#[allow(dead_code)]
 pub const EVENT_TOPIC_ADMIN: &str = "TOPIC_ADMIN";
+#[allow(dead_code)]
 pub const EVENT_TOPIC_DISPUTE: &str = "TOPIC_DISPUTE";
+#[allow(dead_code)]
 pub const EVENT_TOPIC_ESCROW: &str = "TOPIC_ESCROW";
+#[allow(dead_code)]
 pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
+#[allow(dead_code)]
 pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EventSchema {
     pub name: &'static str,
@@ -27,6 +33,7 @@ pub struct EventSchema {
     pub schema_version: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EventCompatibility {
     pub name: &'static str,
@@ -34,6 +41,7 @@ pub struct EventCompatibility {
     pub compatible_versions: &'static [u32],
 }
 
+#[allow(dead_code)]
 pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "AdminChanged",
@@ -215,6 +223,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     },
 ];
 
+#[allow(dead_code)]
 pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
     EventCompatibility {
         name: "AdminChanged",

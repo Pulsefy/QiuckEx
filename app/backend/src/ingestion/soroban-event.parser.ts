@@ -23,6 +23,12 @@ import {
 /** Maximum schema version this indexer understands. */
 export const MAX_SUPPORTED_SCHEMA_VERSION = 2;
 
+export type UnknownSchemaVersionHandler = (
+  eventName: SorobanEventType,
+  schemaVersion: number,
+  pagingToken: string,
+) => void;
+
 /**
  * Raw Horizon contract event record shape (subset we need).
  */
@@ -80,21 +86,23 @@ export class SorobanEventParser {
       if (!layout) return null;
 
       const schemaVersion = this.extractSchemaVersionFromData(dataVal);
-      if (!this.isCompatibleSchemaVersion(layout.eventName, schemaVersion)) {
+      if (schemaVersion > MAX_SUPPORTED_SCHEMA_VERSION) {
         this.logger.warn(
-          `Unsupported ${layout.eventName} schema version ${schemaVersion}`,
+          `Skipping event ${layout.eventName} paging_token=${raw.paging_token}: ` +
+            `schema_version=${schemaVersion} exceeds max supported (${MAX_SUPPORTED_SCHEMA_VERSION})`,
+        );
+        this.onUnknownSchemaVersion?.(
+          layout.eventName,
+          schemaVersion,
+          raw.paging_token,
         );
         return null;
       }
 
-      // ── Schema version gate ──────────────────────────────────────────────
-      const schemaVersion = this.extractSchemaVersion(dataVal);
-      if (schemaVersion > MAX_SUPPORTED_SCHEMA_VERSION) {
+      if (!this.isCompatibleSchemaVersion(layout.eventName, schemaVersion)) {
         this.logger.warn(
-          `Skipping event ${eventName} paging_token=${raw.paging_token}: ` +
-            `schema_version=${schemaVersion} exceeds max supported (${MAX_SUPPORTED_SCHEMA_VERSION})`,
+          `Unsupported ${layout.eventName} schema version ${schemaVersion}`,
         );
-        this.onUnknownSchemaVersion?.(eventName, schemaVersion, raw.paging_token);
         return null;
       }
 
@@ -105,7 +113,6 @@ export class SorobanEventParser {
         ledgerSequence: raw.ledger,
         pagingToken: raw.paging_token,
         contractTimestamp: this.extractTimestampFromData(dataVal),
-        schemaVersion,
       };
 
       switch (layout.eventName) {
@@ -505,20 +512,4 @@ export class SorobanEventParser {
     return 0n;
   }
 
-  /**
-   * Reads `schema_version` from the data map.
-   * - Absent → v1 (legacy events without the field).
-   * - Present → the numeric value.
-   */
-  private extractSchemaVersion(data: xdr.ScVal): number {
-    try {
-      const map = this.dataToMap(data);
-      if (map["schema_version"]) {
-        return Number(scValToNative(map["schema_version"]));
-      }
-    } catch {
-      // ignore
-    }
-    return 1; // v1: no schema_version field
-  }
 }
