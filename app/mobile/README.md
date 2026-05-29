@@ -68,3 +68,5 @@ Before production release, replace these placeholders with real values:
 
 - `TEAM_ID.com.pulsefy.quickex` in the AASA file.
 - `REPLACE_WITH_RELEASE_CERT_SHA256_FINGERPRINT` in `assetlinks.json`.
+
+A debug screen is available at `/deep-link-debug` to validate deep link parsing and preview the target route inside the app.
