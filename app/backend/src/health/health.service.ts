@@ -208,8 +208,10 @@ export class HealthService {
         setTimeout(() => reject(new Error("Timeout")), 5000),
       );
 
-      // Try to get network info from Soroban RPC
-      const check = Promise.race([this.sorobanRpcService.getNetworkPassphrase(), timeout]);
+      const check = Promise.race([
+        this.sorobanRpcService.getNetworkPassphrase(),
+        timeout,
+      ]);
 
       await check;
       const latency = Date.now() - start;
