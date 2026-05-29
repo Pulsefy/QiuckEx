@@ -849,4 +849,3 @@ fn upgrade_safety_gate_non_admin_blocked() {
     let result = client.try_set_upgrade_window(&non_admin, &1u64, &0u64);
     assert!(result.is_err(), "set_upgrade_window by non-admin must fail");
 }
-
