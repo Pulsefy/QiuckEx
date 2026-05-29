@@ -20,6 +20,9 @@ import {
   type QuickExEventTopic,
 } from "./event-schema";
 
+/** Maximum schema version this indexer understands. */
+export const MAX_SUPPORTED_SCHEMA_VERSION = 2;
+
 /**
  * Raw Horizon contract event record shape (subset we need).
  */
@@ -57,9 +60,14 @@ interface TopicLayout {
 export class SorobanEventParser {
   private readonly logger = new Logger(SorobanEventParser.name);
 
+  constructor(
+    private readonly onUnknownSchemaVersion?: UnknownSchemaVersionHandler,
+  ) {}
+
   /**
    * Attempt to parse a raw Horizon contract event.
-   * Returns null when the event is unrecognised or malformed.
+   * Returns null when the event is unrecognised, malformed, or carries an
+   * unsupported schema version.
    */
   parse(raw: RawHorizonContractEvent): QuickExContractEvent | null {
     try {
@@ -79,6 +87,17 @@ export class SorobanEventParser {
         return null;
       }
 
+      // ── Schema version gate ──────────────────────────────────────────────
+      const schemaVersion = this.extractSchemaVersion(dataVal);
+      if (schemaVersion > MAX_SUPPORTED_SCHEMA_VERSION) {
+        this.logger.warn(
+          `Skipping event ${eventName} paging_token=${raw.paging_token}: ` +
+            `schema_version=${schemaVersion} exceeds max supported (${MAX_SUPPORTED_SCHEMA_VERSION})`,
+        );
+        this.onUnknownSchemaVersion?.(eventName, schemaVersion, raw.paging_token);
+        return null;
+      }
+
       const base = {
         schemaVersion,
         topicNamespace: layout.topicNamespace,
@@ -86,6 +105,7 @@ export class SorobanEventParser {
         ledgerSequence: raw.ledger,
         pagingToken: raw.paging_token,
         contractTimestamp: this.extractTimestampFromData(dataVal),
+        schemaVersion,
       };
 
       switch (layout.eventName) {
@@ -483,5 +503,22 @@ export class SorobanEventParser {
       // ignore
     }
     return 0n;
+  }
+
+  /**
+   * Reads `schema_version` from the data map.
+   * - Absent → v1 (legacy events without the field).
+   * - Present → the numeric value.
+   */
+  private extractSchemaVersion(data: xdr.ScVal): number {
+    try {
+      const map = this.dataToMap(data);
+      if (map["schema_version"]) {
+        return Number(scValToNative(map["schema_version"]));
+      }
+    } catch {
+      // ignore
+    }
+    return 1; // v1: no schema_version field
   }
 }

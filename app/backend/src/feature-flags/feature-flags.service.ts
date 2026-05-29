@@ -25,6 +25,48 @@ type CacheState = {
 };
 
 const DEFAULT_FLAGS: FeatureFlagRecord[] = [
+  // ── Network safety gates (BE-31) ──────────────────────────────────────────
+  // Safe default: disabled. Must be explicitly enabled by an admin on mainnet.
+  {
+    key: 'mainnet.refunds',
+    name: 'Mainnet Refunds',
+    description: 'Allows refund initiation on mainnet.',
+    enabled: false,
+    killSwitch: false,
+    rolloutPercentage: 0,
+    allowedUsers: [],
+    environments: ['production'],
+    metadata: { highRisk: true, flow: 'refunds' },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
+  {
+    key: 'mainnet.dispute_actions',
+    name: 'Mainnet Dispute Actions',
+    description: 'Allows escrow dispute actions on mainnet.',
+    enabled: false,
+    killSwitch: false,
+    rolloutPercentage: 0,
+    allowedUsers: [],
+    environments: ['production'],
+    metadata: { highRisk: true, flow: 'dispute_actions' },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
+  {
+    key: 'mainnet.contract_writes',
+    name: 'Mainnet Contract Writes',
+    description: 'Allows Soroban contract write operations on mainnet.',
+    enabled: false,
+    killSwitch: false,
+    rolloutPercentage: 0,
+    allowedUsers: [],
+    environments: ['production'],
+    metadata: { highRisk: true, flow: 'contract_writes' },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
+  // ── Existing flags ────────────────────────────────────────────────────────
   {
     key: 'bulk_invoicing_v2',
     name: 'Bulk Invoicing v2',

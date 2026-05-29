@@ -15,6 +15,7 @@ export class MetricsService implements OnModuleInit {
   private errorRate: client.Counter<string>;
   private sorobanRpcFailoverTotal: client.Counter<string>;
   private sorobanRpcActiveEndpoint: client.Gauge<string>;
+  private sorobanIndexerUnknownSchemaVersion: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -91,6 +92,12 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["endpoint"],
       });
 
+      this.sorobanIndexerUnknownSchemaVersion = new client.Counter({
+        name: "soroban_indexer_unknown_schema_version_total",
+        help: "Events skipped because their schema_version exceeds the indexer maximum",
+        labelNames: ["event_name", "schema_version"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -102,6 +109,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.errorRate);
       this.register.registerMetric(this.sorobanRpcFailoverTotal);
       this.register.registerMetric(this.sorobanRpcActiveEndpoint);
+      this.register.registerMetric(this.sorobanIndexerUnknownSchemaVersion);
 
       this.initialized = true;
     } catch (error) {
@@ -238,6 +246,15 @@ export class MetricsService implements OnModuleInit {
       for (const url of allEndpoints) {
         this.sorobanRpcActiveEndpoint.labels(url).set(url === endpoint ? 1 : 0);
       }
+    } catch (error) {}
+  }
+
+  recordUnknownSchemaVersion(eventName: string, schemaVersion: number) {
+    if (!this.initialized || !this.sorobanIndexerUnknownSchemaVersion) return;
+    try {
+      this.sorobanIndexerUnknownSchemaVersion
+        .labels(eventName, String(schemaVersion))
+        .inc();
     } catch (error) {}
   }
 }
