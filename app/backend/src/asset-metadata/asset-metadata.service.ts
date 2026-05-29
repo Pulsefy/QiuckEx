@@ -8,7 +8,6 @@ import { AssetMetadataCache } from './cache/asset-metadata.cache';
 import { TomlFetcherService } from './toml-fetcher.service';
 import {
   AssetBranding,
-  CachedAssetMetadata,
 } from './types/asset-metadata.types';
 import {
   AssetMetadataResponseDto,
@@ -72,7 +71,7 @@ export class AssetMetadataService {
     const cacheKey = search ? `list:search:${search.toUpperCase()}` : 'list:all';
     
     // Check cache first
-    const cachedList = this.cache.get(cacheKey);
+    const cachedList = this.cache.get(cacheKey) as AssetListResponseDto | undefined;
     if (cachedList) {
       return cachedList;
     }
@@ -134,7 +133,12 @@ export class AssetMetadataService {
     const cacheKey = normIssuer ? `${upperCode}:${normIssuer.toUpperCase()}` : upperCode;
 
     // Check cache first
-    const cached = this.cache.get(cacheKey);
+    const cached = this.cache.get(cacheKey) as {
+      asset: VerifiedAssetRecord;
+      branding: AssetBranding;
+      isFallback: boolean;
+      fetchedAt: Date;
+    } | undefined;
     if (cached) {
       return this.mapToResponseDto(cached.asset, cached.branding, cached.isFallback);
     }

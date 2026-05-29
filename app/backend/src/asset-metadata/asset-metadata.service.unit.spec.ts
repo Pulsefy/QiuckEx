@@ -10,7 +10,6 @@ describe("AssetMetadataService", () => {
   let service: AssetMetadataService;
   let cache: jest.Mocked<AssetMetadataCache>;
   let tomlFetcher: jest.Mocked<TomlFetcherService>;
-  let horizonService: jest.Mocked<HorizonService>;
   let supabaseService: jest.Mocked<SupabaseService>;
 
   const mockDbAssets = [
@@ -77,7 +76,6 @@ describe("AssetMetadataService", () => {
     service = module.get<AssetMetadataService>(AssetMetadataService);
     cache = module.get(AssetMetadataCache);
     tomlFetcher = module.get(TomlFetcherService);
-    horizonService = module.get(HorizonService);
     supabaseService = module.get(SupabaseService);
   });
 
