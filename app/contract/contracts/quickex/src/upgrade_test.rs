@@ -649,7 +649,10 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
 
     // Window not set → upgrades blocked.
     let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
-    assert!(result.is_err(), "start_upgrade must fail when no window is set");
+    assert!(
+        result.is_err(),
+        "start_upgrade must fail when no window is set"
+    );
 
     // Set a future window → still blocked.
     let now = env.ledger().timestamp();
@@ -673,7 +676,9 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
         .expect("start_upgrade should succeed during window");
 
     // Verify upgrade_in_progress flag is set.
-    client.migrate(&gs.admin).expect("migrate after start_upgrade");
+    client
+        .migrate(&gs.admin)
+        .expect("migrate after start_upgrade");
     client
         .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
         .expect("complete_upgrade should succeed");
@@ -705,9 +710,7 @@ fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
         .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
         .expect("start_upgrade should succeed");
 
-    let version = client
-        .migrate(&gs.admin)
-        .expect("migrate should succeed");
+    let version = client.migrate(&gs.admin).expect("migrate should succeed");
     assert_eq!(version, CURRENT_CONTRACT_VERSION);
 
     client
@@ -754,7 +757,9 @@ fn upgrade_safety_gate_invariant_failure_deterministic() {
     env.as_contract(&gs.contract_id, || {
         crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 200 });
     });
-    client.migrate(&gs.admin).expect("migrate must succeed after restoring invariants");
+    client
+        .migrate(&gs.admin)
+        .expect("migrate must succeed after restoring invariants");
     client
         .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
         .expect("complete_upgrade");
@@ -838,16 +843,10 @@ fn upgrade_safety_gate_non_admin_blocked() {
 
     // Non-admin attempts start_upgrade → fails.
     let result = client.try_start_upgrade(&non_admin, &CURRENT_CONTRACT_VERSION);
-    assert!(
-        result.is_err(),
-        "start_upgrade by non-admin must fail"
-    );
+    assert!(result.is_err(), "start_upgrade by non-admin must fail");
 
     // Non-admin attempts set_upgrade_window → fails.
     let result = client.try_set_upgrade_window(&non_admin, &1u64, &0u64);
-    assert!(
-        result.is_err(),
-        "set_upgrade_window by non-admin must fail"
-    );
+    assert!(result.is_err(), "set_upgrade_window by non-admin must fail");
 }
 

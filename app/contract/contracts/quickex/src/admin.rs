@@ -1,8 +1,8 @@
 use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_contract_migrated, publish_contract_paused,
-    publish_fee_collector_rotated, publish_per_asset_fee_set, publish_upgrade_started,
-    publish_upgrade_completed,
+    publish_fee_collector_rotated, publish_per_asset_fee_set, publish_upgrade_completed,
+    publish_upgrade_started,
 };
 use crate::fee_router;
 use crate::storage;
@@ -221,11 +221,7 @@ pub fn set_upgrade_window(
 ///
 /// **Admin only**. Emits `UpgradeStarted` event with old/new versions.
 /// Blocks if window is not active or upgrade already in progress.
-pub fn start_upgrade(
-    env: &Env,
-    caller: &Address,
-    new_version: u32,
-) -> Result<(), QuickexError> {
+pub fn start_upgrade(env: &Env, caller: &Address, new_version: u32) -> Result<(), QuickexError> {
     require_admin(env, caller)?;
 
     // Check upgrade window is active (Issue #432 AC1)
@@ -241,7 +237,14 @@ pub fn start_upgrade(
     let (window_start, window_end) = storage::get_upgrade_window(env);
 
     storage::set_upgrade_in_progress(env, true);
-    publish_upgrade_started(env, caller, old_version, new_version, window_start, window_end);
+    publish_upgrade_started(
+        env,
+        caller,
+        old_version,
+        new_version,
+        window_start,
+        window_end,
+    );
 
     Ok(())
 }

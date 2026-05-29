@@ -1091,11 +1091,7 @@ impl QuickexContract {
     /// # Errors
     /// * `InvalidAmount` - (repurposed) upgrade window not active
     /// * `ContractPaused` - (repurposed) upgrade already in progress
-    pub fn start_upgrade(
-        env: Env,
-        caller: Address,
-        new_version: u32,
-    ) -> Result<(), QuickexError> {
+    pub fn start_upgrade(env: Env, caller: Address, new_version: u32) -> Result<(), QuickexError> {
         admin::start_upgrade(&env, &caller, new_version)
     }
 
