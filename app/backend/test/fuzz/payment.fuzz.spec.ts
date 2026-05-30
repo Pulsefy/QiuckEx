@@ -57,7 +57,7 @@ const USERS = ['alice', 'bob', 'carol'];
 class CreatePaymentCommand implements fc.Command<PaymentModel, PaymentService> {
     constructor(readonly creator: string, readonly merchant: string, readonly nonce: string) {}
 
-    check(m: Readonly<PaymentModel>): boolean { return true; }
+    check(): boolean { return true; }
 
     async run(m: PaymentModel, real: PaymentService): Promise<void> {
         const id = `payment_${this.nonce}`; // Simplified ID generation

@@ -112,6 +112,12 @@ describe("StellarIngestionService", () => {
         { provide: CursorRepository, useValue: cursorRepo },
         { provide: EscrowEventRepository, useValue: escrowRepo },
         { provide: SorobanEventParser, useValue: parser },
+        {
+          provide: JobQueueService,
+          useValue: {
+            enqueue: jest.fn().mockResolvedValue("reconnect-job-id"),
+          },
+        },
       ],
     }).compile();
 
