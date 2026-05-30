@@ -4,6 +4,8 @@ import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
 import { NOTIFICATION_PROVIDERS } from "./providers/notification-provider.interface";
+import { InAppNotificationRepository } from "./in-app-notification.repository";
+import { TemplateService } from "./template.service";
 
 describe("NotificationService (Event Hook Verification)", () => {
   let service: NotificationService;
@@ -40,6 +42,8 @@ describe("NotificationService (Event Hook Verification)", () => {
         { provide: NotificationPreferencesRepository, useValue: mockPrefsRepo },
         { provide: NotificationLogRepository, useValue: mockLogRepo },
         { provide: NOTIFICATION_PROVIDERS, useValue: [] },
+        { provide: InAppNotificationRepository, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
+        { provide: TemplateService, useValue: { getTemplate: jest.fn().mockReturnValue(null), render: jest.fn().mockReturnValue("") } },
       ],
     }).compile();
 
