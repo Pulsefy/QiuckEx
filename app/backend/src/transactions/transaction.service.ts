@@ -15,7 +15,8 @@ import {
 } from "./dto/compose-transaction-response.dto";
 import { buildScVal } from "./utils/param-builder";
 import { SorobanRpcService } from "./soroban-rpc.service";
-import { mapSimulationError } from "./simulation-error.mapper";
+import { mapSorobanError } from "../common/soroban-errors";
+import { SorobanErrorCode } from "../common/soroban-errors";
 
 const STROOPS_PER_XLM = 10_000_000;
 const BASE_FEE = 100; // stroops
@@ -88,12 +89,12 @@ export class TransactionsService {
 
     // 7. Handle simulation failure
     if (SorobanRpc.Api.isSimulationError(simulationResult)) {
-      const mapped = mapSimulationError(simulationResult.error);
-      this.logger.warn(`Simulation failed: ${simulationResult.error}`);
+      const mapped = mapSorobanError(simulationResult.error);
+      this.logger.warn(`Simulation failed [${mapped.code}]: ${simulationResult.error}`);
       return {
         success: false,
-        error: mapped.technicalError,
-        userMessage: mapped.userMessage,
+        error: mapped.code,
+        userMessage: mapped.message,
         details: mapped.details,
       };
     }
@@ -102,7 +103,7 @@ export class TransactionsService {
     if (SorobanRpc.Api.isSimulationRestore(simulationResult)) {
       return {
         success: false,
-        error: "RESTORE_REQUIRED",
+        error: SorobanErrorCode.RESTORE_REQUIRED,
         userMessage:
           "Some contract state entries have expired and must be restored before this transaction can proceed. Please run a restore operation first.",
         details: {
