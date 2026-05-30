@@ -36,7 +36,7 @@ jobs:
 
       - name: Run ESLint
         working-directory: ./app/frontend
-        run: npm run lint
+        run: npx eslint . --max-warnings 0
 
       - name: Run TypeScript type check
         working-directory: ./app/frontend
@@ -88,8 +88,10 @@ jobs:
       - name: Check for mixed content
         run: |
           echo "Checking for hardcoded HTTP URLs in frontend code..."
-          if grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules | grep -v "http://localhost"; then
+          # Search for HTTP URLs, filter out localhost, and check if any remain
+          if grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules 2>/dev/null | grep -v "http://localhost" > /dev/null 2>&1; then
             echo "❌ Found hardcoded HTTP URLs (non-localhost). This may cause mixed-content issues in production."
+            grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules | grep -v "http://localhost"
             exit 1
           else
             echo "✅ No problematic HTTP URLs found"
