@@ -16,6 +16,7 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
 import { buildCorsOptions } from "./config/cors.config";
 import { AppConfigService } from "./config";
+import { AppModule } from "./app.module";
 import { resolveNetworkSnapshot } from "./config/network.config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";

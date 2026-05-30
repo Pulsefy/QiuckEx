@@ -10,6 +10,7 @@ import {
 } from "../soroban-event.parser";
 import { StellarIngestionService } from "../stellar-ingestion.service";
 import type { EscrowDepositedEvent } from "../types/contract-event.types";
+import { JobQueueService } from "../../job-queue/job-queue.service";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,6 +113,7 @@ describe("StellarIngestionService", () => {
         { provide: CursorRepository, useValue: cursorRepo },
         { provide: EscrowEventRepository, useValue: escrowRepo },
         { provide: SorobanEventParser, useValue: parser },
+        { provide: JobQueueService, useValue: { enqueue: jest.fn() } },
       ],
     }).compile();
 
