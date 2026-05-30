@@ -4,6 +4,8 @@ import { NotificationService } from "../notification.service";
 import { NotificationPreferencesRepository } from "../notification-preferences.repository";
 import { NotificationLogRepository } from "../notification-log.repository";
 import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
+import { InAppNotificationRepository } from "../in-app-notification.repository";
+import { TemplateService } from "../template.service";
 import type {
   NotificationPreference,
   NotificationPayload,
@@ -112,6 +114,8 @@ describe("NotificationService", () => {
         { provide: NotificationPreferencesRepository, useValue: prefsRepo },
         { provide: NotificationLogRepository, useValue: logRepo },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
+        { provide: InAppNotificationRepository, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
+        { provide: TemplateService, useValue: { getTemplate: jest.fn().mockReturnValue(null), render: jest.fn().mockReturnValue("") } },
       ],
     }).compile();
 

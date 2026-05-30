@@ -22,7 +22,6 @@
 #![cfg(test)]
 
 use proptest::prelude::*;
-use soroban_sdk::testutils::Ledger;
 
 use crate::test_context::TestContext;
 
@@ -47,9 +46,9 @@ fn timeout_strategy() -> impl Strategy<Value = u64> {
     ]
 }
 
-/// Generates a salt as a 1–32 byte vec.
-fn salt_strategy() -> impl Strategy<Value = Vec<u8>> {
-    prop::collection::vec(any::<u8>(), 1..=32)
+/// Generates a salt as a fixed-size 32-byte array.
+fn salt_strategy() -> impl Strategy<Value = [u8; 32]> {
+    prop::array::uniform32(any::<u8>())
 }
 
 /// Generates a time advance in seconds (0 = no advance).
@@ -83,7 +82,7 @@ proptest! {
         // Advance to exactly the expiry boundary (now >= expires_at)
         ctx.advance_time(timeout);
 
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_err(),
             "INV-1 violated: withdraw succeeded after expiry for commitment {:?}",
@@ -102,7 +101,7 @@ proptest! {
     ) {
         let ctx = TestContext::with_admin();
         ctx.mint(&ctx.alice.clone(), amount);
-        let _commitment = ctx.client.deposit(
+        let commitment = ctx.client.deposit(
             &ctx.token,
             &amount,
             &ctx.alice.clone(),
@@ -114,7 +113,7 @@ proptest! {
         // Advance time but stay within the window
         ctx.advance_time(timeout / 2);
 
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_ok(),
             "INV-1 converse violated: withdraw failed before expiry"
@@ -255,7 +254,7 @@ proptest! {
 
         ctx.client.dispute(&commitment);
 
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_err(),
             "INV-4 violated: withdraw succeeded on a Disputed escrow"
@@ -299,13 +298,13 @@ proptest! {
         salt in salt_strategy(),
     ) {
         let ctx = TestContext::with_admin();
-        ctx.simple_deposit(&ctx.alice.clone(), amount, &salt);
+        let commitment = ctx.simple_deposit(&ctx.alice.clone(), amount, &salt);
 
         // First withdraw succeeds
-        ctx.client.withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        ctx.client.withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
 
         // Second withdraw must fail
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_err(),
             "INV-5 violated: second withdraw succeeded on a Spent escrow"
@@ -353,7 +352,7 @@ proptest! {
     ) {
         let ctx = TestContext::with_admin();
         ctx.mint(&ctx.alice.clone(), amount);
-        let _commitment = ctx.client.deposit(
+        let commitment = ctx.client.deposit(
             &ctx.token,
             &amount,
             &ctx.alice.clone(),
@@ -363,9 +362,9 @@ proptest! {
         );
 
         ctx.advance_time(timeout + 1);
-        ctx.client.refund(&_commitment, &ctx.alice.clone());
+        ctx.client.refund(&commitment, &ctx.alice.clone());
 
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_err(),
             "INV-5 violated: withdraw succeeded on a Refunded escrow"
@@ -477,7 +476,7 @@ proptest! {
     ) {
         let ctx = TestContext::with_admin();
         ctx.mint(&ctx.alice.clone(), amount);
-        let _commitment = ctx.client.deposit(
+        let commitment = ctx.client.deposit(
             &ctx.token,
             &amount,
             &ctx.alice.clone(),
@@ -489,7 +488,7 @@ proptest! {
         // Advance to exactly the expiry boundary
         ctx.advance_time(timeout);
 
-        let result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(
             result.is_err(),
             "Expiry boundary violated: withdraw succeeded at exactly expires_at"
@@ -571,7 +570,7 @@ proptest! {
         );
 
         // Further operations must fail (INV-5)
-        let withdraw_result = ctx.client.try_withdraw(&amount, &ctx.alice.clone(), &ctx.salt(&salt));
+        let withdraw_result = ctx.client.try_withdraw(&ctx.token, &amount, &commitment, &ctx.alice.clone(), &ctx.salt(&salt));
         prop_assert!(withdraw_result.is_err(), "INV-5 violated after dispute resolution");
     }
 }
