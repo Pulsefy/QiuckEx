@@ -40,10 +40,10 @@ fn amount_strategy() -> impl Strategy<Value = i128> {
 #[allow(dead_code)]
 fn timeout_strategy() -> impl Strategy<Value = u64> {
     prop_oneof![
-        Just(0u64),                  // no expiry
-        1u64..=3600u64,              // short (1 s – 1 h)
-        3601u64..=86_400u64,         // medium (1 h – 1 day)
-        86_401u64..=31_536_000u64,   // long (1 day – 1 year)
+        Just(0u64),                // no expiry
+        1u64..=3600u64,            // short (1 s – 1 h)
+        3601u64..=86_400u64,       // medium (1 h – 1 day)
+        86_401u64..=31_536_000u64, // long (1 day – 1 year)
     ]
 }
 
@@ -638,7 +638,10 @@ mod regression_corpus {
             &0,
             &None,
         );
-        assert!(result.is_err(), "REGRESSION-001: zero-amount deposit was accepted");
+        assert!(
+            result.is_err(),
+            "REGRESSION-001: zero-amount deposit was accepted"
+        );
     }
 
     /// REGRESSION-002: negative-amount deposit must be rejected.
@@ -653,7 +656,10 @@ mod regression_corpus {
             &0,
             &None,
         );
-        assert!(result.is_err(), "REGRESSION-002: negative-amount deposit was accepted");
+        assert!(
+            result.is_err(),
+            "REGRESSION-002: negative-amount deposit was accepted"
+        );
     }
 
     /// REGRESSION-003: dispute without arbiter must fail with NoArbiter.
@@ -662,7 +668,10 @@ mod regression_corpus {
         let ctx = TestContext::with_admin();
         let commitment = ctx.simple_deposit(&ctx.alice.clone(), 1000, b"no-arb");
         let result = ctx.client.try_dispute(&commitment);
-        assert!(result.is_err(), "REGRESSION-003: dispute without arbiter was accepted");
+        assert!(
+            result.is_err(),
+            "REGRESSION-003: dispute without arbiter was accepted"
+        );
     }
 
     /// REGRESSION-004: non-owner refund must fail with InvalidOwner.
@@ -681,7 +690,10 @@ mod regression_corpus {
         ctx.advance_time(2);
         // Bob tries to refund Alice's escrow
         let result = ctx.client.try_refund(&commitment, &ctx.bob.clone());
-        assert!(result.is_err(), "REGRESSION-004: non-owner refund was accepted");
+        assert!(
+            result.is_err(),
+            "REGRESSION-004: non-owner refund was accepted"
+        );
     }
 
     /// REGRESSION-005: u64::MAX timeout must not panic (INV-3 overflow guard).
