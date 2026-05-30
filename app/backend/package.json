@@ -3,18 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "description": "QuickEx NestJS backend API",
-  "scripts": {
-    "dev": "nest start --watch",
-    "start:dev": "nest start --watch",
-    "build": "nest build",
-    "start": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
-    "type-check": "tsc --noEmit",
-    "test": "jest",
-    "test:unit": "jest --config jest.unit.config.ts",
-    "test:int": "jest --config jest.int.config.ts",
-    "test:e2e": "jest --config jest.e2e.config.ts"
-  },
   "dependencies": {
     "@nestjs/common": "^10.4.22",
     "@nestjs/config": "^3.3.0",
@@ -77,8 +65,8 @@
     "test:unit": "jest --config jest.unit.config.ts",
     "test:int": "jest --config jest.int.config.ts",
     "test:e2e": "jest --config jest.e2e.config.ts",
+    "soroban:deploy": "ts-node scripts/soroban-deploy.ts",
     "test:fuzz": "jest --config jest.fuzz.config.ts",
     "test:fuzz:ci": "jest --config jest.fuzz.config.ts --runInBand"
   }
 }
-
