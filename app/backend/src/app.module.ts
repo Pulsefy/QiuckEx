@@ -28,6 +28,7 @@ import { MetricsMiddleware } from "./metrics/metrics.middleware";
 import { MetricsInterceptor } from "./metrics/metrics.interceptor";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 import { OrganizationContextMiddleware } from "./common/middleware/organization-context.middleware";
+import { ShadowTrafficMiddleware } from "./environment-parity/shadow-traffic.middleware";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
@@ -44,6 +45,7 @@ import { PrivacyModule } from "./privacy/privacy.module";
 import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
+import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
 
 type AppImport =
   | Type<unknown>
@@ -84,6 +86,7 @@ type AppImport =
       AuditModule,
       FeatureFlagsModule,
       PrivacyModule,
+      EnvironmentParityModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't
@@ -132,7 +135,12 @@ type AppImport =
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(MetricsMiddleware, CorrelationIdMiddleware, OrganizationContextMiddleware)
+      .apply(
+        MetricsMiddleware,
+        CorrelationIdMiddleware,
+        OrganizationContextMiddleware,
+        ShadowTrafficMiddleware,
+      )
       .forRoutes("*");
   }
 }

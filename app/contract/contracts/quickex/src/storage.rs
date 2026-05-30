@@ -155,6 +155,8 @@ pub enum DataKey {
     ReentrancyGuard,
     /// Boolean privacy flag per account.
     PrivacyEnabled(Address),
+    /// 32-byte WASM hash stored at the last `upgrade()` call (singleton).
+    WasmHash,
     /// Maps a deterministic 32-byte `escrow_id` (see [`crate::escrow_id`])
     /// to the commitment key of the escrow it identifies. Enables
     /// idempotent deduplication of identical creation requests.
@@ -257,6 +259,14 @@ pub fn set_contract_version(env: &Env, version: u32) {
     env.storage()
         .persistent()
         .set(&DataKey::ContractVersion, &version);
+}
+
+pub fn get_wasm_hash(env: &Env) -> Option<BytesN<32>> {
+    env.storage().persistent().get(&DataKey::WasmHash)
+}
+
+pub fn set_wasm_hash(env: &Env, hash: &BytesN<32>) {
+    env.storage().persistent().set(&DataKey::WasmHash, hash);
 }
 
 // -----------------------------------------------------------------------------

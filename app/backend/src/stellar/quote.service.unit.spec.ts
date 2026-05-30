@@ -27,7 +27,7 @@ const BASE_DTO = {
 
 describe("QuoteService", () => {
   describe("createQuote", () => {
-    it("returns a quote with id, expiry, and slippage-adjusted source amount", async () => {
+    it("returns a quote with id, expiry, slippage-adjusted source amount, and fee breakdown", async () => {
       const svc = makeService();
       const result = await svc.createQuote(BASE_DTO);
 
@@ -35,6 +35,11 @@ describe("QuoteService", () => {
       expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
       expect(result.maxSlippageBps).toBe(50);
       expect(result.paths[0].sourceAmountWithSlippage).toBe("100.5000000"); // 0.5% of 100
+      expect(result.paths[0].feeBreakdown).toEqual({
+        networkFee: "0.0000100",
+        platformFee: "0.1000000",
+        totalFee: "0.1000000",
+      });
     });
 
     it("uses custom slippage and TTL", async () => {

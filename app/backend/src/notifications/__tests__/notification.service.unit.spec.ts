@@ -7,6 +7,8 @@ import { InAppNotificationRepository } from "../in-app-notification.repository";
 import { TemplateService } from "../template.service";
 import { JobQueueService } from "../../job-queue/job-queue.service";
 import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
+import { InAppNotificationRepository } from "../in-app-notification.repository";
+import { TemplateService } from "../template.service";
 import type {
   NotificationPreference,
   NotificationPayload,
@@ -131,7 +133,8 @@ describe("NotificationService", () => {
         { provide: InAppNotificationRepository, useValue: inAppRepo },
         { provide: TemplateService, useValue: templateService },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
-        { provide: JobQueueService, useValue: { enqueue: jest.fn() } },
+        { provide: InAppNotificationRepository, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
+        { provide: TemplateService, useValue: { getTemplate: jest.fn().mockReturnValue(null), render: jest.fn().mockReturnValue("") } },
       ],
     }).compile();
 

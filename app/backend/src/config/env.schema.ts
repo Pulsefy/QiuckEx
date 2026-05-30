@@ -21,7 +21,9 @@ export const envSchema = Joi.object({
   STELLAR_NETWORK: Joi.string()
     .valid("testnet", "mainnet")
     .optional()
-    .description("Optional alias for NETWORK; must match NETWORK when both are set"),
+    .description(
+      "Optional alias for NETWORK; must match NETWORK when both are set",
+    ),
 
   // Supabase configuration (required for database operations)
   SUPABASE_URL: Joi.string()
@@ -74,7 +76,9 @@ export const envSchema = Joi.object({
   // Stellar signing keys (required for payment operations)
   STELLAR_SECRET_KEY: Joi.string()
     .optional()
-    .description("Stellar account secret key for signing transactions (starts with S)"),
+    .description(
+      "Stellar account secret key for signing transactions (starts with S)",
+    ),
 
   STELLAR_PUBLIC_KEY: Joi.string()
     .optional()
@@ -132,7 +136,9 @@ export const envSchema = Joi.object({
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
     .optional()
-    .description("Optional JSON array of bootstrap feature flags used when the store is unavailable"),
+    .description(
+      "Optional JSON array of bootstrap feature flags used when the store is unavailable",
+    ),
 
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
@@ -292,6 +298,51 @@ export const envSchema = Joi.object({
     .optional()
     .default(1.0)
     .description("Sentry profiling sample rate (0.0 to 1.0). Default: 1.0"),
+
+  // ---------------------------------------------------------------------------
+  // Staging Environment Parity Configuration (optional)
+  // ---------------------------------------------------------------------------
+
+  // Enable environment parity checks at startup
+  ENV_PARITY_CHECK_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable environment parity validation checks at startup"),
+
+  // Production base URL for parity comparison
+  PRODUCTION_BASE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Production API base URL for environment parity checks"),
+
+  // Enable shadow traffic mode (read-only endpoint mirroring)
+  SHADOW_TRAFFIC_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable shadow traffic mode for selected read endpoints"),
+
+  // Shadow traffic sample rate (0.0 to 1.0)
+  SHADOW_TRAFFIC_SAMPLE_RATE: Joi.number()
+    .min(0)
+    .max(1)
+    .default(0.1)
+    .description("Sample rate for shadow traffic (0.0 to 1.0). Default: 0.1"),
+
+  // Comma-separated list of endpoints to shadow (e.g., /api/links,/api/transactions)
+  SHADOW_TRAFFIC_ENDPOINTS: Joi.string()
+    .empty("")
+    .default("/api/links,/api/transactions,/api/usernames")
+    .description("Comma-separated list of read endpoints to shadow"),
+
+  // Enable safe test data seeding for staging
+  STAGING_SEED_DATA_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable automatic test data seeding in staging environment"),
+
+  // Staging environment identifier
+  ENVIRONMENT_NAME: Joi.string()
+    .valid("development", "staging", "production", "test")
+    .optional()
+    .description("Explicit environment name for parity tracking"),
 });
 
 /**
@@ -344,4 +395,11 @@ export interface EnvConfig {
   SENTRY_RELEASE?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
   SENTRY_PROFILES_SAMPLE_RATE: number;
+  ENV_PARITY_CHECK_ENABLED: boolean;
+  PRODUCTION_BASE_URL?: string;
+  SHADOW_TRAFFIC_ENABLED: boolean;
+  SHADOW_TRAFFIC_SAMPLE_RATE: number;
+  SHADOW_TRAFFIC_ENDPOINTS: string;
+  STAGING_SEED_DATA_ENABLED: boolean;
+  ENVIRONMENT_NAME?: "development" | "staging" | "production" | "test";
 }

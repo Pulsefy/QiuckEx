@@ -6,7 +6,7 @@ import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 // Ensure web build or Expo web uses the local backend during development
 if (typeof document !== "undefined" && !(globalThis as any).API_BASE_URL) {
   // Expo web typically runs on localhost; ensure the app hits the backend on port 4000
@@ -25,99 +25,35 @@ import { NetworkGuardProvider } from "../contexts/NetworkGuardContext";
 import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
-import { parsePaymentLink } from "@/utils/parse-payment-link";
-import { routeFromNotificationResponse } from "../services/notification-routing";
+import { resolveDeepLink, type DeepLinkRoute } from "@/utils/deep-link-routing";
+import {
+  parsePushNotificationPayload,
+  routeFromPushPayload,
+} from "../services/notification-routing";
 
 // ── Theme System v2 ──────────────────────────────────────────────────────────
 import { QuickExThemeProvider, useTheme } from "../src/theme/ThemeContext";
 import { invalidateOldCache } from "../services/cache";
 
-const QUICKEX_HOSTS = ["quickex.to", "www.quickex.to"];
-const QUICKEX_SCHEME = "quickex";
-
-function parseTransactionDeepLink(
-  raw: string,
-): { id: string; params: Record<string, string> } | null {
-  try {
-    const url = new URL(raw);
-
-    // quickex://transaction/123?amount=...
-    if (url.protocol === `${QUICKEX_SCHEME}:`) {
-      const segments = url.pathname
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter(Boolean);
-      if (segments.length >= 2 && segments[0] === "transaction") {
-        const id = segments[1];
-        const params: Record<string, string> = {};
-        url.searchParams.forEach((value, key) => {
-          params[key] = value;
-        });
-        return { id, params };
-      }
-    }
-
-    // https://quickex.to/transaction/123?amount=...
-    if (
-      (url.protocol === "https:" || url.protocol === "http:") &&
-      QUICKEX_HOSTS.includes(url.hostname)
-    ) {
-      const segments = url.pathname
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter(Boolean);
-      if (segments.length >= 2 && segments[0] === "transaction") {
-        const id = segments[1];
-        const params: Record<string, string> = {};
-        url.searchParams.forEach((value, key) => {
-          params[key] = value;
-        });
-        return { id, params };
-      }
-    }
-  } catch {
-    // ignore invalid URLs
-  }
-  return null;
-}
-
-function useDeepLinkHandler() {
-  const router = useRouter();
-
+function useDeepLinkHandler(
+  onRoute: (route: DeepLinkRoute) => void,
+  onError: (message: string, url: string) => void,
+) {
   useEffect(() => {
     function handleURL(event: { url: string }) {
-      // 1. Try payment link first
-      const paymentResult = parsePaymentLink(event.url);
-      if (paymentResult.valid) {
-        const { username, amount, asset, memo, privacy } = paymentResult.data;
-        router.replace({
-          pathname: "/payment-confirmation",
-          params: {
-            username,
-            amount,
-            asset,
-            ...(memo ? { memo } : {}),
-            privacy: String(privacy),
-          },
-        });
+      const result = resolveDeepLink(event.url);
+
+      if ('route' in result) {
+        onRoute(result.route);
         return;
       }
 
-      // 2. Try transaction detail deep link
-      const txResult = parseTransactionDeepLink(event.url);
-      if (txResult) {
-        router.push({
-          pathname: "/transaction/[id]",
-          params: {
-            id: txResult.id,
-            ...txResult.params,
-          },
-        });
-        return;
+      if ('error' in result) {
+        onError(result.error, event.url);
       }
     }
 
-    const subscription = Linking.addEventListener("url", handleURL);
+    const subscription = Linking.addEventListener('url', handleURL);
 
     // Handle cold-start deep link
     Linking.getInitialURL().then((url: string | null) => {
@@ -125,27 +61,29 @@ function useDeepLinkHandler() {
     });
 
     return () => subscription.remove();
-  }, [router]);
+  }, [onError, onRoute]);
 }
 
-function useNotificationTapRouting() {
-  const router = useRouter();
-
+function useNotificationTapRouting(onRoute: (route: DeepLinkRoute) => void) {
   useEffect(() => {
+    function routeResponse(response: Notifications.NotificationResponse | null | undefined) {
+      const payload = parsePushNotificationPayload(
+        response?.notification?.request?.content?.data,
+      );
+      if (!payload) return;
+      routeFromPushPayload({ push: (route: DeepLinkRoute) => onRoute(route) } as any, payload);
+    }
+
     Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        routeFromNotificationResponse(router, response);
-      })
+      .then(routeResponse)
       .catch(() => {});
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        routeFromNotificationResponse(router, response);
-      },
+      routeResponse,
     );
 
     return () => subscription.remove();
-  }, [router]);
+  }, [onRoute]);
 }
 
 function DevPoller() {
@@ -223,10 +161,68 @@ function ThemeBridge() {
 }
 
 function AppShell() {
+  const router = useRouter();
   const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
-  const { isLoading: onboardingLoading } = useOnboarding();
-  useDeepLinkHandler();
-  useNotificationTapRouting();
+  const { isLoading: onboardingLoading, hasCompletedOnboarding } = useOnboarding();
+  const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkRoute | null>(null);
+  const [pendingLinkError, setPendingLinkError] = useState<{ message: string; url: string } | null>(null);
+
+  const canRouteDeepLink = !onboardingLoading && hasCompletedOnboarding;
+
+  useEffect(() => {
+    if (!canRouteDeepLink) return;
+
+    if (pendingDeepLink) {
+      router.push({
+        pathname: pendingDeepLink.pathname,
+        params: pendingDeepLink.params,
+      });
+      setPendingDeepLink(null);
+      setPendingLinkError(null);
+      return;
+    }
+
+    if (pendingLinkError) {
+      router.replace({
+        pathname: '/link-error',
+        params: {
+          message: pendingLinkError.message,
+          url: pendingLinkError.url,
+        },
+      });
+      setPendingLinkError(null);
+    }
+  }, [canRouteDeepLink, pendingDeepLink, pendingLinkError, router]);
+
+  const enqueueRoute = useCallback(
+    (route: DeepLinkRoute) => {
+      if (canRouteDeepLink) {
+        router.push({ pathname: route.pathname, params: route.params });
+        return;
+      }
+      setPendingDeepLink(route);
+      setPendingLinkError(null);
+    },
+    [canRouteDeepLink, router],
+  );
+
+  const enqueueError = useCallback(
+    (message: string, url: string) => {
+      if (canRouteDeepLink) {
+        router.replace({
+          pathname: '/link-error',
+          params: { message, url },
+        });
+        return;
+      }
+      setPendingLinkError({ message, url });
+      setPendingDeepLink(null);
+    },
+    [canRouteDeepLink, router],
+  );
+
+  useDeepLinkHandler(enqueueRoute, enqueueError);
+  useNotificationTapRouting(enqueueRoute);
 
   if (onboardingLoading) {
     return null; // Show loading screen while checking onboarding status
@@ -247,6 +243,8 @@ function AppShell() {
         <Stack.Screen name="escrow/[id]" />
         <Stack.Screen name="listing/[id]" />
         <Stack.Screen name="notification-debug" />
+        <Stack.Screen name="deep-link-debug" />
+        <Stack.Screen name="link-error" />
         <Stack.Screen name="qa-smoke-checklist" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
