@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errorReporter, redactPII } from "@/lib/errorReporter";
