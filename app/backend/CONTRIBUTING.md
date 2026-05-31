@@ -432,3 +432,22 @@ pnpm turbo run lint --filter=@quickex/backend
 # Build
 pnpm turbo run build --filter=@quickex/backend
 ```
+
+## Demo Mode (Testnet Only)
+
+Demo mode seeds deterministic payment links and sample transactions so contributors can exercise UI flows immediately after checkout.
+
+**Requirements:** `NETWORK=testnet`, admin-scoped API key.
+
+```bash
+# Seed all demo fixtures
+curl -X POST https://<host>/v1/demo/seed -H "X-API-Key: <admin-key>"
+
+# Check what's currently seeded
+curl https://<host>/v1/demo/status -H "X-API-Key: <admin-key>"
+
+# Remove all demo data
+curl -X DELETE https://<host>/v1/demo -H "X-API-Key: <admin-key>"
+```
+
+Seeded data is deterministic - running seed twice produces identical state. Demo mode returns HTTP 403 on any non-testnet environment.
