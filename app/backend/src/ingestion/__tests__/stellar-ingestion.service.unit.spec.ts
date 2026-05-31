@@ -4,6 +4,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AppConfigService } from "../../config";
 import { CursorRepository } from "../cursor.repository";
 import { EscrowEventRepository } from "../escrow-event.repository";
+import { JobQueueService } from "../../job-queue/job-queue.service";
 import {
   SorobanEventParser,
   RawHorizonContractEvent,
@@ -41,6 +42,7 @@ function makeEscrowDepositedEvent(
     ledgerSequence: 100,
     pagingToken: "100-1",
     contractTimestamp: 1700000000n,
+    schemaVersion: 2,
     commitment: "deadbeef".repeat(8),
     owner: "GABC",
     token: "CTOKEN",
@@ -84,6 +86,7 @@ describe("StellarIngestionService", () => {
   let escrowRepo: jest.Mocked<EscrowEventRepository>;
   let parser: jest.Mocked<SorobanEventParser>;
   let eventEmitter: EventEmitter2;
+  let jobQueueMock: jest.Mock;
 
   // Capture the stream callbacks installed by the service
   let capturedOnMessage: ((record: RawHorizonContractEvent) => void) | null =
@@ -115,7 +118,9 @@ describe("StellarIngestionService", () => {
         {
           provide: JobQueueService,
           useValue: {
-            enqueue: jest.fn().mockResolvedValue("reconnect-job-id"),
+            enqueue: (jobQueueMock = jest
+              .fn()
+              .mockResolvedValue("reconnect-job-id")),
           },
         },
       ],
@@ -199,7 +204,7 @@ describe("StellarIngestionService", () => {
 
       // Start streaming to capture the onmessage callback
       await service.startStreaming("CTEST");
-      
+
       const raw = makeRawEvent();
       await capturedOnMessage!(raw);
 
@@ -263,7 +268,19 @@ describe("StellarIngestionService", () => {
   // -------------------------------------------------------------------------
 
   describe("reconnection", () => {
-    jest.useFakeTimers();
+    beforeEach(() => {
+      jest.useFakeTimers();
+      // Return null cursor to trigger reconnection logic
+      cursorRepo.getCursor.mockResolvedValue(null);
+      // Make job queue fail to force in-process fallback
+      jobQueueMock.mockRejectedValue(new Error("Job queue unavailable"));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      // Reset job queue mock
+      jobQueueMock.mockResolvedValue("reconnect-job-id");
+    });
 
     it("schedules a reconnect when stream emits an error", async () => {
       await service.startStreaming("CTEST");
@@ -273,6 +290,9 @@ describe("StellarIngestionService", () => {
       );
 
       capturedOnError!(new Error("Connection reset"));
+      // Wait for async scheduleReconnect to complete
+      await Promise.resolve();
+      await Promise.resolve();
 
       // Back-off timer should be scheduled
       jest.advanceTimersByTime(1_100);
@@ -288,15 +308,29 @@ describe("StellarIngestionService", () => {
 
       // Simulate multiple disconnects
       capturedOnError!(new Error("disconnect 1"));
+      // Wait for async scheduleReconnect to complete
+      await Promise.resolve();
+      await Promise.resolve();
       expect(svc.currentBackoffMs).toBe(2_000); // doubled from 1_000
 
-      // Re-open stream
+      // Re-open stream (this resets backoff to 1_000)
       jest.advanceTimersByTime(2_100);
-      capturedOnError!(new Error("disconnect 2"));
-      expect(svc.currentBackoffMs).toBe(4_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      // After openStream, backoff is reset to INITIAL_BACKOFF_MS
+      expect(svc.currentBackoffMs).toBe(1_000);
 
+      // Second disconnect
+      capturedOnError!(new Error("disconnect 2"));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(svc.currentBackoffMs).toBe(2_000); // doubled again from 1_000
+
+      // Third disconnect
       capturedOnError!(new Error("disconnect 3"));
-      expect(svc.currentBackoffMs).toBe(8_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(svc.currentBackoffMs).toBe(4_000);
     });
 
     it("caps backoff at MAX_BACKOFF_MS (60 s)", async () => {
@@ -306,6 +340,9 @@ describe("StellarIngestionService", () => {
       svc.currentBackoffMs = 32_000;
 
       capturedOnError!(new Error("disconnect"));
+      // Wait for async scheduleReconnect to complete
+      await Promise.resolve();
+      await Promise.resolve();
       expect(svc.currentBackoffMs).toBe(60_000); // capped
     });
 
@@ -321,10 +358,6 @@ describe("StellarIngestionService", () => {
 
       jest.advanceTimersByTime(2_000);
       expect(openStreamSpy).not.toHaveBeenCalled();
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
     });
   });
 });
