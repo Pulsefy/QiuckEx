@@ -1,15 +1,22 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-
-import { AppConfigService } from '../config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AppConfigService } from '../config';
 import { AuditService } from '../audit/audit.service';
 import { ContractRegistryService } from './contract-registry.service';
+import { ContractChangeWebhookService } from './contract-change-webhook.service';
+import {
+  ContractChangeWebhookDispatcher,
+} from './contract-change-webhook.dispatcher';
 
 describe('ContractRegistryService', () => {
   let service: ContractRegistryService;
   let mockSupabaseService: jest.Mocked<Partial<SupabaseService>>;
   let mockAuditService: jest.Mocked<Partial<AuditService>>;
   let mockAppConfigService: Partial<AppConfigService>;
+  let mockEventEmitter: jest.Mocked<EventEmitter2>;
+  let mockContractChangeWebhookService: jest.Mocked<Partial<ContractChangeWebhookService>>;
+  let mockWebhookDispatcher: jest.Mocked<Partial<ContractChangeWebhookDispatcher>>;
 
   beforeEach(() => {
     const mockClient = {
@@ -34,10 +41,28 @@ describe('ContractRegistryService', () => {
       network: 'testnet',
     };
 
+    mockEventEmitter = {
+      emit: jest.fn(),
+    } as unknown as jest.Mocked<EventEmitter2>;
+
+    mockContractChangeWebhookService = {
+      getEnabledWebhooks: jest.fn().mockResolvedValue([]),
+      listWebhooks: jest.fn().mockResolvedValue([]),
+      deleteWebhook: jest.fn().mockResolvedValue(true),
+      registerWebhook: jest.fn(),
+    } as unknown as jest.Mocked<Partial<ContractChangeWebhookService>>;
+
+    mockWebhookDispatcher = {
+      dispatch: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<Partial<ContractChangeWebhookDispatcher>>;
+
     service = new ContractRegistryService(
       mockSupabaseService as unknown as SupabaseService,
       mockAuditService as unknown as AuditService,
       mockAppConfigService as AppConfigService,
+      mockEventEmitter,
+      mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
+      mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
     );
   });
 

@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { AuditService } from '../audit/audit.service';
 import { AppConfigService } from '../config';
@@ -13,6 +14,18 @@ import {
   PublishContractRegistryDto,
   RollbackContractRegistryDto,
 } from './dto/contract-registry.dto';
+import {
+  ContractRegistryPublishedEvent,
+  ContractRegistryRolledBackEvent,
+  ContractRegistryPublishedEventPayload,
+  ContractRegistryRolledBackEventPayload,
+} from '../events/contract-registry.events';
+import {
+  ContractChangeWebhookService,
+} from './contract-change-webhook.service';
+import {
+  ContractChangeWebhookDispatcher,
+} from './contract-change-webhook.dispatcher';
 
 interface RegistryRecord {
   name: string;
@@ -41,6 +54,9 @@ export class ContractRegistryService {
     private readonly supabaseService: SupabaseService,
     private readonly auditService: AuditService,
     private readonly configService: AppConfigService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly contractChangeWebhookService: ContractChangeWebhookService,
+    private readonly webhookDispatcher: ContractChangeWebhookDispatcher,
   ) {
     this.expectedContracts = (process.env.CONTRACT_REGISTRY_EXPECTED_SET ?? 'quickex')
       .split(',')
@@ -127,6 +143,38 @@ export class ContractRegistryService {
       `Published ${published.length} contract registry entr${published.length === 1 ? 'y' : 'ies'} at version ${nextVersion}`,
     );
 
+    await this.eventEmitter.emit(
+      ContractRegistryPublishedEvent,
+      new ContractRegistryPublishedEventPayload(
+        nextVersion,
+        published.map((record) => ({
+          name: record.name,
+          contractId: record.contractId,
+          wasmHash: record.wasmHash,
+          contractVersion: record.contractVersion,
+          deploymentId: record.deploymentId,
+        })),
+        actor,
+      ),
+    );
+
+    const enabledWebhooks = await this.contractChangeWebhookService.getEnabledWebhooks();
+    if (enabledWebhooks.length > 0) {
+      this.webhookDispatcher.dispatch(enabledWebhooks, {
+        version: nextVersion,
+        event: 'contract_registry.published',
+        actor,
+        deploymentId: dto.deploymentId,
+        contracts: published.map((record) => ({
+          name: record.name,
+          contractId: record.contractId,
+          wasmHash: record.wasmHash,
+          contractVersion: record.contractVersion,
+          deploymentId: record.deploymentId,
+        })),
+      });
+    }
+
     return this.getRegistry();
   }
 
@@ -171,6 +219,31 @@ export class ContractRegistryService {
       dto.name,
       { actor, requestedVersion: dto.version, registryVersion: nextVersion },
     );
+
+    await this.eventEmitter.emit(
+      ContractRegistryRolledBackEvent,
+      new ContractRegistryRolledBackEventPayload(
+        targetName,
+        nextVersion,
+        candidate.contractId,
+        candidate.wasmHash,
+        candidate.contractVersion,
+        actor,
+      ),
+    );
+
+    const enabledWebhooks = await this.contractChangeWebhookService.getEnabledWebhooks();
+    if (enabledWebhooks.length > 0) {
+      this.webhookDispatcher.dispatch(enabledWebhooks, {
+        version: nextVersion,
+        event: 'contract_registry.rolled_back',
+        contractName: targetName,
+        contractId: candidate.contractId,
+        wasmHash: candidate.wasmHash,
+        contractVersion: candidate.contractVersion,
+        actor,
+      });
+    }
 
     return this.getRegistry();
   }
