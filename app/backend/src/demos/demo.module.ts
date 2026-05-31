@@ -1,8 +1,3 @@
-/**
- * @file demo/demo.module.ts
- * NestJS module for testnet demo mode (#509).
- */
-
 import { Module } from '@nestjs/common';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';

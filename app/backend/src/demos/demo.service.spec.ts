@@ -1,8 +1,3 @@
-/**
- * @file test/demo/demo.service.spec.ts
- * Unit tests for DemoService (#509).
- */
-
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';

@@ -1,11 +1,3 @@
-/**
- * @file demo/demo.service.ts
- *
- * Seeds and clears deterministic demo data for testnet demo mode (#509).
- * All public methods throw {@link ForbiddenException} when the active network
- * is not `"testnet"`, ensuring demo mode can never run on mainnet.
- */
-
 import {
   ForbiddenException,
   Injectable,
@@ -41,10 +33,6 @@ export class DemoService {
     private readonly supabaseService: SupabaseService,
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Guard
-  // ---------------------------------------------------------------------------
-
   /**
    * Throws {@link ForbiddenException} unless the active Stellar network is
    * `"testnet"`.  Called at the top of every public method.
@@ -62,10 +50,6 @@ export class DemoService {
       });
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Seed
-  // ---------------------------------------------------------------------------
 
   /**
    * Upserts all demo fixtures into the database.
@@ -91,10 +75,6 @@ export class DemoService {
       skippedTransactions: txResult.skipped,
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // Clear
-  // ---------------------------------------------------------------------------
 
   /**
    * Removes all rows whose `id` matches a known demo fixture ID.
@@ -123,10 +103,6 @@ export class DemoService {
     return { deletedLinks, deletedTransactions };
   }
 
-  // ---------------------------------------------------------------------------
-  // Status
-  // ---------------------------------------------------------------------------
-
   /**
    * Returns which demo fixtures are currently present in the database.
    * Useful for the controller to report partial-seed state.
@@ -153,10 +129,6 @@ export class DemoService {
       seededTransactions: (txRows.data ?? []).map((r: { id: string }) => r.id),
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private async seedLinks(): Promise<{ seeded: number; skipped: number }> {
     const client = this.supabaseService.getClient();

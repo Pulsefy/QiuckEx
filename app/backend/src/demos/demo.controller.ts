@@ -1,17 +1,3 @@
-/**
- * @file demo/demo.controller.ts
- *
- * Admin-only endpoints for testnet demo mode (#509).
- *
- * All routes require the `admin` API-key scope and are further gated at the
- * service layer so they throw 403 when `NETWORK !== "testnet"`.
- *
- * Routes:
- *   POST  /v1/demo/seed   — upsert all demo fixtures
- *   DELETE /v1/demo       — remove all demo fixtures
- *   GET   /v1/demo/status — report which fixtures are currently seeded
- */
-
 import {
   Controller,
   Delete,
