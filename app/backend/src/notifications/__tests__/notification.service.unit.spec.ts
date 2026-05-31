@@ -42,6 +42,7 @@ function makeEscrowDepositedEvent(
     ledgerSequence: 100,
     pagingToken: "100-1",
     contractTimestamp: 1700000000n,
+    schemaVersion: 2,
     commitment: "deadbeef".repeat(8),
     owner: PUBLIC_KEY,
     token: "CTOKEN",
@@ -114,15 +115,24 @@ describe("NotificationService", () => {
         { provide: NotificationPreferencesRepository, useValue: prefsRepo },
         { provide: NotificationLogRepository, useValue: logRepo },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
-        { provide: InAppNotificationRepository, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
-        { provide: TemplateService, useValue: { getTemplate: jest.fn().mockReturnValue(null), render: jest.fn().mockReturnValue("") } },
+        {
+          provide: InAppNotificationRepository,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: TemplateService,
+          useValue: {
+            getTemplate: jest.fn().mockReturnValue(null),
+            render: jest.fn().mockReturnValue(""),
+          },
+        },
       ],
     }).compile();
 
     await module.init();
 
     service = module.get(NotificationService);
-    
+
     // Ensure the service is fully initialized
     service.onModuleInit();
   });

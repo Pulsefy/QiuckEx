@@ -6,6 +6,7 @@ import { MetricsModule } from "../metrics/metrics.module";
 import { IngestionModule } from "../ingestion/ingestion.module";
 import { JobQueueModule } from "../job-queue/job-queue.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
+import { AuditModule } from "../audit/audit.module";
 import { ReconciliationService } from "./reconciliation.service";
 import { ReconciliationWorkerService } from "./reconciliation-worker.service";
 import { BackfillService } from "./backfill.service";
@@ -21,6 +22,7 @@ import { ReconciliationController } from "./reconciliation.controller";
     IngestionModule,
     forwardRef(() => JobQueueModule),
     FeatureFlagsModule,
+    AuditModule,
   ],
   providers: [
     ReconciliationService,
