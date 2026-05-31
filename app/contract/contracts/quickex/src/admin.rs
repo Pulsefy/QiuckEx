@@ -185,7 +185,7 @@ pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
     }
 
     // Post-upgrade invariant checks (Issue #432)
-    if let Err(msg) = storage::assert_post_upgrade_invariants(env) {
+    if let Err(_msg) = storage::assert_post_upgrade_invariants(env) {
         env.panic_with_error(QuickexError::InternalError);
     }
 

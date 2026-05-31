@@ -31,7 +31,7 @@ use crate::{
 };
 use soroban_sdk::{
     contract, contractimpl,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events, Ledger},
     token, Address, Bytes, BytesN, Env, Symbol,
 };
 
@@ -656,9 +656,7 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
 
     // Set a future window → still blocked.
     let now = env.ledger().timestamp();
-    client
-        .set_upgrade_window(&gs.admin, &(now + 1000), &(now + 2000))
-        .expect("set_upgrade_window should succeed");
+    client.set_upgrade_window(&gs.admin, &(now + 1000), &(now + 2000));
 
     let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
     assert!(
@@ -671,17 +669,11 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
         li.timestamp = now + 1500;
     });
 
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade should succeed during window");
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Verify upgrade_in_progress flag is set.
-    client
-        .migrate(&gs.admin)
-        .expect("migrate after start_upgrade");
-    client
-        .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("complete_upgrade should succeed");
+    client.migrate(&gs.admin);
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Advance time to after the window → now blocked.
     env.ledger().with_mut(|li| {
@@ -701,21 +693,15 @@ fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
     let client = upgrade_to_current(&env, &gs.contract_id);
 
     // Set a valid window: start=1 (before current timestamp 200), end=0 (no upper bound).
-    client
-        .set_upgrade_window(&gs.admin, &1u64, &0u64)
-        .expect("set_upgrade_window should succeed");
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
 
     // Attempt a normal upgrade: should validate invariants post-migrate.
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade should succeed");
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
-    let version = client.migrate(&gs.admin).expect("migrate should succeed");
+    let version = client.migrate(&gs.admin);
     assert_eq!(version, CURRENT_CONTRACT_VERSION);
 
-    client
-        .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("complete_upgrade should succeed and validate invariants");
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Verify the contract is still in a valid state after complete_upgrade.
     // This is implicit: if invariants failed, complete_upgrade would panic.
@@ -733,12 +719,8 @@ fn upgrade_safety_gate_invariant_failure_deterministic() {
     let client = upgrade_to_current(&env, &gs.contract_id);
 
     // Set valid window and start upgrade.
-    client
-        .set_upgrade_window(&gs.admin, &1u64, &0u64)
-        .expect("set_upgrade_window");
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade");
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Deliberately corrupt fee config to violate invariant (fee_bps > 10_000).
     env.as_contract(&gs.contract_id, || {
@@ -757,12 +739,8 @@ fn upgrade_safety_gate_invariant_failure_deterministic() {
     env.as_contract(&gs.contract_id, || {
         crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 200 });
     });
-    client
-        .migrate(&gs.admin)
-        .expect("migrate must succeed after restoring invariants");
-    client
-        .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("complete_upgrade");
+    client.migrate(&gs.admin);
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 }
 
 #[test]
@@ -771,24 +749,18 @@ fn upgrade_safety_gate_emits_events() {
     let client = upgrade_to_current(&env, &gs.contract_id);
 
     // Set a valid window.
-    client
-        .set_upgrade_window(&gs.admin, &1u64, &0u64)
-        .expect("set_upgrade_window");
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
 
     // Capture event count before upgrade ceremony.
     let events_before = env.events().all().len();
 
     // Start upgrade → should emit UpgradeStarted event.
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade");
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
-    client.migrate(&gs.admin).expect("migrate");
+    client.migrate(&gs.admin);
 
     // Complete upgrade → should emit UpgradeCompleted event.
-    client
-        .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("complete_upgrade");
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Verify at least UpgradeStarted + UpgradeCompleted were emitted (AC3).
     let events_after = env.events().all().len();
@@ -803,14 +775,10 @@ fn upgrade_safety_gate_blocks_double_start() {
     let (env, gs) = build_golden_state();
     let client = upgrade_to_current(&env, &gs.contract_id);
 
-    client
-        .set_upgrade_window(&gs.admin, &1u64, &0u64)
-        .expect("set_upgrade_window");
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
 
     // First start succeeds.
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade #1");
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Second start (without complete_upgrade) fails → upgrade already in progress.
     let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
@@ -820,15 +788,11 @@ fn upgrade_safety_gate_blocks_double_start() {
     );
 
     // Clean up by completing the upgrade.
-    client.migrate(&gs.admin).expect("migrate");
-    client
-        .complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("complete_upgrade");
+    client.migrate(&gs.admin);
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Now a new start is allowed.
-    client
-        .start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION)
-        .expect("start_upgrade #2 after complete_upgrade");
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 }
 
 #[test]
@@ -837,9 +801,7 @@ fn upgrade_safety_gate_non_admin_blocked() {
     let client = upgrade_to_current(&env, &gs.contract_id);
     let non_admin = Address::generate(&env);
 
-    client
-        .set_upgrade_window(&gs.admin, &1u64, &0u64)
-        .expect("set_upgrade_window by admin");
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
 
     // Non-admin attempts start_upgrade → fails.
     let result = client.try_start_upgrade(&non_admin, &CURRENT_CONTRACT_VERSION);
