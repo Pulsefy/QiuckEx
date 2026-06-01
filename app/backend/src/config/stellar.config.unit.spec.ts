@@ -81,6 +81,8 @@ describe('stellar config', () => {
 
     expect(config.network).toBe('testnet');
     expect(config.horizonBaseUrl).toBe(HORIZON_BASE_URLS.testnet);
+    expect(config.sorobanRpcUrl).toContain('soroban-testnet');
+    expect(config.networkPassphrase).toBeTruthy();
     expect(config.supportedAssets).toBe(SUPPORTED_ASSETS);
     expect(NETWORK).toBe('testnet');
     expect(HORIZON_BASE_URL).toBe(HORIZON_BASE_URLS.testnet);

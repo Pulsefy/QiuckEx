@@ -23,4 +23,8 @@ export class CreateApiKeyDto {
   @IsOptional()
   @IsString()
   owner_id?: string;
+
+  @IsOptional()
+  @IsString()
+  organization_id?: string;
 }

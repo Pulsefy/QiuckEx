@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { Horizon } from "stellar-sdk";
+import { Horizon } from "@stellar/stellar-sdk";
 
 import { AppConfigService } from "../config";
 import { HORIZON_BASE_URLS } from "../config/stellar.config";

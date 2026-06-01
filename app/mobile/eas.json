@@ -1,0 +1,46 @@
+{
+  "cli": {
+    "version": ">= 3.49.0"
+  },
+  "build": {
+    "dev": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_ENV": "dev",
+        "STELLAR_NETWORK": "testnet"
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_ENV": "staging",
+        "STELLAR_NETWORK": "testnet"
+      }
+    },
+    "production": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_ENV": "production",
+        "STELLAR_NETWORK": "mainnet"
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 
@@ -19,6 +20,8 @@ import { AutoMatchService } from './auto-match.service';
 import { UnmatchedQueueRepository } from './unmatched-queue.repository';
 import { ReconciliationReport } from './types/reconciliation.types';
 import type { IncomingTransaction, MatchResult } from './types/auto-match.types';
+import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
+import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
 
 /**
  * Admin endpoints for the reconciliation worker and auto-match engine.
@@ -64,9 +67,12 @@ export class ReconciliationController {
 
   @Post('backfill')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag('mainnet.contract_writes')
   @ApiOperation({ summary: 'Trigger a backfill job for a ledger range (admin only)' })
   @ApiResponse({ status: 200, description: 'Backfill job completed' })
   @ApiResponse({ status: 409, description: 'A backfill job is already running' })
+  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
   async startBackfill(@Body() config: BackfillConfig): Promise<BackfillResult> {
     try {
       return await this.backfill.startBackfill(config);

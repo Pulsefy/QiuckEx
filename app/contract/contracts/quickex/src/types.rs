@@ -207,6 +207,40 @@ pub struct OracleFeeConfig {
     pub stale_threshold_secs: u64,
 }
 
+/// Deployment metadata returned by [`crate::QuickexContract::get_deployment_metadata`].
+///
+/// Clients and indexers can call this view to validate compatibility without
+/// any off-chain coordination.
+///
+/// ## Domain separation
+///
+/// `contract_id` is the on-chain address of this contract instance, which
+/// uniquely binds the metadata to a specific deployment and network.  Two
+/// contracts on different networks will always have different `contract_id`
+/// values, so callers can detect cross-network mismatches by comparing
+/// `contract_id` against the address they invoked.
+///
+/// ## Schema stability
+///
+/// The field set of this struct is part of the public API.  Fields must not be
+/// removed or reordered across releases; new optional fields may be appended.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeploymentMetadata {
+    /// Stored contract schema version (see [`crate::storage::CURRENT_CONTRACT_VERSION`]).
+    /// Returns `0` for legacy deployments that pre-date version tracking.
+    pub contract_version: u32,
+    /// Event schema version (see [`crate::events::EVENT_SCHEMA_VERSION`]).
+    /// Indexers must check this before decoding event payloads.
+    pub event_schema_version: u32,
+    /// 32-byte WASM hash recorded at the last `upgrade()` call.
+    /// `None` when the contract has never been upgraded (initial deployment).
+    pub wasm_hash: Option<BytesN<32>>,
+    /// On-chain address of this contract instance.
+    /// Binds the metadata to a specific deployment and network.
+    pub contract_id: Address,
+}
+
 /// Hook event kinds used for external callbacks.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -119,6 +119,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReadyResponse"
 
+  /status:
+    get:
+      tags: [health]
+      operationId: getPublicStatus
+      summary: Public status page
+      description: >
+        Returns a minimal, cacheable status suitable for a public status page.
+        No sensitive operational details are exposed.
+        Helps users distinguish client errors vs platform downtime.
+      security: []
+      responses:
+        "200":
+          description: Public status information
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: Cache validator for conditional requests
+            Cache-Control:
+              schema:
+                type: string
+              description: Caching directives
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStatusResponse"
+        "304":
+          description: Not modified (use cached version)
+        "429":
+          description: Too many requests (rate limited)
+
   # ---------------------------------------------------------------------------
   # Usernames
   # ---------------------------------------------------------------------------
@@ -2289,6 +2320,47 @@ components:
         checks:
           type: object
 
+    PublicStatusComponent:
+      type: object
+      properties:
+        name:
+          type: string
+          example: horizon
+        status:
+          type: string
+          enum: [operational, degraded, down]
+          example: operational
+        detail:
+          type: string
+          example: "Network: testnet"
+
+    PublicStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [operational, degraded, down]
+          example: operational
+          description: Overall platform status
+        network:
+          type: string
+          example: testnet
+          description: Stellar network name
+        lastLedger:
+          type: integer
+          example: 12345678
+          description: Last processed ledger sequence
+        timestamp:
+          type: string
+          format: date-time
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicStatusComponent"
+        version:
+          type: string
+          example: "0.1.0"
+
     # --- Usernames ---
     CreateUsernameRequest:
       type: object
@@ -3284,7 +3356,15 @@ components:
           type: array
           items:
             type: string
-            enum: [links:read, links:write, transactions:read, usernames:read, refunds:write, admin]
+            enum:
+              [
+                links:read,
+                links:write,
+                transactions:read,
+                usernames:read,
+                refunds:write,
+                admin,
+              ]
           minItems: 1
         owner_id:
           type: string

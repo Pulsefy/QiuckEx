@@ -1,15 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
-import { CachedAssetMetadata } from '../types/asset-metadata.types';
 
 @Injectable()
 export class AssetMetadataCache {
   private readonly logger = new Logger(AssetMetadataCache.name);
-  private readonly cache: LRUCache<string, CachedAssetMetadata>;
+  private readonly cache: LRUCache<string, unknown>;
   private readonly DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
   constructor() {
-    this.cache = new LRUCache<string, CachedAssetMetadata>({
+    this.cache = new LRUCache<string, unknown>({
       max: 500, // Maximum 500 assets cached
       ttl: this.DEFAULT_TTL_MS,
       updateAgeOnGet: true,
@@ -21,7 +20,7 @@ export class AssetMetadataCache {
   /**
    * Get cached asset metadata by asset code
    */
-  get(code: string): CachedAssetMetadata | undefined {
+  get(code: string): unknown | undefined {
     const key = this.getCacheKey(code);
     const cached = this.cache.get(key);
     if (cached) {
@@ -33,7 +32,7 @@ export class AssetMetadataCache {
   /**
    * Set asset metadata in cache
    */
-  set(code: string, metadata: CachedAssetMetadata): void {
+  set(code: string, metadata: unknown): void {
     const key = this.getCacheKey(code);
     this.cache.set(key, metadata);
     this.logger.debug(`Cached metadata for asset: ${code}`);

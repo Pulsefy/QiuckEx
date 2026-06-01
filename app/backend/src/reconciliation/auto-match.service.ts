@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Horizon } from 'stellar-sdk';
+import { Horizon } from '@stellar/stellar-sdk';
 
 import { AppConfigService } from '../config/app-config.service';
 import { SupabaseService } from '../supabase/supabase.service';

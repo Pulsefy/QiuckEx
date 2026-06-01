@@ -353,6 +353,50 @@ describe("WalletProvider", () => {
 
       tree.unmount();
     });
+
+    it("recovers from mismatch by switching network back to testnet", async () => {
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      // Connect wallet on mainnet (mismatch with expected testnet)
+      await act(async () => {
+        await capturedWallet!.connect("freighter", "mainnet");
+      });
+
+      expect(capturedWallet!.wallet.connected).toBe(true);
+      expect(capturedWallet!.wallet.network).toBe("mainnet");
+
+      // Recover by switching to testnet
+      act(() => {
+        capturedWallet!.switchNetwork("testnet");
+      });
+
+      expect(capturedWallet!.wallet.network).toBe("testnet");
+
+      tree.unmount();
+    });
+
+    it("correctly toggles between testnet and mainnet", async () => {
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      // Connected wallets can switch network back and forth
+      await act(async () => {
+        await capturedWallet!.connect("demo", "testnet");
+      });
+
+      expect(capturedWallet!.wallet.network).toBe("testnet");
+
+      act(() => capturedWallet!.switchNetwork("mainnet"));
+      expect(capturedWallet!.wallet.network).toBe("mainnet");
+
+      act(() => capturedWallet!.switchNetwork("testnet"));
+      expect(capturedWallet!.wallet.network).toBe("testnet");
+
+      tree.unmount();
+    });
   });
 
   describe("clearError", () => {

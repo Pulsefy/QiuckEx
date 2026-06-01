@@ -14,6 +14,17 @@ import {
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+export class FeeBreakdownDto {
+  @ApiProperty({ description: "Network fee estimate in XLM", example: "0.0000100" })
+  networkFee!: string;
+
+  @ApiProperty({ description: "Platform fee estimate in destination asset", example: "0.1000000" })
+  platformFee!: string;
+
+  @ApiProperty({ description: "Total effective fee (network + platform converted to a unified representation if needed, or just platform fee)", example: "0.1000000" })
+  totalFee!: string;
+}
+
 import { PathAssetRefDto } from "./path-preview.dto";
 
 export class CreateQuoteDto {
@@ -78,6 +89,7 @@ export class QuotePathDto {
   @ApiProperty() destinationAmount!: string;
   @ApiProperty({ type: [String] }) pathHops!: string[];
   @ApiProperty() rateDescription!: string;
+  @ApiProperty({ type: FeeBreakdownDto }) feeBreakdown!: FeeBreakdownDto;
 }
 
 export class QuoteResponseDto {

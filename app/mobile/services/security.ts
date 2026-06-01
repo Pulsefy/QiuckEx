@@ -189,3 +189,11 @@ export async function getSensitiveToken() {
 export async function clearSensitiveToken() {
   await deleteItem(SENSITIVE_TOKEN_KEY);
 }
+
+export async function clearSecurityData(): Promise<void> {
+  await Promise.all([
+    deleteItem(SECURITY_SETTINGS_KEY),
+    deleteItem(FALLBACK_PIN_HASH_KEY),
+    deleteItem(SENSITIVE_TOKEN_KEY),
+  ]);
+}
