@@ -90,6 +90,23 @@ export const envSchema = Joi.object({
     .default("development")
     .description("Node environment"),
 
+  // CORS configuration
+  CORS_ALLOWED_ORIGINS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated list of allowed CORS origins (e.g. https://quickex.to,https://app.quickex.to). " +
+        "Required in production when no wildcard is desired.",
+    ),
+
+  CORS_VERCEL_PROJECT: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Vercel project slug (e.g. quickex-frontend). " +
+        "When set, all preview URLs matching https://<slug>-*.vercel.app are allowed.",
+    ),
+
   // Username reservation limit (optional). Max usernames per wallet; omit for no limit.
   MAX_USERNAMES_PER_WALLET: Joi.number()
     .integer()
@@ -347,6 +364,8 @@ export interface EnvConfig {
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
+  CORS_ALLOWED_ORIGINS?: string;
+  CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;

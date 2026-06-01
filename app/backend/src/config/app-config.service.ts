@@ -124,6 +124,23 @@ export class AppConfigService {
   }
 
   /**
+   * Parsed list of explicitly allowed CORS origins.
+   * Sourced from the CORS_ALLOWED_ORIGINS env var (comma-separated).
+   */
+  get corsAllowedOrigins(): string[] {
+    const raw = this.configService.get('CORS_ALLOWED_ORIGINS', { infer: true });
+    return raw ? raw.split(',').map((o) => o.trim()).filter(Boolean) : [];
+  }
+
+  /**
+   * Vercel project slug used to allow preview deployment URLs.
+   * When set, https://<slug>-*.vercel.app origins are permitted.
+   */
+  get corsVercelProject(): string | undefined {
+    return this.configService.get('CORS_VERCEL_PROJECT', { infer: true });
+  }
+
+  /**
    * Check if running on testnet
    */
   get isTestnet(): boolean {

@@ -12,14 +12,15 @@ export class RedactionService {
     { pattern: /G[A-Z0-9]{55}/gi, replacement: '[REDACTED_PUBLIC_KEY]' },
     { pattern: /S[A-Z0-9]{55}/gi, replacement: '[REDACTED_SECRET_KEY]' },
     
-    // JWT tokens (must come before general token patterns)
-    { pattern: /eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/gi, replacement: '[REDACTED_JWT]' },
-    
-    // Bearer tokens
+    // Bearer tokens (must come before JWT pattern to handle "Bearer eyJ..." as a token)
     { pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, replacement: 'Bearer [REDACTED_TOKEN]' },
     
+    // JWT tokens
+    { pattern: /eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/gi, replacement: '[REDACTED_JWT]' },
+    
     // API keys and tokens (more specific patterns first)
-    { pattern: /api[_-]?key["\s:=]+[A-Za-z0-9\-._~+/]+/gi, replacement: 'api_key=[REDACTED_API_KEY]' },
+    { pattern: /api[_-]?\s*key\s*[:=]\s*[A-Za-z0-9\-._~+/]+/gi, replacement: 'api_key=[REDACTED_API_KEY]' },
+    { pattern: /\b[A-Za-z][A-Za-z0-9]*_key_[A-Za-z0-9._~+/=-]+\b/gi, replacement: '[REDACTED_API_KEY]' },
     { pattern: /token["\s:=]+(?!eyJ)[A-Za-z0-9\-._~+/]+/gi, replacement: 'token=[REDACTED_TOKEN]' },
     { pattern: /secret["\s:=]+[A-Za-z0-9\-._~+/]+/gi, replacement: 'secret=[REDACTED_SECRET]' },
     { pattern: /password["\s:=]+[^\s"',}]+/gi, replacement: 'password=[REDACTED_PASSWORD]' },
@@ -38,7 +39,7 @@ export class RedactionService {
     { pattern: /\b\+?[\d\s()-]{10,}\b/g, replacement: '[REDACTED_PHONE]' },
     
     // Authorization headers
-    { pattern: /authorization["\s:=]+[^\s"',}]+/gi, replacement: 'authorization=[REDACTED_AUTH]' },
+    { pattern: /authorization["\s:=]+(?!Bearer)[^\s"',}]+/gi, replacement: 'authorization=[REDACTED_AUTH]' },
     
     // Database connection strings
     { pattern: /postgres:\/\/[^\s"']+/gi, replacement: 'postgres://[REDACTED_DB_CONNECTION]' },
@@ -99,7 +100,7 @@ export class RedactionService {
           lowerKey.includes('password') ||
           lowerKey.includes('secret') ||
           lowerKey.includes('token') ||
-          lowerKey.includes('key') && (lowerKey.includes('api') || lowerKey.includes('private')) ||
+          lowerKey.includes('key') && (lowerKey.includes('api') || lowerKey.includes('private') || lowerKey.includes('public')) ||
           lowerKey.includes('authorization') ||
           lowerKey.includes('auth')
         ) {

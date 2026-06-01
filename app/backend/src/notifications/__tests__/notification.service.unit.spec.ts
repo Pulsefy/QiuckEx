@@ -3,9 +3,9 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 import { NotificationService } from "../notification.service";
 import { NotificationPreferencesRepository } from "../notification-preferences.repository";
 import { NotificationLogRepository } from "../notification-log.repository";
-import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
 import { InAppNotificationRepository } from "../in-app-notification.repository";
 import { TemplateService } from "../template.service";
+import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
 import type {
   NotificationPreference,
   NotificationPayload,
@@ -49,7 +49,7 @@ function makeEscrowDepositedEvent(
     amount: 50_000_000n, // 5 XLM
     expiresAt: 1800000000n,
     ...overrides,
-  };
+  } as EscrowDepositedEvent;
 }
 
 function makePayload(
@@ -89,6 +89,16 @@ const mockLogRepo = (): jest.Mocked<NotificationLogRepository> =>
     getPendingRetries: jest.fn().mockResolvedValue([]),
   }) as unknown as jest.Mocked<NotificationLogRepository>;
 
+const mockInAppRepo = (): jest.Mocked<InAppNotificationRepository> =>
+  ({
+    create: jest.fn().mockResolvedValue({ id: "in-app-1" }),
+  }) as unknown as jest.Mocked<InAppNotificationRepository>;
+
+const mockTemplateService = (): jest.Mocked<TemplateService> =>
+  ({
+    render: jest.fn().mockReturnValue({ title: "Rendered", body: "Rendered Body" }),
+  }) as unknown as jest.Mocked<TemplateService>;
+
 const mockEmailProvider = () => ({
   channel: "email",
   send: jest.fn().mockResolvedValue({ messageId: "msg-1" }),
@@ -100,12 +110,16 @@ describe("NotificationService", () => {
   let service: NotificationService;
   let prefsRepo: jest.Mocked<NotificationPreferencesRepository>;
   let logRepo: jest.Mocked<NotificationLogRepository>;
+  let inAppRepo: jest.Mocked<InAppNotificationRepository>;
+  let templateService: jest.Mocked<TemplateService>;
   let emailProvider: ReturnType<typeof mockEmailProvider>;
   let module: TestingModule;
 
   beforeEach(async () => {
     prefsRepo = mockPrefsRepo();
     logRepo = mockLogRepo();
+    inAppRepo = mockInAppRepo();
+    templateService = mockTemplateService();
     emailProvider = mockEmailProvider();
 
     module = await Test.createTestingModule({
@@ -114,6 +128,8 @@ describe("NotificationService", () => {
         NotificationService,
         { provide: NotificationPreferencesRepository, useValue: prefsRepo },
         { provide: NotificationLogRepository, useValue: logRepo },
+        { provide: InAppNotificationRepository, useValue: inAppRepo },
+        { provide: TemplateService, useValue: templateService },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
         {
           provide: InAppNotificationRepository,

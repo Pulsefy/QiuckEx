@@ -1,9 +1,9 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { DemoService } from '../../src/demo/demo.service';
-import { SupabaseService } from '../../src/supabase/supabase.service';
-import { DEMO_LINKS, DEMO_TRANSACTIONS } from '../../src/demo/demo.fixtures';
+import { DemoService } from './demo.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { DEMO_LINKS, DEMO_TRANSACTIONS } from './demo.fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers

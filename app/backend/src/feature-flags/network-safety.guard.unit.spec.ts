@@ -25,8 +25,11 @@ function buildGuard(
   flagEnabled: boolean,
   flagKey: string | undefined = 'mainnet.refunds',
 ) {
+  // Use a special sentinel to allow passing undefined explicitly if desired
+  const effectiveFlagKey = flagKey === 'SENTINEL_UNDEFINED' ? undefined : flagKey;
+
   const reflector = {
-    getAllAndOverride: jest.fn().mockReturnValue(flagKey),
+    getAllAndOverride: jest.fn().mockReturnValue(effectiveFlagKey),
   } as unknown as Reflector;
 
   const config = {
@@ -50,7 +53,7 @@ function buildGuard(
 
 describe('NetworkSafetyGuard', () => {
   it('passes through when no @RequiresFlag decorator is present', async () => {
-    const { guard } = buildGuard('mainnet', false, undefined);
+    const { guard } = buildGuard('mainnet', false, 'SENTINEL_UNDEFINED');
     await expect(guard.canActivate(makeCtx())).resolves.toBe(true);
   });
 
