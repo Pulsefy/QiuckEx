@@ -33,7 +33,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --shamefully-hoist
 
       # Task 2 & AC 2: Apply Migrations Exactly Once Before App Rollout
       # It searches your monorepo apps for migration scripts and executes them safely

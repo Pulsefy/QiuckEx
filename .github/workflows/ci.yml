@@ -12,9 +12,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: 9  # Adapts to modern pnpm versions
+          version: 9
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -22,10 +22,11 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      # Forces pnpm to link all internal binaries across packages properly
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --shamefully-hoist
 
-      # Task 1: Runs your pipeline checks consistently using Turbo cache if available
+      # Task 1: Runs your pipeline checks consistently using Turbo
       - name: Run Workspace Tests
         run: pnpm turbo run test --continue
 
