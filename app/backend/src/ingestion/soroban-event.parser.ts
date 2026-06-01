@@ -22,12 +22,20 @@ import {
 
 /** Maximum schema version this indexer understands. */
 export const MAX_SUPPORTED_SCHEMA_VERSION = 2;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
 
 export type UnknownSchemaVersionHandler = (
   eventName: SorobanEventType,
   schemaVersion: number,
   pagingToken: string,
 ) => void;
+
+export interface RawEventMetadata {
+  eventName: SorobanEventType;
+  schemaVersion: number;
+  contractId: string;
+  pagingToken: string;
+}
 
 /**
  * Raw Horizon contract event record shape (subset we need).
@@ -70,6 +78,32 @@ export class SorobanEventParser {
     private readonly onUnknownSchemaVersion?: UnknownSchemaVersionHandler,
   ) {}
 
+  inspect(raw: RawHorizonContractEvent): RawEventMetadata | null {
+    try {
+      const topics = raw.topic.map((t) => xdr.ScVal.fromXDR(t, "base64"));
+      const dataVal = xdr.ScVal.fromXDR(raw.value.xdr, "base64");
+      const layout = this.resolveTopicLayout(topics);
+      if (!layout) return null;
+
+      return {
+        eventName: layout.eventName,
+        schemaVersion: this.extractSchemaVersionFromData(dataVal),
+        contractId: raw.contract_id,
+        pagingToken: raw.paging_token,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  isSupportedSchemaVersion(
+    eventName: SorobanEventType,
+    schemaVersion: number,
+    _contractId?: string,
+  ): boolean {
+    return this.isCompatibleSchemaVersion(eventName, schemaVersion);
+  }
+
   /**
    * Attempt to parse a raw Horizon contract event.
    * Returns null when the event is unrecognised, malformed, or carries an
@@ -99,7 +133,13 @@ export class SorobanEventParser {
         return null;
       }
 
-      if (!this.isCompatibleSchemaVersion(layout.eventName, schemaVersion)) {
+      if (
+        !this.isSupportedSchemaVersion(
+          layout.eventName,
+          schemaVersion,
+          raw.contract_id,
+        )
+      ) {
         this.logger.warn(
           `Unsupported ${layout.eventName} schema version ${schemaVersion}`,
         );

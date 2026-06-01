@@ -2,14 +2,17 @@ import {
   Body,
   Controller,
   ConflictException,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from "class-validator";
 
 import { SorobanEventIndexerService, LedgerRangeResult } from "./soroban-event-indexer.service";
+import type { UnparsedSorobanEventRecord } from "./unparsed-soroban-event.repository";
 
 class ReindexDto {
   @IsString()
@@ -71,5 +74,30 @@ export class SorobanIndexerController {
     } finally {
       this.running = false;
     }
+  }
+
+  @Get("unparsed-events")
+  @ApiOperation({
+    summary: "List pending unparsed Soroban events",
+    description:
+      "Returns raw contract events retained because their schema version was unknown or parsing failed.",
+  })
+  @ApiResponse({ status: 200, description: "Pending unparsed events" })
+  listUnparsed(
+    @Query("limit") limit?: string,
+  ): Promise<UnparsedSorobanEventRecord[]> {
+    return this.indexer.listUnparsedEvents(Number(limit ?? 100));
+  }
+
+  @Post("unparsed-events/replay")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Replay pending unparsed Soroban events",
+    description:
+      "Attempts to parse and persist retained raw events after schema support has been updated.",
+  })
+  @ApiResponse({ status: 200, description: "Replay completed" })
+  replayUnparsed(@Query("limit") limit?: string) {
+    return this.indexer.replayUnparsedEvents(Number(limit ?? 100));
   }
 }

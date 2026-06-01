@@ -10,6 +10,7 @@ import { EscrowEventRepository } from "./escrow-event.repository";
 import { PrivacyEventRepository } from "./privacy-event.repository";
 import { AdminEventRepository } from "./admin-event.repository";
 import { StealthEventRepository } from "./stealth-event.repository";
+import { UnparsedSorobanEventRepository } from "./unparsed-soroban-event.repository";
 import type {
   QuickExContractEvent,
   EscrowEvent,
@@ -26,6 +27,13 @@ export interface LedgerRangeResult {
   processed: number;
   persisted: number;
   skippedUnknownSchema: number;
+  parseFailures: number;
+}
+
+export interface ReplayUnparsedResult {
+  attempted: number;
+  replayed: number;
+  stillUnparsed: number;
 }
 
 /**
@@ -54,6 +62,7 @@ export class SorobanEventIndexerService {
     private readonly privacyRepo: PrivacyEventRepository,
     private readonly adminRepo: AdminEventRepository,
     private readonly stealthRepo: StealthEventRepository,
+    private readonly unparsedRepo: UnparsedSorobanEventRepository,
     private readonly metrics: MetricsService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -98,7 +107,7 @@ export class SorobanEventIndexerService {
       this.logger.log(
         `Contract ${contractId}: ledger range [${effectiveFrom}, ${toLedger}] already indexed; skipping.`,
       );
-      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0 };
+      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0, parseFailures: 0 };
     }
 
     this.logger.log(
@@ -108,6 +117,7 @@ export class SorobanEventIndexerService {
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
+    let parseFailures = 0;
     let cursor: string | undefined;
 
     // Paginate through Horizon until we've consumed the full range.
@@ -121,9 +131,12 @@ export class SorobanEventIndexerService {
         const event = this.parser.parse(raw);
 
         if (!event) {
-          // Count schema-version skips separately from parse errors.
-          // The parser already logged the reason.
-          skippedUnknownSchema++;
+          const outcome = await this.captureUnparsedEvent(raw);
+          if (outcome === "unknown_schema_version") {
+            skippedUnknownSchema++;
+          } else if (outcome === "parse_failure") {
+            parseFailures++;
+          }
           continue;
         }
 
@@ -147,10 +160,43 @@ export class SorobanEventIndexerService {
 
     this.logger.log(
       `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
-        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
+        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema} parseFailures=${parseFailures}`,
     );
 
-    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema, parseFailures };
+  }
+
+  async listUnparsedEvents(limit = 100) {
+    return this.unparsedRepo.listPending(limit);
+  }
+
+  async replayUnparsedEvents(limit = 100): Promise<ReplayUnparsedResult> {
+    const records = await this.unparsedRepo.listPending(limit);
+    let replayed = 0;
+    let stillUnparsed = 0;
+
+    for (const record of records) {
+      const event = this.parser.parse(record.raw);
+      if (!event) {
+        stillUnparsed++;
+        await this.unparsedRepo.markFailed(
+          record.pagingToken,
+          "Event is still unparseable with the current schema allowlist",
+        );
+        continue;
+      }
+
+      await this.persistEvent(event);
+      this.eventEmitter.emit(`stellar.${event.eventType}`, event);
+      await this.unparsedRepo.markReplayed(record.pagingToken);
+      replayed++;
+    }
+
+    return {
+      attempted: records.length,
+      replayed,
+      stillUnparsed,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -232,5 +278,40 @@ export class SorobanEventIndexerService {
       default:
         this.logger.debug(`Event ${(event as QuickExContractEvent).eventType} not persisted.`);
     }
+  }
+
+  private async captureUnparsedEvent(
+    raw: RawHorizonContractEvent,
+  ): Promise<"unknown_schema_version" | "parse_failure" | "ignored"> {
+    const metadata = this.parser.inspect(raw);
+    if (!metadata) {
+      return "ignored";
+    }
+
+    if (
+      !this.parser.isSupportedSchemaVersion(
+        metadata.eventName,
+        metadata.schemaVersion,
+        metadata.contractId,
+      )
+    ) {
+      await this.unparsedRepo.save({
+        raw,
+        reason: "unknown_schema_version",
+        eventName: metadata.eventName,
+        schemaVersion: metadata.schemaVersion,
+      });
+      return "unknown_schema_version";
+    }
+
+    this.metrics.recordError("soroban_indexer", "parse_failure");
+    await this.unparsedRepo.save({
+      raw,
+      reason: "parse_failure",
+      eventName: metadata.eventName,
+      schemaVersion: metadata.schemaVersion,
+      errorMessage: "Parser returned null for a supported schema version",
+    });
+    return "parse_failure";
   }
 }
