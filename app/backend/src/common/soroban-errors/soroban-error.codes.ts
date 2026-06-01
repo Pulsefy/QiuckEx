@@ -60,4 +60,8 @@ export enum SorobanErrorCode {
   // ── Generic fallback ──────────────────────────────────────────────────────
   /** An unexpected contract error occurred. */
   UNKNOWN = 'CONTRACT_UNKNOWN_ERROR',
+
+  // ── Indexer Lag Guard ─────────────────────────────────────────────────────
+  /** Indexer is lagging too far behind the network; risky operations are blocked. */
+  INDEXER_LAGGING = 'INDEXER_LAGGING',
 }
