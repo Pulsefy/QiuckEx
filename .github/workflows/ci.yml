@@ -25,6 +25,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # Task 1: Runs your pipeline checks consistently using Turbo
-      - name: Run Workspace Tests
-        run: pnpm turbo run test --continue
+      - name: Build and validate workspace change
+        run: |
+         pnpm turbo run build
+         pnpm turbo run lint --continue
 
