@@ -5,7 +5,6 @@ import { CrashReportingRepository } from './crash-reporting.repository';
 
 describe('CrashReportingService', () => {
   let service: CrashReportingService;
-  let redactionService: RedactionService;
   let repository: jest.Mocked<CrashReportingRepository>;
 
   beforeEach(async () => {
@@ -28,7 +27,6 @@ describe('CrashReportingService', () => {
     }).compile();
 
     service = module.get<CrashReportingService>(CrashReportingService);
-    redactionService = module.get<RedactionService>(RedactionService);
     repository = module.get(CrashReportingRepository);
   });
 
@@ -152,9 +150,9 @@ describe('CrashReportingService', () => {
 
       const capturedReport = repository.createCrashReport.mock.calls[0][0];
       expect(capturedReport.context).toBeDefined();
-      expect((capturedReport.context as any).apiKey).toBe('[REDACTED]');
-      expect((capturedReport.context as any).userEmail).not.toContain('user@example.com');
-      expect((capturedReport.context as any).normalField).toBe('safe value');
+      expect((capturedReport.context as Record<string, unknown>).apiKey).toBe('[REDACTED]');
+      expect((capturedReport.context as Record<string, unknown>).userEmail).not.toContain('user@example.com');
+      expect((capturedReport.context as Record<string, unknown>).normalField).toBe('safe value');
     });
 
     it('should capture crash without userId', async () => {

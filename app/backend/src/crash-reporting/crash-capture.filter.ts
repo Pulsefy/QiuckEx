@@ -35,7 +35,7 @@ export class CrashCaptureFilter implements ExceptionFilter {
         : new Error(String(exception));
 
     // Extract user ID from request (adjust based on your auth implementation)
-    const userId = (request as any).user?.id || (request as any).userId;
+    const userId = (request as Record<string, unknown>).user?.['id'] || (request as Record<string, unknown>).userId;
 
     // Capture crash report (only if user has opted in)
     try {

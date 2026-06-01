@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CrashReportingService } from './crash-reporting.service';
 import { RedactionService } from './redaction.service';
 import { CrashReportingRepository } from './crash-reporting.repository';
-import { SupabaseService } from '../supabase/supabase.service';
 
 /**
  * Integration tests for crash reporting with real redaction
@@ -10,7 +9,6 @@ import { SupabaseService } from '../supabase/supabase.service';
  */
 describe('CrashReporting Integration', () => {
   let service: CrashReportingService;
-  let redactionService: RedactionService;
   let repository: jest.Mocked<CrashReportingRepository>;
 
   beforeEach(async () => {
@@ -33,7 +31,6 @@ describe('CrashReporting Integration', () => {
     }).compile();
 
     service = module.get<CrashReportingService>(CrashReportingService);
-    redactionService = module.get<RedactionService>(RedactionService);
     repository = module.get(CrashReportingRepository);
   });
 
@@ -204,7 +201,7 @@ describe('CrashReporting Integration', () => {
       await service.captureCrash('user-123', error, mixedData);
 
       const capturedReport = repository.createCrashReport.mock.calls[0][0];
-      const context = capturedReport.context as any;
+      const context = capturedReport.context as Record<string, unknown>;
 
       // Non-sensitive data should be preserved
       expect(context.requestId).toBe('req-12345');

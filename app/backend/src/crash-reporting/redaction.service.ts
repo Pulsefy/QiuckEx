@@ -120,7 +120,7 @@ export class RedactionService {
    * @param error - The error to redact
    * @returns A redacted error representation
    */
-  redactError(error: Error): Record<string, unknown> {
+  redactError(error: Error): { name: string; message: string; stack?: string } {
     return {
       name: error.name,
       message: this.redact(error.message),

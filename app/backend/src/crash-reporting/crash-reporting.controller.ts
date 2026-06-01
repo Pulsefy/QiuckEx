@@ -4,12 +4,11 @@ import {
   Put,
   Body,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CrashReportingService } from './crash-reporting.service';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { CrashReportDto } from './dto/crash-report.dto';

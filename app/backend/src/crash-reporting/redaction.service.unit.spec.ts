@@ -117,8 +117,8 @@ describe('RedactionService', () => {
     });
 
     it('should handle null and undefined', () => {
-      expect(service.redact(null as any)).toBeNull();
-      expect(service.redact(undefined as any)).toBeUndefined();
+      expect(service.redact(null as unknown as string)).toBeNull();
+      expect(service.redact(undefined as unknown as string)).toBeUndefined();
     });
   });
 
@@ -128,7 +128,7 @@ describe('RedactionService', () => {
         publicKey: 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
         email: 'user@example.com',
       };
-      const result = service.redactObject(obj) as any;
+      const result = service.redactObject(obj) as Record<string, unknown>;
       expect(result.publicKey).toBe('[REDACTED]');
       expect(result.email).toBe('[REDACTED_EMAIL]');
     });
@@ -140,7 +140,7 @@ describe('RedactionService', () => {
         secretToken: 'secret123',
         normalField: 'safe value',
       };
-      const result = service.redactObject(obj) as any;
+      const result = service.redactObject(obj) as Record<string, unknown>;
       expect(result.password).toBe('[REDACTED]');
       expect(result.apiKey).toBe('[REDACTED]');
       expect(result.secretToken).toBe('[REDACTED]');
@@ -156,16 +156,16 @@ describe('RedactionService', () => {
           },
         },
       };
-      const result = service.redactObject(obj) as any;
-      expect(result.user.email).toBe('[REDACTED_EMAIL]');
-      expect(result.user.credentials.password).toBe('[REDACTED]');
+      const result = service.redactObject(obj) as Record<string, Record<string, unknown>>;
+      expect((result.user as Record<string, unknown>).email).toBe('[REDACTED_EMAIL]');
+      expect(((result.user as Record<string, unknown>).credentials as Record<string, unknown>).password).toBe('[REDACTED]');
     });
 
     it('should handle arrays', () => {
       const obj = {
         emails: ['user1@example.com', 'user2@example.com'],
       };
-      const result = service.redactObject(obj) as any;
+      const result = service.redactObject(obj) as Record<string, string[]>;
       expect(result.emails[0]).toBe('[REDACTED_EMAIL]');
       expect(result.emails[1]).toBe('[REDACTED_EMAIL]');
     });
@@ -176,7 +176,7 @@ describe('RedactionService', () => {
         enabled: true,
         ratio: 3.14,
       };
-      const result = service.redactObject(obj) as any;
+      const result = service.redactObject(obj) as Record<string, number | boolean>;
       expect(result.count).toBe(42);
       expect(result.enabled).toBe(true);
       expect(result.ratio).toBe(3.14);
@@ -187,7 +187,7 @@ describe('RedactionService', () => {
         nullValue: null,
         undefinedValue: undefined,
       };
-      const result = service.redactObject(obj) as any;
+      const result = service.redactObject(obj) as Record<string, null | undefined>;
       expect(result.nullValue).toBeNull();
       expect(result.undefinedValue).toBeUndefined();
     });

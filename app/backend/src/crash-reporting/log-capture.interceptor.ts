@@ -19,7 +19,7 @@ export class LogCaptureInterceptor implements NestInterceptor {
 
   constructor(private readonly crashReportingService: CrashReportingService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
     const { method, url } = request;
     const timestamp = new Date().toISOString();
