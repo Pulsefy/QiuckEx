@@ -1,14 +1,3 @@
-/**
- * @file contracts/views/contract-views.service.ts
- *
- * Read-only on-chain view helpers for frontend/mobile clients (#439).
- *
- * All methods simulate a read-only contract call (no signing) and cache
- * results with a short TTL so repeated polls stay cheap.  No privileged data
- * is exposed — every view maps directly to what the contract's public storage
- * already makes available.
- */
-
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as StellarSdk from '@stellar/stellar-sdk';
@@ -113,7 +102,7 @@ export class ContractViewsService {
   private readonly cache  = new TtlCache<unknown>();
 
   /** Soroban RPC server instance, lazily initialised */
-  private rpc: StellarSdk.SorobanRpc.Server | null = null;
+  private rpc: StellarSdk.rpc.Server | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -285,17 +274,17 @@ export class ContractViewsService {
 
     const sim = await server.simulateTransaction(tx);
 
-    if (StellarSdk.SorobanRpc.Api.isSimulationError(sim)) {
+    if (StellarSdk.rpc.Api.isSimulationError(sim)) {
       throw new Error(`Contract simulation error: ${sim.error}`);
     }
 
-    if (StellarSdk.SorobanRpc.Api.isSimulationRestore(sim)) {
+    if (StellarSdk.rpc.Api.isSimulationRestore(sim)) {
       // TTL restore needed — the entry is in a "can be restored" state, which
       // means the data is still accessible but storage is expiring.
       this.logger.warn(`Simulation requires TTL restore for ${method}`);
     }
 
-    const returnVal = (sim as StellarSdk.SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    const returnVal = (sim as StellarSdk.rpc.Api.SimulateTransactionSuccessResponse)
       .result?.retval;
 
     return returnVal ?? null;
@@ -442,7 +431,7 @@ export class ContractViewsService {
   // Config helpers
   // ---------------------------------------------------------------------------
 
-  private getRpcServer(): StellarSdk.SorobanRpc.Server {
+  private getRpcServer(): StellarSdk.rpc.Server {
     if (this.rpc) return this.rpc;
 
     const stellarCfg = this.configService.get<{ sorobanRpcUrl: string }>('stellar');
@@ -450,7 +439,7 @@ export class ContractViewsService {
       ?? process.env['SOROBAN_RPC_URL']
       ?? 'https://soroban-testnet.stellar.org';
 
-    this.rpc = new StellarSdk.SorobanRpc.Server(rpcUrl, { allowHttp: false });
+    this.rpc = new StellarSdk.rpc.Server(rpcUrl, { allowHttp: false });
     return this.rpc;
   }
 
