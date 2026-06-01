@@ -25,6 +25,8 @@ describe('UsernamesService', () => {
   beforeEach(async () => {
     configMaxPerWallet = undefined;
     jest.clearAllMocks();
+    // Ensure updateUsernameActivity returns a promise so callers can `.catch()` safely
+    mockSupabaseService.updateUsernameActivity.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

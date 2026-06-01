@@ -22,7 +22,7 @@ export class HealthService {
     private readonly jobRepository: JobRepository,
     private readonly cursorRepository: CursorRepository,
     private readonly sorobanRpcService: SorobanRpcService,
-  ) { }
+  ) {}
 
   /**
    * Performs a simple ping to Supabase to verify connectivity.
@@ -40,11 +40,17 @@ export class HealthService {
         setTimeout(() => reject(new Error("Timeout")), 3000),
       );
 
-      const isHealthy = await Promise.race([this.supabase.checkHealth(), timeout]);
+      const isHealthy = await Promise.race([
+        this.supabase.checkHealth(),
+        timeout,
+      ]);
       const latency = Date.now() - start;
 
       if (!isHealthy) {
-        return { status: "down", details: "Supabase health check returned unhealthy" };
+        return {
+          status: "down",
+          details: "Supabase health check returned unhealthy",
+        };
       }
 
       return {
@@ -54,7 +60,9 @@ export class HealthService {
       };
     } catch (err) {
       const safeMessage = sanitizeErrorMessage((err as Error).message);
-      this.logger.warn(`Supabase health check failed or timed out: ${safeMessage}`);
+      this.logger.warn(
+        `Supabase health check failed or timed out: ${safeMessage}`,
+      );
       return { status: "down", details: safeMessage };
     }
   }
@@ -283,7 +291,7 @@ export class HealthService {
   }> {
     try {
       const client = this.supabase.getClient();
-      
+
       // Try to query the schema_migrations table (Supabase migration tracking)
       const { error } = await client
         .from("schema_migrations")
@@ -363,7 +371,8 @@ export class HealthService {
           name: "supabase",
           status: supabase.status,
           latency: supabase.latency ? `${supabase.latency}ms` : undefined,
-          lastSuccess: supabase.status === "up" ? new Date().toISOString() : undefined,
+          lastSuccess:
+            supabase.status === "up" ? new Date().toISOString() : undefined,
           error: supabase.status === "down" ? supabase.details : undefined,
         },
         {
@@ -405,6 +414,69 @@ export class HealthService {
           lagSeconds: ingestion.lagSeconds,
           lastSuccess: ingestion.lastSuccess,
           error: ingestion.status === "down" ? ingestion.details : undefined,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Returns public-safe status for the status page.
+   * No sensitive operational details are exposed.
+   * Suitable for caching and public consumption.
+   */
+  async getPublicStatus() {
+    const [horizon, sorobanRpc, ingestion] = await Promise.all([
+      this.checkHorizon(),
+      this.checkSorobanRpc(),
+      this.checkIngestionLag(),
+    ]);
+
+    // Determine overall status based on critical external dependencies
+    const allUp = horizon.status === "up" && sorobanRpc.status === "up";
+    const someDown = horizon.status === "down" || sorobanRpc.status === "down";
+
+    const overallStatus = allUp
+      ? "operational"
+      : someDown
+        ? "down"
+        : "degraded";
+
+    // Get network info (safe to expose)
+    const network = this.config.network || "unknown";
+
+    // Try to get last ledger from ingestion cursor (default to 0 if not available)
+    let lastLedger = 0;
+    try {
+      const cursor = await this.cursorRepository.getCursor("contract:*");
+      if (cursor) {
+        // Cursor format is typically "startLedger-endLedger" or just a ledger number
+        const parts = cursor.split("-");
+        lastLedger = parseInt(parts[parts.length - 1], 10) || 0;
+      }
+    } catch {
+      // Silently fail - not critical for public status
+      lastLedger = 0;
+    }
+
+    return {
+      status: overallStatus,
+      network,
+      lastLedger,
+      timestamp: new Date().toISOString(),
+      version: this.version,
+      components: [
+        {
+          name: "horizon",
+          status: horizon.status === "up" ? "operational" : "down",
+          detail: horizon.status === "up" ? `Network: ${network}` : undefined,
+        },
+        {
+          name: "soroban_rpc",
+          status: sorobanRpc.status === "up" ? "operational" : "down",
+        },
+        {
+          name: "ingestion",
+          status: ingestion.status === "up" ? "operational" : "degraded",
         },
       ],
     };

@@ -34,13 +34,26 @@ describe('JobExecutor', () => {
     };
 
     const mockRegistry = {
-      getHandler: jest.fn(),
-      getPolicy: jest.fn(),
+      getHandler: jest.fn().mockReturnValue({
+        execute: jest.fn().mockResolvedValue(undefined),
+        validate: jest.fn().mockResolvedValue(undefined),
+        onFailure: jest.fn().mockResolvedValue(undefined),
+      }),
+      getPolicy: jest.fn().mockReturnValue({
+        maxAttempts: 3,
+        backoffStrategy: 'exponential',
+        initialDelayMs: 1000,
+        maxDelayMs: 60000,
+        visibilityTimeoutMs: 300000,
+      }),
       isRegistered: jest.fn(),
     };
 
     const mockCancellationStore = {
-      createToken: jest.fn(),
+      createToken: jest.fn().mockReturnValue({
+        isCancelled: jest.fn().mockReturnValue(false),
+        throwIfCancelled: jest.fn(),
+      }),
       requestCancellation: jest.fn(),
       clearCancellation: jest.fn(),
     };
@@ -55,6 +68,10 @@ describe('JobExecutor', () => {
       updateJobsDlqCount: jest.fn(),
       recordJobExecutionDuration: jest.fn(),
     };
+
+    // Provide sensible defaults on repository so tests need only override specific behaviours
+    mockRepository.updateJobStatus.mockResolvedValue(undefined);
+    mockRepository.resetStaleJobs.mockResolvedValue(0);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -106,6 +123,28 @@ describe('JobExecutor', () => {
       ];
       repository.findDueJobs.mockResolvedValue(mockJobs);
       const logSpy = jest.spyOn(executor['logger'], 'log');
+      
+      const mockHandler = {
+        execute: jest.fn().mockResolvedValue(undefined),
+        validate: jest.fn().mockResolvedValue(undefined),
+        onFailure: jest.fn().mockResolvedValue(undefined),
+      };
+      
+      const mockToken = {
+        isCancelled: jest.fn().mockReturnValue(false),
+        throwIfCancelled: jest.fn(),
+      };
+      
+      registry.getPolicy.mockReturnValue({
+        maxAttempts: 3,
+        backoffStrategy: 'exponential',
+        initialDelayMs: 1000,
+        maxDelayMs: 60000,
+        visibilityTimeoutMs: 300000,
+      });
+      registry.getHandler.mockReturnValue(mockHandler);
+      cancellationStore.createToken.mockReturnValue(mockToken);
+      repository.updateJobStatus.mockResolvedValue();
 
       // Act
       await executor.processDueJobs();
@@ -294,14 +333,9 @@ describe('JobExecutor', () => {
       await executor.processDueJobs();
 
       // Assert
-      // First job should fail with lock error
+      // First job should fail with lock error (structured error log)
       expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Job job-1 failed'),
-        expect.any(String),
-      );
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Database lock failed'),
-        expect.any(String),
+        expect.objectContaining({ message: 'Job failed', jobId: 'job-1', failureReason: 'Database lock failed' }),
       );
       
       // Second job should still be processed successfully
@@ -411,12 +445,9 @@ describe('JobExecutor', () => {
       // Act
       await executor.processDueJobs();
 
-      // Assert
+      // Assert: structured logging is used for job lifecycle events
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Job job-1 locked for execution'),
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('attempt: 3/5'),
+        expect.objectContaining({ message: 'Job started', jobId: 'job-1', attempts: 3 }),
       );
     });
   });
@@ -495,12 +526,9 @@ describe('JobExecutor', () => {
       // Act
       await executor.processDueJobs();
 
-      // Assert
+      // Assert: structured completion log with duration
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Job job-1 completed successfully'),
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('duration:'),
+        expect.objectContaining({ message: 'Job completed', jobId: 'job-1', duration: expect.any(Number) }),
       );
     });
   });
@@ -654,18 +682,12 @@ describe('JobExecutor', () => {
       // Act
       await executor.processDueJobs();
 
-      // Assert
+      // Assert: structured failure log includes attempts and failureReason
       expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Job job-1 failed'),
-        expect.any(String),
+        expect.objectContaining({ message: 'Job failed', jobId: 'job-1', attempts: 2 }),
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('attempt: 2/5'),
-        expect.any(String),
-      );
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Service unavailable'),
-        expect.any(String),
+        expect.objectContaining({ failureReason: 'Service unavailable' }),
       );
     });
 
@@ -742,8 +764,7 @@ describe('JobExecutor', () => {
       // Assert
       expect(mockHandler.onFailure).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to execute onFailure hook for job job-1'),
-        expect.any(String),
+        expect.objectContaining({ message: expect.stringContaining('Failed to execute onFailure hook for job job-1') }),
       );
       // Job should still be marked as FAILED
       expect(repository.updateJobStatus).toHaveBeenCalledWith(
