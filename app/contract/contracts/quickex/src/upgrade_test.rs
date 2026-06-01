@@ -646,10 +646,24 @@ fn upgrade_harness_all_lifecycle_statuses_are_distinct_post_migration() {
 // Upgrade Safety Gate Tests — Issue #432
 // ============================================================================
 
+/// Seed the Admin role by calling migrate (which detects legacy and seeds roles).
+/// Required because admin-gated functions (set_upgrade_window, start_upgrade,
+/// complete_upgrade) use require_admin which checks the role; the role is not
+/// automatically accessible after a WASM upgrade until migrate seeds it.
+fn seed_admin_role<'a>(
+    env: &Env,
+    contract_id: &Address,
+    admin: &Address,
+) -> QuickexContractClient<'a> {
+    let client = upgrade_to_current(env, contract_id);
+    client.migrate(admin);
+    client
+}
+
 #[test]
 fn upgrade_safety_gate_blocks_upgrade_outside_window() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
 
     // Window not set → upgrades blocked.
     let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
@@ -693,7 +707,7 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
 #[test]
 fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
 
     // Set a valid window: start=1 (before current timestamp 200), end=0 (no upper bound).
     client.set_upgrade_window(&gs.admin, &1u64, &0u64);
@@ -718,7 +732,7 @@ fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
 #[test]
 fn upgrade_safety_gate_invariant_failure_deterministic() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
 
     // Set valid window and start upgrade.
     client.set_upgrade_window(&gs.admin, &1u64, &0u64);
@@ -748,7 +762,7 @@ fn upgrade_safety_gate_invariant_failure_deterministic() {
 #[test]
 fn upgrade_safety_gate_emits_events() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
 
     // Set a valid window.
     client.set_upgrade_window(&gs.admin, &1u64, &0u64);
@@ -773,7 +787,7 @@ fn upgrade_safety_gate_emits_events() {
 #[test]
 fn upgrade_safety_gate_blocks_double_start() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
 
     client.set_upgrade_window(&gs.admin, &1u64, &0u64);
 
@@ -797,7 +811,7 @@ fn upgrade_safety_gate_blocks_double_start() {
 #[test]
 fn upgrade_safety_gate_non_admin_blocked() {
     let (env, gs) = build_golden_state();
-    let client = upgrade_to_current(&env, &gs.contract_id);
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
     let non_admin = Address::generate(&env);
 
     client.set_upgrade_window(&gs.admin, &1u64, &0u64);
