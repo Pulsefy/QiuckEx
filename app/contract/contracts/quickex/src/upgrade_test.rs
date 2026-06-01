@@ -60,6 +60,10 @@ impl LegacyV0Contract {
         }
         crate::storage::set_admin(&env, &admin);
         crate::storage::set_paused(&env, false);
+        // Seed the Admin role so admin-gated calls (e.g. set_upgrade_window)
+        // work before migrate() is called. This matches production initialize().
+        let roles = soroban_sdk::vec![&env, crate::types::Role::Admin];
+        crate::storage::set_roles(&env, &admin, &roles);
         // ⚠️  Intentionally no set_contract_version — this is what makes it "legacy".
         Ok(())
     }
@@ -671,8 +675,7 @@ fn upgrade_safety_gate_blocks_upgrade_outside_window() {
 
     client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
-    // Verify upgrade_in_progress flag is set.
-    client.migrate(&gs.admin);
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Advance time to after the window → now blocked.
@@ -698,10 +701,9 @@ fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
     // Attempt a normal upgrade: should validate invariants post-migrate.
     client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
-    let version = client.migrate(&gs.admin);
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
+    let version = client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
     assert_eq!(version, CURRENT_CONTRACT_VERSION);
-
-    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Verify the contract is still in a valid state after complete_upgrade.
     // This is implicit: if invariants failed, complete_upgrade would panic.
@@ -739,7 +741,7 @@ fn upgrade_safety_gate_invariant_failure_deterministic() {
     env.as_contract(&gs.contract_id, || {
         crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 200 });
     });
-    client.migrate(&gs.admin);
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 }
 
@@ -757,9 +759,7 @@ fn upgrade_safety_gate_emits_events() {
     // Start upgrade → should emit UpgradeStarted event.
     client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
-    client.migrate(&gs.admin);
-
-    // Complete upgrade → should emit UpgradeCompleted event.
+    // Complete upgrade → internally calls migrate and emits UpgradeCompleted event.
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Verify at least UpgradeStarted + UpgradeCompleted were emitted (AC3).
@@ -787,8 +787,7 @@ fn upgrade_safety_gate_blocks_double_start() {
         "start_upgrade must fail when upgrade already in progress"
     );
 
-    // Clean up by completing the upgrade.
-    client.migrate(&gs.admin);
+    // Clean up by completing the upgrade (internally calls migrate).
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
 
     // Now a new start is allowed.
