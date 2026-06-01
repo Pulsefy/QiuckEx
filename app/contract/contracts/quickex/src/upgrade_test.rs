@@ -651,7 +651,7 @@ fn upgrade_harness_all_lifecycle_statuses_are_distinct_post_migration() {
 /// complete_upgrade) use require_admin which checks the role; the role is not
 /// automatically accessible after a WASM upgrade until migrate seeds it.
 fn seed_admin_role<'a>(
-    env: &Env,
+    env: &'a Env,
     contract_id: &Address,
     admin: &Address,
 ) -> QuickexContractClient<'a> {
