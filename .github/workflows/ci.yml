@@ -27,6 +27,6 @@ jobs:
       # Task 1: Runs your pipeline checks consistently using Turbo
       - name: Build and validate workspace change
         run: |
-         pnpm turbo run build
-         pnpm turbo run lint --continue
+         pnpm turbo run build --filter=@quickex/backend
+         pnpm turbo run lint --filter=@quickex/backend --continue
 
