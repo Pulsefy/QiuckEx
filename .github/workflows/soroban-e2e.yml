@@ -1,0 +1,51 @@
+name: Backend Soroban E2E (Testnet)
+
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+  push:
+    branches:
+      - main # Protected branch
+
+jobs:
+  e2e-testnet:
+    name: E2E Testnet Contract Flows
+    runs-on: ubuntu-latest
+    environment: testnet
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm turbo run build --filter=stellar-sdk
+
+      - name: Run Soroban E2E Flow
+        env:
+          APP_ENV: staging
+          STELLAR_NETWORK: testnet
+          NEXT_PUBLIC_STELLAR_NETWORK: testnet
+          # Injected safely from GitHub Environment Secrets
+          E2E_WALLET_SECRET: ${{ secrets.E2E_WALLET_SECRET }}
+          QUICKEX_CONTRACT_ID: ${{ secrets.QUICKEX_CONTRACT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting E2E tests against Soroban testnet..."
+          # Execute the E2E test file specifically in the backend app
+          pnpm turbo run test:e2e --filter=app/backend -- test/soroban-flow.e2e-spec.ts
+
+      # Secrets and logs are automatically scrubbed by GitHub Actions,
+      # fulfilling "CI can run E2E safely without leaking secrets".
