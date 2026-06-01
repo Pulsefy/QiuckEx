@@ -68,6 +68,19 @@ const DEFAULT_FLAGS: FeatureFlagRecord[] = [
   },
   // ── Existing flags ────────────────────────────────────────────────────────
   {
+    key: 'testnet.contract_writes',
+    name: 'Testnet Contract Writes',
+    description: 'Allows Soroban contract write operations on testnet.',
+    enabled: true,
+    killSwitch: false,
+    rolloutPercentage: 100,
+    allowedUsers: [],
+    environments: ['development', 'test', 'production'],
+    metadata: { highRisk: true, flow: 'contract_writes', network: 'testnet' },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
+  {
     key: 'bulk_invoicing_v2',
     name: 'Bulk Invoicing v2',
     description: 'Enables templates, saved customers, and preview flow in bulk invoicing.',
@@ -129,6 +142,22 @@ export class FeatureFlagsService {
     context: FeatureFlagEvaluationContext = {},
   ): Promise<FeatureFlagEvaluationResult> {
     const snapshot = await this.loadFlags();
+    return this.evaluateFlagFromSnapshot(key, context, snapshot);
+  }
+
+  async evaluateFlagFresh(
+    key: string,
+    context: FeatureFlagEvaluationContext = {},
+  ): Promise<FeatureFlagEvaluationResult> {
+    const snapshot = await this.loadFlags(true);
+    return this.evaluateFlagFromSnapshot(key, context, snapshot);
+  }
+
+  private evaluateFlagFromSnapshot(
+    key: string,
+    context: FeatureFlagEvaluationContext,
+    snapshot: CacheState,
+  ): FeatureFlagEvaluationResult {
     const flag = snapshot.flags.find((entry) => entry.key === key);
 
     if (!flag) {
@@ -291,8 +320,8 @@ export class FeatureFlagsService {
     };
   }
 
-  private async loadFlags(): Promise<CacheState> {
-    if (this.cache && this.cache.expiresAt > Date.now()) {
+  private async loadFlags(forceRefresh = false): Promise<CacheState> {
+    if (!forceRefresh && this.cache && this.cache.expiresAt > Date.now()) {
       return { ...this.cache, source: this.cache.source === 'store' ? 'cache' : this.cache.source };
     }
 
