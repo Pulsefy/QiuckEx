@@ -180,6 +180,7 @@ async function bootstrap() {
     .addTag("analytics", "Dashboard analytics, time-series insights, and report exports")
     .addTag("metrics", "Application performance and health metrics")
     .addTag("stellar", "Verified assets, path preview, Soroban preflight")
+    .addTag("contracts", "Contract registry publication and discovery")
     .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
     .build();
 

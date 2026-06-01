@@ -80,4 +80,14 @@ export class TransactionsController {
   async compose(@Body() dto: ComposeTransactionDto) {
     return this.transactionService.composeTransaction(dto);
   }
+
+  @Post("build")
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({
+    summary: "Build unsigned Soroban transaction XDR with simulation summary",
+  })
+  async buildUnsignedXdr(@Body() dto: ComposeTransactionDto) {
+    return this.transactionService.composeTransaction(dto);
+  }
 }

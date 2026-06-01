@@ -21,6 +21,21 @@ export interface ComposeTransactionResponse {
   feeEstimate: FeeEstimate;
   minResourceFee: string;
   simulationLatencyMs: number;
+  idempotencyKey: string;
+  simulationSummary: {
+    status: "success";
+    footprint: {
+      readOnly: number;
+      readWrite: number;
+    };
+    estimatedCost: {
+      cpuInstructions: number;
+      ledgerReads: number;
+      ledgerWrites: number;
+      eventBytes: number;
+      returnValueBytes: number;
+    };
+  };
 }
 
 export interface ComposeTransactionError {

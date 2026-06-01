@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsArray,
   ValidateNested,
+  MaxLength,
 } from "class-validator";
 import { Type } from "class-transformer";
 
@@ -18,10 +19,12 @@ export class ContractParamDto {
 export class ComposeTransactionDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(128)
   contractId: string; // C... Strkey contract address
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   method: string; // Contract function name
 
   @IsArray()
@@ -36,4 +39,9 @@ export class ComposeTransactionDto {
   @IsString()
   @IsOptional()
   networkPassphrase?: string; // Defaults to testnet
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(128)
+  idempotencyKey?: string;
 }
