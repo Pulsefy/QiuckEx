@@ -135,6 +135,12 @@ pub enum DataKey {
     Paused,
     /// Emergency mode (singleton, immutable once set true).
     EmergencyMode,
+    /// Upgrade window start epoch (u64), in ledger timestamps. 0 = no window set.
+    UpgradeWindowStart,
+    /// Upgrade window end epoch (u64), in ledger timestamps. 0 = no upper bound.
+    UpgradeWindowEnd,
+    /// Flag indicating an upgrade is in progress (between start_upgrade and complete_upgrade).
+    UpgradeInProgress,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -190,6 +196,103 @@ pub fn set_emergency_mode(env: &Env) {
 pub fn is_emergency_mode(env: &Env) -> bool {
     let key = DataKey::EmergencyMode;
     env.storage().persistent().get(&key).unwrap_or(false)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Upgrade Window helpers (Issue #432)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Set the upgrade window: [start, end] in ledger seconds (epoch).
+/// - `start`: ledger timestamp when upgrades are allowed to begin. 0 = unset.
+/// - `end`: ledger timestamp after which upgrades are blocked. 0 = no upper bound.
+pub fn set_upgrade_window(env: &Env, start: u64, end: u64) {
+    if end != 0 && end <= start {
+        // Invalid window; silently ignore or could panic depending on caller behavior
+        return;
+    }
+    env.storage()
+        .persistent()
+        .set(&DataKey::UpgradeWindowStart, &start);
+    env.storage()
+        .persistent()
+        .set(&DataKey::UpgradeWindowEnd, &end);
+}
+
+/// Get the current upgrade window.
+pub fn get_upgrade_window(env: &Env) -> (u64, u64) {
+    let start = env
+        .storage()
+        .persistent()
+        .get(&DataKey::UpgradeWindowStart)
+        .unwrap_or(0u64);
+    let end = env
+        .storage()
+        .persistent()
+        .get(&DataKey::UpgradeWindowEnd)
+        .unwrap_or(0u64);
+    (start, end)
+}
+
+/// Check if upgrade window is currently active.
+pub fn is_upgrade_window_active(env: &Env) -> bool {
+    let (start, end) = get_upgrade_window(env);
+    if start == 0 {
+        return false; // No window set
+    }
+    let now = env.ledger().timestamp();
+    now >= start && (end == 0 || now <= end)
+}
+
+/// Set upgrade-in-progress flag.
+pub fn set_upgrade_in_progress(env: &Env, in_progress: bool) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::UpgradeInProgress, &in_progress);
+}
+
+/// Get upgrade-in-progress flag.
+pub fn is_upgrade_in_progress(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::UpgradeInProgress)
+        .unwrap_or(false)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Invariant Checking (Issue #432)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Assert critical post-upgrade invariants.
+///
+/// Called after migration to validate state machine and fee bounds.
+/// Returns `Ok(())` if all invariants hold; `Err(msg)` deterministically if violated.
+pub fn assert_post_upgrade_invariants(env: &Env) -> Result<(), &'static str> {
+    // Invariant 1: Fee bounds must be within [0, 10000] basis points.
+    let fee_cfg = get_fee_config(env);
+    if fee_cfg.fee_bps > 10_000 {
+        return Err("fee_bps exceeds maximum (10000)");
+    }
+
+    // Invariant 2: Contract version must be set to CURRENT.
+    let version = get_contract_version(env);
+    if version != Some(CURRENT_CONTRACT_VERSION) {
+        return Err("contract version not set to current after migration");
+    }
+
+    // Invariant 3: Admin must be initialized.
+    if get_admin(env).is_none() {
+        return Err("admin not initialized post-upgrade");
+    }
+
+    // Invariant 4: Escrow counter must remain non-negative (always true for u64).
+    let _counter = get_escrow_counter(env);
+    // Counter is u64, so this is always valid.
+
+    // Invariant 5: Per-asset fee bounds (if any exist).
+    // Note: We cannot iterate all per-asset fees here without a registry.
+    // This is validated per-write in set_per_asset_fee.
+
+    Ok(())
 }
 
 // -----------------------------------------------------------------------------

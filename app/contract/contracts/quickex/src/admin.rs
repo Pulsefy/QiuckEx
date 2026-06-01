@@ -1,7 +1,8 @@
 use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_contract_migrated, publish_contract_paused,
-    publish_fee_collector_rotated, publish_per_asset_fee_set,
+    publish_fee_collector_rotated, publish_per_asset_fee_set, publish_upgrade_completed,
+    publish_upgrade_started,
 };
 use crate::fee_router;
 use crate::storage;
@@ -53,6 +54,15 @@ pub fn require_any_role(env: &Env, caller: &Address, roles: &[Role]) -> Result<(
     for role in roles {
         if user_roles.contains(*role) {
             return Ok(());
+        }
+    }
+    // Fallback: legacy deployments may not have role assignments.
+    // Accept the stored admin address as matching any Admin role request.
+    if roles.contains(&Role::Admin) {
+        if let Some(admin) = storage::get_admin(env) {
+            if admin == *caller {
+                return Ok(());
+            }
         }
     }
     Err(QuickexError::InsufficientRole)
@@ -183,12 +193,98 @@ pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
         publish_contract_migrated(env, caller, from_version, version);
     }
 
+    // Post-upgrade invariant checks (Issue #432)
+    if let Err(_msg) = storage::assert_post_upgrade_invariants(env) {
+        env.panic_with_error(QuickexError::InternalError);
+    }
+
     Ok(version)
 }
 
 fn migrate_legacy_to_v1(env: &Env) -> u32 {
     storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
     storage::CURRENT_CONTRACT_VERSION
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Upgrade Gating (Issue #432)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Set the upgrade window during which upgrades are permitted.
+///
+/// **Admin only**. Define `[start, end)` epoch seconds:
+/// - `start` = 0: no window set (upgrades blocked)
+/// - `end` = 0: no upper bound (upgrades allowed from start onwards)
+pub fn set_upgrade_window(
+    env: &Env,
+    caller: &Address,
+    start: u64,
+    end: u64,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+    storage::set_upgrade_window(env, start, end);
+    Ok(())
+}
+
+/// Start an upgrade (enters gating state; requires active window).
+///
+/// **Admin only**. Emits `UpgradeStarted` event with old/new versions.
+/// Blocks if window is not active or upgrade already in progress.
+pub fn start_upgrade(env: &Env, caller: &Address, new_version: u32) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    // Check upgrade window is active (Issue #432 AC1)
+    if !storage::is_upgrade_window_active(env) {
+        return Err(QuickexError::InvalidAmount); // Repurpose for "upgrade window not active"
+    }
+
+    if storage::is_upgrade_in_progress(env) {
+        return Err(QuickexError::ContractPaused); // Reuse for "upgrade in progress"
+    }
+
+    let old_version = get_version(env);
+    let (window_start, window_end) = storage::get_upgrade_window(env);
+
+    storage::set_upgrade_in_progress(env, true);
+    publish_upgrade_started(
+        env,
+        caller,
+        old_version,
+        new_version,
+        window_start,
+        window_end,
+    );
+
+    Ok(())
+}
+
+/// Complete an upgrade (migrate state, update version, emit event).
+///
+/// **Admin only**. Must be called after `start_upgrade` to finalize.
+/// Calls `migrate()` internally and re-checks invariants.
+pub fn complete_upgrade(
+    env: &Env,
+    caller: &Address,
+    new_version: u32,
+) -> Result<u32, QuickexError> {
+    if !storage::is_upgrade_in_progress(env) {
+        return Err(QuickexError::InternalError); // Not in upgrade state
+    }
+
+    let old_version = get_version(env);
+
+    // Run migration
+    let migrated_version = migrate(env, caller)?;
+
+    // Ensure new version matches expected (Issue #432 AC2)
+    if migrated_version != new_version && new_version != 0 {
+        return Err(QuickexError::InvalidContractVersion);
+    }
+
+    storage::set_upgrade_in_progress(env, false);
+    publish_upgrade_completed(env, caller, old_version, migrated_version);
+
+    Ok(migrated_version)
 }
 
 /// Require that the contract is not paused.

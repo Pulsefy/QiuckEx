@@ -1072,6 +1072,78 @@ impl QuickexContract {
         Ok(())
     }
 
+    /// Set the upgrade window: when upgrades are permitted (**Admin only**).
+    ///
+    /// Defines an epoch timestamp range `[start, end)` during which `start_upgrade` is allowed.
+    /// - `start` = 0: no window set, upgrades blocked
+    /// - `end` = 0: no upper bound, upgrades allowed from `start` onwards
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must be admin)
+    /// * `start` - Ledger timestamp when upgrades become allowed
+    /// * `end` - Ledger timestamp when upgrades become blocked (0 = unbounded)
+    ///
+    /// # Errors
+    /// * `InsufficientRole` - Caller is not admin
+    pub fn set_upgrade_window(
+        env: Env,
+        caller: Address,
+        start: u64,
+        end: u64,
+    ) -> Result<(), QuickexError> {
+        admin::set_upgrade_window(&env, &caller, start, end)
+    }
+
+    /// Get the current upgrade window.
+    ///
+    /// Returns `(start, end)` epoch timestamps. Both 0 means no window is set.
+    pub fn get_upgrade_window(env: Env) -> (u64, u64) {
+        storage::get_upgrade_window(&env)
+    }
+
+    /// Start an upgrade during the active upgrade window (**Admin only**).
+    ///
+    /// Sets the contract into upgrade-in-progress state and emits `UpgradeStarted` event.
+    /// Must be followed by calling `upgrade()` and then `complete_upgrade()`.
+    ///
+    /// Blocks outside the upgrade window (Issue #432 AC1).
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must be admin)
+    /// * `new_version` - The target contract version
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - (repurposed) upgrade window not active
+    /// * `ContractPaused` - (repurposed) upgrade already in progress
+    pub fn start_upgrade(env: Env, caller: Address, new_version: u32) -> Result<(), QuickexError> {
+        admin::start_upgrade(&env, &caller, new_version)
+    }
+
+    /// Complete an upgrade after WASM swap (**Admin only**).
+    ///
+    /// Runs migration logic and validates post-upgrade invariants (Issue #432 AC2).
+    /// Emits `UpgradeCompleted` event. Must be called after `start_upgrade()` and `upgrade()`.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Caller address (must be admin)
+    /// * `new_version` - The target version (0 = auto-detect from migration)
+    ///
+    /// # Returns
+    /// The actual new contract version
+    ///
+    /// # Errors
+    /// * `InternalError` - no upgrade in progress, or post-upgrade invariants violated
+    pub fn complete_upgrade(
+        env: Env,
+        caller: Address,
+        new_version: u32,
+    ) -> Result<u32, QuickexError> {
+        admin::complete_upgrade(&env, &caller, new_version)
+    }
+
     // -----------------------------------------------------------------------
     // Role Management (**Admin only**)
     // -----------------------------------------------------------------------

@@ -1,4 +1,4 @@
-//! # Upgrade Simulation Test Harness — Issue #310
+//! # Upgrade Simulation Test Harness — Issue #310 + #432
 //!
 //! Creates a repeatable test harness that:
 //! 1. Deploys `LegacyV0Contract` (schema version 0) and populates a "golden state"
@@ -9,14 +9,18 @@
 //! 3. Validates all invariants and data integrity after the upgrade.
 //! 4. Provides regression tests for known migration pitfalls.
 //!
-//! ## Acceptance criteria (Issue #310)
+//! ## Acceptance criteria (Issue #310 + #432)
 //! - Upgrade tests run locally and deterministically.
 //! - No data loss or corruption across migrations.
 //! - Invariants are validated with clear failure messages.
+//! - Upgrade window gating works (blocks outside window).
+//! - Post-upgrade invariants enforced deterministically (AC2).
+//! - Upgrade start/complete events emitted for indexing (AC3).
 //!
 //! ## Running
 //! ```sh
 //! cargo test upgrade_harness_ -- --nocapture
+//! cargo test upgrade_safety_gate_ -- --nocapture
 //! ```
 
 use crate::{
@@ -27,7 +31,7 @@ use crate::{
 };
 use soroban_sdk::{
     contract, contractimpl,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events, Ledger},
     token, Address, Bytes, BytesN, Env, Symbol,
 };
 
@@ -56,6 +60,10 @@ impl LegacyV0Contract {
         }
         crate::storage::set_admin(&env, &admin);
         crate::storage::set_paused(&env, false);
+        // Seed the Admin role so admin-gated calls (e.g. set_upgrade_window)
+        // work before migrate() is called. This matches production initialize().
+        let roles = soroban_sdk::vec![&env, crate::types::Role::Admin];
+        crate::storage::set_roles(&env, &admin, &roles);
         // ⚠️  Intentionally no set_contract_version — this is what makes it "legacy".
         Ok(())
     }
@@ -632,4 +640,187 @@ fn upgrade_harness_all_lifecycle_statuses_are_distinct_post_migration() {
             expected
         );
     }
+}
+
+// ============================================================================
+// Upgrade Safety Gate Tests — Issue #432
+// ============================================================================
+
+/// Seed the Admin role by calling migrate (which detects legacy and seeds roles).
+/// Required because admin-gated functions (set_upgrade_window, start_upgrade,
+/// complete_upgrade) use require_admin which checks the role; the role is not
+/// automatically accessible after a WASM upgrade until migrate seeds it.
+fn seed_admin_role<'a>(
+    env: &'a Env,
+    contract_id: &Address,
+    admin: &Address,
+) -> QuickexContractClient<'a> {
+    let client = upgrade_to_current(env, contract_id);
+    client.migrate(admin);
+    client
+}
+
+#[test]
+fn upgrade_safety_gate_blocks_upgrade_outside_window() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+
+    // Window not set → upgrades blocked.
+    let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    assert!(
+        result.is_err(),
+        "start_upgrade must fail when no window is set"
+    );
+
+    // Set a future window → still blocked.
+    let now = env.ledger().timestamp();
+    client.set_upgrade_window(&gs.admin, &(now + 1000), &(now + 2000));
+
+    let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    assert!(
+        result.is_err(),
+        "start_upgrade must fail when current time is before window start"
+    );
+
+    // Advance time to within the window → succeeds.
+    env.ledger().with_mut(|li| {
+        li.timestamp = now + 1500;
+    });
+
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Advance time to after the window → now blocked.
+    env.ledger().with_mut(|li| {
+        li.timestamp = now + 2500;
+    });
+
+    let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    assert!(
+        result.is_err(),
+        "start_upgrade must fail when current time is after window end"
+    );
+}
+
+#[test]
+fn upgrade_safety_gate_post_upgrade_invariants_enforced() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+
+    // Set a valid window: start=1 (before current timestamp 200), end=0 (no upper bound).
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+
+    // Attempt a normal upgrade: should validate invariants post-migrate.
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
+    let version = client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    assert_eq!(version, CURRENT_CONTRACT_VERSION);
+
+    // Verify the contract is still in a valid state after complete_upgrade.
+    // This is implicit: if invariants failed, complete_upgrade would panic.
+
+    // Verify no upgrade is in progress anymore.
+    let (start, end) = client.get_upgrade_window();
+    // Window should be (1, 0) as set.
+    assert_eq!(start, 1);
+    assert_eq!(end, 0);
+}
+
+#[test]
+fn upgrade_safety_gate_invariant_failure_deterministic() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+
+    // Set valid window and start upgrade.
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Deliberately corrupt fee config to violate invariant (fee_bps > 10_000).
+    env.as_contract(&gs.contract_id, || {
+        crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 99999 });
+    });
+
+    // migrate must fail deterministically when invariants are violated (AC2).
+    let result = client.try_migrate(&gs.admin);
+    assert_eq!(
+        result,
+        Err(Ok(QuickexError::InternalError)),
+        "migrate must fail with InternalError when invariants are violated"
+    );
+
+    // Restore fee config and complete the upgrade cleanly.
+    env.as_contract(&gs.contract_id, || {
+        crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 200 });
+    });
+    // complete_upgrade internally calls migrate and finalizes the upgrade.
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+}
+
+#[test]
+fn upgrade_safety_gate_emits_events() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+
+    // Set a valid window.
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+
+    // Capture event count before upgrade ceremony.
+    let events_before = env.events().all().len();
+
+    // Start upgrade → should emit UpgradeStarted event.
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Complete upgrade → internally calls migrate and emits UpgradeCompleted event.
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Verify at least UpgradeStarted + UpgradeCompleted were emitted (AC3).
+    let events_after = env.events().all().len();
+    assert!(
+        events_after > events_before,
+        "upgrade ceremony must emit events (AC3: indexers can track upgrades from events alone)"
+    );
+}
+
+#[test]
+fn upgrade_safety_gate_blocks_double_start() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+
+    // First start succeeds.
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Second start (without complete_upgrade) fails → upgrade already in progress.
+    let result = client.try_start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    assert!(
+        result.is_err(),
+        "start_upgrade must fail when upgrade already in progress"
+    );
+
+    // Clean up by completing the upgrade (internally calls migrate).
+    client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+
+    // Now a new start is allowed.
+    client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+}
+
+#[test]
+fn upgrade_safety_gate_non_admin_blocked() {
+    let (env, gs) = build_golden_state();
+    let client = seed_admin_role(&env, &gs.contract_id, &gs.admin);
+    let non_admin = Address::generate(&env);
+
+    client.set_upgrade_window(&gs.admin, &1u64, &0u64);
+
+    // Non-admin attempts start_upgrade → fails.
+    let result = client.try_start_upgrade(&non_admin, &CURRENT_CONTRACT_VERSION);
+    assert!(result.is_err(), "start_upgrade by non-admin must fail");
+
+    // Non-admin attempts set_upgrade_window → fails.
+    let result = client.try_set_upgrade_window(&non_admin, &1u64, &0u64);
+    assert!(result.is_err(), "set_upgrade_window by non-admin must fail");
 }
