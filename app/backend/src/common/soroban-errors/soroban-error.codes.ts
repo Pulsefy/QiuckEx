@@ -16,6 +16,8 @@ export enum SorobanErrorCode {
   // ── Contract state ────────────────────────────────────────────────────────
   /** Contract is paused; all mutating operations are blocked. */
   CONTRACT_PAUSED = 'CONTRACT_PAUSED',
+  /** Contract write operations are temporarily disabled by the server. */
+  CONTRACT_WRITES_DISABLED = 'CONTRACT_WRITES_DISABLED',
   /** Escrow / resource entry not found in contract storage. */
   ESCROW_NOT_FOUND = 'CONTRACT_ESCROW_NOT_FOUND',
   /** Escrow has already been withdrawn or refunded. */
