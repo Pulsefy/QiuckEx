@@ -250,4 +250,25 @@ export class AppConfigService {
   get isPaymentSigningConfigured(): boolean {
     return !!this.stellarSecretKey;
   }
+
+  /**
+   * Indexer lag threshold in ledgers
+   */
+  get indexerLagThresholdLedgers(): number {
+    return this.configService.get("INDEXER_LAG_THRESHOLD_LEDGERS", { infer: true });
+  }
+
+  /**
+   * Whether the indexer lag guard is enabled
+   */
+  get indexerLagGuardEnabled(): boolean {
+    return this.configService.get("INDEXER_LAG_GUARD_ENABLED", { infer: true });
+  }
+
+  /**
+   * Admin override to disable lag guard temporarily
+   */
+  get indexerLagGuardOverride(): boolean {
+    return this.configService.get("INDEXER_LAG_GUARD_OVERRIDE", { infer: true });
+  }
 }

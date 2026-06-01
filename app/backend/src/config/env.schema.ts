@@ -343,6 +343,19 @@ export const envSchema = Joi.object({
     .valid("development", "staging", "production", "test")
     .optional()
     .description("Explicit environment name for parity tracking"),
+
+  // ── Indexer Lag Guard ─────────────────────────────────────────────────────
+  INDEXER_LAG_THRESHOLD_LEDGERS: Joi.number()
+    .integer()
+    .min(1)
+    .default(100)
+    .description("Maximum allowed lag in ledgers before blocking risky operations"),
+  INDEXER_LAG_GUARD_ENABLED: Joi.boolean()
+    .default(true)
+    .description("Whether the indexer lag guard is enabled"),
+  INDEXER_LAG_GUARD_OVERRIDE: Joi.boolean()
+    .default(false)
+    .description("Admin override to disable lag guard temporarily (for emergencies)"),
 });
 
 /**
@@ -402,4 +415,7 @@ export interface EnvConfig {
   SHADOW_TRAFFIC_ENDPOINTS: string;
   STAGING_SEED_DATA_ENABLED: boolean;
   ENVIRONMENT_NAME?: "development" | "staging" | "production" | "test";
+  INDEXER_LAG_THRESHOLD_LEDGERS: number;
+  INDEXER_LAG_GUARD_ENABLED: boolean;
+  INDEXER_LAG_GUARD_OVERRIDE: boolean;
 }
