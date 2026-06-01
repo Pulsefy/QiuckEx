@@ -19,7 +19,7 @@ export class CrashReportingRepository {
   async createCrashReport(
     report: Omit<CrashReport, 'id' | 'createdAt'>,
   ): Promise<string> {
-    const { data, error } = await this.supabase.client
+    const { data, error } = await this.supabase.getClient()
       .from('crash_reports')
       .insert({
         user_id: report.userId,
@@ -49,7 +49,7 @@ export class CrashReportingRepository {
     userId: string,
     limit = 10,
   ): Promise<CrashReport[]> {
-    const { data, error } = await this.supabase.client
+    const { data, error } = await this.supabase.getClient()
       .from('crash_reports')
       .select('*')
       .eq('user_id', userId)
@@ -78,7 +78,7 @@ export class CrashReportingRepository {
    * @returns The user's settings or null if not found
    */
   async getUserSettings(userId: string): Promise<CrashReportingSettings | null> {
-    const { data, error } = await this.supabase.client
+    const { data, error } = await this.supabase.getClient()
       .from('crash_reporting_settings')
       .select('*')
       .eq('user_id', userId)
@@ -106,7 +106,7 @@ export class CrashReportingRepository {
    * @param enabled - Whether crash reporting is enabled
    */
   async updateUserSettings(userId: string, enabled: boolean): Promise<void> {
-    const { error } = await this.supabase.client
+    const { error } = await this.supabase.getClient()
       .from('crash_reporting_settings')
       .upsert({
         user_id: userId,
@@ -129,7 +129,7 @@ export class CrashReportingRepository {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
-    const { data, error } = await this.supabase.client
+    const { data, error } = await this.supabase.getClient()
       .from('crash_reports')
       .delete()
       .lt('timestamp', cutoffDate.toISOString())
