@@ -42,7 +42,7 @@ jobs:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           echo "Applying database migrations safely..."
-          pnpm turbo run db:migrate --continue-on-error || echo "No custom migration scripts found, skipping task step safely."
+          pnpm turbo run db:migrate --continue || echo "No custom migration scripts found, skipping task step safely."
 
       - name: Deploy Application
         run: |
