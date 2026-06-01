@@ -4,6 +4,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from "@nestjs/common";
+import { createHash } from "crypto";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc as SorobanRpc } from "@stellar/stellar-sdk";
 import { ComposeTransactionDto } from "./dto/compose-transaction.dto";
@@ -24,12 +25,33 @@ const BASE_FEE = 100; // stroops
 @Injectable()
 export class TransactionsService {
   private readonly logger = new Logger(TransactionsService.name);
+  private readonly idempotencyResponses = new Map<
+    string,
+    ComposeTransactionResponse | ComposeTransactionError
+  >();
+  private readonly idempotencyFingerprints = new Map<string, string>();
 
   constructor(private readonly sorobanRpcService: SorobanRpcService) {}
 
   async composeTransaction(
     dto: ComposeTransactionDto,
   ): Promise<ComposeTransactionResponse | ComposeTransactionError> {
+    this.validatePayload(dto);
+
+    const payloadFingerprint = this.buildFingerprint(dto);
+    const idempotencyKey = dto.idempotencyKey ?? payloadFingerprint;
+    const fingerprintForKey = this.idempotencyFingerprints.get(idempotencyKey);
+    if (fingerprintForKey && fingerprintForKey !== payloadFingerprint) {
+      throw new BadRequestException(
+        "This idempotency key was already used with a different payload.",
+      );
+    }
+
+    const cached = this.idempotencyResponses.get(idempotencyKey);
+    if (cached) {
+      return cached;
+    }
+
     const startTime = Date.now();
 
     // 1. Resolve network passphrase
@@ -91,17 +113,19 @@ export class TransactionsService {
     if (SorobanRpc.Api.isSimulationError(simulationResult)) {
       const mapped = mapSorobanError(simulationResult.error);
       this.logger.warn(`Simulation failed [${mapped.code}]: ${simulationResult.error}`);
-      return {
+      const failedResponse: ComposeTransactionError = {
         success: false,
         error: mapped.code,
         userMessage: mapped.message,
         details: mapped.details,
       };
+      this.rememberResponse(idempotencyKey, payloadFingerprint, failedResponse);
+      return failedResponse;
     }
 
     // 8. Handle restoration needed
     if (SorobanRpc.Api.isSimulationRestore(simulationResult)) {
-      return {
+      const restoreResponse = {
         success: false,
         error: SorobanErrorCode.RESTORE_REQUIRED,
         userMessage:
@@ -110,6 +134,8 @@ export class TransactionsService {
           restorePreamble: simulationResult.restorePreamble,
         },
       } as ComposeTransactionError;
+      this.rememberResponse(idempotencyKey, payloadFingerprint, restoreResponse);
+      return restoreResponse;
     }
 
     // 9. Assemble transaction with simulation results (sets soroban data & resource fee)
@@ -154,13 +180,62 @@ export class TransactionsService {
         `${dto.contractId}::${dto.method}, fee: ${totalFeeStroops} stroops`,
     );
 
-    return {
+    const response: ComposeTransactionResponse = {
       success: true,
       unsignedXdr,
       resourceEstimate,
       feeEstimate,
       minResourceFee,
       simulationLatencyMs,
+      idempotencyKey,
+      simulationSummary: {
+        status: "success" as const,
+        footprint: {
+          readOnly: resources.footprint().readOnly().length,
+          readWrite: resources.footprint().readWrite().length,
+        },
+        estimatedCost: {
+          cpuInstructions: resourceEstimate.cpuInstructions,
+          ledgerReads: resourceEstimate.ledgerReads,
+          ledgerWrites: resourceEstimate.ledgerWrites,
+          eventBytes: resourceEstimate.eventBytes,
+          returnValueBytes: resourceEstimate.returnValueBytes,
+        },
+      },
     };
+    this.rememberResponse(idempotencyKey, payloadFingerprint, response);
+    return response;
+  }
+
+  private validatePayload(dto: ComposeTransactionDto): void {
+    const payloadSize = Buffer.byteLength(JSON.stringify(dto.params ?? []), "utf8");
+    if (payloadSize > 4096) {
+      throw new BadRequestException("Transaction parameters exceed the 4KB limit.");
+    }
+
+    if ((dto.params ?? []).length > 16) {
+      throw new BadRequestException("A maximum of 16 contract parameters is supported.");
+    }
+  }
+
+  private buildFingerprint(dto: ComposeTransactionDto): string {
+    const normalized = JSON.stringify({
+      contractId: dto.contractId,
+      method: dto.method,
+      params: dto.params,
+      sourceAccount: dto.sourceAccount,
+      networkPassphrase: dto.networkPassphrase ?? "__default__",
+    });
+
+    return createHash("sha256").update(normalized).digest("hex");
+  }
+
+  private rememberResponse(
+    idempotencyKey: string,
+    fingerprint: string,
+    response: ComposeTransactionResponse | ComposeTransactionError,
+  ): void {
+    this.idempotencyFingerprints.set(idempotencyKey, fingerprint);
+    this.idempotencyResponses.set(idempotencyKey, response);
   }
 }

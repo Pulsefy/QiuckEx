@@ -103,7 +103,7 @@ describe("ShadowTrafficMiddleware", () => {
         middleware as unknown as {
           shouldShadowEndpoint: (path: string) => boolean;
         }
-      ).shouldShadowEndpoint;
+      ).shouldShadowEndpoint.bind(middleware);
       const result = shouldShadowEndpoint("/api/links");
       expect(result).toBe(true);
     });
@@ -113,7 +113,7 @@ describe("ShadowTrafficMiddleware", () => {
         middleware as unknown as {
           shouldShadowEndpoint: (path: string) => boolean;
         }
-      ).shouldShadowEndpoint;
+      ).shouldShadowEndpoint.bind(middleware);
       const result = shouldShadowEndpoint("/api/other");
       expect(result).toBe(false);
     });
@@ -123,7 +123,7 @@ describe("ShadowTrafficMiddleware", () => {
         middleware as unknown as {
           shouldShadowEndpoint: (path: string) => boolean;
         }
-      ).shouldShadowEndpoint;
+      ).shouldShadowEndpoint.bind(middleware);
       const result = shouldShadowEndpoint("/api/links/123");
       expect(result).toBe(true);
     });
@@ -136,9 +136,15 @@ describe("ShadowTrafficMiddleware", () => {
         writable: true,
       });
 
+      // Reinitialize middleware with updated config
+      middleware = new ShadowTrafficMiddleware(
+        mockConfigService as AppConfigService,
+        mockMetricsService as MetricsService,
+      );
+
       const shouldSample = (
         middleware as unknown as { shouldSample: () => boolean }
-      ).shouldSample;
+      ).shouldSample.bind(middleware);
       const result = shouldSample();
       expect(result).toBe(true);
     });
@@ -149,9 +155,15 @@ describe("ShadowTrafficMiddleware", () => {
         writable: true,
       });
 
+      // Reinitialize middleware with updated config
+      middleware = new ShadowTrafficMiddleware(
+        mockConfigService as AppConfigService,
+        mockMetricsService as MetricsService,
+      );
+
       const shouldSample = (
         middleware as unknown as { shouldSample: () => boolean }
-      ).shouldSample;
+      ).shouldSample.bind(middleware);
       const result = shouldSample();
       expect(result).toBe(false);
     });

@@ -8,12 +8,19 @@ import { EscrowEventRepository } from "../escrow-event.repository";
 import { PrivacyEventRepository } from "../privacy-event.repository";
 import { AdminEventRepository } from "../admin-event.repository";
 import { StealthEventRepository } from "../stealth-event.repository";
+import { MetricsService } from "../../metrics/metrics.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function symVal(s: string) { return xdr.ScVal.scvSymbol(s); }
-function addressVal(s: string) { return nativeToScVal(s); }
-function bytesVal(hex: string) { return xdr.ScVal.scvBytes(Buffer.from(hex, "hex")); }
+function symVal(s: string) {
+  return xdr.ScVal.scvSymbol(s);
+}
+function addressVal(s: string) {
+  return nativeToScVal(s);
+}
+function bytesVal(hex: string) {
+  return xdr.ScVal.scvBytes(Buffer.from(hex, "hex"));
+}
 function mapVal(entries: Record<string, xdr.ScVal>) {
   return xdr.ScVal.scvMap(
     Object.entries(entries).map(
@@ -27,8 +34,15 @@ const TOKEN = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const COMMITMENT_HEX = "deadbeef".repeat(8);
 const CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
-function makeEscrowDepositedRaw(ledger: number, pagingToken: string): RawHorizonContractEvent {
-  const topics = [symVal("EscrowDeposited"), bytesVal(COMMITMENT_HEX), addressVal(OWNER)];
+function makeEscrowDepositedRaw(
+  ledger: number,
+  pagingToken: string,
+): RawHorizonContractEvent {
+  const topics = [
+    symVal("EscrowDeposited"),
+    bytesVal(COMMITMENT_HEX),
+    addressVal(OWNER),
+  ];
   const data = mapVal({
     schema_version: nativeToScVal(2, { type: "u32" }),
     token: addressVal(TOKEN),
@@ -77,11 +91,20 @@ function buildMocks() {
 
   const metrics = {
     recordUnknownSchemaVersion: jest.fn(),
-  } as never;
+  } as unknown as MetricsService;
 
   const eventEmitter = { emit: jest.fn() } as unknown as EventEmitter2;
 
-  return { config, checkpointRepo, escrowRepo, privacyRepo, adminRepo, stealthRepo, metrics, eventEmitter };
+  return {
+    config,
+    checkpointRepo,
+    escrowRepo,
+    privacyRepo,
+    adminRepo,
+    stealthRepo,
+    metrics,
+    eventEmitter,
+  };
 }
 
 function buildService(mocks: ReturnType<typeof buildMocks>) {
@@ -127,8 +150,14 @@ describe("SorobanEventIndexerService", () => {
     expect(result.processed).toBe(1);
     expect(result.persisted).toBe(1);
     expect(mocks.escrowRepo.upsertEvent).toHaveBeenCalledTimes(1);
-    expect(mocks.checkpointRepo.saveLastLedger).toHaveBeenCalledWith(CONTRACT_ID, 100);
-    expect(mocks.eventEmitter.emit).toHaveBeenCalledWith("stellar.EscrowDeposited", expect.anything());
+    expect(mocks.checkpointRepo.saveLastLedger).toHaveBeenCalledWith(
+      CONTRACT_ID,
+      100,
+    );
+    expect(mocks.eventEmitter.emit).toHaveBeenCalledWith(
+      "stellar.EscrowDeposited",
+      expect.anything(),
+    );
   });
 
   it("skips already-indexed range when checkpoint is ahead", async () => {
@@ -193,15 +222,18 @@ describe("SorobanEventIndexerService", () => {
     expect(result.persisted).toBe(0);
     expect(result.skippedUnknownSchema).toBe(1);
     expect(mocks.escrowRepo.upsertEvent).not.toHaveBeenCalled();
-    expect(mocks.metrics.recordUnknownSchemaVersion).toHaveBeenCalledWith("EscrowDeposited", 99);
+    expect(mocks.metrics.recordUnknownSchemaVersion).toHaveBeenCalledWith(
+      "EscrowDeposited",
+      99,
+    );
   });
 
   it("is idempotent: calling twice with same range does not double-persist", async () => {
     const mocks = buildMocks();
     // First call: no checkpoint
     (mocks.checkpointRepo.getLastLedger as jest.Mock)
-      .mockResolvedValueOnce(null)   // first call
-      .mockResolvedValueOnce(100);   // second call: checkpoint is at 100
+      .mockResolvedValueOnce(null) // first call
+      .mockResolvedValueOnce(100); // second call: checkpoint is at 100
 
     const svc = buildService(mocks);
     const record = makeEscrowDepositedRaw(100, "100-1");

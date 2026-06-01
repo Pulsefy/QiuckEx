@@ -5,10 +5,7 @@ import { NotificationPreferencesRepository } from "../notification-preferences.r
 import { NotificationLogRepository } from "../notification-log.repository";
 import { InAppNotificationRepository } from "../in-app-notification.repository";
 import { TemplateService } from "../template.service";
-import { JobQueueService } from "../../job-queue/job-queue.service";
 import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
-import { InAppNotificationRepository } from "../in-app-notification.repository";
-import { TemplateService } from "../template.service";
 import type {
   NotificationPreference,
   NotificationPayload,
@@ -45,13 +42,14 @@ function makeEscrowDepositedEvent(
     ledgerSequence: 100,
     pagingToken: "100-1",
     contractTimestamp: 1700000000n,
+    schemaVersion: 2,
     commitment: "deadbeef".repeat(8),
     owner: PUBLIC_KEY,
     token: "CTOKEN",
     amount: 50_000_000n, // 5 XLM
     expiresAt: 1800000000n,
     ...overrides,
-  };
+  } as EscrowDepositedEvent;
 }
 
 function makePayload(
@@ -133,15 +131,24 @@ describe("NotificationService", () => {
         { provide: InAppNotificationRepository, useValue: inAppRepo },
         { provide: TemplateService, useValue: templateService },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
-        { provide: InAppNotificationRepository, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
-        { provide: TemplateService, useValue: { getTemplate: jest.fn().mockReturnValue(null), render: jest.fn().mockReturnValue("") } },
+        {
+          provide: InAppNotificationRepository,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: TemplateService,
+          useValue: {
+            getTemplate: jest.fn().mockReturnValue(null),
+            render: jest.fn().mockReturnValue(""),
+          },
+        },
       ],
     }).compile();
 
     await module.init();
 
     service = module.get(NotificationService);
-    
+
     // Ensure the service is fully initialized
     service.onModuleInit();
   });
