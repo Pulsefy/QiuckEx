@@ -5,7 +5,7 @@ import { ErrorReportingShell } from "@/components/ErrorReportingShell";
 import "./globals.css";
 
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://quickex.to";
+  (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://quickex.to");
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
