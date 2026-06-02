@@ -5,6 +5,10 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      manual_run:
+        description: "Run manually"
+        required: false
 
 jobs:
   e2e-testnet:

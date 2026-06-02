@@ -1,7 +1,6 @@
 name: Deployment Smoke Tests
 
-on:
-  workflow_dispatch:
+on: [workflow_dispatch]
 
 jobs:
   disabled:
@@ -99,10 +98,10 @@ jobs:
 #         run: |
 #           echo "Running smoke tests against ${{ steps.env-url.outputs.url }}"
 #           echo "Environment: ${{ steps.env-url.outputs.env }}"
-          
+
 #           # Run smoke tests with Jest
 #           pnpm run test:e2e -- test/smoke.e2e-spec.ts --testTimeout=30000 --verbose
-          
+
 #           # Run Soroban/Horizon specific smoke tests
 #           pnpm run test:e2e -- test/smoke-soroban-horizon.e2e-spec.ts --testTimeout=30000 --verbose
 #         continue-on-error: true
@@ -118,7 +117,7 @@ jobs:
 #           echo "**URL:** ${{ steps.env-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
 #           echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
 #           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
 #           if [ "${{ steps.smoke-tests.outcome }}" == "success" ]; then
 #             echo "## ✅ All smoke tests passed" >> $GITHUB_STEP_SUMMARY
 #             echo "" >> $GITHUB_STEP_SUMMARY
@@ -149,9 +148,9 @@ jobs:
 #               repo: context.repo.repo,
 #               deployment_id: context.event.deployment.id,
 #             });
-            
+
 #             const status = '${{ steps.smoke-tests.outcome }}' === 'success' ? 'success' : 'failure';
-            
+
 #             await github.rest.repos.createDeploymentStatus({
 #               owner: context.repo.owner,
 #               repo: context.repo.repo,
@@ -159,8 +158,8 @@ jobs:
 #               state: status,
 #               environment_url: deployment.environment_url,
 #               log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-#               description: status === 'success' 
-#                 ? 'Smoke tests passed - deployment is healthy' 
+#               description: status === 'success'
+#                 ? 'Smoke tests passed - deployment is healthy'
 #                 : 'Smoke tests failed - deployment may have issues',
 #             });
 
