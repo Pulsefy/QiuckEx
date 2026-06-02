@@ -96,6 +96,10 @@ Minimum acceptable evidence:
 
 ## Deployment
 
+Before any testnet or mainnet release, complete the checklist in [deployment-checklist.md](deployment-checklist.md).
+For the repeatable operator flow and registry schema, use [deployment-playbook.md](deployment-playbook.md).
+Use [environment-registry.toml](environment-registry.toml) as the canonical deployed address/hash registry.
+
 ### 1) Local network deployment
 
 ```bash
@@ -108,15 +112,15 @@ In another terminal:
 ```bash
 cd app/contract
 
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/quickex.wasm \
   --source default
 ```
 
 Optionally verify with a read/invoke call:
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --source default \
   -- \
@@ -125,11 +129,14 @@ soroban contract invoke \
 
 ### 2) Testnet deployment
 
+Use the same release artifact and operator order that passed the deployment checklist.
+Record the result in [environment-registry.toml](environment-registry.toml).
+
 ```bash
 cd app/contract
 
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/quickex.wasm \
   --source test \
   --network testnet
 ```
@@ -137,7 +144,7 @@ soroban contract deploy \
 Verify:
 
 ```bash
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --source test \
   --network testnet \
@@ -145,18 +152,39 @@ soroban contract invoke \
   health_check
 ```
 
+Recommended post-deploy validation:
+
+1. Call `get_deployment_metadata` and confirm the returned contract ID, schema version, and wasm hash are correct.
+2. Run one known event-emitting action and confirm the event payload still matches [docs/events-schema.md](../docs/events-schema.md).
+3. Record the contract ID and network in the PR.
+4. Update the environment registry with the contract ID, wasm hash, admin address, and init params.
+
 ### 3) Mainnet deployment
+
+Mainnet deployment must repeat the validated testnet flow with the mainnet source key and network.
+Mainnet promotion also requires the registry entry to be reviewed and approved.
 
 ```bash
 cd app/contract
 
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/quickex.wasm \
   --source main \
   --network mainnet
 ```
 
 > Caution: Mainnet deployment is irreversible and should only be done after review and testnet validation.
+
+## Deployment gates
+
+The following checks are required before a deploy PR can be merged:
+
+- [ ] Benchmarks are green: `cargo test bench_ -- --nocapture`
+- [ ] Upgrade harness is green: `cargo test upgrade_harness_ -- --nocapture`
+- [ ] Event schema is locked: `cargo test test_event_schema_catalog_locks_canonical_topics_and_payloads`
+- [ ] Governance settings are documented: threshold keys and pause policy
+- [ ] Post-deploy validation is defined: metadata view and event smoke test
+- [ ] Environment registry is updated for every affected network
 
 ## Recommended local quality checks
 
@@ -174,10 +202,10 @@ cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D wa
 
 ## Troubleshooting
 
-- `target not found: wasm32-unknown-unknown`
-  - Run: `rustup target add wasm32-unknown-unknown`
-- `soroban: command not found`
-  - Ensure `cargo install soroban-cli` completed and `$HOME/.cargo/bin` is on `PATH`
+- `target not found: wasm32v1-none`
+  - Ensure your Stellar CLI toolchain and build target are installed for Soroban contracts.
+- `stellar: command not found`
+  - Ensure Stellar CLI is installed and on `PATH`.
 - Failing tests after dependency changes
   - Run `cargo clean && cargo test`
 
@@ -187,3 +215,4 @@ cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D wa
 - [ ] Steps for Prerequisites, Setup, Build, Test, Deploy are present and ordered
 - [ ] Markdown formatting is clean and readable
 - [ ] PR includes screenshot of successful `cargo test`
+- [ ] Deploy checklist is linked and used for release-related changes
