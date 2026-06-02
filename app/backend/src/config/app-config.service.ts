@@ -124,6 +124,23 @@ export class AppConfigService {
   }
 
   /**
+   * Parsed list of explicitly allowed CORS origins.
+   * Sourced from the CORS_ALLOWED_ORIGINS env var (comma-separated).
+   */
+  get corsAllowedOrigins(): string[] {
+    const raw = this.configService.get('CORS_ALLOWED_ORIGINS', { infer: true });
+    return raw ? raw.split(',').map((o) => o.trim()).filter(Boolean) : [];
+  }
+
+  /**
+   * Vercel project slug used to allow preview deployment URLs.
+   * When set, https://<slug>-*.vercel.app origins are permitted.
+   */
+  get corsVercelProject(): string | undefined {
+    return this.configService.get('CORS_VERCEL_PROJECT', { infer: true });
+  }
+
+  /**
    * Check if running on testnet
    */
   get isTestnet(): boolean {
@@ -232,5 +249,26 @@ export class AppConfigService {
    */
   get isPaymentSigningConfigured(): boolean {
     return !!this.stellarSecretKey;
+  }
+
+  /**
+   * Indexer lag threshold in ledgers
+   */
+  get indexerLagThresholdLedgers(): number {
+    return this.configService.get("INDEXER_LAG_THRESHOLD_LEDGERS", { infer: true });
+  }
+
+  /**
+   * Whether the indexer lag guard is enabled
+   */
+  get indexerLagGuardEnabled(): boolean {
+    return this.configService.get("INDEXER_LAG_GUARD_ENABLED", { infer: true });
+  }
+
+  /**
+   * Admin override to disable lag guard temporarily
+   */
+  get indexerLagGuardOverride(): boolean {
+    return this.configService.get("INDEXER_LAG_GUARD_OVERRIDE", { infer: true });
   }
 }

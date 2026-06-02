@@ -69,6 +69,7 @@ export class SorobanIndexerController {
         dto.contractId,
         dto.fromLedger,
         dto.toLedger,
+        undefined,
         dto.force ?? false,
       );
     } finally {

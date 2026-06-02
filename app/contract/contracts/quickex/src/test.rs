@@ -207,6 +207,7 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
     // When the owner has privacy on, a stranger should see token/status/timestamps
     // but NOT amount or owner.
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
     let stranger = Address::generate(&env);
@@ -217,7 +218,7 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
     data.append(&owner.clone().to_xdr(&env));
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
-    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+    let commitment: BytesN<32> = env.crypto().sha256(&data.clone()).into();
 
     setup_escrow_with_owner(
         &env,
@@ -228,6 +229,8 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
         commitment.clone(),
         0,
     );
+
+    client.initialize(&admin);
 
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
@@ -245,6 +248,7 @@ fn test_get_escrow_details_privacy_enabled_hides_sensitive_fields() {
 fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
     // When the owner has privacy on and IS the caller, they must see everything.
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
     let amount: i128 = 5000;
@@ -254,7 +258,7 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
     data.append(&owner.clone().to_xdr(&env));
     data.append(&Bytes::from_slice(&env, &amount.to_be_bytes()));
     data.append(&salt);
-    let commitment: BytesN<32> = env.crypto().sha256(&data).into();
+    let commitment: BytesN<32> = env.crypto().sha256(&data.clone()).into();
 
     setup_escrow_with_owner(
         &env,
@@ -265,6 +269,8 @@ fn test_get_escrow_details_privacy_enabled_owner_sees_full_details() {
         commitment.clone(),
         0,
     );
+
+    client.initialize(&admin);
 
     // Enable privacy for the owner
     client.set_privacy(&owner, &true);
@@ -316,7 +322,10 @@ fn test_get_escrow_details_privacy_disabled_shows_full_details() {
 fn test_set_privacy_already_set_fails() {
     // Setting privacy to a value it already has must return PrivacyAlreadySet.
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
+
+    client.initialize(&admin);
 
     // Default is false; enabling once is fine.
     client.set_privacy(&account, &true);
@@ -331,7 +340,10 @@ fn test_set_privacy_already_set_fails() {
 fn test_set_privacy_toggle_cycle_succeeds() {
     // false â†’ true â†’ false â†’ true must all succeed without error.
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
+
+    client.initialize(&admin);
 
     client.set_privacy(&account, &true);
     assert!(client.get_privacy(&account));
@@ -379,7 +391,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 20);
+    assert_eq!(EVENT_SCHEMAS.len(), 21);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -606,7 +618,10 @@ fn test_nonexistent_commitment_fails() {
 #[test]
 fn test_set_and_get_privacy() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
+
+    client.initialize(&admin);
 
     // Default should be false
     assert!(!client.get_privacy(&account));
@@ -623,6 +638,7 @@ fn test_set_and_get_privacy() {
 #[test]
 fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
     let legacy_key = (Symbol::new(&env, PRIVACY_ENABLED_KEY), account.clone());
     let typed_key = DataKey::PrivacyEnabled(account.clone());
@@ -630,6 +646,8 @@ fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
     env.as_contract(&client.address, || {
         env.storage().persistent().set(&legacy_key, &true);
     });
+
+    client.initialize(&admin);
 
     assert!(client.get_privacy(&account));
 
@@ -647,7 +665,10 @@ fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
 #[test]
 fn test_event_snapshot_privacy_toggled_schema() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
+
+    client.initialize(&admin);
 
     client.set_privacy(&account, &true);
 
@@ -943,6 +964,54 @@ fn test_event_snapshot_escrow_disputed_schema() {
 }
 
 #[test]
+fn test_event_snapshot_contract_initialized_schema() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: Address = topics.get(2).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
+    assert_eq!(t1, Symbol::new(&env, "ContractInitialized"));
+    assert_eq!(t2, admin);
+
+    let data_map = event_data_map(&env, data);
+    let schema_version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(schema_version, EVENT_SCHEMA_VERSION);
+
+    let contract_version: u32 = data_map
+        .get(Symbol::new(&env, "contract_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(contract_version, CURRENT_CONTRACT_VERSION);
+
+    let event_schema_version: u32 = data_map
+        .get(Symbol::new(&env, "event_schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert_eq!(event_schema_version, EVENT_SCHEMA_VERSION);
+
+    let paused: bool = data_map
+        .get(Symbol::new(&env, "paused"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    assert!(!paused);
+    assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+}
+
+#[test]
 fn test_event_snapshot_contract_paused_schema() {
     let (env, client) = setup();
     let admin = Address::generate(&env);
@@ -1001,9 +1070,44 @@ fn test_initialize_twice_fails() {
 }
 
 #[test]
+fn test_initialize_detects_partial_admin_only_state_as_already_initialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    // Simulate a partial state where legacy code wrote admin but did not set
+    // the explicit initialized flag.
+    let existing_admin = Address::generate(&env);
+    env.as_contract(&contract_id, || {
+        crate::storage::set_admin(&env, &existing_admin);
+    });
+
+    let new_admin = Address::generate(&env);
+    let result = client.try_initialize(&new_admin);
+    assert_contract_error(result, QuickexError::AlreadyInitialized);
+
+    // Ensure no implicit admin change happened on failed re-init.
+    assert_eq!(client.get_admin(), Some(existing_admin));
+}
+
+#[test]
+fn test_config_mutation_before_initialize_fails_deterministically() {
+    let (env, client) = setup();
+    let caller = Address::generate(&env);
+
+    let result = client.try_set_fee_config(&caller, &crate::types::FeeConfig { fee_bps: 100 });
+    assert_contract_error(result, QuickexError::Unauthorized);
+}
+
+#[test]
 fn test_set_privacy_same_value_fails() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let account = Address::generate(&env);
+
+    client.initialize(&admin);
 
     let first = client.try_set_privacy(&account, &true);
     assert_eq!(first, Ok(Ok(())));
@@ -1726,7 +1830,7 @@ fn test_upgrade_without_admin_initialized_fails() {
 
     // Try to upgrade without admin set - should fail with Unauthorized
     let result = client.try_upgrade(&caller, &new_wasm_hash);
-    assert_contract_error(result, QuickexError::InsufficientRole);
+    assert_contract_error(result, QuickexError::Unauthorized);
 }
 
 // ============================================================================
@@ -1885,10 +1989,13 @@ fn test_double_refund_fails() {
 #[test]
 fn regression_golden_path_full_flow() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let token = create_test_token(&env);
     let to = Address::generate(&env);
     let amount: i128 = 1000;
     let salt = Bytes::from_slice(&env, b"regression_golden_salt");
+
+    client.initialize(&admin);
 
     // 1. Create and verify commitment
     let commitment = client.create_amount_commitment(&to, &amount, &salt);
@@ -2212,6 +2319,7 @@ fn test_refund_fails_during_dispute() {
 #[test]
 fn test_get_escrow_details_shows_arbiter_to_owner_and_arbiter() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
     let arbiter = Address::generate(&env);
@@ -2230,6 +2338,8 @@ fn test_get_escrow_details_shows_arbiter_to_owner_and_arbiter() {
         &1000,
         &Some(arbiter.clone()),
     );
+
+    client.initialize(&admin);
 
     // Enable privacy for owner
     client.set_privacy(&owner, &true);
@@ -2529,6 +2639,7 @@ fn test_cross_asset_large_amount_edge_case() {
 fn test_cross_asset_privacy_preserved_across_tokens() {
     // Test that privacy settings work correctly regardless of token type
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let (token_a, client_a) = create_sac_token(&env, "TokenA");
     let (_token_b, _client_b) = create_sac_token(&env, "TokenB");
     let owner = Address::generate(&env);
@@ -2539,6 +2650,8 @@ fn test_cross_asset_privacy_preserved_across_tokens() {
     // Create escrows with privacy enabled
     client_a.mint(&owner, &amount);
     let commitment_a = client.deposit(&token_a, &amount, &owner, &_salt, &0, &None);
+
+    client.initialize(&admin);
 
     // Enable privacy
     client.set_privacy(&owner, &true);

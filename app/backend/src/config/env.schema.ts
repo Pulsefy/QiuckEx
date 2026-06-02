@@ -90,6 +90,23 @@ export const envSchema = Joi.object({
     .default("development")
     .description("Node environment"),
 
+  // CORS configuration
+  CORS_ALLOWED_ORIGINS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated list of allowed CORS origins (e.g. https://quickex.to,https://app.quickex.to). " +
+        "Required in production when no wildcard is desired.",
+    ),
+
+  CORS_VERCEL_PROJECT: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Vercel project slug (e.g. quickex-frontend). " +
+        "When set, all preview URLs matching https://<slug>-*.vercel.app are allowed.",
+    ),
+
   // Username reservation limit (optional). Max usernames per wallet; omit for no limit.
   MAX_USERNAMES_PER_WALLET: Joi.number()
     .integer()
@@ -326,6 +343,19 @@ export const envSchema = Joi.object({
     .valid("development", "staging", "production", "test")
     .optional()
     .description("Explicit environment name for parity tracking"),
+
+  // ── Indexer Lag Guard ─────────────────────────────────────────────────────
+  INDEXER_LAG_THRESHOLD_LEDGERS: Joi.number()
+    .integer()
+    .min(1)
+    .default(100)
+    .description("Maximum allowed lag in ledgers before blocking risky operations"),
+  INDEXER_LAG_GUARD_ENABLED: Joi.boolean()
+    .default(true)
+    .description("Whether the indexer lag guard is enabled"),
+  INDEXER_LAG_GUARD_OVERRIDE: Joi.boolean()
+    .default(false)
+    .description("Admin override to disable lag guard temporarily (for emergencies)"),
 });
 
 /**
@@ -347,6 +377,8 @@ export interface EnvConfig {
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
+  CORS_ALLOWED_ORIGINS?: string;
+  CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
@@ -383,4 +415,7 @@ export interface EnvConfig {
   SHADOW_TRAFFIC_ENDPOINTS: string;
   STAGING_SEED_DATA_ENABLED: boolean;
   ENVIRONMENT_NAME?: "development" | "staging" | "production" | "test";
+  INDEXER_LAG_THRESHOLD_LEDGERS: number;
+  INDEXER_LAG_GUARD_ENABLED: boolean;
+  INDEXER_LAG_GUARD_OVERRIDE: boolean;
 }

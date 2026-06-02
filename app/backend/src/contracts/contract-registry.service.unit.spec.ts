@@ -145,4 +145,143 @@ describe('ContractRegistryService', () => {
       NotFoundException,
     );
   });
+
+  describe('Dual-read finalization', () => {
+    it('finalizes dual-read by clearing previousContractId', async () => {
+      // Setup: publish with dual-read config
+      const mockClient = {
+        from: jest.fn(() => ({
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockResolvedValue({
+            data: [
+              {
+                contract_name: 'quickex',
+                network: 'testnet',
+                contract_id: 'C456',
+                previous_contract_id: 'C123',
+                effective_ledger: 50000000,
+                effective_time: null,
+                wasm_hash: 'def456',
+                contract_version: 2,
+                deployment_id: 'deploy-2',
+                metadata: {},
+                published_by: 'test',
+                version: 2,
+                created_at: '2026-06-02T10:00:00Z',
+                updated_at: '2026-06-02T10:00:00Z',
+                network_passphrase: 'Test SDF Network ; September 2015',
+                is_active: true,
+              },
+            ],
+            error: null,
+          }),
+          delete: jest.fn().mockReturnThis(),
+          insert: jest.fn().mockResolvedValue({ error: null }),
+        })),
+      };
+
+      mockSupabaseService = {
+        getClient: jest.fn(() => mockClient as never),
+      };
+
+      service = new ContractRegistryService(
+        mockSupabaseService as unknown as SupabaseService,
+        mockAuditService as unknown as AuditService,
+        mockAppConfigService as AppConfigService,
+        mockEventEmitter,
+        mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
+        mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+      );
+
+      const result = await service.finalizeDualRead('quickex');
+
+      // Should have removed dual-read config
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        'contract_registry',
+        'registry.finalize_dual_read',
+        'quickex',
+        expect.objectContaining({ actor: 'deployment_automation' }),
+      );
+
+      // Result should show cleared previousContractId
+      expect(result.data.quickex).toBeDefined();
+    });
+
+    it('throws when no active entry exists', async () => {
+      const mockClient = {
+        from: jest.fn(() => ({
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockResolvedValue({ data: [], error: null }),
+          delete: jest.fn().mockReturnThis(),
+          insert: jest.fn().mockResolvedValue({ error: null }),
+        })),
+      };
+
+      mockSupabaseService = {
+        getClient: jest.fn(() => mockClient as never),
+      };
+
+      service = new ContractRegistryService(
+        mockSupabaseService as unknown as SupabaseService,
+        mockAuditService as unknown as AuditService,
+        mockAppConfigService as AppConfigService,
+        mockEventEmitter,
+        mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
+        mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+      );
+
+      await expect(service.finalizeDualRead('missing')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws when not in dual-read window', async () => {
+      const mockClient = {
+        from: jest.fn(() => ({
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          order: jest.fn().mockResolvedValue({
+            data: [
+              {
+                contract_name: 'quickex',
+                network: 'testnet',
+                contract_id: 'C456',
+                previous_contract_id: null,
+                effective_ledger: null,
+                effective_time: null,
+                wasm_hash: 'def456',
+                contract_version: 2,
+                deployment_id: 'deploy-2',
+                metadata: {},
+                published_by: 'test',
+                version: 2,
+                created_at: '2026-06-02T10:00:00Z',
+                updated_at: '2026-06-02T10:00:00Z',
+                network_passphrase: 'Test SDF Network ; September 2015',
+                is_active: true,
+              },
+            ],
+            error: null,
+          }),
+          delete: jest.fn().mockReturnThis(),
+          insert: jest.fn().mockResolvedValue({ error: null }),
+        })),
+      };
+
+      mockSupabaseService = {
+        getClient: jest.fn(() => mockClient as never),
+      };
+
+      service = new ContractRegistryService(
+        mockSupabaseService as unknown as SupabaseService,
+        mockAuditService as unknown as AuditService,
+        mockAppConfigService as AppConfigService,
+        mockEventEmitter,
+        mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
+        mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+      );
+
+      await expect(service.finalizeDualRead('quickex')).rejects.toThrow(BadRequestException);
+    });
+  });
 });

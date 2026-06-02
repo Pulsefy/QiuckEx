@@ -1,0 +1,60 @@
+name: Deploy Backend App
+description: Deploys a Docker image to the target environment and verifies health.
+
+inputs:
+  image_tag:
+    description: Full Docker image tag to deploy
+    required: true
+  environment:
+    description: Target environment (staging | production)
+    required: true
+  git_sha:
+    description: Git SHA being deployed
+    required: true
+  deploy_token:
+    description: Deployment platform token / webhook secret
+    required: true
+  app_url:
+    description: Base URL of the deployed app (for health check)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Trigger deployment
+      shell: bash
+      env:
+        DEPLOY_TOKEN: ${{ inputs.deploy_token }}
+      run: |
+        # Replace this curl with your actual deploy platform call
+        # (Render deploy hook, Railway redeploy, Fly.io deploy, etc.)
+        # The IMAGE_TAG and GIT_SHA are passed so the platform can pull the right image.
+        curl -fsSL -X POST "${{ inputs.app_url }}/_deploy" \
+          -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "image": "${{ inputs.image_tag }}",
+            "sha": "${{ inputs.git_sha }}",
+            "environment": "${{ inputs.environment }}"
+          }' || true   # remove `|| true` once real endpoint is wired up
+
+    - name: Wait for health check
+      shell: bash
+      run: |
+        echo "Waiting for ${{ inputs.app_url }}/health ..."
+        for i in $(seq 1 24); do
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" "${{ inputs.app_url }}/health" || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "Health check passed (attempt ${i})"
+            exit 0
+          fi
+          echo "Attempt ${i}/24 — status ${STATUS}, retrying in 10s..."
+          sleep 10
+        done
+        echo "::error::Health check failed after 4 minutes"
+        exit 1
+
+    - name: Log release metadata
+      shell: bash
+      run: |
+        echo "::notice title=Release [${{ inputs.environment }}]::image=${{ inputs.image_tag }} | sha=${{ inputs.git_sha }} | env=${{ inputs.environment }} | ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

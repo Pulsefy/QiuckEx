@@ -1,8 +1,8 @@
 use crate::errors::QuickexError;
 use crate::events::{
-    publish_admin_changed, publish_contract_migrated, publish_contract_paused,
-    publish_fee_collector_rotated, publish_per_asset_fee_set, publish_upgrade_completed,
-    publish_upgrade_started,
+    publish_admin_changed, publish_contract_initialized, publish_contract_migrated,
+    publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
+    publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee_router;
 use crate::storage;
@@ -14,7 +14,7 @@ use soroban_sdk::{Address, Env, Vec};
 /// This is a one-time operation; subsequent calls fail with [`AlreadyInitialized`].
 /// The initial admin is assigned the [`Role::Admin`] role.
 pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
-    if has_admin(env) {
+    if storage::is_initialized(env) || has_admin(env) {
         return Err(QuickexError::AlreadyInitialized);
     }
 
@@ -28,12 +28,33 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
     roles.push_back(Role::Admin);
     storage::set_roles(env, &admin, &roles);
 
+    // Mark the contract initialized only after all initialization writes succeed.
+    storage::set_initialized(env, true);
+
+    // Emit the initialization snapshot for indexers.
+    publish_contract_initialized(
+        env,
+        admin,
+        storage::CURRENT_CONTRACT_VERSION,
+        crate::events::EVENT_SCHEMA_VERSION,
+        false,
+    );
+
     Ok(())
 }
 
 /// Check if admin has been initialized.
 pub fn has_admin(env: &Env) -> bool {
     storage::get_admin(env).is_some()
+}
+
+/// Require that one-time contract initialization has completed.
+pub fn require_initialized(env: &Env) -> Result<(), QuickexError> {
+    if storage::is_initialized(env) {
+        Ok(())
+    } else {
+        Err(QuickexError::Unauthorized)
+    }
 }
 
 /// Get the current primary admin address.
@@ -49,6 +70,8 @@ pub fn has_role(env: &Env, address: &Address, role: Role) -> bool {
 
 /// Require that the caller has at least one of the specified roles.
 pub fn require_any_role(env: &Env, caller: &Address, roles: &[Role]) -> Result<(), QuickexError> {
+    require_initialized(env)?;
+
     caller.require_auth();
     let user_roles = storage::get_roles(env, caller);
     for role in roles {
@@ -203,6 +226,7 @@ pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
 
 fn migrate_legacy_to_v1(env: &Env) -> u32 {
     storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
+    storage::set_initialized(env, true);
     storage::CURRENT_CONTRACT_VERSION
 }
 
