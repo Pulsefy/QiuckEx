@@ -66,6 +66,7 @@ Before submitting a PR, ensure:
 - [ ] Commit messages follow conventional format
 - [ ] PR description explains the changes and why they're needed
 - [ ] If this PR affects deployment, release, or upgrade flow, complete [documentation/deployment-checklist.md](documentation/deployment-checklist.md)
+- [ ] If this PR affects deployable contract state, update [documentation/environment-registry.toml](documentation/environment-registry.toml)
 - [ ] If this PR affects event payloads, confirm the canonical schema test still passes
 
 ## Development Workflow

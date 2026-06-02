@@ -19,6 +19,7 @@ If the PR touches an event payload, also run the relevant snapshot test(s) in [c
 - [ ] Pause policy is configured before deployment.
 - [ ] The admin key / deploy source used for the network is explicit in the PR.
 - [ ] The rollback or pause path is documented before mainnet promotion.
+- [ ] The environment registry entry in [environment-registry.toml](environment-registry.toml) exists and is updated for the target network.
 
 ## 3. Testnet deployment gate
 
@@ -28,24 +29,25 @@ If the PR touches an event payload, also run the relevant snapshot test(s) in [c
 4. Verify the deployment metadata view.
 5. Run a health check.
 6. Run an event emission smoke test and confirm the emitted event includes `schema_version` and the expected topic shape.
+7. Write the result into the environment registry.
 
 Suggested validation commands:
 
 ```bash
-cargo build --target wasm32-unknown-unknown --release
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
+cargo build --target wasm32v1-none --release
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/quickex.wasm \
   --source test \
   --network testnet
 
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --source test \
   --network testnet \
   -- \
   health_check
 
-soroban contract invoke \
+stellar contract invoke \
   --id <CONTRACT_ID> \
   --source test \
   --network testnet \
@@ -64,12 +66,13 @@ Mainnet deployment is only allowed after the exact testnet command sequence abov
 3. Replace the network and source key with the mainnet equivalents.
 4. Re-run metadata and health validation immediately after deployment.
 5. Re-run the event emission smoke test and confirm the schema is unchanged.
+6. Confirm the registry entry has been approved by the governance owner.
 
 Suggested command shape:
 
 ```bash
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/quickex.wasm \
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/quickex.wasm \
   --source main \
   --network mainnet
 ```
@@ -81,3 +84,4 @@ soroban contract deploy \
 - [ ] The mainnet steps are explicit and repeatable.
 - [ ] The post-deploy validation confirms metadata, health, and event emission.
 - [ ] The PR template checklist is completed for any release-related change.
+- [ ] [environment-registry.toml](environment-registry.toml) has been updated for every affected network.
