@@ -131,6 +131,8 @@ pub enum DataKey {
     ContractVersion,
     /// Admin address (singleton).
     Admin,
+    /// Explicit one-time initialization flag (singleton).
+    Initialized,
     /// Paused state (singleton).
     Paused,
     /// Emergency mode (singleton, immutable once set true).
@@ -259,6 +261,21 @@ pub fn set_contract_version(env: &Env, version: u32) {
     env.storage()
         .persistent()
         .set(&DataKey::ContractVersion, &version);
+}
+
+/// Returns true only after a successful one-time contract initialization.
+pub fn is_initialized(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Initialized)
+        .unwrap_or(false)
+}
+
+/// Mark contract as initialized.
+pub fn set_initialized(env: &Env, initialized: bool) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Initialized, &initialized);
 }
 
 pub fn get_wasm_hash(env: &Env) -> Option<BytesN<32>> {

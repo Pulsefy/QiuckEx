@@ -73,6 +73,18 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "ContractInitialized",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractInitialized", "admin"],
+        payload_keys: &[
+            "contract_version",
+            "event_schema_version",
+            "paused",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "ContractPaused",
         topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
         payload_keys: &["paused", "schema_version", "timestamp"],
@@ -319,6 +331,39 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) 
         owner,
         schema_version: EVENT_SCHEMA_VERSION,
         enabled,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+#[contractevent(topics = ["TOPIC_ADMIN", "ContractInitialized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractInitializedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub contract_version: u32,
+    pub event_schema_version: u32,
+    pub paused: bool,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_contract_initialized(
+    env: &Env,
+    admin: Address,
+    contract_version: u32,
+    event_schema_version: u32,
+    paused: bool,
+) {
+    ContractInitializedEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        contract_version,
+        event_schema_version,
+        paused,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

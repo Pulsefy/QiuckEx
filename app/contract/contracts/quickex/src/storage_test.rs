@@ -224,6 +224,21 @@ fn test_contract_version_storage() {
 }
 
 #[test]
+fn test_initialized_flag_storage() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        assert!(!is_initialized(&env));
+
+        set_initialized(&env, true);
+        assert!(is_initialized(&env));
+
+        set_initialized(&env, false);
+        assert!(!is_initialized(&env));
+    });
+}
+
+#[test]
 fn test_admin_storage() {
     let env = Env::default();
     let contract_id = env.register(crate::QuickexContract, ());

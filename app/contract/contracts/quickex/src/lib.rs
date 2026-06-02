@@ -171,6 +171,7 @@ impl QuickexContract {
     /// * `ContractPaused` - Contract is currently paused
     /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
         privacy::set_privacy(&env, owner, enabled)
     }
 
@@ -498,6 +499,7 @@ impl QuickexContract {
     ///
     /// Only escrows in `Spent` or `Refunded` status can be removed.
     pub fn cleanup_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
         escrow::cleanup_escrow(&env, commitment)
     }
 
@@ -505,6 +507,7 @@ impl QuickexContract {
     ///
     /// Any user can call this to keep an escrow from being archived.
     pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
         escrow::extend_escrow_ttl(&env, commitment)
     }
 
@@ -763,12 +766,14 @@ impl QuickexContract {
 
     /// Register an external hook contract to receive escrow lifecycle callbacks.
     pub fn register_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
         hook::assert_not_reentrant(&env)?;
         hook::register_hook(&env, hook_contract)
     }
 
     /// Unregister a hook contract.
     pub fn unregister_hook(env: Env, hook_contract: Address) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
         hook::assert_not_reentrant(&env)?;
         hook::unregister_hook(&env, hook_contract)
     }
