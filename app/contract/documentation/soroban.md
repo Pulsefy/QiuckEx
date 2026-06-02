@@ -96,6 +96,8 @@ Minimum acceptable evidence:
 
 ## Deployment
 
+Before any testnet or mainnet release, complete the checklist in [deployment-checklist.md](deployment-checklist.md).
+
 ### 1) Local network deployment
 
 ```bash
@@ -125,6 +127,8 @@ soroban contract invoke \
 
 ### 2) Testnet deployment
 
+Use the same release artifact and operator order that passed the deployment checklist.
+
 ```bash
 cd app/contract
 
@@ -145,7 +149,15 @@ soroban contract invoke \
   health_check
 ```
 
+Recommended post-deploy validation:
+
+1. Call `get_deployment_metadata` and confirm the returned contract ID, schema version, and wasm hash are correct.
+2. Run one known event-emitting action and confirm the event payload still matches [docs/events-schema.md](../docs/events-schema.md).
+3. Record the contract ID and network in the PR.
+
 ### 3) Mainnet deployment
+
+Mainnet deployment must repeat the validated testnet flow with the mainnet source key and network.
 
 ```bash
 cd app/contract
@@ -157,6 +169,16 @@ soroban contract deploy \
 ```
 
 > Caution: Mainnet deployment is irreversible and should only be done after review and testnet validation.
+
+## Deployment gates
+
+The following checks are required before a deploy PR can be merged:
+
+- [ ] Benchmarks are green: `cargo test bench_ -- --nocapture`
+- [ ] Upgrade harness is green: `cargo test upgrade_harness_ -- --nocapture`
+- [ ] Event schema is locked: `cargo test test_event_schema_catalog_locks_canonical_topics_and_payloads`
+- [ ] Governance settings are documented: threshold keys and pause policy
+- [ ] Post-deploy validation is defined: metadata view and event smoke test
 
 ## Recommended local quality checks
 
@@ -187,3 +209,4 @@ cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D wa
 - [ ] Steps for Prerequisites, Setup, Build, Test, Deploy are present and ordered
 - [ ] Markdown formatting is clean and readable
 - [ ] PR includes screenshot of successful `cargo test`
+- [ ] Deploy checklist is linked and used for release-related changes
