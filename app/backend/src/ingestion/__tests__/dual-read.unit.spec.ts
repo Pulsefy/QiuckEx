@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Test, TestingModule } from "@nestjs/testing";
 import { SorobanEventIndexerService, DualReadConfig } from "../soroban-event-indexer.service";
 import { IndexerCheckpointRepository } from "../indexer-checkpoint.repository";
@@ -8,18 +9,10 @@ import { StealthEventRepository } from "../stealth-event.repository";
 import { MetricsService } from "../../metrics/metrics.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { AppConfigService } from "../../config";
-import { Logger } from "@nestjs/common";
 
 describe("SorobanEventIndexerService - Dual-Read", () => {
   let service: SorobanEventIndexerService;
   let checkpointRepo: jest.Mocked<IndexerCheckpointRepository>;
-  let escrowRepo: jest.Mocked<EscrowEventRepository>;
-  let privacyRepo: jest.Mocked<PrivacyEventRepository>;
-  let adminRepo: jest.Mocked<AdminEventRepository>;
-  let stealthRepo: jest.Mocked<StealthEventRepository>;
-  let metricsService: jest.Mocked<MetricsService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
-  let configService: jest.Mocked<AppConfigService>;
 
   beforeEach(async () => {
     const mockCheckpointRepo = {
@@ -58,50 +51,19 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SorobanEventIndexerService,
-        {
-          provide: IndexerCheckpointRepository,
-          useValue: mockCheckpointRepo,
-        },
-        {
-          provide: EscrowEventRepository,
-          useValue: mockEscrowRepo,
-        },
-        {
-          provide: PrivacyEventRepository,
-          useValue: mockPrivacyRepo,
-        },
-        {
-          provide: AdminEventRepository,
-          useValue: mockAdminRepo,
-        },
-        {
-          provide: StealthEventRepository,
-          useValue: mockStealthRepo,
-        },
-        {
-          provide: MetricsService,
-          useValue: mockMetrics,
-        },
-        {
-          provide: EventEmitter2,
-          useValue: mockEventEmitter,
-        },
-        {
-          provide: AppConfigService,
-          useValue: mockConfigService,
-        },
+        { provide: IndexerCheckpointRepository, useValue: mockCheckpointRepo },
+        { provide: EscrowEventRepository, useValue: mockEscrowRepo },
+        { provide: PrivacyEventRepository, useValue: mockPrivacyRepo },
+        { provide: AdminEventRepository, useValue: mockAdminRepo },
+        { provide: StealthEventRepository, useValue: mockStealthRepo },
+        { provide: MetricsService, useValue: mockMetrics },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: AppConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<SorobanEventIndexerService>(SorobanEventIndexerService);
     checkpointRepo = module.get(IndexerCheckpointRepository) as jest.Mocked<IndexerCheckpointRepository>;
-    escrowRepo = module.get(EscrowEventRepository) as jest.Mocked<EscrowEventRepository>;
-    privacyRepo = module.get(PrivacyEventRepository) as jest.Mocked<PrivacyEventRepository>;
-    adminRepo = module.get(AdminEventRepository) as jest.Mocked<AdminEventRepository>;
-    stealthRepo = module.get(StealthEventRepository) as jest.Mocked<StealthEventRepository>;
-    metricsService = module.get(MetricsService) as jest.Mocked<MetricsService>;
-    eventEmitter = module.get(EventEmitter2) as jest.Mocked<EventEmitter2>;
-    configService = module.get(AppConfigService) as jest.Mocked<AppConfigService>;
   });
 
   describe("Dual-read window detection", () => {
@@ -112,7 +74,6 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveTime: new Date("2026-06-02T12:00:00Z"),
       };
 
-      // Before effective ledger = in window
       expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(true);
     });
 
@@ -123,10 +84,7 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveTime: new Date("2026-06-02T12:00:00Z"),
       };
 
-      // At effective ledger = out of window
       expect((service as any).isInDualReadWindow(50_000_000, config)).toBe(false);
-
-      // After effective ledger = out of window
       expect((service as any).isInDualReadWindow(60_000_000, config)).toBe(false);
     });
 
@@ -158,12 +116,10 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      // Mock fetch to return no records (just test checkpoint behavior)
       jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config);
 
-      // Should save checkpoints for both contracts
       expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(previousId, 2000);
       expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(currentId, 2000);
     });
@@ -177,7 +133,6 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      // Checkpoint is ahead of the requested range
       checkpointRepo.getLastLedger.mockResolvedValue(5000);
 
       const result = await service.indexLedgerRange(currentId, 1000, 2000, config);
@@ -193,18 +148,15 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      // Checkpoint exists at ledger 1500
       checkpointRepo.getLastLedger.mockResolvedValueOnce(1500).mockResolvedValueOnce(null);
 
       jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config);
 
-      // Should fetch from 1501 (checkpoint + 1), not from 1000
       const calls = (service as any).fetchPage.mock.calls;
-      // First call for previous contract, second for current
-      expect(calls[0][1]).toBe(1501); // fromLedger for previous
-      expect(calls[1][1]).toBe(1501); // fromLedger for current
+      expect(calls[0][1]).toBe(1501);
+      expect(calls[1][1]).toBe(1501);
     });
   });
 
@@ -216,17 +168,15 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      // Checkpoint exists but should be ignored
       checkpointRepo.getLastLedger.mockResolvedValue(1500);
 
       jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config, true);
 
-      // Should fetch from 1000, not from checkpoint
       const calls = (service as any).fetchPage.mock.calls;
-      expect(calls[0][1]).toBe(1000); // fromLedger for previous
-      expect(calls[1][1]).toBe(1000); // fromLedger for current
+      expect(calls[0][1]).toBe(1000);
+      expect(calls[1][1]).toBe(1000);
     });
   });
 
@@ -244,23 +194,20 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
       await service.indexLedgerRange(currentId, 1000, 100_000_000, config);
 
-      // Previous contract should be indexed only up to effectiveLedger
       const previousCalls = (service as any).fetchPage.mock.calls.filter(
-        (call: any[]) => call[0] === previousId,
+        (call: unknown[]) => call[0] === previousId,
       );
       const currentCalls = (service as any).fetchPage.mock.calls.filter(
-        (call: any[]) => call[0] === currentId,
+        (call: unknown[]) => call[0] === currentId,
       );
 
       expect(previousCalls.length).toBeGreaterThan(0);
       expect(currentCalls.length).toBeGreaterThan(0);
 
-      // Previous contract should stop at effectiveLedger
       if (previousCalls.length > 0) {
         expect(previousCalls[0][2]).toBe(effectiveLedger);
       }
 
-      // Current contract should go to the end
       if (currentCalls.length > 0) {
         expect(currentCalls[0][2]).toBe(100_000_000);
       }
@@ -276,7 +223,6 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
       await service.indexLedgerRange(currentId, 1000, 2000);
 
       const calls = (service as any).fetchPage.mock.calls;
-      // Should only have one call for current contract (no previous)
       expect(calls).toHaveLength(1);
       expect(calls[0][0]).toBe(currentId);
     });

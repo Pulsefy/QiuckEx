@@ -32,7 +32,7 @@ export class IngestionBootstrapService implements OnModuleInit {
 
     try {
       const registryData = await this.registry.getRegistry();
-      const quickexEntry = registryData.data.quickex as any;
+      const quickexEntry = registryData.data.quickex as Record<string, unknown>;
 
       if (quickexEntry && quickexEntry.previousContractId) {
         this.logger.log(
@@ -40,8 +40,8 @@ export class IngestionBootstrapService implements OnModuleInit {
         );
         await this.ingestion.startStreamingWithDualRead({
           contractId,
-          previousContractId: quickexEntry.previousContractId,
-          effectiveLedger: quickexEntry.effectiveLedger,
+          previousContractId: quickexEntry.previousContractId as string,
+          effectiveLedger: quickexEntry.effectiveLedger as number | undefined,
         });
       } else {
         await this.ingestion.startStreaming(contractId);

@@ -270,6 +270,7 @@ export class StellarIngestionService implements OnModuleInit, OnModuleDestroy {
       ? eventsBuilder.cursor(cursor)
       : eventsBuilder.cursor("now");
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stop = (cursoredBuilder as any).stream({
       onmessage: (record: unknown) => {
         void this.handleRecord(record as RawHorizonContractEvent, streamId);
