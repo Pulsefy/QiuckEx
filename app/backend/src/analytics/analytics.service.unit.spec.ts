@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AnalyticsInterval, ReportType } from './dto/analytics-query.dto';
 import { AnalyticsService } from './analytics.service';
@@ -180,5 +181,38 @@ describe('AnalyticsService', () => {
     expect(report.assetDistribution[0].asset).toBe('USDC');
     expect(report.timeSeries[0].assetVolumes.USDC).toBe(300);
     expect(queryBuilder.select).not.toHaveBeenCalled();
+  });
+
+  it('should handle empty transaction results', async () => {
+    queryBuilder.order.mockResolvedValueOnce({ data: [], error: null });
+
+    const report = await service.getAnalyticsReport(
+      'GB1234567890123456789012345678901234567890123456789012345',
+      '2026-04-01T00:00:00.000Z',
+      '2026-04-29T23:59:59.999Z',
+    );
+
+    expect(report.summary.totalTransactions).toBe(0);
+    expect(report.summary.totalVolumeUsd).toBe(0);
+  });
+
+  it('should throw error for invalid date format', async () => {
+    await expect(
+      service.getAnalyticsReport(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        'invalid-date',
+        '2026-04-29T23:59:59.999Z',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('should throw error when start date is after end date', async () => {
+    await expect(
+      service.getAnalyticsReport(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        '2026-04-29T23:59:59.999Z',
+        '2026-04-01T00:00:00.000Z',
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 });

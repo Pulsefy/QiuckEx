@@ -49,7 +49,7 @@ function makeEscrowDepositedEvent(
     amount: 1000000n,
     expiresAt: 1800000000n,
     ...overrides,
-  };
+  } as EscrowDepositedEvent;
 }
 
 // ---------------------------------------------------------------------------

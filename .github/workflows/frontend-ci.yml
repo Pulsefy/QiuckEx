@@ -1,0 +1,98 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  lint-and-type-check:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./app/frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./app/frontend
+        run: npx eslint . --max-warnings 0
+
+      - name: Run TypeScript type check
+        working-directory: ./app/frontend
+        run: npx tsc --noEmit
+
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: lint-and-type-check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./app/frontend
+        run: npm ci
+
+      - name: Build Next.js
+        working-directory: ./app/frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_QUICKEX_API_URL: ${{ secrets.NEXT_PUBLIC_QUICKEX_API_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_STELLAR_NETWORK: ${{ secrets.NEXT_PUBLIC_STELLAR_NETWORK }}
+          NEXT_PUBLIC_ERROR_REPORTING_ENABLED: ${{ secrets.NEXT_PUBLIC_ERROR_REPORTING_ENABLED }}
+          NEXT_PUBLIC_APP_VERSION: ${{ secrets.NEXT_PUBLIC_APP_VERSION }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run npm audit
+        working-directory: ./app/frontend
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for mixed content
+        run: |
+          echo "Checking for hardcoded HTTP URLs in frontend code..."
+          # Search for HTTP URLs, filter out localhost, and check if any remain
+          if grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules 2>/dev/null | grep -v "http://localhost" > /dev/null 2>&1; then
+            echo "❌ Found hardcoded HTTP URLs (non-localhost). This may cause mixed-content issues in production."
+            grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules | grep -v "http://localhost"
+            exit 1
+          else
+            echo "✅ No problematic HTTP URLs found"
+          fi

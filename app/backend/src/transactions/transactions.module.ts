@@ -7,9 +7,10 @@ import { SorobanRpcService } from "./soroban-rpc.service";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { MetricsModule } from "../metrics/metrics.module";
+import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 
 @Module({
-  imports: [AppConfigModule, ApiKeysModule, MetricsModule],
+  imports: [AppConfigModule, ApiKeysModule, MetricsModule, FeatureFlagsModule],
   controllers: [TransactionsController],
   providers: [
     HorizonService,

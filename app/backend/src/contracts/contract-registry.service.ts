@@ -31,6 +31,9 @@ interface RegistryRecord {
   name: string;
   network: string;
   contractId: string;
+  previousContractId?: string;
+  effectiveLedger?: number;
+  effectiveTime?: string;
   wasmHash: string;
   contractVersion: number;
   deploymentId?: string;
@@ -174,6 +177,59 @@ export class ContractRegistryService {
         })),
       });
     }
+
+    return this.getRegistry();
+  }
+
+  async finalizeDualRead(
+    contractName: string,
+    actor = 'deployment_automation',
+  ) {
+    const records = await this.readRecords();
+    const targetName = contractName.toLowerCase();
+    const candidate = records.find(
+      (record) => record.name === targetName && record.active,
+    );
+
+    if (!candidate) {
+      throw new NotFoundException(
+        `No active registry entry found for ${contractName}`,
+      );
+    }
+
+    if (!candidate.previousContractId) {
+      throw new BadRequestException(
+        `Registry entry for ${contractName} is not in a dual-read transition window`,
+      );
+    }
+
+    const now = new Date().toISOString();
+    const updated = records.map((record) => {
+      if (record.name !== targetName) return record;
+      return {
+        ...record,
+        previousContractId: undefined,
+        effectiveLedger: record.effectiveLedger,
+        effectiveTime: now,
+        updatedAt: now,
+      };
+    });
+
+    this.writeFallback(updated);
+    await this.persistSnapshot(updated);
+    await this.auditService.log(
+      'contract_registry',
+      'registry.finalize_dual_read',
+      contractName,
+      {
+        actor,
+        finalizedAt: now,
+      },
+    );
+
+    this.logger.log(
+      `Finalized dual-read for contract ${contractName} at timestamp ${now}`,
+    );
 
     return this.getRegistry();
   }
@@ -334,6 +390,9 @@ export class ContractRegistryService {
         name: String(row.contract_name),
         network: String(row.network),
         contractId: String(row.contract_id),
+        previousContractId: row.previous_contract_id ? String(row.previous_contract_id) : undefined,
+        effectiveLedger: row.effective_ledger ? Number(row.effective_ledger) : undefined,
+        effectiveTime: row.effective_time ? String(row.effective_time) : undefined,
         wasmHash: String(row.wasm_hash),
         contractVersion: Number(row.contract_version),
         deploymentId: row.deployment_id ? String(row.deployment_id) : undefined,
@@ -365,6 +424,9 @@ export class ContractRegistryService {
           contract_name: record.name,
           network: record.network,
           contract_id: record.contractId,
+          previous_contract_id: record.previousContractId ?? null,
+          effective_ledger: record.effectiveLedger ?? null,
+          effective_time: record.effectiveTime ?? null,
           wasm_hash: record.wasmHash,
           contract_version: record.contractVersion,
           deployment_id: record.deploymentId ?? null,

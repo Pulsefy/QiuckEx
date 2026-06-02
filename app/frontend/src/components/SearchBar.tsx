@@ -48,7 +48,7 @@ export function SearchBar() {
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <div className="relative flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="absolute left-3 w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input 
@@ -70,7 +70,7 @@ export function SearchBar() {
             onClick={() => setQuery("")}
             title="Clear"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

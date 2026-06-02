@@ -7,7 +7,6 @@ export default function OfflinePage() {
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
       <div className="w-24 h-24 mb-8 bg-neutral-900 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl">
         <svg
-          xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
