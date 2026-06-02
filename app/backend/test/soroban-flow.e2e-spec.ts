@@ -7,7 +7,6 @@ import {
   rpc,
   TransactionBuilder,
   Contract,
-  scValToNative,
   nativeToScVal,
   TimeoutInfinite,
 } from "@stellar/stellar-sdk";
@@ -85,7 +84,7 @@ describe("Soroban Contract Flow (e2e)", () => {
         nativeToScVal(undefined, { type: "address" }), // Arbiter (None)
       ];
 
-      let txBuilder = new TransactionBuilder(sourceAccount, {
+      const txBuilder = new TransactionBuilder(sourceAccount, {
         fee: "100000",
         networkPassphrase: Networks.TESTNET,
       });
@@ -135,7 +134,7 @@ describe("Soroban Contract Flow (e2e)", () => {
       // To avoid stranding testnet assets and to clean up our state
       const refundAccount = await sorobanRpc.getAccount(e2eKeypair.publicKey());
 
-      let refundBuilder = new TransactionBuilder(refundAccount, {
+      const refundBuilder = new TransactionBuilder(refundAccount, {
         fee: "100000",
         networkPassphrase: Networks.TESTNET,
       });
@@ -151,7 +150,7 @@ describe("Soroban Contract Flow (e2e)", () => {
       );
       refundBuilder.setTimeout(TimeoutInfinite);
 
-      let refundTx = refundBuilder.build();
+      const refundTx = refundBuilder.build();
       refundTx.sign(e2eKeypair); // Note: Should normally run simulation here as well
 
       await sorobanRpc.sendTransaction(refundTx);
