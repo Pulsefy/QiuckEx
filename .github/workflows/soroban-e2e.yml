@@ -1,16 +1,6 @@
 name: Backend Soroban E2E (Testnet)
 
-on:
-  workflow_dispatch:
-    inputs:
-      run_tests:
-        description: 'Trigger E2E Tests Manually'
-        required: false
-        type: boolean
-        default: true
-  push:
-    branches:
-      - main
+on: [push, workflow_dispatch]
 
 jobs:
   e2e-testnet:
@@ -50,4 +40,3 @@ jobs:
         run: |
           echo "Starting E2E tests against Soroban testnet..."
           pnpm turbo run test:e2e --filter=app/backend -- test/soroban-flow.e2e-spec.ts
-
