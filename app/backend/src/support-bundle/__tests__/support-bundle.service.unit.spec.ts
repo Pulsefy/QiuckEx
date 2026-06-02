@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SupportBundleService } from '../support-bundle.service';
-import { AppConfigService } from '../../config';
 import { ContractRegistryService } from '../../contracts/contract-registry.service';
 import { IndexerLagService } from '../../indexer-lag/indexer-lag.service';
 import { IndexerCheckpointRepository } from '../../ingestion/indexer-checkpoint.repository';
@@ -8,7 +7,6 @@ import { AuditService } from '../../audit/audit.service';
 
 describe('SupportBundleService', () => {
   let service: SupportBundleService;
-  let configService: jest.Mocked<AppConfigService>;
   let registryService: jest.Mocked<ContractRegistryService>;
   let indexerLagService: jest.Mocked<IndexerLagService>;
   let checkpointRepo: jest.Mocked<IndexerCheckpointRepository>;
@@ -80,7 +78,6 @@ describe('SupportBundleService', () => {
     }).compile();
 
     service = module.get<SupportBundleService>(SupportBundleService);
-    configService = module.get(AppConfigService) as jest.Mocked<AppConfigService>;
     registryService = module.get(ContractRegistryService) as jest.Mocked<ContractRegistryService>;
     indexerLagService = module.get(IndexerLagService) as jest.Mocked<IndexerLagService>;
     checkpointRepo = module.get(IndexerCheckpointRepository) as jest.Mocked<IndexerCheckpointRepository>;

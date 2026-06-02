@@ -4,6 +4,7 @@ import { ContractRegistryService } from '../contracts/contract-registry.service'
 import { IndexerLagService } from '../indexer-lag/indexer-lag.service';
 import { IndexerCheckpointRepository } from '../ingestion/indexer-checkpoint.repository';
 import { AuditService } from '../audit/audit.service';
+import { AuditLog } from '../audit/audit.model';
 import {
   SupportBundleDto,
   NetworkConfigDto,
@@ -13,7 +14,7 @@ import {
   RecentErrorDto,
   SupportBundleMetadataDto,
 } from './dto/support-bundle.dto';
-import { sanitizeString } from '../common/utils/redaction.util';
+import { sanitizeErrorMessage } from '../common/utils/redaction.util';
 
 @Injectable()
 export class SupportBundleService {
@@ -91,20 +92,25 @@ export class SupportBundleService {
   private async getNetworkConfig(): Promise<NetworkConfigDto> {
     return {
       network: this.config.network,
-      network_passphrase: this.config.networkPassphrase || 'unknown',
+      network_passphrase: this.config.network === 'mainnet'
+        ? 'Public Global Stellar Network ; September 2015'
+        : 'Test SDF Network ; September 2015',
     };
   }
 
   private async getContractRegistrySnapshot(): Promise<ContractRegistrySnapshotDto> {
     try {
       const registry = await this.registry.getRegistry();
-      const activeContracts = Object.entries(registry.data).map(([name, data]: [string, any]) => ({
-        name,
-        contract_id: data.id || '[REDACTED]',
-        version: data.version || 0,
-        wasm_hash: (data.wasmHash || '').substring(0, 16) + '...',
-        updated_at: data.updatedAt || new Date().toISOString(),
-      }));
+      const activeContracts = Object.entries(registry.data).map(([name, data]) => {
+        const entry = data as Record<string, unknown>;
+        return {
+          name,
+          contract_id: (entry.id as string) || '[REDACTED]',
+          version: (entry.version as number) || 0,
+          wasm_hash: ((entry.wasmHash as string) || '').substring(0, 16) + '...',
+          updated_at: (entry.updatedAt as string) || new Date().toISOString(),
+        };
+      });
 
       return { active_contracts: activeContracts };
     } catch (error) {
@@ -115,7 +121,7 @@ export class SupportBundleService {
 
   private async getIndexerStatus(): Promise<IndexerStatusDto> {
     try {
-      const lagStatus = await this.indexerLag.status();
+      const lagStatus = this.indexerLag.getStatus();
       let status = 'UNKNOWN';
 
       if (!lagStatus.isEnabled) {
@@ -153,8 +159,8 @@ export class SupportBundleService {
       const checkpoints: CheckpointDto[] = [];
       for (const contract of contracts) {
         // Try to extract contract ID from registry
-        const registryEntry = registry.data[contract] as any;
-        const contractId = registryEntry?.id;
+        const registryEntry = registry.data[contract] as Record<string, unknown>;
+        const contractId = registryEntry?.id as string | undefined;
 
         if (!contractId) continue;
 
@@ -188,14 +194,14 @@ export class SupportBundleService {
       });
 
       return result.data
-        .map((log: any) => ({
+        .map((log: AuditLog) => ({
           timestamp: log.createdAt instanceof Date ? log.createdAt.toISOString() : String(log.createdAt),
           action: log.action || 'unknown',
           actor: this.redactActor(log.actor),
           error_summary: this.extractErrorSummary(log.metadata),
           ...(includeRequestIds && log.requestId && { request_id: log.requestId }),
         }))
-        .filter((error: RecentErrorDto) => error.error_summary !== null)
+        .filter((entry) => entry.error_summary !== null)
         .slice(0, 50) as RecentErrorDto[];
     } catch (error) {
       this.logger.warn(`Could not retrieve recent errors: ${(error as Error).message}`);
@@ -218,12 +224,12 @@ export class SupportBundleService {
 
     // Check for error field
     if (typeof metadata.error === 'string') {
-      return sanitizeString(metadata.error);
+      return sanitizeErrorMessage(metadata.error);
     }
 
     // Check for message field
     if (typeof metadata.message === 'string') {
-      return sanitizeString(metadata.message);
+      return sanitizeErrorMessage(metadata.message);
     }
 
     // Check for code field

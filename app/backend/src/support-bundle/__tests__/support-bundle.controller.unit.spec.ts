@@ -116,7 +116,8 @@ describe('SupportBundleController', () => {
     });
 
     it('should default to false for includeRequestIds', async () => {
-      await controller.generateBundle(undefined as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await controller.generateBundle(undefined as unknown as boolean);
       expect(service.generateBundle).toHaveBeenCalledWith(false);
     });
   });
