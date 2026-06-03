@@ -99,7 +99,6 @@ export class SorobanEventParser {
   isSupportedSchemaVersion(
     eventName: SorobanEventType,
     schemaVersion: number,
-    _contractId?: string,
   ): boolean {
     return this.isCompatibleSchemaVersion(eventName, schemaVersion);
   }
