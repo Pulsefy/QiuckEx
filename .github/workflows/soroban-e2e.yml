@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm turbo run build --filter=stellar-sdk
+      - name: Build backend
+        run: pnpm turbo run build --filter=@quickex/backend
 
       - name: Run Soroban E2E Flow
         env:
@@ -42,4 +42,4 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "Starting E2E tests against Soroban testnet..."
-          pnpm turbo run test:e2e --filter=app/backend -- test/soroban-flow.e2e-spec.ts
+          pnpm turbo run test:e2e --filter=@quickex/backend -- test/soroban-flow.e2e-spec.ts
