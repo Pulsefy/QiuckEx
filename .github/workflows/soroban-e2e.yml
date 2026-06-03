@@ -31,7 +31,12 @@ jobs:
       - name: Build backend
         run: pnpm turbo run build --filter=@quickex/backend
 
+      - name: Skip Soroban E2E Flow (missing secrets)
+        if: ${{ secrets.E2E_WALLET_SECRET == '' || secrets.QUICKEX_CONTRACT_ID == '' }}
+        run: echo "Skipping Soroban E2E Flow: missing E2E_WALLET_SECRET or QUICKEX_CONTRACT_ID."
+
       - name: Run Soroban E2E Flow
+        if: ${{ secrets.E2E_WALLET_SECRET != '' && secrets.QUICKEX_CONTRACT_ID != '' }}
         env:
           APP_ENV: staging
           STELLAR_NETWORK: testnet
