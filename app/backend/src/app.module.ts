@@ -48,6 +48,8 @@ import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
+import { IndexerLagModule } from "./indexer-lag";
+import { SupportBundleModule } from "./support-bundle/support-bundle.module";
 
 type AppImport =
   | Type<unknown>
@@ -91,6 +93,8 @@ type AppImport =
       PrivacyModule,
       SorobanToolingModule,
       EnvironmentParityModule,
+      IndexerLagModule,
+      SupportBundleModule,
     ];
 
     // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't

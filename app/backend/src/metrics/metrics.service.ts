@@ -18,6 +18,9 @@ export class MetricsService implements OnModuleInit {
   private sorobanIndexerUnknownSchemaVersion: client.Counter<string>;
   private parityCheckResults: client.Gauge<string>;
   private shadowTrafficRequests: client.Counter<string>;
+  private indexerLagLedgers: client.Gauge<string>;
+  private indexerLagGuardBlockedRequests: client.Counter<string>;
+  private indexerLagGuardStatus: client.Gauge<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -112,6 +115,22 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["method", "route", "status_code", "shadow_status"],
       });
 
+      this.indexerLagLedgers = new client.Gauge({
+        name: "indexer_lag_ledgers",
+        help: "Current indexer lag in ledgers",
+      });
+
+      this.indexerLagGuardBlockedRequests = new client.Counter({
+        name: "indexer_lag_guard_blocked_requests_total",
+        help: "Total number of requests blocked by indexer lag guard",
+        labelNames: ["method", "route"],
+      });
+
+      this.indexerLagGuardStatus = new client.Gauge({
+        name: "indexer_lag_guard_status",
+        help: "Indexer lag guard status (0=disabled, 1=enabled, 2=overridden, 3=lagging)",
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -126,6 +145,9 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.sorobanIndexerUnknownSchemaVersion);
       this.register.registerMetric(this.parityCheckResults);
       this.register.registerMetric(this.shadowTrafficRequests);
+      this.register.registerMetric(this.indexerLagLedgers);
+      this.register.registerMetric(this.indexerLagGuardBlockedRequests);
+      this.register.registerMetric(this.indexerLagGuardStatus);
 
       this.initialized = true;
     } catch (error) {
@@ -309,6 +331,27 @@ export class MetricsService implements OnModuleInit {
       this.shadowTrafficRequests
         .labels(method, route, statusCode.toString(), shadowStatus)
         .inc();
+    } catch (error) {}
+  }
+
+  recordIndexerLag(lagLedgers: number) {
+    if (!this.initialized || !this.indexerLagLedgers) return;
+    try {
+      this.indexerLagLedgers.set(lagLedgers);
+    } catch (error) {}
+  }
+
+  recordIndexerLagGuardBlockedRequest(method: string, route: string) {
+    if (!this.initialized || !this.indexerLagGuardBlockedRequests) return;
+    try {
+      this.indexerLagGuardBlockedRequests.labels(method, route).inc();
+    } catch (error) {}
+  }
+
+  setIndexerLagGuardStatus(status: 0 | 1 | 2 | 3) {
+    if (!this.initialized || !this.indexerLagGuardStatus) return;
+    try {
+      this.indexerLagGuardStatus.set(status);
     } catch (error) {}
   }
 }

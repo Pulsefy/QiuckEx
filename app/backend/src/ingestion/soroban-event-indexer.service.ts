@@ -28,6 +28,12 @@ export interface LedgerRangeResult {
   skippedUnknownSchema: number;
 }
 
+export interface DualReadConfig {
+  previousContractId?: string;
+  effectiveLedger?: number;
+  effectiveTime?: Date;
+}
+
 /**
  * Polls Soroban contract events by ledger range from Horizon's REST API.
  *
@@ -75,19 +81,21 @@ export class SorobanEventIndexerService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Index all contract events in [fromLedger, toLedger].
+   * Index all contract events in [fromLedger, toLedger] with dual-read support.
    *
-   * @param contractId  Soroban contract address.
-   * @param fromLedger  Inclusive start ledger.
-   * @param toLedger    Inclusive end ledger.
-   * @param force       When true, ignore the stored checkpoint and reindex the
-   *                    full range (reconciliation mode). Idempotency prevents
-   *                    duplicate records.
+   * @param contractId      Soroban contract address (current).
+   * @param fromLedger      Inclusive start ledger.
+   * @param toLedger        Inclusive end ledger.
+   * @param dualReadConfig  Optional dual-read configuration for transition windows.
+   * @param force           When true, ignore the stored checkpoint and reindex the
+   *                        full range (reconciliation mode). Idempotency prevents
+   *                        duplicate records.
    */
   async indexLedgerRange(
     contractId: string,
     fromLedger: number,
     toLedger: number,
+    dualReadConfig?: DualReadConfig,
     force = false,
   ): Promise<LedgerRangeResult> {
     const effectiveFrom = force
@@ -101,18 +109,67 @@ export class SorobanEventIndexerService {
       return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0 };
     }
 
+    const inDualReadWindow = this.isInDualReadWindow(effectiveFrom, dualReadConfig);
+    const logSuffix = inDualReadWindow ? " (dual-read mode)" : "";
+
     this.logger.log(
-      `Indexing contract ${contractId} ledgers [${effectiveFrom}, ${toLedger}]${force ? " (force reindex)" : ""}`,
+      `Indexing contract ${contractId} ledgers [${effectiveFrom}, ${toLedger}]${force ? " (force reindex)" : ""}${logSuffix}`,
     );
 
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
-    let cursor: string | undefined;
 
-    // Paginate through Horizon until we've consumed the full range.
+    // In dual-read mode, index both current and previous contract IDs
+    if (inDualReadWindow && dualReadConfig?.previousContractId) {
+      const previousResult = await this.indexContractWithCursor(
+        dualReadConfig.previousContractId,
+        effectiveFrom,
+        dualReadConfig.effectiveLedger ?? toLedger,
+        undefined,
+      );
+      processed += previousResult.processed;
+      persisted += previousResult.persisted;
+      skippedUnknownSchema += previousResult.skippedUnknownSchema;
+    }
+
+    // Always index the current contract ID
+    const currentResult = await this.indexContractWithCursor(
+      contractId,
+      effectiveFrom,
+      toLedger,
+      undefined,
+    );
+    processed += currentResult.processed;
+    persisted += currentResult.persisted;
+    skippedUnknownSchema += currentResult.skippedUnknownSchema;
+
+    this.logger.log(
+      `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
+        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
+    );
+
+    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+  }
+
+  private async indexContractWithCursor(
+    contractId: string,
+    fromLedger: number,
+    toLedger: number,
+    cursor: string | undefined,
+  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number }> {
+    let processed = 0;
+    let persisted = 0;
+    let skippedUnknownSchema = 0;
+    let nextCursor = cursor;
+
     while (true) {
-      const { records, nextCursor } = await this.fetchPage(contractId, effectiveFrom, toLedger, cursor);
+      const { records, nextCursor: returnedCursor } = await this.fetchPage(
+        contractId,
+        fromLedger,
+        toLedger,
+        nextCursor,
+      );
 
       if (records.length === 0) break;
 
@@ -121,8 +178,6 @@ export class SorobanEventIndexerService {
         const event = this.parser.parse(raw);
 
         if (!event) {
-          // Count schema-version skips separately from parse errors.
-          // The parser already logged the reason.
           skippedUnknownSchema++;
           continue;
         }
@@ -132,25 +187,27 @@ export class SorobanEventIndexerService {
         this.eventEmitter.emit(`stellar.${event.eventType}`, event);
       }
 
-      // Advance checkpoint after each page so a crash mid-range is recoverable.
+      // Advance checkpoint after each page
       const lastRecord = records[records.length - 1];
       if (lastRecord) {
         await this.checkpointRepo.saveLastLedger(contractId, lastRecord.ledger);
       }
 
-      if (!nextCursor || records.length < PAGE_LIMIT) break;
-      cursor = nextCursor;
+      if (!returnedCursor || records.length < PAGE_LIMIT) break;
+      nextCursor = returnedCursor;
     }
 
-    // Final checkpoint at toLedger once the range is fully consumed.
+    // Final checkpoint
     await this.checkpointRepo.saveLastLedger(contractId, toLedger);
 
-    this.logger.log(
-      `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
-        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
-    );
+    return { processed, persisted, skippedUnknownSchema };
+  }
 
-    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+  private isInDualReadWindow(currentLedger: number, config?: DualReadConfig): boolean {
+    if (!config?.previousContractId || !config?.effectiveLedger) {
+      return false;
+    }
+    return currentLedger < config.effectiveLedger;
   }
 
   // ---------------------------------------------------------------------------

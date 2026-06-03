@@ -218,7 +218,10 @@ fn bench_withdraw() {
 #[test]
 fn bench_set_privacy() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let owner = Address::generate(&env);
+
+    client.initialize(&admin);
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
@@ -231,7 +234,10 @@ fn bench_set_privacy() {
 #[test]
 fn bench_get_privacy() {
     let (env, client) = setup();
+    let admin = Address::generate(&env);
     let owner = Address::generate(&env);
+
+    client.initialize(&admin);
     // Set it first so the storage path is exercised (not just the default)
     client.set_privacy(&owner, &true);
 

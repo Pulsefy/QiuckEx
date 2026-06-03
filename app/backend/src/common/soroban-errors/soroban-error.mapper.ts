@@ -16,13 +16,15 @@ export interface MappedSorobanError {
  * stable API error code and a user-friendly message.
  *
  * Patterns are tested in order; the first match wins.
+ * 
+ * STRUCTURED ERRORS (HostError) should come first as they are the most specific.
  */
 const ERROR_MAPPINGS: Array<{
   pattern: RegExp;
   code: SorobanErrorCode;
   message: string;
 }> = [
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Structured HostErrors (Highest Priority) ─────────────────────────────
   {
     pattern: /HostError.*Error.*Auth.*NotAuthorized/i,
     code: SorobanErrorCode.UNAUTHORIZED,
@@ -33,6 +35,28 @@ const ERROR_MAPPINGS: Array<{
     code: SorobanErrorCode.AUTH_MISSING,
     message: 'A required authorisation entry is missing from the transaction.',
   },
+  {
+    pattern: /HostError.*Error.*Storage.*MissingValue/i,
+    code: SorobanErrorCode.STORAGE_MISSING,
+    message: 'A required contract state entry does not exist. The resource may not have been initialised.',
+  },
+  {
+    pattern: /HostError.*Error.*WasmVm.*InvalidAction/i,
+    code: SorobanErrorCode.INVALID_INPUT,
+    message: 'The smart contract encountered an invalid operation. Check the transaction parameters.',
+  },
+  {
+    pattern: /HostError.*Error.*Value.*InvalidInput/i,
+    code: SorobanErrorCode.INVALID_INPUT,
+    message: 'One or more input values are invalid for this contract operation.',
+  },
+  {
+    pattern: /HostError.*Error.*Budget.*ExceededLimit/i,
+    code: SorobanErrorCode.BUDGET_EXCEEDED,
+    message: 'The transaction exceeds Soroban compute limits. Try simplifying the operation.',
+  },
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
   {
     pattern: /not\s+authorized/i,
     code: SorobanErrorCode.UNAUTHORIZED,
@@ -75,11 +99,6 @@ const ERROR_MAPPINGS: Array<{
 
   // ── Storage ───────────────────────────────────────────────────────────────
   {
-    pattern: /HostError.*Error.*Storage.*MissingValue/i,
-    code: SorobanErrorCode.STORAGE_MISSING,
-    message: 'A required contract state entry does not exist. The resource may not have been initialised.',
-  },
-  {
     pattern: /restore.*required|entry.*expired.*restore/i,
     code: SorobanErrorCode.RESTORE_REQUIRED,
     message: 'Some contract state entries have expired and must be restored before this transaction can proceed.',
@@ -97,18 +116,6 @@ const ERROR_MAPPINGS: Array<{
     message: 'The amount provided is invalid. It must be a positive non-zero value.',
   },
 
-  // ── Version mismatch ──────────────────────────────────────────────────────
-  {
-    pattern: /version.*mismatch|schema.*version|unsupported.*version/i,
-    code: SorobanErrorCode.VERSION_MISMATCH,
-    message: 'The contract version is not compatible with this operation.',
-  },
-  {
-    pattern: /invalid.*wasm|wasm.*invalid/i,
-    code: SorobanErrorCode.INVALID_WASM_HASH,
-    message: 'The WASM hash provided for the contract upgrade is invalid.',
-  },
-
   // ── Admin ─────────────────────────────────────────────────────────────────
   {
     pattern: /not.*admin|caller.*not.*admin/i,
@@ -121,17 +128,19 @@ const ERROR_MAPPINGS: Array<{
     message: 'The admin address provided is invalid.',
   },
 
+  // ── Version mismatch ──────────────────────────────────────────────────────
+  {
+    pattern: /version.*mismatch|schema.*version|unsupported.*version/i,
+    code: SorobanErrorCode.VERSION_MISMATCH,
+    message: 'The contract version is not compatible with this operation.',
+  },
+  {
+    pattern: /invalid.*wasm|wasm.*invalid/i,
+    code: SorobanErrorCode.INVALID_WASM_HASH,
+    message: 'The WASM hash provided for the contract upgrade is invalid.',
+  },
+
   // ── Input / params ────────────────────────────────────────────────────────
-  {
-    pattern: /HostError.*Error.*Value.*InvalidInput/i,
-    code: SorobanErrorCode.INVALID_INPUT,
-    message: 'One or more input values are invalid for this contract operation.',
-  },
-  {
-    pattern: /HostError.*Error.*WasmVm.*InvalidAction/i,
-    code: SorobanErrorCode.INVALID_INPUT,
-    message: 'The smart contract encountered an invalid operation. Check the transaction parameters.',
-  },
   {
     pattern: /account.*does not exist|account.*not.*found/i,
     code: SorobanErrorCode.NOT_FOUND,
@@ -144,11 +153,6 @@ const ERROR_MAPPINGS: Array<{
   },
 
   // ── Resource limits ───────────────────────────────────────────────────────
-  {
-    pattern: /HostError.*Error.*Budget.*ExceededLimit/i,
-    code: SorobanErrorCode.BUDGET_EXCEEDED,
-    message: 'The transaction exceeds Soroban compute limits. Try simplifying the operation.',
-  },
   {
     pattern: /transaction.*too large/i,
     code: SorobanErrorCode.BUDGET_EXCEEDED,

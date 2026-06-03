@@ -73,6 +73,18 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "ContractInitialized",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractInitialized", "admin"],
+        payload_keys: &[
+            "contract_version",
+            "event_schema_version",
+            "paused",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "ContractPaused",
         topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
         payload_keys: &["paused", "schema_version", "timestamp"],
@@ -325,6 +337,39 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) 
 }
 
 #[allow(dead_code)]
+#[contractevent(topics = ["TOPIC_ADMIN", "ContractInitialized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractInitializedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub contract_version: u32,
+    pub event_schema_version: u32,
+    pub paused: bool,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_contract_initialized(
+    env: &Env,
+    admin: Address,
+    contract_version: u32,
+    event_schema_version: u32,
+    paused: bool,
+) {
+    ContractInitializedEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        contract_version,
+        event_schema_version,
+        paused,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
 #[contractevent(topics = ["TOPIC_ADMIN", "ContractPaused"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractPausedEvent {
@@ -385,11 +430,73 @@ pub struct ContractUpgradedEvent {
     pub timestamp: u64,
 }
 
+#[contractevent(topics = ["TOPIC_ADMIN", "UpgradeStarted"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpgradeStartedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub old_version: u32,
+    pub new_version: u32,
+    pub window_start: u64,
+    pub window_end: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "UpgradeCompleted"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpgradeCompletedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub old_version: u32,
+    pub new_version: u32,
+    pub timestamp: u64,
+}
+
 pub(crate) fn publish_contract_upgraded(env: &Env, new_wasm_hash: BytesN<32>, admin: &Address) {
     ContractUpgradedEvent {
         new_wasm_hash,
         admin: admin.clone(),
         schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_upgrade_started(
+    env: &Env,
+    admin: &Address,
+    old_version: u32,
+    new_version: u32,
+    window_start: u64,
+    window_end: u64,
+) {
+    UpgradeStartedEvent {
+        admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        old_version,
+        new_version,
+        window_start,
+        window_end,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_upgrade_completed(
+    env: &Env,
+    admin: &Address,
+    old_version: u32,
+    new_version: u32,
+) {
+    UpgradeCompletedEvent {
+        admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        old_version,
+        new_version,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
