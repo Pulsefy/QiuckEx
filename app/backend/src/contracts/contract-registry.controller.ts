@@ -4,7 +4,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
+  Put,
   Req,
   Res,
   UseGuards,
@@ -17,10 +19,13 @@ import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { RateLimitGroupTag } from '../auth/decorators/rate-limit-group.decorator';
 import { ContractRegistryService } from './contract-registry.service';
 import {
+  ContractDeploymentItemDto,
+  ContractDeploymentsResponseDto,
   ContractRegistryResponseDto,
   PublishContractRegistryDto,
   RollbackContractRegistryDto,
-} from './dto/contract-registry.dto';
+  UpsertContractDeploymentDto,
+} from './dto';
 
 @ApiTags('contracts')
 @ApiHeader({
@@ -33,6 +38,25 @@ import {
 @Controller('contracts')
 export class ContractRegistryController {
   constructor(private readonly contractRegistryService: ContractRegistryService) {}
+
+  @Get('registry/deployments')
+  @ApiOperation({
+    summary: 'List active contract deployments for the current network',
+  })
+  @ApiResponse({ status: 200, type: ContractDeploymentsResponseDto })
+  getDeployments() {
+    return this.contractRegistryService.getDeployments();
+  }
+
+  @Get('registry/deployments/:name')
+  @ApiOperation({
+    summary: 'Get active deployment metadata for a contract name',
+  })
+  @ApiResponse({ status: 200, type: ContractDeploymentItemDto })
+  @ApiResponse({ status: 404, description: 'Deployment entry not found for contract name' })
+  getDeploymentByName(@Param('name') name: string) {
+    return this.contractRegistryService.getDeploymentByName(name);
+  }
 
   @Get('registry')
   @ApiOperation({
@@ -63,8 +87,32 @@ export class ContractRegistryController {
   @ApiOperation({
     summary: 'Publish deployment artifacts into the contract registry',
   })
-  publish(@Body() body: PublishContractRegistryDto) {
-    return this.contractRegistryService.publish(body, 'api');
+  publish(@Body() body: PublishContractRegistryDto, @Req() req: Request) {
+    const actor = req.apiKey?.id ?? 'api';
+    return this.contractRegistryService.publish(body, actor);
+  }
+
+  @Put('registry/deployments/:name')
+  @HttpCode(HttpStatus.OK)
+  @RequireScopes('admin')
+  @RateLimitGroupTag('authenticated')
+  @ApiOperation({
+    summary: 'Upsert deployment metadata for one contract (admin only)',
+  })
+  @ApiResponse({ status: 200, type: ContractDeploymentItemDto })
+  upsertDeployment(
+    @Param('name') name: string,
+    @Body() body: UpsertContractDeploymentDto,
+    @Req() req: Request,
+  ) {
+    const actor = req.apiKey?.id ?? 'api';
+    return this.contractRegistryService.upsertDeployment(
+      {
+        ...body,
+        name,
+      },
+      actor,
+    );
   }
 
   @Post('registry/rollback')
@@ -74,7 +122,8 @@ export class ContractRegistryController {
   @ApiOperation({
     summary: 'Rollback the active registry entry for a contract to a previous version',
   })
-  rollback(@Body() body: RollbackContractRegistryDto) {
-    return this.contractRegistryService.rollback(body, 'api');
+  rollback(@Body() body: RollbackContractRegistryDto, @Req() req: Request) {
+    const actor = req.apiKey?.id ?? 'api';
+    return this.contractRegistryService.rollback(body, actor);
   }
 }
