@@ -33,12 +33,9 @@ export class ContractCompatibilityInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<ResponseWithCompatibility> {
     const request = context.switchToHttp().getRequest();
-    const response = context.switchToHttp().getResponse();
     const route = request.route?.path || request.url;
     const method = request.method;
 
-    // Extract endpoint path without leading slash
-    const endpoint = route.replace(/^\//, '').split('/')[0];
 
     return next.handle().pipe(
       mergeMap(async (responseData: unknown) => {

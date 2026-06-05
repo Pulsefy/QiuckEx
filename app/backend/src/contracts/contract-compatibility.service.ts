@@ -1,9 +1,7 @@
 import {
   Injectable,
   Logger,
-  BadRequestException,
   Inject,
-  Optional,
 } from '@nestjs/common';
 import { ContractRegistryService } from './contract-registry.service';
 import {
@@ -206,7 +204,6 @@ export class ContractCompatibilityService {
     const registry = await this.contractRegistryService.getRegistry();
     const contractStatuses: ContractCompatibilityStatus[] = [];
     let allCompatible = true;
-    let anyDeprecated = false;
 
     for (const req of requirements.requirements) {
       const deployedContract = registry.data[req.name];

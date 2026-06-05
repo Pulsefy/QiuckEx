@@ -1,9 +1,6 @@
 import { ContractCompatibilityService } from './contract-compatibility.service';
 import { ContractRegistryService } from './contract-registry.service';
-import {
-  ContractCompatibilityError,
-  ContractCompatibilityErrorCode,
-} from './errors/contract-compatibility.errors';
+import { ContractCompatibilityError } from './errors/contract-compatibility.errors';
 import { ClientContractRequirements } from './dto/contract-compatibility.dto';
 
 describe('ContractCompatibilityService', () => {

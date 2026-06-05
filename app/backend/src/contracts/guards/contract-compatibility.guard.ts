@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ContractCompatibilityService } from '../contract-compatibility.service';
-import { ContractCompatibilityError, ContractCompatibilityErrorCode } from '../errors/contract-compatibility.errors';
+import { ContractCompatibilityError } from '../errors/contract-compatibility.errors';
 import { ClientContractRequirements } from '../dto/contract-compatibility.dto';
 
 /**
@@ -70,7 +70,7 @@ export function RequireContractCompatibility() {
   return function (
     target: object,
     propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<any>,
+    descriptor: TypedPropertyDescriptor<unknown>,
   ) {
     return descriptor;
   };
