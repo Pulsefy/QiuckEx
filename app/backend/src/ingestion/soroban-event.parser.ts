@@ -136,7 +136,6 @@ export class SorobanEventParser {
         !this.isSupportedSchemaVersion(
           layout.eventName,
           schemaVersion,
-          raw.contract_id,
         )
       ) {
         this.logger.warn(

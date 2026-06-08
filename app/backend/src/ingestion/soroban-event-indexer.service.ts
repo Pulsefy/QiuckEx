@@ -128,6 +128,7 @@ export class SorobanEventIndexerService {
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
+    let parseFailures = 0;
 
     // In dual-read mode, index both current and previous contract IDs
     if (inDualReadWindow && dualReadConfig?.previousContractId) {
@@ -140,6 +141,7 @@ export class SorobanEventIndexerService {
       processed += previousResult.processed;
       persisted += previousResult.persisted;
       skippedUnknownSchema += previousResult.skippedUnknownSchema;
+      parseFailures += previousResult.parseFailures;
     }
 
     // Always index the current contract ID
@@ -152,13 +154,14 @@ export class SorobanEventIndexerService {
     processed += currentResult.processed;
     persisted += currentResult.persisted;
     skippedUnknownSchema += currentResult.skippedUnknownSchema;
+    parseFailures += currentResult.parseFailures;
 
     this.logger.log(
       `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
-        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
+        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema} parseFailures=${parseFailures}`,
     );
 
-    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema, parseFailures };
   }
 
   private async indexContractWithCursor(
@@ -166,10 +169,11 @@ export class SorobanEventIndexerService {
     fromLedger: number,
     toLedger: number,
     cursor: string | undefined,
-  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number }> {
+  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number; parseFailures: number }> {
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
+    let parseFailures = 0;
     let nextCursor = cursor;
 
     while (true) {
@@ -187,7 +191,12 @@ export class SorobanEventIndexerService {
         const event = this.parser.parse(raw);
 
         if (!event) {
-          skippedUnknownSchema++;
+          const outcome = await this.captureUnparsedEvent(raw);
+          if (outcome === "parse_failure") {
+            parseFailures++;
+          } else {
+            skippedUnknownSchema++;
+          }
           continue;
         }
 
@@ -209,7 +218,7 @@ export class SorobanEventIndexerService {
     // Final checkpoint
     await this.checkpointRepo.saveLastLedger(contractId, toLedger);
 
-    return { processed, persisted, skippedUnknownSchema };
+    return { processed, persisted, skippedUnknownSchema, parseFailures };
   }
 
   private isInDualReadWindow(currentLedger: number, config?: DualReadConfig): boolean {
@@ -300,6 +309,42 @@ export class SorobanEventIndexerService {
     }
   }
 
+  async listUnparsedEvents(limit = 100) {
+    return this.unparsedRepo.listPending(limit);
+  }
+
+  async replayUnparsedEvents(limit = 100): Promise<ReplayUnparsedResult> {
+    const pending = await this.unparsedRepo.listPending(limit);
+    let replayed = 0;
+    let stillUnparsed = 0;
+
+    for (const record of pending) {
+      const event = this.parser.parse(record.raw);
+      if (event) {
+        try {
+          await this.persistEvent(event);
+          await this.unparsedRepo.markReplayed(record.pagingToken);
+          this.eventEmitter.emit(`stellar.${event.eventType}`, event);
+          replayed++;
+        } catch (err) {
+          await this.unparsedRepo.markFailed(
+            record.pagingToken,
+            (err as Error).message,
+          );
+          stillUnparsed++;
+        }
+      } else {
+        await this.unparsedRepo.markFailed(
+          record.pagingToken,
+          "Parser still returned null after replay attempt",
+        );
+        stillUnparsed++;
+      }
+    }
+
+    return { attempted: pending.length, replayed, stillUnparsed };
+  }
+
   private async captureUnparsedEvent(
     raw: RawHorizonContractEvent,
   ): Promise<"unknown_schema_version" | "parse_failure" | "ignored"> {
@@ -312,7 +357,6 @@ export class SorobanEventIndexerService {
       !this.parser.isSupportedSchemaVersion(
         metadata.eventName,
         metadata.schemaVersion,
-        metadata.contractId,
       )
     ) {
       await this.unparsedRepo.save({
