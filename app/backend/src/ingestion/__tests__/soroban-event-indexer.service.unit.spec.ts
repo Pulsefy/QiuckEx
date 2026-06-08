@@ -190,7 +190,7 @@ describe("SorobanEventIndexerService", () => {
     const record = makeEscrowDepositedRaw(100, "100-1");
     mockHorizonPage([record]);
 
-    const result = await svc.indexLedgerRange(CONTRACT_ID, 100, 200, true);
+    const result = await svc.indexLedgerRange(CONTRACT_ID, 100, 200, undefined, true);
 
     expect(result.processed).toBe(1);
     expect(mocks.escrowRepo.upsertEvent).toHaveBeenCalledTimes(1);

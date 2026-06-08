@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SupportBundleService } from '../support-bundle.service';
+import { AppConfigService } from '../../config';
 import { ContractRegistryService } from '../../contracts/contract-registry.service';
 import { IndexerLagService } from '../../indexer-lag/indexer-lag.service';
 import { IndexerCheckpointRepository } from '../../ingestion/indexer-checkpoint.repository';
@@ -32,12 +33,13 @@ describe('SupportBundleService', () => {
     };
 
     const mockIndexerLagService = {
-      status: jest.fn().mockResolvedValue({
+      getStatus: jest.fn().mockReturnValue({
         currentNetworkLedger: 50000000,
         lastIndexedLedger: 49999500,
         lagLedgers: 500,
         isLagging: false,
         isEnabled: true,
+        isOverridden: false,
         thresholdLedgers: 1000,
       }),
     };
@@ -133,7 +135,9 @@ describe('SupportBundleService', () => {
     });
 
     it('should handle missing indexer status gracefully', async () => {
-      indexerLagService.status.mockRejectedValue(new Error('Indexer status unavailable'));
+      indexerLagService.getStatus.mockImplementation(() => {
+        throw new Error('Indexer status unavailable');
+      });
 
       const bundle = await service.generateBundle(false);
 

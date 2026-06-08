@@ -11,9 +11,11 @@ import { AppConfigService } from '../config';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   ContractRegistryEntryDto,
+  ContractSchemaCompatibilityDto,
   PublishContractRegistryDto,
   RollbackContractRegistryDto,
-} from './dto/contract-registry.dto';
+  UpsertContractDeploymentDto,
+} from './dto';
 import {
   ContractRegistryPublishedEvent,
   ContractRegistryRolledBackEvent,
@@ -36,7 +38,10 @@ interface RegistryRecord {
   effectiveTime?: string;
   wasmHash: string;
   contractVersion: number;
+  schemaVersion: string;
+  schemaCompatibility: ContractSchemaCompatibilityDto;
   deploymentId?: string;
+  initParams?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   publishedBy: string;
   version: number;
@@ -77,7 +82,11 @@ export class ContractRegistryService {
           id: record.contractId,
           wasmHash: record.wasmHash,
           version: record.contractVersion,
+          schemaVersion: record.schemaVersion,
+          schemaCompatibility: record.schemaCompatibility,
+          networkPassphrase: record.networkPassphrase,
           deploymentId: record.deploymentId,
+          initParams: record.initParams ?? {},
           updatedAt: record.updatedAt,
           metadata: record.metadata ?? {},
         },
@@ -96,6 +105,122 @@ export class ContractRegistryService {
       etag: this.buildEtag(version),
       data,
     };
+  }
+
+  async getDeployments() {
+    const records = await this.readRecords();
+    const deployments = records
+      .filter((record) => record.active)
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((record) => this.toDeploymentItem(record));
+
+    return {
+      network: this.configService.network,
+      deployments,
+    };
+  }
+
+  async getDeploymentByName(name: string) {
+    const records = await this.readRecords();
+    const normalizedName = name.trim().toLowerCase();
+    const record = records.find(
+      (candidate) => candidate.active && candidate.name === normalizedName,
+    );
+
+    if (!record) {
+      throw new NotFoundException(
+        `No active deployment metadata found for contract ${name}`,
+      );
+    }
+
+    return this.toDeploymentItem(record);
+  }
+
+  async upsertDeployment(
+    dto: UpsertContractDeploymentDto,
+    actor = 'deployment_automation',
+  ) {
+    if (dto.network !== this.configService.network) {
+      throw new BadRequestException(
+        `network must match active backend network (${this.configService.network})`,
+      );
+    }
+
+    this.validatePassphrase(dto.networkPassphrase);
+    const normalizedName = dto.name.trim().toLowerCase();
+    const now = new Date().toISOString();
+    const records = await this.readRecords();
+
+    const currentActive = records.find(
+      (record) => record.active && record.name === normalizedName,
+    );
+
+    const nextVersion =
+      records.reduce((max, record) => Math.max(max, record.version), this.fallbackVersion) +
+      1;
+
+    const retained = records.map((record) => {
+      if (record.name !== normalizedName) return record;
+      return { ...record, active: false, updatedAt: now };
+    });
+
+    const nextRecord: RegistryRecord = {
+      name: normalizedName,
+      network: dto.network,
+      contractId: dto.contractId,
+      previousContractId: undefined,
+      effectiveLedger: undefined,
+      effectiveTime: undefined,
+      wasmHash: dto.wasmHash,
+      contractVersion: dto.contractVersion ?? (currentActive?.contractVersion ?? 1),
+      schemaVersion: dto.schemaVersion,
+      schemaCompatibility: dto.schemaCompatibility,
+      deploymentId: dto.deploymentId,
+      initParams: dto.initParams,
+      metadata: dto.metadata,
+      publishedBy: actor,
+      version: nextVersion,
+      createdAt: now,
+      updatedAt: now,
+      networkPassphrase: dto.networkPassphrase,
+      active: true,
+    };
+
+    const updated = [...retained, nextRecord];
+    this.fallbackVersion = nextVersion;
+    this.writeFallback(updated);
+    await this.persistSnapshot(updated);
+
+    await this.auditService.log(
+      'contract_registry',
+      'registry.deployment.upsert',
+      normalizedName,
+      {
+        actor,
+        network: dto.network,
+        registryVersion: nextVersion,
+        before: currentActive
+          ? {
+              contractId: currentActive.contractId,
+              wasmHash: currentActive.wasmHash,
+              contractVersion: currentActive.contractVersion,
+              schemaVersion: currentActive.schemaVersion,
+              schemaCompatibility: currentActive.schemaCompatibility,
+              networkPassphrase: currentActive.networkPassphrase,
+            }
+          : null,
+        after: {
+          contractId: nextRecord.contractId,
+          wasmHash: nextRecord.wasmHash,
+          contractVersion: nextRecord.contractVersion,
+          schemaVersion: nextRecord.schemaVersion,
+          schemaCompatibility: nextRecord.schemaCompatibility,
+          networkPassphrase: nextRecord.networkPassphrase,
+        },
+      },
+    );
+
+    return this.toDeploymentItem(nextRecord);
   }
 
   async publish(
@@ -349,7 +474,10 @@ export class ContractRegistryService {
       contractId: contract.contractId,
       wasmHash: contract.wasmHash,
       contractVersion: contract.contractVersion ?? 1,
+      schemaVersion: contract.schemaVersion ?? '1.0.0',
+      schemaCompatibility: contract.schemaCompatibility ?? { min: '1.0.0', max: '1.0.0' },
       deploymentId: dto.deploymentId,
+      initParams: contract.initParams,
       metadata: contract.metadata,
       publishedBy: actor,
       version,
@@ -395,7 +523,13 @@ export class ContractRegistryService {
         effectiveTime: row.effective_time ? String(row.effective_time) : undefined,
         wasmHash: String(row.wasm_hash),
         contractVersion: Number(row.contract_version),
+        schemaVersion: String(row.schema_version ?? '1.0.0'),
+        schemaCompatibility: this.readSchemaCompatibility(row),
         deploymentId: row.deployment_id ? String(row.deployment_id) : undefined,
+        initParams:
+          row.init_params && typeof row.init_params === 'object'
+            ? (row.init_params as Record<string, unknown>)
+            : undefined,
         metadata:
           row.metadata && typeof row.metadata === 'object'
             ? (row.metadata as Record<string, unknown>)
@@ -429,7 +563,10 @@ export class ContractRegistryService {
           effective_time: record.effectiveTime ?? null,
           wasm_hash: record.wasmHash,
           contract_version: record.contractVersion,
+          schema_version: record.schemaVersion,
+          schema_compatibility: record.schemaCompatibility,
           deployment_id: record.deploymentId ?? null,
+          init_params: record.initParams ?? {},
           metadata: record.metadata ?? {},
           published_by: record.publishedBy,
           version: record.version,
@@ -446,5 +583,35 @@ export class ContractRegistryService {
         `Unable to persist contract registry snapshot: ${(error as Error).message}`,
       );
     }
+  }
+
+  private toDeploymentItem(record: RegistryRecord) {
+    return {
+      name: record.name,
+      network: record.network,
+      networkPassphrase: record.networkPassphrase,
+      contractId: record.contractId,
+      wasmHash: record.wasmHash,
+      contractVersion: record.contractVersion,
+      schemaVersion: record.schemaVersion,
+      schemaCompatibility: record.schemaCompatibility,
+      initParams: record.initParams ?? {},
+      metadata: record.metadata ?? {},
+      updatedAt: record.updatedAt,
+      registryVersion: record.version,
+      deploymentId: record.deploymentId,
+    };
+  }
+
+  private readSchemaCompatibility(row: Record<string, unknown>): ContractSchemaCompatibilityDto {
+    const fallback: ContractSchemaCompatibilityDto = { min: '1.0.0', max: '1.0.0' };
+
+    const raw = row.schema_compatibility;
+    if (!raw || typeof raw !== 'object') return fallback;
+
+    const candidate = raw as Record<string, unknown>;
+    const min = typeof candidate.min === 'string' ? candidate.min : fallback.min;
+    const max = typeof candidate.max === 'string' ? candidate.max : fallback.max;
+    return { min, max };
   }
 }

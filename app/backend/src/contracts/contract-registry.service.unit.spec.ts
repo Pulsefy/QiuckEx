@@ -146,6 +146,62 @@ describe('ContractRegistryService', () => {
     );
   });
 
+  it('upserts a single deployment and exposes it through deployment reads', async () => {
+    const upserted = await service.upsertDeployment({
+      name: 'quickex',
+      network: 'testnet',
+      networkPassphrase: 'Test SDF Network ; September 2015',
+      contractId: 'C777',
+      wasmHash: '0x777',
+      contractVersion: 7,
+      schemaVersion: '1.2.0',
+      schemaCompatibility: { min: '1.0.0', max: '2.0.0' },
+      initParams: { admin: 'GADMIN' },
+      metadata: { source: 'admin-upsert' },
+      deploymentId: 'deploy-777',
+    });
+
+    expect(upserted).toEqual(
+      expect.objectContaining({
+        name: 'quickex',
+        contractId: 'C777',
+        wasmHash: '0x777',
+        schemaVersion: '1.2.0',
+      }),
+    );
+
+    const byName = await service.getDeploymentByName('quickex');
+    expect(byName.contractId).toBe('C777');
+
+    const all = await service.getDeployments();
+    expect(all.deployments).toHaveLength(1);
+    expect(all.deployments[0]?.schemaCompatibility).toEqual({
+      min: '1.0.0',
+      max: '2.0.0',
+    });
+
+    expect(mockAuditService.log).toHaveBeenCalledWith(
+      'contract_registry',
+      'registry.deployment.upsert',
+      'quickex',
+      expect.any(Object),
+    );
+  });
+
+  it('rejects upsert when request network does not match active backend network', async () => {
+    await expect(
+      service.upsertDeployment({
+        name: 'quickex',
+        network: 'mainnet',
+        networkPassphrase: 'Public Global Stellar Network ; September 2015',
+        contractId: 'C111',
+        wasmHash: '0x111',
+        schemaVersion: '1.0.0',
+        schemaCompatibility: { min: '1.0.0', max: '1.0.0' },
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   describe('Dual-read finalization', () => {
     it('finalizes dual-read by clearing previousContractId', async () => {
       // Setup: publish with dual-read config
