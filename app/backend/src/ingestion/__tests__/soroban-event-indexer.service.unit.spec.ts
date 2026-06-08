@@ -8,6 +8,7 @@ import { EscrowEventRepository } from "../escrow-event.repository";
 import { PrivacyEventRepository } from "../privacy-event.repository";
 import { AdminEventRepository } from "../admin-event.repository";
 import { StealthEventRepository } from "../stealth-event.repository";
+import { UnparsedSorobanEventRepository } from "../unparsed-soroban-event.repository";
 import { MetricsService } from "../../metrics/metrics.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -89,8 +90,16 @@ function buildMocks() {
     upsertEvent: jest.fn().mockResolvedValue(undefined),
   } as unknown as StealthEventRepository;
 
+  const unparsedRepo = {
+    save: jest.fn().mockResolvedValue(undefined),
+    listPending: jest.fn().mockResolvedValue([]),
+    markReplayed: jest.fn().mockResolvedValue(undefined),
+    markFailed: jest.fn().mockResolvedValue(undefined),
+  } as unknown as UnparsedSorobanEventRepository;
+
   const metrics = {
     recordUnknownSchemaVersion: jest.fn(),
+    recordError: jest.fn(),
   } as unknown as MetricsService;
 
   const eventEmitter = { emit: jest.fn() } as unknown as EventEmitter2;
@@ -102,6 +111,7 @@ function buildMocks() {
     privacyRepo,
     adminRepo,
     stealthRepo,
+    unparsedRepo,
     metrics,
     eventEmitter,
   };
@@ -115,6 +125,7 @@ function buildService(mocks: ReturnType<typeof buildMocks>) {
     mocks.privacyRepo,
     mocks.adminRepo,
     mocks.stealthRepo,
+    mocks.unparsedRepo,
     mocks.metrics,
     mocks.eventEmitter,
   );
@@ -225,6 +236,87 @@ describe("SorobanEventIndexerService", () => {
     expect(mocks.metrics.recordUnknownSchemaVersion).toHaveBeenCalledWith(
       "EscrowDeposited",
       99,
+    );
+    expect(mocks.unparsedRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "unknown_schema_version",
+        eventName: "EscrowDeposited",
+        schemaVersion: 99,
+        raw,
+      }),
+    );
+  });
+
+  it("captures parse failures for known schema versions", async () => {
+    const mocks = buildMocks();
+    const svc = buildService(mocks);
+
+    const topics = [
+      symVal("EscrowDeposited"),
+      xdr.ScVal.scvBytes(Buffer.from(COMMITMENT_HEX, "hex")),
+      nativeToScVal(OWNER),
+    ];
+    const data = mapVal({
+      schema_version: nativeToScVal(2, { type: "u32" }),
+      amount: nativeToScVal(1_000n, { type: "i128" }),
+      expires_at: nativeToScVal(9999999n, { type: "u64" }),
+      timestamp: nativeToScVal(1700000000n, { type: "u64" }),
+    });
+    const raw: RawHorizonContractEvent = {
+      id: "parse-failure",
+      paging_token: "101-1",
+      transaction_hash: "tx-parse-failure",
+      ledger: 101,
+      created_at: "2026-01-01T00:00:00Z",
+      contract_id: CONTRACT_ID,
+      type: "contract",
+      topic: topics.map((v) => v.toXDR("base64")),
+      value: { xdr: data.toXDR("base64") },
+    };
+
+    mockHorizonPage([raw]);
+
+    const result = await svc.indexLedgerRange(CONTRACT_ID, 101, 101);
+
+    expect(result.parseFailures).toBe(1);
+    expect(mocks.metrics.recordError).toHaveBeenCalledWith(
+      "soroban_indexer",
+      "parse_failure",
+    );
+    expect(mocks.unparsedRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "parse_failure",
+        eventName: "EscrowDeposited",
+        schemaVersion: 2,
+        raw,
+      }),
+    );
+  });
+
+  it("replays retained unparsed events when they parse successfully", async () => {
+    const mocks = buildMocks();
+    const record = makeEscrowDepositedRaw(102, "102-1");
+    (mocks.unparsedRepo.listPending as jest.Mock).mockResolvedValue([
+      {
+        raw: record,
+        pagingToken: record.paging_token,
+        contractId: record.contract_id,
+        ledger: record.ledger,
+        transactionHash: record.transaction_hash,
+        attempts: 0,
+        reason: "parse_failure",
+      },
+    ]);
+    const svc = buildService(mocks);
+
+    const result = await svc.replayUnparsedEvents(10);
+
+    expect(result).toEqual({ attempted: 1, replayed: 1, stillUnparsed: 0 });
+    expect(mocks.escrowRepo.upsertEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.unparsedRepo.markReplayed).toHaveBeenCalledWith("102-1");
+    expect(mocks.eventEmitter.emit).toHaveBeenCalledWith(
+      "stellar.EscrowDeposited",
+      expect.anything(),
     );
   });
 

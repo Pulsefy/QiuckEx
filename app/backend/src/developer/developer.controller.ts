@@ -22,6 +22,7 @@ import { DeveloperService } from './developer.service';
 import {
   BulkRevokeDto,
   BulkRevokeResultDto,
+  WebhookSampleEventDto,
   WebhookTestResultDto,
   IntegrationHealthDto,
   PingResponseDto,
@@ -57,6 +58,25 @@ export class DeveloperController {
     @Param('webhookId', ParseUUIDPipe) webhookId: string,
   ): Promise<WebhookTestResultDto> {
     return this.developerService.testWebhook(webhookId);
+  }
+
+  @Post('webhooks/:webhookId/sample-events')
+  @HttpCode(HttpStatus.OK)
+  @RequireScopes('admin')
+  @ApiOperation({
+    summary: 'Send a canonical sample event to a webhook receiver',
+    description:
+      'Posts a sample link.created, payment.received, payment.settled, or payment.failed payload. ' +
+      'The request can include signature headers and an explicit timestamp for receiver testing.',
+  })
+  @ApiParam({ name: 'webhookId', description: 'Webhook UUID' })
+  @ApiResponse({ status: 200, type: WebhookTestResultDto })
+  @ApiResponse({ status: 404, description: 'Webhook not found' })
+  sampleWebhookEvent(
+    @Param('webhookId', ParseUUIDPipe) webhookId: string,
+    @Body() dto: WebhookSampleEventDto,
+  ): Promise<WebhookTestResultDto> {
+    return this.developerService.sendSampleWebhookEvent(webhookId, dto);
   }
 
   @Post('keys/bulk-revoke')

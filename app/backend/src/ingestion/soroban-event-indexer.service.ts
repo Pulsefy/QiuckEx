@@ -10,6 +10,7 @@ import { EscrowEventRepository } from "./escrow-event.repository";
 import { PrivacyEventRepository } from "./privacy-event.repository";
 import { AdminEventRepository } from "./admin-event.repository";
 import { StealthEventRepository } from "./stealth-event.repository";
+import { UnparsedSorobanEventRepository } from "./unparsed-soroban-event.repository";
 import type {
   QuickExContractEvent,
   EscrowEvent,
@@ -26,6 +27,13 @@ export interface LedgerRangeResult {
   processed: number;
   persisted: number;
   skippedUnknownSchema: number;
+  parseFailures: number;
+}
+
+export interface ReplayUnparsedResult {
+  attempted: number;
+  replayed: number;
+  stillUnparsed: number;
 }
 
 export interface DualReadConfig {
@@ -60,6 +68,7 @@ export class SorobanEventIndexerService {
     private readonly privacyRepo: PrivacyEventRepository,
     private readonly adminRepo: AdminEventRepository,
     private readonly stealthRepo: StealthEventRepository,
+    private readonly unparsedRepo: UnparsedSorobanEventRepository,
     private readonly metrics: MetricsService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -106,7 +115,7 @@ export class SorobanEventIndexerService {
       this.logger.log(
         `Contract ${contractId}: ledger range [${effectiveFrom}, ${toLedger}] already indexed; skipping.`,
       );
-      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0 };
+      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0, parseFailures: 0 };
     }
 
     const inDualReadWindow = this.isInDualReadWindow(effectiveFrom, dualReadConfig);
@@ -119,6 +128,7 @@ export class SorobanEventIndexerService {
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
+    let parseFailures = 0;
 
     // In dual-read mode, index both current and previous contract IDs
     if (inDualReadWindow && dualReadConfig?.previousContractId) {
@@ -131,6 +141,7 @@ export class SorobanEventIndexerService {
       processed += previousResult.processed;
       persisted += previousResult.persisted;
       skippedUnknownSchema += previousResult.skippedUnknownSchema;
+      parseFailures += previousResult.parseFailures;
     }
 
     // Always index the current contract ID
@@ -143,13 +154,14 @@ export class SorobanEventIndexerService {
     processed += currentResult.processed;
     persisted += currentResult.persisted;
     skippedUnknownSchema += currentResult.skippedUnknownSchema;
+    parseFailures += currentResult.parseFailures;
 
     this.logger.log(
       `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
-        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
+        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema} parseFailures=${parseFailures}`,
     );
 
-    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema, parseFailures };
   }
 
   private async indexContractWithCursor(
@@ -157,10 +169,11 @@ export class SorobanEventIndexerService {
     fromLedger: number,
     toLedger: number,
     cursor: string | undefined,
-  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number }> {
+  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number; parseFailures: number }> {
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
+    let parseFailures = 0;
     let nextCursor = cursor;
 
     while (true) {
@@ -178,7 +191,12 @@ export class SorobanEventIndexerService {
         const event = this.parser.parse(raw);
 
         if (!event) {
-          skippedUnknownSchema++;
+          const outcome = await this.captureUnparsedEvent(raw);
+          if (outcome === "parse_failure") {
+            parseFailures++;
+          } else {
+            skippedUnknownSchema++;
+          }
           continue;
         }
 
@@ -200,7 +218,7 @@ export class SorobanEventIndexerService {
     // Final checkpoint
     await this.checkpointRepo.saveLastLedger(contractId, toLedger);
 
-    return { processed, persisted, skippedUnknownSchema };
+    return { processed, persisted, skippedUnknownSchema, parseFailures };
   }
 
   private isInDualReadWindow(currentLedger: number, config?: DualReadConfig): boolean {
@@ -289,5 +307,75 @@ export class SorobanEventIndexerService {
       default:
         this.logger.debug(`Event ${(event as QuickExContractEvent).eventType} not persisted.`);
     }
+  }
+
+  async listUnparsedEvents(limit = 100) {
+    return this.unparsedRepo.listPending(limit);
+  }
+
+  async replayUnparsedEvents(limit = 100): Promise<ReplayUnparsedResult> {
+    const pending = await this.unparsedRepo.listPending(limit);
+    let replayed = 0;
+    let stillUnparsed = 0;
+
+    for (const record of pending) {
+      const event = this.parser.parse(record.raw);
+      if (event) {
+        try {
+          await this.persistEvent(event);
+          await this.unparsedRepo.markReplayed(record.pagingToken);
+          this.eventEmitter.emit(`stellar.${event.eventType}`, event);
+          replayed++;
+        } catch (err) {
+          await this.unparsedRepo.markFailed(
+            record.pagingToken,
+            (err as Error).message,
+          );
+          stillUnparsed++;
+        }
+      } else {
+        await this.unparsedRepo.markFailed(
+          record.pagingToken,
+          "Parser still returned null after replay attempt",
+        );
+        stillUnparsed++;
+      }
+    }
+
+    return { attempted: pending.length, replayed, stillUnparsed };
+  }
+
+  private async captureUnparsedEvent(
+    raw: RawHorizonContractEvent,
+  ): Promise<"unknown_schema_version" | "parse_failure" | "ignored"> {
+    const metadata = this.parser.inspect(raw);
+    if (!metadata) {
+      return "ignored";
+    }
+
+    if (
+      !this.parser.isSupportedSchemaVersion(
+        metadata.eventName,
+        metadata.schemaVersion,
+      )
+    ) {
+      await this.unparsedRepo.save({
+        raw,
+        reason: "unknown_schema_version",
+        eventName: metadata.eventName,
+        schemaVersion: metadata.schemaVersion,
+      });
+      return "unknown_schema_version";
+    }
+
+    this.metrics.recordError("soroban_indexer", "parse_failure");
+    await this.unparsedRepo.save({
+      raw,
+      reason: "parse_failure",
+      eventName: metadata.eventName,
+      schemaVersion: metadata.schemaVersion,
+      errorMessage: "Parser returned null for a supported schema version",
+    });
+    return "parse_failure";
   }
 }
