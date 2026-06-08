@@ -18,8 +18,13 @@ import { AppModule } from "../src/app.module";
  * Requirements met: Gated CI validation, Network Passphrase check,
  * Idempotent Identifiers, and TTL-aware Cleanup.
  */
-describe("Soroban Contract Flow (e2e)", () => {
-  let app: INestApplication;
+const hasE2ESecrets = Boolean(
+  process.env.E2E_WALLET_SECRET && process.env.QUICKEX_CONTRACT_ID,
+);
+const gatedDescribe = hasE2ESecrets ? describe : describe.skip;
+
+gatedDescribe("Soroban Contract Flow (e2e)", () => {
+  let app: INestApplication | undefined;
   let sorobanRpc: rpc.Server;
   let e2eKeypair: Keypair;
   let contractId: string;
@@ -30,13 +35,6 @@ describe("Soroban Contract Flow (e2e)", () => {
     new Promise((resolve) => setTimeout(resolve, ms));
 
   beforeAll(async () => {
-    // 1. Guard check to ensure we only run when authorized keys are provided
-    if (!process.env.E2E_WALLET_SECRET || !process.env.QUICKEX_CONTRACT_ID) {
-      throw new Error(
-        "Skipping E2E: Missing E2E_WALLET_SECRET or QUICKEX_CONTRACT_ID. Ensure this runs in gated CI.",
-      );
-    }
-
     // Initialize the NestJS backend context to validate indexing endpoints
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -60,7 +58,9 @@ describe("Soroban Contract Flow (e2e)", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it("should execute happy path: deposit -> indexer validation -> refund (cleanup)", async () => {
@@ -119,7 +119,7 @@ describe("Soroban Contract Flow (e2e)", () => {
       // (Polling max 3 times to allow the indexer to catch up)
       let isIndexed = false;
       for (let i = 0; i < 3; i++) {
-        const response = await request(app.getHttpServer()).get(
+        const response = await request(app!.getHttpServer()).get(
           `/api/transactions/${depositTxHash}`,
         );
         if (response.status === 200 && response.body.status === "Pending") {
