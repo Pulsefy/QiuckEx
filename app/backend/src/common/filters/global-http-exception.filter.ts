@@ -9,7 +9,6 @@ import {
 import { ThrottlerException } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { AppConfigService } from "../../config";
-import { MetricsService } from "../../metrics/metrics.service";
 
 interface ErrorResponseBody {
   success: false;
@@ -45,10 +44,7 @@ type HttpExceptionResponse =
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalHttpExceptionFilter.name);
 
-  constructor(
-    private readonly config: AppConfigService,
-    private readonly metricsService?: MetricsService,
-  ) {}
+  constructor(private readonly config: AppConfigService) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -80,20 +76,6 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
         retryAfterSeconds,
       };
 
-      const reqRecord = request as Record<string, unknown>;
-      const rateLimitContext =
-        (reqRecord["rateLimitContext"] as
-          | { group?: string; keyType?: string }
-          | undefined) ?? {};
-
-      const route = this.resolveRoute(request);
-
-      this.metricsService?.recordRateLimitedRequest(
-        request.method,
-        route,
-        rateLimitContext.group ?? "public",
-        rateLimitContext.keyType ?? "ip",
-      );
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse() as HttpExceptionResponse;

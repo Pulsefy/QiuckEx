@@ -11,9 +11,21 @@ import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   THROTTLER_BURST_NAME,
   THROTTLER_SUSTAINED_NAME,
-  throttlerConfig,
+  buildRateLimitConfig,
 } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
+
+jest.mock("../../config/rate-limit-allowlist.config", () => ({
+  allowlistConfig: {
+    enabled: true,
+    ips: new Set<string>(),
+    apiKeys: new Set<string>(),
+  },
+}));
+
+import { allowlistConfig } from "../../config/rate-limit-allowlist.config";
+
+const throttlerConfig = buildRateLimitConfig({ STELLAR_NETWORK: "testnet" });
 
 type ReqShape = {
   headers?: Record<string, string>;
@@ -29,6 +41,7 @@ type ReqShape = {
 interface GuardSurface {
   handleRequest(requestProps: ThrottlerRequest): Promise<boolean>;
   getTracker(req: ReqShape): Promise<string>;
+  canActivate(context: ExecutionContext): Promise<boolean>;
 }
 
 function buildContext(
@@ -72,6 +85,10 @@ describe("CustomThrottlerGuard", () => {
   let metricsServiceRecordMock: jest.Mock;
 
   beforeEach(async () => {
+    allowlistConfig.enabled = true;
+    allowlistConfig.ips = new Set();
+    allowlistConfig.apiKeys = new Set();
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         ThrottlerModule.forRoot([
@@ -113,8 +130,8 @@ describe("CustomThrottlerGuard", () => {
   it("uses public burst profile by default", async () => {
     const context = buildContext({
       ip: "127.0.0.1",
-      baseUrl: "/links",
-      route: { path: "/metadata" },
+      baseUrl: "/health",
+      route: { path: "/" },
     });
     const props = buildProps(context, THROTTLER_BURST_NAME);
 
@@ -145,6 +162,75 @@ describe("CustomThrottlerGuard", () => {
         ttl: throttlerConfig.groups.authenticated.sustained.ttlMs,
       }),
     );
+  });
+
+  it("uses public_abuse burst profile for metadata route", async () => {
+    const context = buildContext({
+      ip: "127.0.0.1",
+      baseUrl: "/links",
+      route: { path: "/metadata" },
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: throttlerConfig.groups.public_abuse.burst.limit,
+        ttl: throttlerConfig.groups.public_abuse.burst.ttlMs,
+      }),
+    );
+  });
+
+  it("uses authenticated profile for abuse route when API key is present", async () => {
+    const context = buildContext({
+      headers: { "x-api-key": "trusted-client-key" },
+      ip: "127.0.0.1",
+      baseUrl: "/links",
+      route: { path: "/metadata" },
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: throttlerConfig.groups.authenticated.burst.limit,
+        ttl: throttlerConfig.groups.authenticated.burst.ttlMs,
+      }),
+    );
+  });
+
+  it("bypasses throttling for allowlisted IPs", async () => {
+    allowlistConfig.ips = new Set(["10.0.0.1"]);
+
+    const context = buildContext({
+      ip: "10.0.0.1",
+      baseUrl: "/links",
+      route: { path: "/metadata" },
+    });
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(superHandleRequest).not.toHaveBeenCalled();
+  });
+
+  it("bypasses throttling for allowlisted API keys", async () => {
+    allowlistConfig.apiKeys = new Set(["ci-smoke-key"]);
+
+    const context = buildContext({
+      headers: { "x-api-key": "ci-smoke-key" },
+      ip: "10.0.0.2",
+      baseUrl: "/links",
+      route: { path: "/scan" },
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    const result = await guard.handleRequest(props);
+
+    expect(result).toBe(true);
+    expect(superHandleRequest).not.toHaveBeenCalled();
   });
 
   it("uses webhook profile when metadata tag is set", async () => {
@@ -209,7 +295,7 @@ describe("CustomThrottlerGuard", () => {
     expect(metricsServiceRecordMock).toHaveBeenCalledWith(
       "GET",
       "/metadata",
-      "public",
+      "public_abuse",
       "ip",
     );
   });

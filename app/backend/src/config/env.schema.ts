@@ -261,6 +261,49 @@ export const envSchema = Joi.object({
       "Preferred key order for rate-limit identity. Allowed values: user_id,api_key,ip",
     ),
 
+  RATE_LIMIT_PUBLIC_ABUSE_BURST_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .description(
+      "Burst request limit for abuse-sensitive public routes (quotes, metadata, scan). Defaults to 5 on testnet, 8 on mainnet.",
+    ),
+  RATE_LIMIT_PUBLIC_ABUSE_BURST_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Burst window for abuse-sensitive public routes in milliseconds"),
+  RATE_LIMIT_PUBLIC_ABUSE_SUSTAINED_LIMIT: Joi.number()
+    .integer()
+    .min(1)
+    .description(
+      "Sustained request limit for abuse-sensitive public routes. Defaults to 15 on testnet, 30 on mainnet.",
+    ),
+  RATE_LIMIT_PUBLIC_ABUSE_SUSTAINED_TTL_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(60000)
+    .description(
+      "Sustained window for abuse-sensitive public routes in milliseconds",
+    ),
+
+  RATE_LIMIT_ALLOWLIST_ENABLED: Joi.boolean()
+    .default(true)
+    .description(
+      "When true, trusted IPs and API keys bypass rate limiting entirely",
+    ),
+  RATE_LIMIT_ALLOWLIST_IPS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated trusted IPs (CI runners, local dev) that bypass rate limits",
+    ),
+  RATE_LIMIT_ALLOWLIST_KEYS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated trusted API keys (CI smoke tests) that bypass rate limits",
+    ),
+
   // ---------------------------------------------------------------------------
   // Sentry Error Monitoring (optional; omit to disable)
   // ---------------------------------------------------------------------------
@@ -403,6 +446,13 @@ export interface EnvConfig {
   RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: number;
   RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: number;
   RATE_LIMIT_KEY_ORDER: string;
+  RATE_LIMIT_PUBLIC_ABUSE_BURST_LIMIT?: number;
+  RATE_LIMIT_PUBLIC_ABUSE_BURST_TTL_MS: number;
+  RATE_LIMIT_PUBLIC_ABUSE_SUSTAINED_LIMIT?: number;
+  RATE_LIMIT_PUBLIC_ABUSE_SUSTAINED_TTL_MS: number;
+  RATE_LIMIT_ALLOWLIST_ENABLED: boolean;
+  RATE_LIMIT_ALLOWLIST_IPS?: string;
+  RATE_LIMIT_ALLOWLIST_KEYS?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;

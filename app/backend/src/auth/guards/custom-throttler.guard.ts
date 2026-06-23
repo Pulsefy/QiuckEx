@@ -1,4 +1,9 @@
-import { ExecutionContext, Injectable, Inject } from "@nestjs/common";
+import {
+  ExecutionContext,
+  Injectable,
+  Inject,
+  Logger,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
   ThrottlerException,
@@ -10,8 +15,10 @@ import {
   RateLimitGroup,
   RateLimitKeyType,
   THROTTLER_BURST_NAME,
+  isAbuseSensitiveRoute,
   throttlerConfig,
 } from "../../config/rate-limit.config";
+import { allowlistConfig } from "../../config/rate-limit-allowlist.config";
 import { MetricsService } from "../../metrics/metrics.service";
 
 type RequestWithRateLimitContext = Record<string, unknown> & {
@@ -24,6 +31,7 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
   path?: string;
   originalUrl?: string;
   method?: string;
+  correlationId?: string;
   rateLimitContext?: {
     group: RateLimitGroup;
     keyType: RateLimitKeyType;
@@ -32,10 +40,24 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
+  private readonly logger = new Logger(CustomThrottlerGuard.name);
+
   @Inject(MetricsService)
   private readonly metricsService: MetricsService;
 
   protected readonly reflector = new Reflector();
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context
+      .switchToHttp()
+      .getRequest<RequestWithRateLimitContext>();
+
+    if (this.isAllowlisted(req)) {
+      return true;
+    }
+
+    return super.canActivate(context);
+  }
 
   protected async handleRequest(
     requestProps: ThrottlerRequest,
@@ -44,6 +66,10 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const req = context
       .switchToHttp()
       .getRequest<RequestWithRateLimitContext>();
+
+    if (this.isAllowlisted(req)) {
+      return true;
+    }
 
     const group = this.resolveGroup(context, req);
     const window =
@@ -78,14 +104,29 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
         }
 
         const method = req.method ?? "unknown";
-        const routePath = req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
-        
+        const routePath =
+          req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
+
         this.metricsService.recordRateLimitedRequest(
           method,
           routePath,
           group,
           req.rateLimitContext.keyType,
         );
+
+        this.logger.warn({
+          event: "rate_limit_exceeded",
+          method,
+          route: routePath,
+          group,
+          keyType: req.rateLimitContext.keyType,
+          ip: this.getIp(req),
+          correlationId:
+            req.correlationId ??
+            (typeof req.headers?.["x-request-id"] === "string"
+              ? req.headers["x-request-id"]
+              : undefined),
+        });
       }
 
       throw error;
@@ -99,6 +140,24 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     return `${identity.keyType}:${identity.value}`;
   }
 
+  private isAllowlisted(req: RequestWithRateLimitContext): boolean {
+    if (!allowlistConfig.enabled) {
+      return false;
+    }
+
+    const ip = this.getIp(req);
+    if (allowlistConfig.ips.has(ip)) {
+      return true;
+    }
+
+    const apiKey = this.getApiKeyValue(req);
+    if (apiKey && allowlistConfig.apiKeys.has(apiKey)) {
+      return true;
+    }
+
+    return false;
+  }
+
   private resolveGroup(
     context: ExecutionContext,
     req: RequestWithRateLimitContext,
@@ -108,18 +167,30 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       [context.getHandler(), context.getClass()],
     );
 
-    if (metadataGroup) {
-      return metadataGroup;
+    if (metadataGroup === "webhooks") {
+      return "webhooks";
     }
 
     const path =
       `${req.baseUrl ?? ""}${req.route?.path ?? req.path ?? req.originalUrl ?? ""}`.toLowerCase();
+
     if (path.startsWith("/webhooks") || path.includes("/webhooks/")) {
       return "webhooks";
     }
 
     if (this.getUserId(req) || this.getApiKeyValue(req)) {
       return "authenticated";
+    }
+
+    if (
+      metadataGroup === "public_abuse" ||
+      isAbuseSensitiveRoute(path)
+    ) {
+      return "public_abuse";
+    }
+
+    if (metadataGroup) {
+      return metadataGroup;
     }
 
     return "public";

@@ -14,6 +14,7 @@ import {
 import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 import { AssetMetadataService } from "../asset-metadata/asset-metadata.service";
 import { AssetListResponseDto } from "../asset-metadata/dto/asset-metadata.dto";
 import { AppConfigService } from "../config/app-config.service";
@@ -115,6 +116,7 @@ export class StellarController {
   }
 
   @Post("quote")
+  @RateLimitGroupTag("public_abuse")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
@@ -125,11 +127,13 @@ export class StellarController {
   })
   @ApiResponse({ status: 200, description: "Quote created", type: QuoteResponseDto })
   @ApiResponse({ status: 400, description: "No path found or invalid parameters" })
+  @ApiResponse({ status: 429, description: "Rate limit exceeded – retry after Retry-After seconds" })
   async createQuote(@Body() body: CreateQuoteDto): Promise<QuoteResponseDto> {
     return this.quoteService.createQuote(body);
   }
 
   @Get("quote/:quoteId")
+  @RateLimitGroupTag("public_abuse")
   @ApiOperation({
     summary: "Retrieve a quote by ID",
     description: "Returns the stored quote. Returns 410 Gone if the quote has expired.",
@@ -138,6 +142,7 @@ export class StellarController {
   @ApiResponse({ status: 200, description: "Quote details", type: QuoteResponseDto })
   @ApiResponse({ status: 404, description: "Quote not found" })
   @ApiResponse({ status: 410, description: "Quote expired" })
+  @ApiResponse({ status: 429, description: "Rate limit exceeded – retry after Retry-After seconds" })
   getQuote(@Param("quoteId") quoteId: string): QuoteResponseDto {
     return this.quoteService.getQuote(quoteId);
   }
