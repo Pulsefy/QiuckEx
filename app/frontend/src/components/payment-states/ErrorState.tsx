@@ -38,14 +38,14 @@ export function ErrorState({ message, onRetry, retryCount }: ErrorStateProps) {
       </div>
 
       <h2 className="text-2xl font-bold mb-4">Unable to Load Payment</h2>
-      <p className="text-neutral-300 text-center max-w-md mb-8">{message}</p>
+      <p className="text-muted text-center max-w-md mb-8">{message}</p>
 
       {isMultipleFailures && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-8 max-w-md">
-          <p className="text-amber-200 text-sm">
+        <div className="bg-warning-soft border border-amber-500/20 rounded-xl p-4 mb-8 max-w-md">
+          <p className="text-warning text-sm">
             <strong>Multiple failures detected.</strong> This could be due to:
           </p>
-          <ul className="text-amber-200/90 text-sm mt-2 space-y-1 list-disc list-inside">
+          <ul className="text-warning/90 text-sm mt-2 space-y-1 list-disc list-inside">
             <li>Network connectivity issues</li>
             <li>Server temporarily unavailable</li>
             <li>Invalid payment link parameters</li>
@@ -57,21 +57,21 @@ export function ErrorState({ message, onRetry, retryCount }: ErrorStateProps) {
         <button
           type="button"
           onClick={onRetry}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {retryCount === 0 ? "Try Again" : `Retry (Attempt ${retryCount + 1})`}
         </button>
 
         <Link
           href="/"
-          className="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="px-6 py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go Home
         </Link>
       </div>
 
       {retryCount > 0 && (
-        <p className="mt-6 text-xs text-neutral-300">
+        <p className="mt-6 text-xs text-muted">
           Still having issues? Contact support with the error message above.
         </p>
       )}

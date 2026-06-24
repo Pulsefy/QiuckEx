@@ -97,22 +97,22 @@ export function ReportIssueModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="report-issue-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 px-4 py-6"
       onKeyDown={handleKeyDown}
     >
       <div
         ref={modalRef}
-        className="w-full max-w-2xl rounded-3xl bg-neutral-950 p-8 shadow-2xl shadow-black/50"
+        className="w-full max-w-2xl rounded-3xl bg-background p-8 shadow-2xl shadow-black/50"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2
               id="report-issue-title"
-              className="text-2xl font-semibold text-white"
+              className="text-2xl font-semibold text-foreground"
             >
               Report an issue
             </h2>
-            <p className="mt-2 text-sm text-neutral-400">
+            <p className="mt-2 text-sm text-subtle">
               We will send a report with your request details and the error
               summary.
             </p>
@@ -120,24 +120,24 @@ export function ReportIssueModal({
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-full bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20"
+            className="rounded-full bg-surface-strong px-4 py-2 text-sm text-foreground transition hover:bg-surface-strong"
           >
             Close
           </button>
         </div>
 
-        <div className="mt-6 space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-          <p className="text-sm font-semibold text-neutral-200">
+        <div className="mt-6 space-y-4 rounded-3xl border border-border-strong bg-surface p-4">
+          <p className="text-sm font-semibold text-muted">
             Error summary
           </p>
-          <p className="whitespace-pre-wrap rounded-2xl bg-neutral-900 p-4 text-sm text-neutral-200">
+          <p className="whitespace-pre-wrap rounded-2xl bg-card p-4 text-sm text-muted">
             {sanitizedSummary || "No summary available."}
           </p>
 
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <div>
-              <label className="text-sm text-neutral-300">Request ID</label>
-              <div className="mt-2 overflow-hidden rounded-2xl bg-neutral-900 px-3 py-2 text-sm text-neutral-200">
+              <label className="text-sm text-muted">Request ID</label>
+              <div className="mt-2 overflow-hidden rounded-2xl bg-card px-3 py-2 text-sm text-muted">
                 {requestId || "Unavailable"}
               </div>
             </div>
@@ -145,25 +145,25 @@ export function ReportIssueModal({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="block text-sm font-semibold text-neutral-200">
+          <label className="block text-sm font-semibold text-muted">
             Additional details
           </label>
           <textarea
             value={userMessage}
             onChange={(event) => setUserMessage(event.target.value)}
             rows={5}
-            className="w-full rounded-3xl border border-white/10 bg-neutral-900 px-4 py-3 text-sm text-white outline-none transition focus:border-white/30"
+            className="w-full rounded-3xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground outline-none transition focus:border-white/30"
             placeholder="What were you doing when this happened?"
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-subtle">
               Your message will be sanitized before sending.
             </p>
             <button
               ref={submitButtonRef}
               type="submit"
               disabled={status === "submitting" || status === "success"}
-              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-full bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
             >
               {status === "submitting" ? "Sending..." : "Send report"}
             </button>
@@ -171,7 +171,7 @@ export function ReportIssueModal({
         </form>
 
         {status === "success" ? (
-          <div className="mt-4 rounded-3xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          <div className="mt-4 rounded-3xl bg-success-soft px-4 py-3 text-sm text-success">
             Issue report submitted successfully.
           </div>
         ) : null}

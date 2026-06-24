@@ -44,10 +44,10 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             />
           </svg>
         </div>
-        <h1 className="text-4xl font-bold mb-3 text-green-300">
+        <h1 className="text-4xl font-bold mb-3 text-success">
           Payment Complete!
         </h1>
-        <p className="text-neutral-300 text-lg">{status.userMessage}</p>
+        <p className="text-muted text-lg">{status.userMessage}</p>
       </div>
 
       {/* Payment Success Card */}
@@ -55,28 +55,28 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
         <h2 className="text-xl font-bold mb-6">Payment Summary</h2>
 
         <dl className="space-y-4">
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Paid To</dt>
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Paid To</dt>
             <dd className="font-semibold">@{status.username}</dd>
           </div>
 
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Amount Paid</dt>
-            <dd className="text-3xl font-bold text-green-300">
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Amount Paid</dt>
+            <dd className="text-3xl font-bold text-success">
               {status.amount} {status.asset}
             </dd>
           </div>
 
           {status.memo && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Memo</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Memo</dt>
               <dd className="font-mono text-sm">{status.memo}</dd>
             </div>
           )}
 
           {status.paidAt && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Completed At</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Completed At</dt>
               <dd className="text-sm">
                 {new Date(status.paidAt).toLocaleString()}
               </dd>
@@ -87,11 +87,11 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
 
       {/* Transaction Hash */}
       {status.transactionHash && (
-        <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-6">
-          <h3 className="text-sm font-semibold text-neutral-200 mb-3">
+        <div className="bg-card/50 border border-border-strong rounded-2xl p-6">
+          <h3 className="text-sm font-semibold text-muted mb-3">
             Transaction Hash
           </h3>
-          <div className="bg-black/50 rounded-xl p-4 font-mono text-xs break-all">
+          <div className="bg-background/50 rounded-xl p-4 font-mono text-xs break-all">
             {status.transactionHash}
           </div>
 
@@ -101,7 +101,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="View transaction on Stellar explorer (opens in new tab)"
-              className="mt-4 inline-flex items-center gap-2 text-indigo-300 hover:text-indigo-200 underline-offset-4 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+              className="mt-4 inline-flex items-center gap-2 text-brand hover:text-brand underline-offset-4 hover:underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
             >
               <span>View on Explorer</span>
               <svg
@@ -144,10 +144,10 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             </svg>
           </div>
           <div>
-            <h3 className="font-semibold text-green-300 mb-2">
+            <h3 className="font-semibold text-success mb-2">
               What&apos;s next?
             </h3>
-            <p className="text-sm text-green-200/90">
+            <p className="text-sm text-success/90">
               Your payment has been confirmed on the Stellar network. The
               recipient has been notified and the funds are now available in
               their account.
@@ -160,7 +160,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Back to Homepage
         </Link>
@@ -172,7 +172,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             onClick={() => {
               navigator.clipboard.writeText(status.transactionHash!);
             }}
-            className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Copy Transaction Hash
           </button>

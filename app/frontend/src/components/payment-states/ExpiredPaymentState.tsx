@@ -40,36 +40,36 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
           </svg>
         </div>
         <h1 className="text-3xl font-bold mb-2">Link Expired</h1>
-        <p className="text-neutral-300">{status.userMessage}</p>
+        <p className="text-muted">{status.userMessage}</p>
       </div>
 
       {/* Payment Details Card */}
-      <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
+      <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Original Payment Details</h2>
 
         <dl className="space-y-4 opacity-80">
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Recipient</dt>
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Recipient</dt>
             <dd className="font-semibold">@{status.username}</dd>
           </div>
 
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Amount</dt>
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Amount</dt>
             <dd className="text-2xl font-bold">
               {status.amount} {status.asset}
             </dd>
           </div>
 
           {status.memo && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Memo</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Memo</dt>
               <dd className="font-mono text-sm">{status.memo}</dd>
             </div>
           )}
 
           {status.expiresAt && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Expired On</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Expired On</dt>
               <dd className="text-sm">
                 {new Date(status.expiresAt).toLocaleDateString()}
               </dd>
@@ -98,10 +98,10 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
             </svg>
           </div>
           <div>
-            <h3 className="font-semibold text-orange-300 mb-2">
+            <h3 className="font-semibold text-warning mb-2">
               Why did this expire?
             </h3>
-            <p className="text-sm text-orange-200/90">
+            <p className="text-sm text-warning/90">
               Payment links have an expiration date for security reasons. This
               link was not used before it expired. Please contact the recipient
               to generate a new payment link.
@@ -114,7 +114,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go to Homepage
         </Link>
@@ -122,7 +122,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
         <button
           type="button"
           onClick={() => window.history.back()}
-          className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go Back
         </button>

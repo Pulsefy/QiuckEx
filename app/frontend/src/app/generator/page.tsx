@@ -59,7 +59,7 @@ type PathPreviewResponse = {
 const QUOTE_TTL_SECONDS = 25;
 const BASE_PATH_OPERATION_FEE_XLM = 0.00001;
 const FOCUS_RING_CLASS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 type LinkMetadataSuccess = {
   success: true;
@@ -849,7 +849,7 @@ export default function Generator() {
   };
 
   return (
-    <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
+    <div className="relative min-h-screen text-foreground selection:bg-indigo-500/30 overflow-x-hidden">
       <a
         href="#generator-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
@@ -861,22 +861,22 @@ export default function Generator() {
       <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px]" />
       <div className="fixed bottom-[-20%] right-[-30%] w-[50%] h-[50%] bg-purple-500/5 blur-[100px]" />
 
-      <aside className="hidden md:flex w-72 h-screen border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col fixed left-0 top-0 z-20">
+      <aside className="hidden md:flex w-72 h-screen border-r border-border bg-card backdrop-blur-3xl flex-col fixed left-0 top-0 z-20">
         <nav className="flex-1 px-4 py-20 space-y-2" aria-label="Generator navigation">
           <Link
             href="/dashboard"
-            className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
+            className={`flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-surface rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}
           >
             <span aria-hidden="true">📊</span> {t('dashboard')}
           </Link>
           <Link
             href="/generator"
             aria-current="page"
-            className={`flex items-center gap-3 px-4 py-3 bg-white/5 text-white rounded-2xl font-bold border border-white/5 shadow-inner ${FOCUS_RING_CLASS}`}
+            className={`flex items-center gap-3 px-4 py-3 bg-surface text-foreground rounded-2xl font-bold border border-border shadow-inner ${FOCUS_RING_CLASS}`}
           >
             <span aria-hidden="true" className="text-indigo-400">⚡</span> {t('linkGenerator')}
           </Link>
-          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-neutral-200 hover:text-white hover:bg-white/5 rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
+          <Link href="/settings" className={`flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-surface rounded-2xl font-semibold ${FOCUS_RING_CLASS}`}>
             <span aria-hidden="true">⚙️</span> {t('profileSettings')}
           </Link>
         </nav>
@@ -886,11 +886,11 @@ export default function Generator() {
         <header className="mb-10 sm:mb-16 max-w-3xl">
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-2 text-xs font-black text-neutral-300 uppercase tracking-widest mb-4"
+            className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-widest mb-4"
           >
             <span>{t('services')}</span>
             <span aria-hidden="true">/</span>
-            <span className="text-neutral-100">{t('linkGenerator')}</span>
+            <span className="text-foreground">{t('linkGenerator')}</span>
           </nav>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-4">
@@ -900,7 +900,7 @@ export default function Generator() {
             </span>
           </h1>
 
-          <p className="text-neutral-300 text-lg max-w-xl">
+          <p className="text-muted text-lg max-w-xl">
             {t('advancedModeDescription')}
           </p>
         </header>
@@ -909,14 +909,14 @@ export default function Generator() {
           <div className="space-y-12">
             <section className="space-y-6">
               <div>
-                <label htmlFor="generator-amount" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
+                <label htmlFor="generator-amount" className="text-xs font-black uppercase tracking-widest text-muted ml-1">
                   {t('amountLabel')}
                 </label>
 
                 <div className="relative group mt-2">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur opacity-0 group-focus-within:opacity-100 transition" />
 
-                  <div className="relative bg-neutral-900/50 border border-white/10 rounded-3xl p-1 shadow-2xl">
+                  <div className="relative bg-card/50 border border-border-strong rounded-3xl p-1 shadow-2xl">
                     <input
                       id="generator-amount"
                       type="number"
@@ -927,12 +927,12 @@ export default function Generator() {
                       }
                       aria-invalid={Boolean(errors.amount)}
                       aria-describedby={errors.amount ? "generator-amount-error" : undefined}
-                      className={`w-full bg-transparent p-6 sm:p-8 text-3xl sm:text-5xl font-black placeholder:text-neutral-500 ${FOCUS_RING_CLASS}`}
+                      className={`w-full bg-transparent p-6 sm:p-8 text-3xl sm:text-5xl font-black placeholder:text-subtle ${FOCUS_RING_CLASS}`}
                     />
 
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex bg-black/40 p-2 rounded-2xl border border-white/5 backdrop-blur-xl gap-1 max-w-[50%] flex-wrap justify-end">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex bg-card p-2 rounded-2xl border border-border backdrop-blur-xl gap-1 max-w-[50%] flex-wrap justify-end">
                       {assetsLoading ? (
-                        <span className="px-3 py-2 text-xs text-neutral-500">
+                        <span className="px-3 py-2 text-xs text-subtle">
                           {t('loadingAssets')}
                         </span>
                       ) : (
@@ -947,8 +947,8 @@ export default function Generator() {
                             px-3 py-2 text-xs sm:text-sm rounded-xl transition ${FOCUS_RING_CLASS}
                             ${
                               recipientAssetCode === a.code
-                                ? "bg-white text-black font-black"
-                                : "text-neutral-300 hover:text-white"
+                                ? "bg-card text-foreground font-black"
+                                : "text-muted hover:text-foreground"
                             }
                           `}
                           >
@@ -969,7 +969,7 @@ export default function Generator() {
               </div>
 
               <div>
-                <label htmlFor="generator-destination" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
+                <label htmlFor="generator-destination" className="text-xs font-black uppercase tracking-widest text-muted ml-1">
                   {t('destinationLabel')}
                 </label>
                 <input
@@ -982,7 +982,7 @@ export default function Generator() {
                   }
                   aria-invalid={Boolean(errors.destination)}
                   aria-describedby={errors.destination ? "generator-destination-error" : undefined}
-                  className={`w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 placeholder:text-neutral-400 ${FOCUS_RING_CLASS}`}
+                  className={`w-full bg-card/30 border border-border-strong rounded-3xl p-5 font-bold mt-2 placeholder:text-subtle ${FOCUS_RING_CLASS}`}
                 />
                 {errors.destination && (
                   <p id="generator-destination-error" role="alert" className="text-red-400 text-xs mt-2">
@@ -992,7 +992,7 @@ export default function Generator() {
               </div>
 
               <div>
-                <label htmlFor="generator-memo" className="text-xs font-black uppercase tracking-widest text-neutral-300 ml-1">
+                <label htmlFor="generator-memo" className="text-xs font-black uppercase tracking-widest text-muted ml-1">
                   {t('memoLabel')}
                 </label>
                 <input
@@ -1001,11 +1001,11 @@ export default function Generator() {
                   placeholder={t('memoPlaceholder')}
                   value={form.memo}
                   onChange={(e) => setForm({ ...form, memo: e.target.value })}
-                  className={`w-full bg-neutral-900/30 border border-white/10 rounded-3xl p-5 font-bold mt-2 placeholder:text-neutral-400 ${FOCUS_RING_CLASS}`}
+                  className={`w-full bg-card/30 border border-border-strong rounded-3xl p-5 font-bold mt-2 placeholder:text-subtle ${FOCUS_RING_CLASS}`}
                 />
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-6 space-y-4">
+              <div className="rounded-3xl border border-border-strong bg-background/30 p-6 space-y-4">
                 <button
                   type="button"
                   onClick={() => setAdvancedOpen((v) => !v)}
@@ -1013,21 +1013,21 @@ export default function Generator() {
                   aria-controls="generator-advanced-panel"
                   className={`flex w-full items-center justify-between text-left ${FOCUS_RING_CLASS}`}
                 >
-                  <span className="text-sm font-black uppercase tracking-widest text-indigo-300">
+                  <span className="text-sm font-black uppercase tracking-widest text-brand">
                     {t('advancedSettings')}
                   </span>
-                  <span className="text-neutral-300 text-sm">
+                  <span className="text-muted text-sm">
                     {advancedOpen ? t('hide') : t('show')} path payments
                   </span>
                 </button>
 
                 {advancedOpen && (
-                  <div id="generator-advanced-panel" className="space-y-6 pt-2 border-t border-white/5">
+                  <div id="generator-advanced-panel" className="space-y-6 pt-2 border-t border-border">
                     <div>
-                      <label htmlFor="generator-recipient-asset" className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2 block">
+                      <label htmlFor="generator-recipient-asset" className="text-xs font-bold uppercase tracking-wider text-muted mb-2 block">
                         {t('recipientAsset')}
                       </label>
-                      <p className="text-sm text-neutral-300 mb-3">
+                      <p className="text-sm text-muted mb-3">
                         {t('recipientAssetDescription')}
                       </p>
                       <select
@@ -1036,7 +1036,7 @@ export default function Generator() {
                         onChange={(e) =>
                           setRecipientAssetCode(e.target.value)
                         }
-                        className={`w-full bg-neutral-900 border border-white/10 rounded-2xl p-4 font-bold ${FOCUS_RING_CLASS}`}
+                        className={`w-full bg-card border border-border-strong rounded-2xl p-4 font-bold ${FOCUS_RING_CLASS}`}
                       >
                         {verifiedAssets.map((a) => (
                           <option key={a.code} value={a.code}>
@@ -1055,10 +1055,10 @@ export default function Generator() {
                     </div>
 
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted mb-2">
                         {t('allowedSourceAssets')}
                       </p>
-                      <p className="text-sm text-neutral-300 mb-3">
+                      <p className="text-sm text-muted mb-3">
                         {t('allowedSourceAssetsDescription')}
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -1073,7 +1073,7 @@ export default function Generator() {
                               className={`px-4 py-2 rounded-xl text-sm font-bold border transition ${
                                 on
                                   ? "bg-indigo-500/30 border-indigo-400/50 text-white"
-                                  : `bg-neutral-900/50 border-white/10 text-neutral-300 hover:text-white ${FOCUS_RING_CLASS}`
+                                  : `bg-card/50 border-border-strong text-muted hover:text-foreground ${FOCUS_RING_CLASS}`
                               }`}
                             >
                               {a.code}
@@ -1083,16 +1083,16 @@ export default function Generator() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
+                    <div className="rounded-2xl border border-border-strong bg-background/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-muted">
                           {t('pathPreview')}
                         </h3>
                         <div className="flex items-center gap-3">
                           {quoteSecondsRemaining !== null && (
                             <span
                               className={`text-xs font-mono ${
-                                quoteExpired ? "text-amber-300" : "text-emerald-300"
+                                quoteExpired ? "text-warning" : "text-success"
                               }`}
                             >
                               {quoteExpired
@@ -1104,7 +1104,7 @@ export default function Generator() {
                             type="button"
                             onClick={() => void fetchPathPreview()}
                             disabled={pathLoading}
-                            className={`text-xs px-2 py-1 rounded-md border border-white/10 text-neutral-200 hover:text-white hover:bg-white/5 disabled:opacity-50 ${FOCUS_RING_CLASS}`}
+                            className={`text-xs px-2 py-1 rounded-md border border-border-strong text-muted hover:text-foreground hover:bg-surface disabled:opacity-50 ${FOCUS_RING_CLASS}`}
                           >
                             {pathLoading ? t('fetchingEstimates') : t('refreshQuote')}
                           </button>
@@ -1115,7 +1115,7 @@ export default function Generator() {
                           className={`text-xs ${
                             slippageWarningLevel === "block"
                               ? "text-red-400"
-                              : "text-amber-300"
+                              : "text-warning"
                           }`}
                         >
                           {slippageWarningText}
@@ -1134,12 +1134,12 @@ export default function Generator() {
                         !pathError &&
                         pathData &&
                         pathData.paths.length === 0 && (
-                          <p className="text-neutral-300 text-sm">
+                          <p className="text-muted text-sm">
                             {t('noPathsFound', { horizonUrl: pathData.horizonUrl })}
                           </p>
                         )}
                       {!pathLoading && !pathError && !pathData && (
-                        <p className="text-neutral-300 text-xs">
+                        <p className="text-muted text-xs">
                           {t('pathPreviewHint')}
                         </p>
                       )}
@@ -1148,9 +1148,9 @@ export default function Generator() {
                           {pathData.paths.map((p, i) => (
                             <li
                               key={`${p.sourceAsset}-${i}`}
-                              className="rounded-xl bg-black/40 border border-white/5 p-3 text-sm"
+                              className="rounded-xl bg-card border border-border p-3 text-sm"
                             >
-                              <div className="font-mono text-neutral-300">
+                              <div className="font-mono text-muted">
                                 {t('payReceive', {
                                   sourceAmount: p.sourceAmount,
                                   sourceAsset: p.sourceAsset,
@@ -1158,23 +1158,23 @@ export default function Generator() {
                                   destinationAsset: p.destinationAsset
                                 })}
                               </div>
-                              <div className="text-xs text-neutral-300 mt-1">
+                              <div className="text-xs text-muted mt-1">
                                 {t('hops', { hopCount: p.hopCount })}
                                 {p.pathHops.length > 0
                                   ? ` · ${p.pathHops.join(" → ")}`
                                   : ""}
                               </div>
-                              <div className="text-xs text-neutral-400 mt-1">
+                              <div className="text-xs text-subtle mt-1">
                                 {p.rateDescription}
                               </div>
-                              <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] p-2 space-y-1">
-                                <p className="text-[11px] uppercase tracking-wide text-neutral-300 font-semibold">
+                              <div className="mt-2 rounded-lg border border-border bg-card/[0.02] p-2 space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide text-muted font-semibold">
                                   {t('pathBreakdown')}
                                 </p>
                                 {getPathLegs(p).map((leg) => (
                                   <div
                                     key={`${leg.poolLabel}-${leg.fromAsset}-${leg.toAsset}`}
-                                    className="flex items-center justify-between text-xs text-neutral-300"
+                                    className="flex items-center justify-between text-xs text-muted"
                                   >
                                     <span>{leg.poolLabel}</span>
                                     <span className="font-mono">
@@ -1182,7 +1182,7 @@ export default function Generator() {
                                     </span>
                                   </div>
                                 ))}
-                                <p className="text-xs text-neutral-300">
+                                <p className="text-xs text-muted">
                                   {t('estimatedNetworkFee', {
                                     fee: ((p.hopCount + 1) * BASE_PATH_OPERATION_FEE_XLM).toFixed(5),
                                   })}
@@ -1194,16 +1194,16 @@ export default function Generator() {
                       )}
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
+                    <div className="rounded-2xl border border-border-strong bg-background/60 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-muted">
                           {t('slippageTolerance')}
                         </h3>
-                        <span className="text-sm font-mono text-neutral-200">
+                        <span className="text-sm font-mono text-muted">
                           {slippageValue.toFixed(2)}%
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-300">
+                      <p className="text-xs text-muted">
                         {t('slippageDescription')}
                       </p>
                       <input
@@ -1224,8 +1224,8 @@ export default function Generator() {
                             onClick={() => setSlippagePct(preset)}
                             className={`px-3 py-1 text-xs rounded-lg border ${
                               slippagePct === preset
-                                ? "border-indigo-400/60 text-indigo-200 bg-indigo-500/10"
-                                : `border-white/10 text-neutral-200 ${FOCUS_RING_CLASS}`
+                                ? "border-indigo-400/60 text-brand bg-indigo-500/10"
+                                : `border-border-strong text-muted ${FOCUS_RING_CLASS}`
                             }`}
                           >
                             {preset}%
@@ -1234,11 +1234,11 @@ export default function Generator() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 space-y-3">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-neutral-300">
+                    <div className="rounded-2xl border border-border-strong bg-background/60 p-4 space-y-3">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted">
                         {t('sorobanPreflight')}
                       </h3>
-                      <p className="text-xs text-neutral-300">
+                      <p className="text-xs text-muted">
                         {t('sorobanPreflightDescription')}
                       </p>
                       <input
@@ -1246,13 +1246,13 @@ export default function Generator() {
                         placeholder={t('sourceAccountPlaceholder')}
                         value={preflightAccount}
                         onChange={(e) => setPreflightAccount(e.target.value)}
-                        className={`w-full bg-neutral-900/80 border border-white/10 rounded-xl p-3 font-mono text-sm ${FOCUS_RING_CLASS}`}
+                        className={`w-full bg-card/80 border border-border-strong rounded-xl p-3 font-mono text-sm ${FOCUS_RING_CLASS}`}
                       />
                       <button
                         type="button"
                         onClick={() => void runPreflight()}
                         disabled={preflightLoading}
-                        className={`w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm font-bold disabled:opacity-50 ${FOCUS_RING_CLASS}`}
+                        className={`w-full py-3 rounded-xl bg-surface-strong hover:bg-card/15 border border-border-strong text-sm font-bold disabled:opacity-50 ${FOCUS_RING_CLASS}`}
                       >
                         {preflightLoading
                           ? t('simulating')
@@ -1274,13 +1274,13 @@ export default function Generator() {
                         <div className="text-sm text-emerald-400 space-y-1">
                           <p>{t('simulationOk')}</p>
                           {preflightResult.feeEstimate?.totalFeeXLM && (
-                            <p className="font-mono text-neutral-300">
+                            <p className="font-mono text-muted">
                               {t('totalFee', { totalFee: preflightResult.feeEstimate.totalFeeXLM })}
                             </p>
                           )}
                           {typeof preflightResult.simulationLatencyMs ===
                             "number" && (
-                            <p className="text-xs text-neutral-500">
+                            <p className="text-xs text-subtle">
                               {t('latency', { latency: preflightResult.simulationLatencyMs })}
                             </p>
                           )}
@@ -1296,7 +1296,7 @@ export default function Generator() {
               type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className={`w-full py-6 bg-white text-black text-3xl font-black rounded-3xl hover:bg-neutral-200 active:scale-95 transition disabled:opacity-60 ${FOCUS_RING_CLASS}`}
+              className={`w-full py-6 bg-card text-foreground text-3xl font-black rounded-3xl hover:bg-surface-strong active:scale-95 transition disabled:opacity-60 ${FOCUS_RING_CLASS}`}
             >
               {loading ? "Generating…" : "Generate Payment Link"}
             </button>
@@ -1310,14 +1310,14 @@ export default function Generator() {
               <QRPreview value={linkData} />
             </div>
 
-            <div className="space-y-4 p-8 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-xl">
-              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-300">
+            <div className="space-y-4 p-8 rounded-3xl bg-card border border-border backdrop-blur-xl">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted">
                 Canonical query (from API)
               </label>
 
-              <div className="bg-neutral-900 border border-white/5 p-4 rounded-xl font-mono text-neutral-200 text-xs break-all min-h-[3rem]">
+              <div className="bg-card border border-border p-4 rounded-xl font-mono text-muted text-xs break-all min-h-[3rem]">
                 {canonicalPreview ?? (
-                  <span className="text-neutral-400 italic">
+                  <span className="text-subtle italic">
                     Generate to fetch metadata from the backend.
                   </span>
                 )}
@@ -1332,7 +1332,7 @@ export default function Generator() {
                   }
                 }}
                 aria-label="Copy canonical query parameters"
-                className={`w-full py-3 bg-white/10 text-white rounded-xl border border-white/5 text-xs uppercase tracking-widest hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING_CLASS}`}
+                className={`w-full py-3 bg-surface-strong text-foreground rounded-xl border border-border text-xs uppercase tracking-widest hover:bg-card/15 disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING_CLASS}`}
               >
                 Copy canonical params
               </button>
@@ -1343,36 +1343,36 @@ export default function Generator() {
         <section className="mt-20 max-w-7xl space-y-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-indigo-300">
+              <p className="text-xs font-black uppercase tracking-widest text-brand">
                 Bulk Invoicing v2
               </p>
-              <h2 className="text-3xl font-black text-white mt-2">
+              <h2 className="text-3xl font-black text-foreground mt-2">
                 Templates, saved customers, and preview before generation
               </h2>
-              <p className="text-neutral-400 mt-3 max-w-3xl">
+              <p className="text-subtle mt-3 max-w-3xl">
                 Reuse one invoice template across your customer directory, then generate the final payment links from the same preview payload.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setBulkResult(null)}
-              className={`rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+              className={`rounded-xl border border-border-strong px-4 py-2 text-sm font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
             >
               Clear generated results
             </button>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-6 md:p-8">
+          <div className="rounded-3xl border border-border-strong bg-background/30 p-6 md:p-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
+                <p className="text-xs font-black uppercase tracking-widest text-success">
                   CSV Batch Uploader
                 </p>
-                <h3 className="mt-2 text-2xl font-black text-white">
+                <h3 className="mt-2 text-2xl font-black text-foreground">
                   Drag in a customer invoice CSV, review each row, then generate links in one batch
                 </h3>
-                <p className="mt-3 max-w-3xl text-sm text-neutral-400">
-                  Accepted columns: <span className="font-mono text-neutral-300">amount, asset, memo, referenceId, username, destination, acceptedAssets, customerName, email</span>.
+                <p className="mt-3 max-w-3xl text-sm text-subtle">
+                  Accepted columns: <span className="font-mono text-muted">amount, asset, memo, referenceId, username, destination, acceptedAssets, customerName, email</span>.
                   Each row needs a positive amount and either a QuickEx username or a Stellar destination.
                 </p>
               </div>
@@ -1392,14 +1392,14 @@ export default function Generator() {
                 <button
                   type="button"
                   onClick={() => csvInputRef.current?.click()}
-                  className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-neutral-100 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                  className={`rounded-2xl border border-border-strong px-4 py-3 text-sm font-semibold text-foreground hover:bg-surface ${FOCUS_RING_CLASS}`}
                 >
                   Choose CSV
                 </button>
                 <button
                   type="button"
                   onClick={resetCsvReview}
-                  className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-neutral-300 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                  className={`rounded-2xl border border-border-strong px-4 py-3 text-sm font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
                 >
                   Clear CSV
                 </button>
@@ -1440,23 +1440,23 @@ export default function Generator() {
               }}
               className={`mt-6 rounded-[28px] border border-dashed px-6 py-10 text-center transition ${
                 csvDragActive
-                  ? "border-emerald-400 bg-emerald-500/10"
-                  : "border-white/15 bg-neutral-950/40 hover:border-white/25 hover:bg-white/[0.03]"
+                  ? "border-emerald-400 bg-success-soft"
+                  : "border-white/15 bg-background/40 hover:border-white/25 hover:bg-surface"
               }`}
             >
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/5 text-2xl">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface text-2xl">
                 📄
               </div>
-              <p className="mt-4 text-lg font-bold text-white">
+              <p className="mt-4 text-lg font-bold text-foreground">
                 {csvFileName ? `Loaded ${csvFileName}` : "Drop a CSV here or click to upload"}
               </p>
-              <p className="mt-2 text-sm text-neutral-400">
+              <p className="mt-2 text-sm text-subtle">
                 We parse the file in-browser first so you can fix invalid amounts, addresses, or routing before submission.
               </p>
             </div>
 
             {csvFileErrors.length > 0 && (
-              <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+              <div className="mt-4 rounded-2xl border border-amber-300/20 bg-warning-soft p-4 text-sm text-warning">
                 {csvFileErrors.map((message) => (
                   <p key={message}>{message}</p>
                 ))}
@@ -1467,8 +1467,8 @@ export default function Generator() {
               <div className="mt-8 space-y-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h4 className="text-xl font-bold text-white">Review table</h4>
-                    <p className="text-sm text-neutral-400">
+                    <h4 className="text-xl font-bold text-foreground">Review table</h4>
+                    <p className="text-sm text-subtle">
                       {validCsvRows.length} of {csvRows.length} rows are valid for generation.
                     </p>
                   </div>
@@ -1483,12 +1483,12 @@ export default function Generator() {
                 </div>
 
                 {bulkLoading && bulkSource === "csv" && (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                    <div className="flex items-center justify-between text-sm font-semibold text-emerald-100">
+                  <div className="rounded-2xl border border-emerald-400/20 bg-success-soft p-4">
+                    <div className="flex items-center justify-between text-sm font-semibold text-success">
                       <span>Processing batch invoices</span>
                       <span>{bulkProgress}%</span>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-background/30">
                       <div
                         className="h-full rounded-full bg-emerald-300 transition-all duration-300"
                         style={{ width: `${bulkProgress}%` }}
@@ -1503,23 +1503,23 @@ export default function Generator() {
                       key={row.id}
                       className={`rounded-3xl border p-4 ${
                         row.errors.length === 0
-                          ? "border-white/10 bg-neutral-950/50"
-                          : "border-amber-400/40 bg-amber-500/10"
+                          ? "border-border-strong bg-background/50"
+                          : "border-amber-400/40 bg-warning-soft"
                       }`}
                     >
                       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-white">
+                          <p className="text-sm font-semibold text-foreground">
                             Row {index + 1} {row.customerName ? `• ${row.customerName}` : ""}
                           </p>
-                          <p className="text-xs text-neutral-500">
+                          <p className="text-xs text-subtle">
                             {row.email || "No email supplied"} {row.referenceId ? `• ${row.referenceId}` : ""}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeCsvRow(row.id)}
-                          className={`rounded-xl border border-red-500/25 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                          className={`rounded-xl border border-red-500/25 px-3 py-2 text-xs font-semibold text-danger hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
                         >
                           Delete row
                         </button>
@@ -1531,61 +1531,61 @@ export default function Generator() {
                           value={row.amount}
                           onChange={(event) => updateCsvRow(row.id, "amount", event.target.value)}
                           placeholder="Amount"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.asset}
                           onChange={(event) => updateCsvRow(row.id, "asset", event.target.value)}
                           placeholder="Asset"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.username}
                           onChange={(event) => updateCsvRow(row.id, "username", event.target.value)}
                           placeholder="QuickEx username"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.destination}
                           onChange={(event) => updateCsvRow(row.id, "destination", event.target.value)}
                           placeholder="Stellar destination"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.memo}
                           onChange={(event) => updateCsvRow(row.id, "memo", event.target.value)}
                           placeholder="Memo"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.referenceId}
                           onChange={(event) => updateCsvRow(row.id, "referenceId", event.target.value)}
                           placeholder="Reference ID"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.customerName}
                           onChange={(event) => updateCsvRow(row.id, "customerName", event.target.value)}
                           placeholder="Customer name"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                         <input
                           type="text"
                           value={row.acceptedAssets}
                           onChange={(event) => updateCsvRow(row.id, "acceptedAssets", event.target.value)}
                           placeholder="Accepted assets (XLM|USDC)"
-                          className={`rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                          className={`rounded-2xl border border-border-strong bg-background/30 px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                         />
                       </div>
 
                       {row.errors.length > 0 && (
-                        <div className="mt-3 rounded-2xl border border-amber-300/20 bg-black/20 p-3 text-xs text-amber-100">
+                        <div className="mt-3 rounded-2xl border border-amber-300/20 bg-card p-3 text-xs text-warning">
                           {row.errors.map((message) => (
                             <p key={`${row.id}-${message}`}>{message}</p>
                           ))}
@@ -1598,14 +1598,14 @@ export default function Generator() {
             )}
 
             {bulkResult && bulkSource === "csv" && (
-              <div className="mt-8 rounded-[32px] border border-emerald-300/25 bg-emerald-500/10 p-6">
-                <p className="text-xs font-black uppercase tracking-widest text-emerald-200">
+              <div className="mt-8 rounded-[32px] border border-emerald-300/25 bg-success-soft p-6">
+                <p className="text-xs font-black uppercase tracking-widest text-success">
                   Batch Success
                 </p>
-                <h4 className="mt-2 text-2xl font-black text-white">
+                <h4 className="mt-2 text-2xl font-black text-foreground">
                   {bulkResult.total} payment link{bulkResult.total === 1 ? "" : "s"} generated
                 </h4>
-                <p className="mt-2 max-w-2xl text-sm text-emerald-100/80">
+                <p className="mt-2 max-w-2xl text-sm text-success/80">
                   Review the exported CSV or copy individual links from the generated output panel below.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -1618,14 +1618,14 @@ export default function Generator() {
                         "text/csv;charset=utf-8",
                       )
                     }
-                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-black text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl bg-card px-4 py-3 text-sm font-black text-foreground hover:bg-surface-strong ${FOCUS_RING_CLASS}`}
                   >
                     Download links CSV
                   </button>
                   <button
                     type="button"
                     onClick={() => navigator.clipboard.writeText(bulkResult.links.map((link) => link.url).join("\n"))}
-                    className={`rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong px-4 py-3 text-sm font-semibold text-foreground hover:bg-surface ${FOCUS_RING_CLASS}`}
                   >
                     Copy all links
                   </button>
@@ -1636,16 +1636,16 @@ export default function Generator() {
 
           <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-8">
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+              <div className="rounded-3xl border border-border-strong bg-background/30 p-6">
                 <div className="flex items-center justify-between gap-4 mb-5">
                   <div>
-                    <h3 className="text-xl font-bold text-white">Invoice templates</h3>
-                    <p className="text-sm text-neutral-400">Line items, tax, notes, and destination asset.</p>
+                    <h3 className="text-xl font-bold text-foreground">Invoice templates</h3>
+                    <p className="text-sm text-subtle">Line items, tax, notes, and destination asset.</p>
                   </div>
                   <button
                     type="button"
                     onClick={resetTemplateForm}
-                    className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-xl border border-border-strong px-3 py-2 text-xs font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
                   >
                     New template
                   </button>
@@ -1659,7 +1659,7 @@ export default function Generator() {
                       setTemplateForm((current) => ({ ...current, name: event.target.value }))
                     }
                     placeholder="Template name"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="text"
@@ -1668,7 +1668,7 @@ export default function Generator() {
                       setTemplateForm((current) => ({ ...current, asset: event.target.value.toUpperCase() }))
                     }
                     placeholder="Asset code"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="number"
@@ -1677,7 +1677,7 @@ export default function Generator() {
                       setTemplateForm((current) => ({ ...current, taxRate: event.target.value }))
                     }
                     placeholder="Tax %"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="text"
@@ -1686,7 +1686,7 @@ export default function Generator() {
                       setTemplateForm((current) => ({ ...current, notes: event.target.value }))
                     }
                     placeholder="Notes"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                 </div>
 
@@ -1697,9 +1697,9 @@ export default function Generator() {
                   }
                   rows={5}
                   placeholder="Description|Qty|Unit Price"
-                  className={`w-full rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                  className={`w-full rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                 />
-                <p className="mt-2 text-xs text-neutral-500">
+                <p className="mt-2 text-xs text-subtle">
                   One line item per row using <span className="font-mono">Description|Qty|Unit Price</span>
                 </p>
 
@@ -1707,14 +1707,14 @@ export default function Generator() {
                   <button
                     type="button"
                     onClick={saveTemplate}
-                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl bg-card px-4 py-3 text-sm font-bold text-foreground hover:bg-surface-strong ${FOCUS_RING_CLASS}`}
                   >
                     {editingTemplateId ? "Update template" : "Save template"}
                   </button>
                   <select
                     value={selectedTemplateId}
                     onChange={(event) => setSelectedTemplateId(event.target.value)}
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   >
                     {templates.map((template) => (
                       <option key={template.id} value={template.id}>
@@ -1731,13 +1731,13 @@ export default function Generator() {
                       className={`rounded-2xl border px-4 py-4 ${
                         selectedTemplateId === template.id
                           ? "border-indigo-400/60 bg-indigo-500/10"
-                          : "border-white/10 bg-white/[0.03]"
+                          : "border-border-strong bg-surface"
                       }`}
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                          <p className="font-semibold text-white">{template.name}</p>
-                          <p className="text-sm text-neutral-400">
+                          <p className="font-semibold text-foreground">{template.name}</p>
+                          <p className="text-sm text-subtle">
                             {template.asset} • subtotal {formatCurrencyAmount(calculateTemplateSubtotal(template))} • tax {formatCurrencyAmount(calculateTemplateTax(template))} • total {formatCurrencyAmount(calculateTemplateTotal(template))}
                           </p>
                         </div>
@@ -1745,14 +1745,14 @@ export default function Generator() {
                           <button
                             type="button"
                             onClick={() => editTemplate(template)}
-                            className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                            className={`rounded-xl border border-border-strong px-3 py-2 text-xs font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => deleteTemplate(template.id)}
-                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-danger hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
                           >
                             Delete
                           </button>
@@ -1763,16 +1763,16 @@ export default function Generator() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+              <div className="rounded-3xl border border-border-strong bg-background/30 p-6">
                 <div className="flex items-center justify-between gap-4 mb-5">
                   <div>
-                    <h3 className="text-xl font-bold text-white">Saved customers</h3>
-                    <p className="text-sm text-neutral-400">Store contact info plus username or Stellar destination.</p>
+                    <h3 className="text-xl font-bold text-foreground">Saved customers</h3>
+                    <p className="text-sm text-subtle">Store contact info plus username or Stellar destination.</p>
                   </div>
                   <button
                     type="button"
                     onClick={resetCustomerForm}
-                    className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-xl border border-border-strong px-3 py-2 text-xs font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
                   >
                     New customer
                   </button>
@@ -1786,7 +1786,7 @@ export default function Generator() {
                       setCustomerForm((current) => ({ ...current, name: event.target.value }))
                     }
                     placeholder="Customer name"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="email"
@@ -1795,7 +1795,7 @@ export default function Generator() {
                       setCustomerForm((current) => ({ ...current, email: event.target.value }))
                     }
                     placeholder="Email"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="text"
@@ -1804,7 +1804,7 @@ export default function Generator() {
                       setCustomerForm((current) => ({ ...current, address: event.target.value }))
                     }
                     placeholder="Stellar address"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                   <input
                     type="text"
@@ -1813,21 +1813,21 @@ export default function Generator() {
                       setCustomerForm((current) => ({ ...current, username: event.target.value }))
                     }
                     placeholder="Username"
-                    className={`rounded-2xl border border-white/10 bg-neutral-900/60 px-4 py-3 text-sm text-white ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl border border-border-strong bg-card px-4 py-3 text-sm text-foreground ${FOCUS_RING_CLASS}`}
                   />
                 </div>
 
                 <button
                   type="button"
                   onClick={saveCustomer}
-                  className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 ${FOCUS_RING_CLASS}`}
+                  className={`rounded-2xl bg-card px-4 py-3 text-sm font-bold text-foreground hover:bg-surface-strong ${FOCUS_RING_CLASS}`}
                 >
                   {editingCustomerId ? "Update customer" : "Save customer"}
                 </button>
 
                 <div className="mt-6 space-y-3">
                   {customers.map((customer) => (
-                    <div key={customer.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                    <div key={customer.id} className="rounded-2xl border border-border-strong bg-surface px-4 py-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <label className="flex items-start gap-3">
                           <input
@@ -1837,9 +1837,9 @@ export default function Generator() {
                             className="mt-1 h-4 w-4"
                           />
                           <div>
-                            <p className="font-semibold text-white">{customer.name}</p>
-                            <p className="text-sm text-neutral-400">{customer.email}</p>
-                            <p className="text-xs text-neutral-500">
+                            <p className="font-semibold text-foreground">{customer.name}</p>
+                            <p className="text-sm text-subtle">{customer.email}</p>
+                            <p className="text-xs text-subtle">
                               {customer.username || customer.address || "Missing payment route"}
                             </p>
                           </div>
@@ -1848,14 +1848,14 @@ export default function Generator() {
                           <button
                             type="button"
                             onClick={() => editCustomer(customer)}
-                            className={`rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-white/5 ${FOCUS_RING_CLASS}`}
+                            className={`rounded-xl border border-border-strong px-3 py-2 text-xs font-semibold text-muted hover:bg-surface ${FOCUS_RING_CLASS}`}
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => deleteCustomer(customer.id)}
-                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
+                            className={`rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-danger hover:bg-red-500/10 ${FOCUS_RING_CLASS}`}
                           >
                             Delete
                           </button>
@@ -1868,56 +1868,56 @@ export default function Generator() {
             </div>
 
             <div className="space-y-8">
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+              <div className="rounded-3xl border border-border-strong bg-background/30 p-6">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-white">Preview</h3>
-                    <p className="text-sm text-neutral-400">These rows are transformed directly into the bulk API payload.</p>
+                    <h3 className="text-xl font-bold text-foreground">Preview</h3>
+                    <p className="text-sm text-subtle">These rows are transformed directly into the bulk API payload.</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void generateBulkInvoices()}
                     disabled={bulkLoading}
-                    className={`rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black hover:bg-neutral-200 disabled:opacity-50 ${FOCUS_RING_CLASS}`}
+                    className={`rounded-2xl bg-card px-4 py-3 text-sm font-bold text-foreground hover:bg-surface-strong disabled:opacity-50 ${FOCUS_RING_CLASS}`}
                   >
                     {bulkLoading ? "Generating..." : "Generate invoices"}
                   </button>
                 </div>
 
                 {bulkError && (
-                  <p className="mb-4 rounded-md border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                  <p className="mb-4 rounded-md border border-amber-300/30 bg-warning-soft px-3 py-2 text-sm text-warning">
                     {bulkError}
                   </p>
                 )}
 
                 <div className="space-y-4">
                   {invoicePreviewRows.map((row) => (
-                    <div key={row.id} className="rounded-2xl border border-white/10 bg-neutral-950/50 p-4">
+                    <div key={row.id} className="rounded-2xl border border-border-strong bg-background/50 p-4">
                       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div>
-                          <p className="font-semibold text-white">{row.customerName}</p>
-                          <p className="text-sm text-neutral-400">{row.email}</p>
-                          <p className="text-xs text-neutral-500">
+                          <p className="font-semibold text-foreground">{row.customerName}</p>
+                          <p className="text-sm text-subtle">{row.email}</p>
+                          <p className="text-xs text-subtle">
                             {row.username ?? row.destination ?? "Missing payment route"}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-black text-white">
+                          <p className="text-lg font-black text-foreground">
                             {formatCurrencyAmount(row.total)} {row.asset}
                           </p>
-                          <p className="text-xs text-neutral-500">{row.referenceId}</p>
+                          <p className="text-xs text-subtle">{row.referenceId}</p>
                         </div>
                       </div>
                       <div className="mt-4 space-y-2">
                         {row.lineItems.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-sm text-neutral-300">
+                          <div key={item.id} className="flex items-center justify-between text-sm text-muted">
                             <span>{item.description}</span>
                             <span className="font-mono">
                               {item.quantity} × {formatCurrencyAmount(item.unitPrice)}
                             </span>
                           </div>
                         ))}
-                        <div className="border-t border-white/10 pt-2 text-sm text-neutral-300">
+                        <div className="border-t border-border-strong pt-2 text-sm text-muted">
                           <div className="flex items-center justify-between">
                             <span>Subtotal</span>
                             <span>{formatCurrencyAmount(row.subtotal)}</span>
@@ -1926,18 +1926,18 @@ export default function Generator() {
                             <span>Tax</span>
                             <span>{formatCurrencyAmount(row.taxAmount)}</span>
                           </div>
-                          <div className="flex items-center justify-between font-semibold text-white">
+                          <div className="flex items-center justify-between font-semibold text-foreground">
                             <span>Total</span>
                             <span>{formatCurrencyAmount(row.total)}</span>
                           </div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-300">
-                          <p className="font-semibold text-neutral-200">Generated memo</p>
+                        <div className="rounded-xl border border-border-strong bg-surface px-3 py-2 text-xs text-muted">
+                          <p className="font-semibold text-muted">Generated memo</p>
                           <p>{row.memo}</p>
                         </div>
                         {row.notes && (
-                          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-neutral-300">
-                            <p className="font-semibold text-neutral-200">Notes</p>
+                          <div className="rounded-xl border border-border-strong bg-surface px-3 py-2 text-xs text-muted">
+                            <p className="font-semibold text-muted">Notes</p>
                             <p>{row.notes}</p>
                           </div>
                         )}
@@ -1945,16 +1945,16 @@ export default function Generator() {
                     </div>
                   ))}
                   {invoicePreviewRows.length === 0 && (
-                    <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-neutral-400">
+                    <p className="rounded-2xl border border-dashed border-border-strong px-4 py-8 text-center text-sm text-subtle">
                       Select a template and at least one saved customer to build the preview.
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Generated output</h3>
-                <div className="rounded-2xl border border-white/10 bg-neutral-950/60 p-4 text-xs text-neutral-300">
+              <div className="rounded-3xl border border-border-strong bg-background/30 p-6">
+                <h3 className="text-xl font-bold text-foreground mb-4">Generated output</h3>
+                <div className="rounded-2xl border border-border-strong bg-background/60 p-4 text-xs text-muted">
                   <pre className="overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify({ links: previewGenerationPayload }, null, 2)}
                   </pre>
@@ -1962,10 +1962,10 @@ export default function Generator() {
                 {bulkResult && (
                   <div className="mt-5 space-y-3">
                     {bulkResult.links.map((link) => (
-                      <div key={link.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                        <p className="font-semibold text-white">{link.referenceId ?? link.id}</p>
-                        <p className="mt-1 break-all text-xs text-neutral-400">{link.url}</p>
-                        <p className="mt-2 text-xs text-neutral-500">{link.canonical}</p>
+                      <div key={link.id} className="rounded-2xl border border-border-strong bg-surface px-4 py-4">
+                        <p className="font-semibold text-foreground">{link.referenceId ?? link.id}</p>
+                        <p className="mt-1 break-all text-xs text-subtle">{link.url}</p>
+                        <p className="mt-2 text-xs text-subtle">{link.canonical}</p>
                       </div>
                     ))}
                   </div>

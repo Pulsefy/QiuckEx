@@ -178,7 +178,7 @@ export default function DeveloperSettings() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="relative min-h-screen text-white selection:bg-indigo-500/30 overflow-x-hidden">
+    <div className="relative min-h-screen text-foreground selection:bg-indigo-500/30 overflow-x-hidden">
       {/* Background glows */}
       <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-20%] right-[-30%] w-[50%] h-[50%] bg-purple-500/5 blur-[100px] pointer-events-none" />
@@ -191,13 +191,13 @@ export default function DeveloperSettings() {
         <nav className="flex gap-3 mb-10">
           <Link
             href="/settings"
-            className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold text-neutral-400 hover:text-white hover:bg-white/5 transition"
+            className="px-4 py-2 rounded-xl border border-border-strong text-sm font-semibold text-subtle hover:text-foreground hover:bg-surface transition"
           >
             General
           </Link>
           <Link
             href="/settings/developer"
-            className="px-4 py-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 text-sm font-semibold"
+            className="px-4 py-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-brand text-sm font-semibold"
           >
             Developer
           </Link>
@@ -207,7 +207,7 @@ export default function DeveloperSettings() {
         {error && (
           <div className="mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-4 text-red-300 hover:text-white text-xs font-bold">
+            <button onClick={() => setError(null)} className="ml-4 text-danger hover:text-foreground text-xs font-bold">
               Dismiss
             </button>
           </div>
@@ -215,11 +215,11 @@ export default function DeveloperSettings() {
 
         <div className="space-y-6">
           {/* API Keys section */}
-          <section className="p-6 rounded-3xl bg-neutral-900/40 border border-white/5 space-y-6">
+          <section className="p-6 rounded-3xl bg-card border border-border space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold">API Keys</h2>
-                <p className="text-sm text-neutral-500 mt-1">
+                <p className="text-sm text-subtle mt-1">
                   Manage keys used to authenticate requests to the QuickEx API.
                 </p>
               </div>
@@ -234,13 +234,13 @@ export default function DeveloperSettings() {
             {/* Key list */}
             <div className="space-y-3">
               {loadingKeys && (
-                <div className="text-center py-10 text-neutral-600 text-sm">
+                <div className="text-center py-10 text-faint text-sm">
                   Loading keys…
                 </div>
               )}
 
               {!loadingKeys && keys.length === 0 && (
-                <div className="text-center py-10 text-neutral-600 text-sm">
+                <div className="text-center py-10 text-faint text-sm">
                   No API keys yet. Create one to get started.
                 </div>
               )}
@@ -255,7 +255,7 @@ export default function DeveloperSettings() {
                 return (
                   <div
                     key={key.id}
-                    className="flex flex-col sm:flex-row sm:items-start gap-4 p-4 rounded-2xl bg-black/30 border border-white/5"
+                    className="flex flex-col sm:flex-row sm:items-start gap-4 p-4 rounded-2xl bg-background/30 border border-border"
                   >
                     {/* Key info */}
                     <div className="flex-1 min-w-0 space-y-2">
@@ -264,13 +264,13 @@ export default function DeveloperSettings() {
                         {key.scopes.map((scope) => (
                           <span
                             key={scope}
-                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border text-indigo-300 border-indigo-500/30 bg-indigo-500/10"
+                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border text-brand border-indigo-500/30 bg-indigo-500/10"
                           >
                             {scope}
                           </span>
                         ))}
                       </div>
-                      <div className="font-mono text-sm text-neutral-400 truncate">
+                      <div className="font-mono text-sm text-subtle truncate">
                         {displayKey}
                       </div>
                       {key.rawKey && (
@@ -278,7 +278,7 @@ export default function DeveloperSettings() {
                           Save this key now — it won&apos;t be shown again.
                         </p>
                       )}
-                      <div className="text-xs text-neutral-600">
+                      <div className="text-xs text-faint">
                         Created{" "}
                         {new Date(key.created_at).toLocaleDateString("en-US", {
                           month: "short",
@@ -295,7 +295,7 @@ export default function DeveloperSettings() {
                             })}
                           </span>
                         )}
-                        <span className="ml-2 text-neutral-700">
+                        <span className="ml-2 text-faint">
                           {key.request_count.toLocaleString()} requests
                         </span>
                       </div>
@@ -306,7 +306,7 @@ export default function DeveloperSettings() {
                       {!key.rawKey && (
                         <button
                           onClick={() => toggleReveal(key.id)}
-                          className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition"
+                          className="px-3 py-2 rounded-xl bg-surface border border-border-strong text-xs font-semibold text-muted hover:bg-surface-strong hover:text-foreground transition"
                         >
                           {key.revealed ? "Hide" : "Reveal"}
                         </button>
@@ -314,7 +314,7 @@ export default function DeveloperSettings() {
 
                       <button
                         onClick={() => copyKey(key.id, key.rawKey ?? key.key_prefix)}
-                        className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition"
+                        className="px-3 py-2 rounded-xl bg-surface border border-border-strong text-xs font-semibold text-muted hover:bg-surface-strong hover:text-foreground transition"
                       >
                         {key.copyLabel === "Copied!" ? "✓ Copied!" : "⧉ Copy"}
                       </button>
@@ -322,7 +322,7 @@ export default function DeveloperSettings() {
                       <button
                         onClick={() => rotateKey(key.id)}
                         disabled={rotatingId === key.id}
-                        className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-40 transition"
+                        className="px-3 py-2 rounded-xl bg-surface border border-border-strong text-xs font-semibold text-muted hover:bg-surface-strong hover:text-foreground disabled:opacity-40 transition"
                       >
                         {rotatingId === key.id ? "Rotating…" : "↻ Rotate"}
                       </button>
@@ -337,7 +337,7 @@ export default function DeveloperSettings() {
                           </button>
                           <button
                             onClick={() => setRevokeId(null)}
-                            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-neutral-400 hover:text-white transition"
+                            className="px-3 py-2 rounded-xl bg-surface border border-border-strong text-xs font-semibold text-subtle hover:text-foreground transition"
                           >
                             Cancel
                           </button>
@@ -345,7 +345,7 @@ export default function DeveloperSettings() {
                       ) : (
                         <button
                           onClick={() => setRevokeId(key.id)}
-                          className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition"
+                          className="px-3 py-2 rounded-xl bg-surface border border-border-strong text-xs font-semibold text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition"
                         >
                           Revoke
                         </button>
@@ -358,10 +358,10 @@ export default function DeveloperSettings() {
           </section>
 
           {/* Usage quota section */}
-          <section className="p-6 rounded-3xl bg-neutral-900/40 border border-white/5 space-y-4">
+          <section className="p-6 rounded-3xl bg-card border border-border space-y-4">
             <div>
               <h2 className="text-xl font-bold">Monthly Usage</h2>
-              <p className="text-sm text-neutral-500 mt-1">
+              <p className="text-sm text-subtle mt-1">
                 API requests used this billing period across all keys.
               </p>
             </div>
@@ -370,24 +370,24 @@ export default function DeveloperSettings() {
               <div className="flex justify-between items-end">
                 <span className="text-3xl font-black">
                   {usedRequests.toLocaleString()}
-                  <span className="text-lg text-neutral-500 font-semibold ml-1">
+                  <span className="text-lg text-subtle font-semibold ml-1">
                     / {quota.toLocaleString()}
                   </span>
                 </span>
-                <span className="text-sm font-bold text-neutral-400">
+                <span className="text-sm font-bold text-subtle">
                   {usagePercent}% used
                 </span>
               </div>
 
               {/* Progress bar */}
-              <div className="h-2.5 w-full rounded-full bg-white/5 overflow-hidden">
+              <div className="h-2.5 w-full rounded-full bg-surface overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${usageColor}`}
                   style={{ width: `${usagePercent}%` }}
                 />
               </div>
 
-              <p className="text-xs text-neutral-600">
+              <p className="text-xs text-faint">
                 {(quota - usedRequests).toLocaleString()} requests remaining.
                 Resets on {resetLabel}.
               </p>
@@ -395,7 +395,7 @@ export default function DeveloperSettings() {
           </section>
 
           {/* Scope reference */}
-          <section className="p-6 rounded-3xl bg-neutral-900/40 border border-white/5 space-y-4">
+          <section className="p-6 rounded-3xl bg-card border border-border space-y-4">
             <h2 className="text-xl font-bold">Scope Reference</h2>
             <div className="grid sm:grid-cols-2 gap-4">
               {[
@@ -408,10 +408,10 @@ export default function DeveloperSettings() {
                   key={scope}
                   className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 space-y-1"
                 >
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 font-mono">
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-brand border border-indigo-500/30 bg-indigo-500/10 font-mono">
                     {scope}
                   </span>
-                  <p className="text-sm text-neutral-400 mt-2">{desc}</p>
+                  <p className="text-sm text-subtle mt-2">{desc}</p>
                 </div>
               ))}
             </div>
