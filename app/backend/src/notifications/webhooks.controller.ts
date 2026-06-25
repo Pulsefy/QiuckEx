@@ -29,6 +29,9 @@ import {
   WebhookDeliveryLogDto,
   WebhookStatsDto,
   RedeliverWebhookDto,
+  WebhookDeliveryStatusDto,
+  WebhookReplayLogDto,
+  WebhookRedeliverResponseDto,
 } from "./dto/webhook.dto";
 import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 
@@ -248,47 +251,103 @@ export class WebhooksController {
   @ApiOperation({
     summary: "Redeliver a specific event",
     description:
-      "Trigger immediate redelivery of a previously failed or specific event. Useful for consumers to replay events without waiting for the retry scheduler.",
+      "Trigger immediate redelivery of a previously failed or specific event. Rate-limited with per-event cooldown and per-webhook quotas to prevent replay storms.",
   })
   @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
   @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
   @ApiResponse({
     status: 200,
     description: "Redelivery triggered",
-    schema: {
-      type: "object",
-      properties: {
-        queued: { type: "boolean" },
-        message: { type: "string" },
-      },
-    },
+    type: WebhookRedeliverResponseDto,
   })
-  @ApiResponse({ status: 404, description: "Webhook not found" })
+  @ApiResponse({ status: 404, description: "Webhook or delivery not found" })
+  @ApiResponse({ status: 409, description: "Delivery already in progress" })
+  @ApiResponse({ status: 429, description: "Replay cooldown or quota exceeded" })
   async redeliverEvent(
     @Param("publicKey") publicKey: string,
     @Param("id") id: string,
     @Body() dto: RedeliverWebhookDto,
-  ): Promise<{ queued: boolean; message: string }> {
+  ): Promise<WebhookRedeliverResponseDto> {
     const webhook = await this.webhookService.getWebhook(id);
     if (!webhook || webhook.publicKey !== publicKey) {
       throw new NotFoundException("Webhook not found");
     }
 
-    const queued = await this.webhookService.redeliverEvent(
+    const result = await this.webhookService.redeliverEvent(
       publicKey,
+      id,
       dto.eventId,
       dto.eventType,
     );
 
     this.logger.log(
-      `Redeliver requested: ${dto.eventType}/${dto.eventId} for ${publicKey.slice(0, 8)}... -> ${queued ? "queued" : "failed"}`,
+      `Redeliver requested: ${dto.eventType}/${dto.eventId} for ${publicKey.slice(0, 8)}... -> ${result.deliverySuccess ? "succeeded" : "attempted"}`,
     );
 
-    return {
-      queued,
-      message: queued
-        ? "Event redelivery triggered successfully"
-        : "Redelivery failed — check delivery logs for details",
-    };
+    return result;
+  }
+
+  @Get(":publicKey/:id/deliveries/:eventType/:eventId")
+  @ApiOperation({
+    summary: "Get webhook delivery status for an event",
+    description:
+      "Visibility into retry schedule, last error, DLQ reason, and replay history for a specific event delivery.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiParam({ name: "eventType", description: "Event type" })
+  @ApiParam({ name: "eventId", description: "Event ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Delivery status",
+    type: WebhookDeliveryStatusDto,
+  })
+  @ApiResponse({ status: 404, description: "Webhook or delivery not found" })
+  async getDeliveryStatus(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Param("eventType") eventType: string,
+    @Param("eventId") eventId: string,
+  ): Promise<WebhookDeliveryStatusDto> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    return this.webhookService.getDeliveryStatus(publicKey, eventId, eventType);
+  }
+
+  @Get(":publicKey/:id/replays")
+  @ApiOperation({
+    summary: "List manual replay history for a webhook",
+    description: "Queryable audit trail of replay API calls for this webhook.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description: "Maximum replay log entries (1-100)",
+    example: 50,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Replay audit log",
+    type: [WebhookReplayLogDto],
+  })
+  async getReplayHistory(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Query("limit") limit?: number,
+  ): Promise<WebhookReplayLogDto[]> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    return this.webhookService.getReplayHistory(
+      id,
+      limit ? Number(limit) : undefined,
+    );
   }
 }

@@ -196,3 +196,51 @@ export class RedeliverWebhookDto {
   @IsIn(WEBHOOK_EVENTS)
   eventType!: string;
 }
+
+export class WebhookDeliveryStatusDto {
+  @ApiProperty() eventId!: string;
+  @ApiProperty() eventType!: string;
+  @ApiProperty({
+    description: "pending | sent | failed | dlq",
+  })
+  status!: string;
+  @ApiProperty() attempts!: number;
+  @ApiProperty() maxAttempts!: number;
+  @ApiPropertyOptional() lastError?: string;
+  @ApiPropertyOptional({
+    description: "Reason the delivery was moved to DLQ (last error when exhausted)",
+  })
+  dlqReason?: string;
+  @ApiPropertyOptional({
+    description: "Scheduled automatic retry time (ISO-8601) when status is failed",
+  })
+  nextRetryAt?: string;
+  @ApiPropertyOptional() httpStatus?: number;
+  @ApiPropertyOptional() responseBody?: string;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+  @ApiPropertyOptional() deliveredAt?: string;
+  @ApiProperty({
+    description: "Count of manual replay API calls for this event",
+  })
+  replayCount!: number;
+  @ApiPropertyOptional() lastReplayAt?: string;
+}
+
+export class WebhookReplayLogDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() eventType!: string;
+  @ApiProperty() eventId!: string;
+  @ApiProperty() status!: string;
+  @ApiPropertyOptional() reason?: string;
+  @ApiProperty() triggeredBy!: string;
+  @ApiPropertyOptional() deliverySuccess?: boolean;
+  @ApiProperty() createdAt!: string;
+}
+
+export class WebhookRedeliverResponseDto {
+  @ApiProperty() queued!: boolean;
+  @ApiProperty() message!: string;
+  @ApiPropertyOptional() replayId?: string;
+  @ApiPropertyOptional() deliverySuccess?: boolean;
+}

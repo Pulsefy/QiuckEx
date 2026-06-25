@@ -5,10 +5,10 @@ import { NotificationLogRepository } from "./notification-log.repository";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { WebhookProvider } from "./providers/notification-provider.interface";
 import type { BaseNotificationPayload } from "./types/notification.types";
-
-/** Retry delays in milliseconds: 1m, 5m, 30m, 2h */
-const RETRY_DELAYS_MS = [60_000, 300_000, 1_800_000, 7_200_000];
-const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1; // 5 total (1 initial + 4 retries)
+import {
+  WEBHOOK_MAX_DELIVERY_ATTEMPTS,
+  WEBHOOK_RETRY_DELAYS_MS,
+} from "./webhook-retry.constants";
 
 @Injectable()
 export class WebhookRetryScheduler {
@@ -22,11 +22,13 @@ export class WebhookRetryScheduler {
 
   /**
    * Runs every minute to pick up failed webhook deliveries that are due for retry.
-   * After MAX_ATTEMPTS the entry stays in "failed" status (DLQ — inspectable via logs API).
+   * After MAX_ATTEMPTS the entry moves to DLQ status (inspectable via delivery API).
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async retryFailedWebhooks(): Promise<void> {
-    const pending = await this.logRepo.getPendingRetries(MAX_ATTEMPTS);
+    const pending = await this.logRepo.getPendingRetries(
+      WEBHOOK_MAX_DELIVERY_ATTEMPTS,
+    );
     const webhookPending = pending.filter((r) => r.channel === "webhook");
 
     if (webhookPending.length === 0) return;
@@ -34,12 +36,14 @@ export class WebhookRetryScheduler {
     this.logger.debug(`Retrying ${webhookPending.length} failed webhook(s)`);
 
     for (const entry of webhookPending) {
-      const delayMs = RETRY_DELAYS_MS[entry.attempts - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
+      const delayMs =
+        WEBHOOK_RETRY_DELAYS_MS[entry.attempts - 1] ??
+        WEBHOOK_RETRY_DELAYS_MS[WEBHOOK_RETRY_DELAYS_MS.length - 1];
       const nextRetryAt = new Date(
         new Date(entry.lastFailedAt ?? Date.now()).getTime() + delayMs,
       );
 
-      if (nextRetryAt > new Date()) continue; // not yet due
+      if (nextRetryAt > new Date()) continue;
 
       await this.attemptRedelivery(
         entry.publicKey,
@@ -78,7 +82,6 @@ export class WebhookRetryScheduler {
       return false;
     }
 
-    // Reconstruct a minimal payload from the log entry for redelivery
     const payload: BaseNotificationPayload = {
       eventType: eventType as never,
       eventId,
@@ -116,13 +119,13 @@ export class WebhookRetryScheduler {
           message,
         );
 
-        if (currentAttempts + 1 >= MAX_ATTEMPTS) {
+        if (currentAttempts + 1 >= WEBHOOK_MAX_DELIVERY_ATTEMPTS) {
           this.logger.warn(
-            `Webhook DLQ: ${eventType}/${eventId} exhausted ${MAX_ATTEMPTS} attempts. Last error: ${message}`,
+            `Webhook DLQ: ${eventType}/${eventId} exhausted ${WEBHOOK_MAX_DELIVERY_ATTEMPTS} attempts. Last error: ${message}`,
           );
         } else {
           this.logger.debug(
-            `Webhook retry failed (attempt ${currentAttempts + 1}/${MAX_ATTEMPTS}): ${message}`,
+            `Webhook retry failed (attempt ${currentAttempts + 1}/${WEBHOOK_MAX_DELIVERY_ATTEMPTS}): ${message}`,
           );
         }
       }
