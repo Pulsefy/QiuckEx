@@ -1,27 +1,30 @@
-[workspace]
-resolver = "2"
-members = [
-  "contracts/quickex",
-]
+[package]
+name = "quickex-contract"
+version = "0.2.0"
+edition = "2021"
+description = "QuickEx payment-link Soroban contract — storage-compaction pass (SC-W6-06)"
 
-[workspace.dependencies]
-soroban-sdk = "23"
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bench]]
+name = "storage_bench"
+harness = false
+
+[features]
+testutils = ["soroban-sdk/testutils"]
+
+[dependencies]
+soroban-sdk = { version = "21.0.0", features = [] }
+
+[dev-dependencies]
+soroban-sdk   = { version = "21.0.0", features = ["testutils"] }
+criterion     = { version = "0.5", features = ["html_reports"] }
 
 [profile.release]
-opt-level = "z"
+opt-level     = "z"
 overflow-checks = true
-debug = 0
-strip = "symbols"
-debug-assertions = false
-panic = "abort"
+debug         = 0
+strip         = "symbols"
+lto           = true
 codegen-units = 1
-lto = true
-
-# For more information about this profile see https://soroban.stellar.org/docs/basic-tutorials/logging#cargotoml-profile
-[profile.release-with-logs]
-inherits = "release"
-debug-assertions = true
-
-[profile.test]
-opt-level = 0
-debug = true
