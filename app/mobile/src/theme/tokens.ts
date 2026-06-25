@@ -1,10 +1,11 @@
 /**
- * Theme System v2 — Token Engine (MOB-28)
+ * Theme System v2 — Token Engine (MOB-28 + MOB-37)
  *
  * Strictly-typed, token-based design system supporting:
  *   - Light / Dark / System / Brand modes
  *   - Per-profile persistence via AsyncStorage
  *   - WCAG 2.1 AA compliant contrast (≥ 4.5:1 for text)
+ *   - MOB-37: Full semantic token coverage for Payment, Receipt, Settings, Notification screens
  *
  * All colour values intentionally use hex strings for RN/Expo compatibility.
  */
@@ -42,6 +43,49 @@ export interface StatusColors {
 }
 
 /**
+ * MOB-37: State colours for interactive feedback (selected, highlighted, etc.)
+ */
+export interface StateColors {
+  readonly highlight: string;      // Unread notifications, hover states
+  readonly selected: string;       // Active selection background
+  readonly pressed: string;        // Touch feedback
+}
+
+/**
+ * MOB-37: Action colours for CTAs and interactive elements
+ */
+export interface ActionColors {
+  readonly primary: string;        // Main CTA background
+  readonly primaryHover: string;   // CTA hover/pressed
+  readonly secondary: string;      // Secondary action
+  readonly danger: string;       // Destructive actions
+  readonly success: string;      // Positive actions
+  readonly warning: string;        // Caution actions
+}
+
+/**
+ * MOB-37: Input-specific tokens for form fields
+ */
+export interface InputTokens {
+  readonly bg: string;
+  readonly border: string;
+  readonly borderFocus: string;
+  readonly text: string;
+  readonly placeholder: string;
+}
+
+/**
+ * MOB-37: Shadow/elevation tokens (RN-compatible)
+ */
+export interface ShadowTokens {
+  readonly color: string;
+  readonly opacity: number;
+  readonly offset: { width: number; height: number };
+  readonly radius: number;
+  readonly elevation: number;
+}
+
+/**
  * Complete design-token contract that every theme must satisfy.
  *
  * Zero-Any Policy: this is the single source of truth — every key is required,
@@ -70,6 +114,9 @@ export interface ThemeTokens {
   readonly borderLight: string;
   readonly divider: string;
 
+  // ── MOB-37: Text inverse (for buttons, badges) ────────────────────────
+  readonly textInverse: string;
+
   // ── Interactive ───────────────────────────────────────────────────────
   readonly buttonPrimaryBg: string;
   readonly buttonPrimaryText: string;
@@ -86,6 +133,15 @@ export interface ThemeTokens {
   readonly chipActiveBg: string;
   readonly chipText: string;
   readonly chipActiveText: string;
+
+  // ── MOB-37: Structured input tokens ─────────────────────────────────────
+  readonly input: InputTokens;
+
+  // ── MOB-37: Structured action tokens ──────────────────────────────────
+  readonly action: ActionColors;
+
+  // ── MOB-37: Structured state tokens ───────────────────────────────────
+  readonly state: StateColors;
 
   // ── Navigation ────────────────────────────────────────────────────────
   readonly headerBg: string;
@@ -118,6 +174,10 @@ export interface ThemeTokens {
 
   // ── Swatch preview colours (for the selector) ─────────────────────────
   readonly swatchPreview: readonly [string, string, string, string];
+
+  // ── MOB-37: Elevation/shadow tokens ────────────────────────────────────
+  readonly shadow: ShadowTokens;
+  readonly shadowElevated: ShadowTokens;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +207,9 @@ export const LightTheme: ThemeTokens = {
   borderLight: '#F3F4F6',
   divider: '#E5E5E5',
 
+  // MOB-37: Text inverse for buttons/badges on dark backgrounds
+  textInverse: '#FFFFFF',
+
   buttonPrimaryBg: '#111827',
   buttonPrimaryText: '#FFFFFF',
   buttonSecondaryBg: 'transparent',
@@ -162,6 +225,32 @@ export const LightTheme: ThemeTokens = {
   chipActiveBg: '#111827',
   chipText: '#374151',
   chipActiveText: '#FFFFFF',
+
+  // MOB-37: Structured input tokens
+  input: {
+    bg: '#F5F5F5',
+    border: '#E5E7EB',
+    borderFocus: '#111827',
+    text: '#111827',
+    placeholder: '#9CA3AF',
+  },
+
+  // MOB-37: Structured action tokens
+  action: {
+    primary: '#111827',
+    primaryHover: '#374151',
+    secondary: '#6B7280',
+    danger: '#EF4444',
+    success: '#10B981',
+    warning: '#F59E0B',
+  },
+
+  // MOB-37: Structured state tokens
+  state: {
+    highlight: '#EFF6FF',     // Unread notification bg
+    selected: '#EEF2FF',        // Selected chip/item
+    pressed: 'rgba(0, 0, 0, 0.04)', // Touch feedback
+  },
 
   headerBg: '#FFFFFF',
   tabIconDefault: '#687076',
@@ -194,6 +283,22 @@ export const LightTheme: ThemeTokens = {
   link: '#0A7EA4',
 
   swatchPreview: ['#FFFFFF', '#111827', '#0A7EA4', '#10B981'],
+
+  // MOB-37: Shadow tokens
+  shadow: {
+    color: '#000000',
+    opacity: 0.05,
+    offset: { width: 0, height: 2 },
+    radius: 8,
+    elevation: 2,
+  },
+  shadowElevated: {
+    color: '#000000',
+    opacity: 0.1,
+    offset: { width: 0, height: 4 },
+    radius: 16,
+    elevation: 4,
+  },
 } as const;
 
 /**
@@ -219,6 +324,9 @@ export const DarkTheme: ThemeTokens = {
   borderLight: '#22252D',
   divider: '#2D3139',
 
+  // MOB-37: Text inverse for buttons/badges on light backgrounds
+  textInverse: '#0F1115',
+
   buttonPrimaryBg: '#FFFFFF',
   buttonPrimaryText: '#111827',
   buttonSecondaryBg: 'transparent',
@@ -234,6 +342,32 @@ export const DarkTheme: ThemeTokens = {
   chipActiveBg: '#ECEDEE',
   chipText: '#9BA1A6',
   chipActiveText: '#111827',
+
+  // MOB-37: Structured input tokens
+  input: {
+    bg: '#1A1D23',
+    border: '#2D3139',
+    borderFocus: '#ECEDEE',
+    text: '#ECEDEE',
+    placeholder: '#6B7280',
+  },
+
+  // MOB-37: Structured action tokens
+  action: {
+    primary: '#FFFFFF',
+    primaryHover: '#E5E7EB',
+    secondary: '#9CA3AF',
+    danger: '#DC2626',
+    success: '#34D399',
+    warning: '#FBBF24',
+  },
+
+  // MOB-37: Structured state tokens
+  state: {
+    highlight: '#1E3A5F',     // Unread notification bg (dark blue tint)
+    selected: '#312E81',      // Selected chip/item (indigo tint)
+    pressed: 'rgba(255, 255, 255, 0.06)', // Touch feedback
+  },
 
   headerBg: '#0F1115',
   tabIconDefault: '#9BA1A6',
@@ -266,6 +400,22 @@ export const DarkTheme: ThemeTokens = {
   link: '#60A5FA',
 
   swatchPreview: ['#0F1115', '#ECEDEE', '#60A5FA', '#34D399'],
+
+  // MOB-37: Shadow tokens (subtle in dark mode)
+  shadow: {
+    color: '#000000',
+    opacity: 0.2,
+    offset: { width: 0, height: 2 },
+    radius: 8,
+    elevation: 2,
+  },
+  shadowElevated: {
+    color: '#000000',
+    opacity: 0.3,
+    offset: { width: 0, height: 4 },
+    radius: 16,
+    elevation: 4,
+  },
 } as const;
 
 /**
@@ -292,6 +442,9 @@ export const QuickExBlueTheme: ThemeTokens = {
   borderLight: '#162340',
   divider: '#1E2D4D',
 
+  // MOB-37
+  textInverse: '#0B1120',
+
   buttonPrimaryBg: '#3B82F6',
   buttonPrimaryText: '#FFFFFF',
   buttonSecondaryBg: 'transparent',
@@ -307,6 +460,30 @@ export const QuickExBlueTheme: ThemeTokens = {
   chipActiveBg: '#3B82F6',
   chipText: '#94A3C7',
   chipActiveText: '#FFFFFF',
+
+  // MOB-37
+  input: {
+    bg: '#111B2E',
+    border: '#1E2D4D',
+    borderFocus: '#3B82F6',
+    text: '#F0F4FF',
+    placeholder: '#5B6B8E',
+  },
+
+  action: {
+    primary: '#3B82F6',
+    primaryHover: '#2563EB',
+    secondary: '#60A5FA',
+    danger: '#DC2626',
+    success: '#34D399',
+    warning: '#FBBF24',
+  },
+
+  state: {
+    highlight: '#0F2340',
+    selected: '#1E3A5F',
+    pressed: 'rgba(59, 130, 246, 0.15)',
+  },
 
   headerBg: '#0B1120',
   tabIconDefault: '#5B6B8E',
@@ -339,6 +516,22 @@ export const QuickExBlueTheme: ThemeTokens = {
   link: '#60A5FA',
 
   swatchPreview: ['#0B1120', '#3B82F6', '#60A5FA', '#34D399'],
+
+  // MOB-37
+  shadow: {
+    color: '#000000',
+    opacity: 0.3,
+    offset: { width: 0, height: 2 },
+    radius: 8,
+    elevation: 2,
+  },
+  shadowElevated: {
+    color: '#000000',
+    opacity: 0.4,
+    offset: { width: 0, height: 4 },
+    radius: 16,
+    elevation: 4,
+  },
 } as const;
 
 /**
@@ -365,6 +558,9 @@ export const PulsefyPurpleTheme: ThemeTokens = {
   borderLight: '#231A40',
   divider: '#2D1F50',
 
+  // MOB-37
+  textInverse: '#100B1F',
+
   buttonPrimaryBg: '#8B5CF6',
   buttonPrimaryText: '#FFFFFF',
   buttonSecondaryBg: 'transparent',
@@ -380,6 +576,30 @@ export const PulsefyPurpleTheme: ThemeTokens = {
   chipActiveBg: '#8B5CF6',
   chipText: '#B8A5D4',
   chipActiveText: '#FFFFFF',
+
+  // MOB-37
+  input: {
+    bg: '#1A1230',
+    border: '#2D1F50',
+    borderFocus: '#8B5CF6',
+    text: '#F5F0FF',
+    placeholder: '#7B6A96',
+  },
+
+  action: {
+    primary: '#8B5CF6',
+    primaryHover: '#7C3AED',
+    secondary: '#A78BFA',
+    danger: '#DC2626',
+    success: '#34D399',
+    warning: '#FBBF24',
+  },
+
+  state: {
+    highlight: '#231A40',
+    selected: '#2D1F50',
+    pressed: 'rgba(139, 92, 246, 0.15)',
+  },
 
   headerBg: '#100B1F',
   tabIconDefault: '#7B6A96',
@@ -412,6 +632,22 @@ export const PulsefyPurpleTheme: ThemeTokens = {
   link: '#A78BFA',
 
   swatchPreview: ['#100B1F', '#8B5CF6', '#A78BFA', '#34D399'],
+
+  // MOB-37
+  shadow: {
+    color: '#000000',
+    opacity: 0.3,
+    offset: { width: 0, height: 2 },
+    radius: 8,
+    elevation: 2,
+  },
+  shadowElevated: {
+    color: '#000000',
+    opacity: 0.4,
+    offset: { width: 0, height: 4 },
+    radius: 16,
+    elevation: 4,
+  },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -434,3 +670,50 @@ export const BrandThemes: readonly ThemeTokens[] = [
 
 /** Every available theme (for iteration). */
 export const AllThemes: readonly ThemeTokens[] = Object.values(ThemeRegistry);
+
+// ---------------------------------------------------------------------------
+// 4. MOB-37: Theme resolution helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a token value for a given theme mode.
+ * When mode is 'system', falls back to the provided system preference.
+ */
+export function resolveToken<T extends { light: string; dark: string }>(
+  token: T,
+  mode: ThemeMode,
+  systemPreference: 'light' | 'dark' = 'light'
+): string {
+  if (mode === 'system') {
+    return systemPreference === 'dark' ? token.dark : token.light;
+  }
+  if (mode === 'brand') {
+    // Brand themes are dark-based; adjust if light brand themes are added
+    return token.dark;
+  }
+  return mode === 'dark' ? token.dark : token.light;
+}
+
+/**
+ * MOB-37: Get shadow styles object for React Native
+ */
+export function getShadowStyles(theme: ThemeTokens, elevated: boolean = false) {
+  const shadow = elevated ? theme.shadowElevated : theme.shadow;
+  return {
+    shadowColor: shadow.color,
+    shadowOffset: shadow.offset,
+    shadowOpacity: shadow.opacity,
+    shadowRadius: shadow.radius,
+    elevation: shadow.elevation,
+  };
+}
+
+/**
+ * MOB-37: Get status color config for a given status type
+ */
+export function getStatusColors(theme: ThemeTokens, status: 'success' | 'warning' | 'error' | 'info') {
+  return {
+    text: theme.status[status],
+    bg: theme.status[`${status}Bg` as keyof StatusColors],
+  };
+}
