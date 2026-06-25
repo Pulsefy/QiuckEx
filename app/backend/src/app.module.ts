@@ -1,10 +1,10 @@
 import {
-  Module,
-  MiddlewareConsumer,
-  NestModule,
-  Type,
-  DynamicModule,
-  ForwardReference,
+Module,
+MiddlewareConsumer,
+NestModule,
+Type,
+DynamicModule,
+ForwardReference,
 } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
@@ -50,105 +50,102 @@ import { throttlerModuleProfiles } from "./config/rate-limit.config";
 import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
 import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
+import { OperationsModule } from "./operations/operations.module";
 
 type AppImport =
-  | Type<unknown>
-  | DynamicModule
-  | Promise<DynamicModule>
-  | ForwardReference<unknown>;
+| Type<unknown>
+| DynamicModule
+| Promise<DynamicModule>
+| ForwardReference<unknown>;
 
 @Module({
-  imports: ((): AppImport[] => {
-    const baseImports: AppImport[] = [
-      SentryModule,
-      AppConfigModule,
-      // ScheduleModule registered once here — shared by NotificationsModule and ReconciliationModule
-      ScheduleModule.forRoot(),
-      EventEmitterModule.forRoot({
-        wildcard: true,
-        delimiter: ".",
-      }),
-      ThrottlerModule.forRoot(throttlerModuleProfiles),
-      SupabaseModule,
-      HealthModule,
-      AssetMetadataModule,
-      StellarModule,
-      UsernamesModule,
-      MetricsModule,
-      AnalyticsModule,
-      LinksModule,
-      ScamAlertsModule,
-      TransactionsModule,
-      PaymentsModule,
-      IngestionModule,
-      ApiKeysModule,
-      MarketplaceModule,
-      FiatRampsModule,
-      RefundsModule,
-      ExportsModule,
-      JobQueueModule,
-      AuditModule,
-      ContractsModule,
-      FeatureFlagsModule,
-      PrivacyModule,
-      SorobanToolingModule,
-      EnvironmentParityModule,
-      IndexerLagModule,
-      SupportBundleModule,
-    ];
+imports: ((): AppImport[] => {
+const baseImports: AppImport[] = [
+SentryModule,
+AppConfigModule,
+ScheduleModule.forRoot(),
+EventEmitterModule.forRoot({
+wildcard: true,
+delimiter: ".",
+}),
+ThrottlerModule.forRoot(throttlerModuleProfiles),
+SupabaseModule,
+HealthModule,
+AssetMetadataModule,
+StellarModule,
+UsernamesModule,
+MetricsModule,
+AnalyticsModule,
+LinksModule,
+ScamAlertsModule,
+TransactionsModule,
+PaymentsModule,
+IngestionModule,
+ApiKeysModule,
+MarketplaceModule,
+FiatRampsModule,
+RefundsModule,
+ExportsModule,
+JobQueueModule,
+AuditModule,
+ContractsModule,
+FeatureFlagsModule,
+PrivacyModule,
+SorobanToolingModule,
+EnvironmentParityModule,
+IndexerLagModule,
+SupportBundleModule,
+OperationsModule,
+];
 
-    // In development, if SUPABASE_URL points to a localhost placeholder (i.e. you don't
-    // have a running Supabase instance), skip loading the Reconciliation module which
-    // interacts with Supabase and runs scheduled jobs. This avoids noisy network errors
-    // during local development and recording sessions.
-    try {
-      const supabaseUrl = process.env.SUPABASE_URL ?? "";
-      const isLocalSupabase =
-        supabaseUrl.includes("localhost") || supabaseUrl.includes("127.0.0.1");
+try {
+  const supabaseUrl = process.env.SUPABASE_URL ?? "";
+  const isLocalSupabase =
+    supabaseUrl.includes("localhost") ||
+    supabaseUrl.includes("127.0.0.1");
 
-      // Only load Reconciliation & Notifications modules when Supabase is real/reachable.
-      if (!isLocalSupabase) {
-        baseImports.push(ReconciliationModule as AppImport);
-        baseImports.push(NotificationsModule as AppImport);
-        baseImports.push(DeveloperModule as AppImport);
-      } else {
-        // eslint-disable-next-line no-console
-        console.log(
-          "Skipping Reconciliation & Notifications modules in dev (local Supabase)",
-        );
-      }
-    } catch (e) {
-      // If anything goes wrong, default to including the modules.
-      baseImports.push(ReconciliationModule as AppImport);
-      baseImports.push(NotificationsModule as AppImport);
-      baseImports.push(DeveloperModule as AppImport);
-    }
-    return baseImports;
-  })(),
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: CustomThrottlerGuard,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: MetricsInterceptor,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: OrganizationRoleGuard,
-    },
-  ],
+  if (!isLocalSupabase) {
+    baseImports.push(ReconciliationModule as AppImport);
+    baseImports.push(NotificationsModule as AppImport);
+    baseImports.push(DeveloperModule as AppImport);
+  } else {
+    console.log(
+      "Skipping Reconciliation & Notifications modules in dev (local Supabase)",
+    );
+  }
+} catch (e) {
+  baseImports.push(ReconciliationModule as AppImport);
+  baseImports.push(NotificationsModule as AppImport);
+  baseImports.push(DeveloperModule as AppImport);
+}
+
+return baseImports;
+
+})(),
+providers: [
+{
+provide: APP_GUARD,
+useClass: CustomThrottlerGuard,
+},
+{
+provide: APP_INTERCEPTOR,
+useClass: MetricsInterceptor,
+},
+{
+provide: APP_GUARD,
+useClass: OrganizationRoleGuard,
+},
+],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(
-        MetricsMiddleware,
-        CorrelationIdMiddleware,
-        OrganizationContextMiddleware,
-        ShadowTrafficMiddleware,
-      )
-      .forRoutes("*");
-  }
+configure(consumer: MiddlewareConsumer) {
+consumer
+.apply(
+MetricsMiddleware,
+CorrelationIdMiddleware,
+OrganizationContextMiddleware,
+ShadowTrafficMiddleware,
+)
+.forRoutes("*");
+}
 }
