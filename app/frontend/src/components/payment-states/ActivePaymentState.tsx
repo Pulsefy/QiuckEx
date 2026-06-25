@@ -261,23 +261,23 @@ export function ActivePaymentState({
           <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
             <WalletCards className="w-8 h-8 text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
             {txStep === "completed" ? "Payment Successful" : "Transaction Execution"}
           </h1>
-          <p className="text-neutral-400 text-sm mt-1">
+          <p className="text-subtle text-sm mt-1">
             Simulating, signing, and submitting your Stellar payment
           </p>
         </div>
 
         {/* Stepper Wizard Card */}
-        <div className="bg-neutral-900/90 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
+        <div className="bg-card/90 border border-border-strong rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
           {/* Subtle Glow backdrop */}
           <div className="absolute -right-20 -top-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
           
           {/* Stepper Progress Bar */}
           <div className="relative flex items-center justify-between max-w-md mx-auto mb-8">
             {/* Connecting Lines */}
-            <div className="absolute top-5 left-0 right-0 h-[2px] bg-neutral-800 -translate-y-1/2 z-0" />
+            <div className="absolute top-5 left-0 right-0 h-[2px] bg-surface-strong -translate-y-1/2 z-0" />
             
             {/* Segment Progress Highlight */}
             <div 
@@ -294,12 +294,12 @@ export function ActivePaymentState({
               <div 
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
                   simulateStatus === "success"
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                    ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : simulateStatus === "processing"
                     ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
                     : simulateStatus === "error"
                     ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-neutral-950 border-neutral-800 text-neutral-500"
+                    : "bg-background border-border-strong text-subtle"
                 }`}
               >
                 {simulateStatus === "success" ? (
@@ -313,7 +313,7 @@ export function ActivePaymentState({
                 )}
               </div>
               <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                simulateStatus === "processing" ? "text-indigo-400" : "text-neutral-400"
+                simulateStatus === "processing" ? "text-indigo-400" : "text-subtle"
               }`}>
                 Simulate
               </span>
@@ -324,12 +324,12 @@ export function ActivePaymentState({
               <div 
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
                   signStatus === "success"
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                    ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : signStatus === "processing"
                     ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
                     : signStatus === "error"
                     ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-neutral-950 border-neutral-800 text-neutral-500"
+                    : "bg-background border-border-strong text-subtle"
                 }`}
               >
                 {signStatus === "success" ? (
@@ -343,7 +343,7 @@ export function ActivePaymentState({
                 )}
               </div>
               <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                signStatus === "processing" ? "text-indigo-400" : "text-neutral-400"
+                signStatus === "processing" ? "text-indigo-400" : "text-subtle"
               }`}>
                 Sign
               </span>
@@ -354,12 +354,12 @@ export function ActivePaymentState({
               <div 
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
                   submitStatus === "success"
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                    ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : submitStatus === "processing"
                     ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
                     : submitStatus === "error"
                     ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-neutral-950 border-neutral-800 text-neutral-500"
+                    : "bg-background border-border-strong text-subtle"
                 }`}
               >
                 {submitStatus === "success" ? (
@@ -373,7 +373,7 @@ export function ActivePaymentState({
                 )}
               </div>
               <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                submitStatus === "processing" ? "text-indigo-400" : "text-neutral-400"
+                submitStatus === "processing" ? "text-indigo-400" : "text-subtle"
               }`}>
                 Submit
               </span>
@@ -391,7 +391,7 @@ export function ActivePaymentState({
                     {errorType === "rejection" && "Wallet Signature Request Rejected"}
                     {errorType === "network" && "Horizon Network Timeout"}
                   </h4>
-                  <p className="text-xs text-red-300/90 mt-1 leading-relaxed">
+                  <p className="text-xs text-danger/90 mt-1 leading-relaxed">
                     {errorMessage}
                   </p>
                   {errorType === "network" && (
@@ -406,11 +406,11 @@ export function ActivePaymentState({
           )}
 
           {/* Step Detail Status */}
-          <div className="text-center py-4 bg-white/[0.02] border border-white/5 rounded-2xl mb-6">
-            <p className="text-xs text-neutral-500 uppercase tracking-widest font-black mb-1">
+          <div className="text-center py-4 bg-card/[0.02] border border-border rounded-2xl mb-6">
+            <p className="text-xs text-subtle uppercase tracking-widest font-black mb-1">
               Current Status
             </p>
-            <p className="text-sm font-semibold text-white px-6">
+            <p className="text-sm font-semibold text-foreground px-6">
               {simulateStatus === "processing" && "Evaluating balance and routing paths..."}
               {simulateStatus === "error" && "Simulation check failed. Adjust options and retry."}
               {signStatus === "processing" && "Awaiting approval in Stellar Wallet extension..."}
@@ -422,9 +422,9 @@ export function ActivePaymentState({
           </div>
 
           {/* Terminal Console Logs */}
-          <div className="bg-black/90 rounded-2xl border border-white/5 overflow-hidden mb-6 font-mono text-xs shadow-inner">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-neutral-950">
-              <span className="text-neutral-400 flex items-center gap-2 font-bold text-[10px] uppercase tracking-wider">
+          <div className="bg-background/90 rounded-2xl border border-border overflow-hidden mb-6 font-mono text-xs shadow-inner">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background">
+              <span className="text-subtle flex items-center gap-2 font-bold text-[10px] uppercase tracking-wider">
                 <Terminal size={12} className="text-indigo-400" /> Transaction Console Logs
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -440,14 +440,14 @@ export function ActivePaymentState({
                       ? "text-emerald-400"
                       : log.includes("SAFE TO RETRY")
                       ? "text-indigo-400 font-bold"
-                      : "text-neutral-300"
+                      : "text-muted"
                   }`}
                 >
                   {log}
                 </div>
               ))}
               {logs.length === 0 && (
-                <div className="text-neutral-600 italic">No output yet. Simulation starting...</div>
+                <div className="text-faint italic">No output yet. Simulation starting...</div>
               )}
             </div>
           </div>
@@ -459,7 +459,7 @@ export function ActivePaymentState({
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="flex-1 py-3.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                  className="flex-1 py-3.5 bg-surface-strong hover:bg-surface-strong text-muted font-bold rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                 >
                   Cancel Payment
                 </button>
@@ -478,7 +478,7 @@ export function ActivePaymentState({
               <button
                 type="button"
                 disabled={true}
-                className="w-full py-4 bg-neutral-800 text-neutral-400 font-bold rounded-xl flex items-center justify-center gap-2.5 cursor-not-allowed"
+                className="w-full py-4 bg-surface-strong text-subtle font-bold rounded-xl flex items-center justify-center gap-2.5 cursor-not-allowed"
               >
                 <Loader2 size={18} className="animate-spin text-indigo-400" />
                 Processing Transaction...
@@ -488,25 +488,25 @@ export function ActivePaymentState({
         </div>
 
         {/* ── SIMULATOR CONTROL PANEL (DEV TOOL) ────────────────── */}
-        <div className="bg-neutral-900/60 border border-white/5 rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <button
             type="button"
             onClick={() => setShowDevPanel(!showDevPanel)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-card/[0.02] transition-colors"
           >
-            <span className="flex items-center gap-2 text-sm font-bold text-neutral-400">
+            <span className="flex items-center gap-2 text-sm font-bold text-subtle">
               <Settings size={16} className="text-indigo-400" /> Stellar Pipeline Simulator Controls
             </span>
             {showDevPanel ? (
-              <ChevronUp size={16} className="text-neutral-500" />
+              <ChevronUp size={16} className="text-subtle" />
             ) : (
-              <ChevronDown size={16} className="text-neutral-500" />
+              <ChevronDown size={16} className="text-subtle" />
             )}
           </button>
 
           {showDevPanel && (
-            <div className="px-5 pb-5 pt-2 border-t border-white/5 space-y-4 animate-in fade-in duration-200">
-              <p className="text-xs text-neutral-500 leading-normal">
+            <div className="px-5 pb-5 pt-2 border-t border-border space-y-4 animate-in fade-in duration-200">
+              <p className="text-xs text-subtle leading-normal">
                 Toggle the behavior below to simulate and verify different outcomes, network errors, and contract rejections in the transaction stepper.
               </p>
               
@@ -516,12 +516,12 @@ export function ActivePaymentState({
                   onClick={() => setSimulatorOutcome("success")}
                   className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
                     simulatorOutcome === "success"
-                      ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
-                      : "border-white/5 bg-neutral-950 text-neutral-400 hover:border-white/10"
+                      ? "border-emerald-500/50 bg-success-soft text-emerald-400"
+                      : "border-border bg-background text-subtle hover:border-border-strong"
                   }`}
                 >
                   <p className="font-bold">Always Succeed</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">Success path through to PaidState</p>
+                  <p className="text-[10px] text-subtle mt-0.5">Success path through to PaidState</p>
                 </button>
 
                 <button
@@ -530,11 +530,11 @@ export function ActivePaymentState({
                   className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
                     simulatorOutcome === "fail_simulate"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-white/5 bg-neutral-950 text-neutral-400 hover:border-white/10"
+                      : "border-border bg-background text-subtle hover:border-border-strong"
                   }`}
                 >
                   <p className="font-bold">Fail on Simulation</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">Simulate contract / funds error</p>
+                  <p className="text-[10px] text-subtle mt-0.5">Simulate contract / funds error</p>
                 </button>
 
                 <button
@@ -543,11 +543,11 @@ export function ActivePaymentState({
                   className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
                     simulatorOutcome === "fail_sign"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-white/5 bg-neutral-950 text-neutral-400 hover:border-white/10"
+                      : "border-border bg-background text-subtle hover:border-border-strong"
                   }`}
                 >
                   <p className="font-bold">Fail on Signing</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">Simulate user rejecting wallet pop-up</p>
+                  <p className="text-[10px] text-subtle mt-0.5">Simulate user rejecting wallet pop-up</p>
                 </button>
 
                 <button
@@ -556,11 +556,11 @@ export function ActivePaymentState({
                   className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
                     simulatorOutcome === "fail_submit"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-white/5 bg-neutral-950 text-neutral-400 hover:border-white/10"
+                      : "border-border bg-background text-subtle hover:border-border-strong"
                   }`}
                 >
                   <p className="font-bold">Fail on Submission</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">Simulate Horizon network broadcast timeout</p>
+                  <p className="text-[10px] text-subtle mt-0.5">Simulate Horizon network broadcast timeout</p>
                 </button>
               </div>
             </div>
@@ -594,35 +594,35 @@ export function ActivePaymentState({
           </svg>
         </div>
         <h1 className="text-3xl font-bold mb-2">Payment Request</h1>
-        <p className="text-neutral-300">{status.userMessage}</p>
+        <p className="text-muted">{status.userMessage}</p>
       </div>
 
-      <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
+      <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Details</h2>
 
         <dl className="space-y-4">
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Recipient</dt>
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Recipient</dt>
             <dd className="font-semibold">@{status.username}</dd>
           </div>
 
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Amount</dt>
-            <dd className="text-2xl font-bold text-indigo-300">
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Amount</dt>
+            <dd className="text-2xl font-bold text-brand">
               {status.amount} {status.asset}
             </dd>
           </div>
 
           {status.memo && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Memo</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Memo</dt>
               <dd className="font-mono text-sm">{status.memo}</dd>
             </div>
           )}
 
           {status.expiresAt && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Expires</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Expires</dt>
               <dd className="text-sm">
                 {new Date(status.expiresAt).toLocaleDateString()}
               </dd>
@@ -632,11 +632,11 @@ export function ActivePaymentState({
       </div>
 
       {hasSwapOptions && status.acceptsMultipleAssets && (
-        <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
+        <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
           <h2 id="payment-options-heading" className="text-xl font-bold mb-4">
             Payment Options
           </h2>
-          <p className="text-sm text-neutral-300 mb-6">
+          <p className="text-sm text-muted mb-6">
             You can pay with any of these assets:
           </p>
 
@@ -650,16 +650,16 @@ export function ActivePaymentState({
               role="radio"
               aria-checked={selectedSourceAsset === null}
               onClick={() => setSelectedSourceAsset(null)}
-              className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+              className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 selectedSourceAsset === null
                   ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-white/10 hover:border-white/20"
+                  : "border-border-strong hover:border-border-strong"
               }`}
             >
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-semibold">Pay with {status.asset}</p>
-                  <p className="text-sm text-neutral-300">Direct payment</p>
+                  <p className="text-sm text-muted">Direct payment</p>
                 </div>
                 <p className="font-bold">
                   {status.amount} {status.asset}
@@ -675,10 +675,10 @@ export function ActivePaymentState({
                 aria-checked={selectedSourceAsset === option.sourceAsset}
                 aria-label={`Pay with ${option.sourceAmount} ${option.sourceAsset}, ${option.hopCount} hops, ${option.rateDescription}`}
                 onClick={() => setSelectedSourceAsset(option.sourceAsset)}
-                className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   selectedSourceAsset === option.sourceAsset
                     ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-white/10 hover:border-white/20"
+                    : "border-border-strong hover:border-border-strong"
                 }`}
               >
                 <div className="flex justify-between items-center">
@@ -686,13 +686,13 @@ export function ActivePaymentState({
                     <p className="font-semibold">
                       Pay with {option.sourceAsset}
                     </p>
-                    <p className="text-sm text-neutral-300">
+                    <p className="text-sm text-muted">
                       {option.rateDescription}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold">{option.sourceAmount}</p>
-                    <p className="text-xs text-neutral-400">
+                    <p className="text-xs text-subtle">
                       {option.hopCount} hop(s)
                     </p>
                   </div>
@@ -737,7 +737,7 @@ export function ActivePaymentState({
               ? `Confirm payment to ${status.username}`
               : `Review payment details for ${status.username}`
           }
-          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {showPreview ? "Open Wallet & Pay" : "Review Payment"}
         </button>
@@ -746,7 +746,7 @@ export function ActivePaymentState({
           type="button"
           onClick={handleCopyLink}
           aria-label="Copy payment link to clipboard"
-          className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Copy Payment Link
         </button>
@@ -757,7 +757,7 @@ export function ActivePaymentState({
       </div>
 
       <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-4">
-        <p className="text-sm text-blue-200">
+        <p className="text-sm text-brand">
           <strong>How it works:</strong> Review the transaction summary before your Stellar wallet opens. After confirmation, your wallet will request the signature for this exact payload.
         </p>
       </div>

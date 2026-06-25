@@ -14,7 +14,7 @@ export function LocaleSwitcher() {
     <select
       value={i18n.language}
       onChange={(e) => changeLanguage(e.target.value)}
-      className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-1 text-sm"
+      className="bg-card text-foreground border border-border-strong rounded-lg px-3 py-1 text-sm"
     >
       <option value="en">English</option>
       <option value="es">Español</option>

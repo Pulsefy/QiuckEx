@@ -10,10 +10,10 @@ export function LoadingState() {
       <div className="relative" aria-hidden="true">
         <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
       </div>
-      <p className="mt-8 text-lg text-neutral-200">
+      <p className="mt-8 text-lg text-muted">
         Loading payment details...
       </p>
-      <p className="mt-2 text-sm text-neutral-400">
+      <p className="mt-2 text-sm text-subtle">
         Please wait while we fetch the payment information
       </p>
     </div>

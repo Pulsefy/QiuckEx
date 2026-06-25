@@ -1,13 +1,103 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode so the theme toggle can switch themes at runtime. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Semantic theme tokens
+   Every surface, border and text color in the app resolves to one of these
+   variables, so light/dark mode stays consistent across every route.
+   Light is the default (:root); `.dark` overrides flip the whole palette.
+   ────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Base */
+  --background: #f6f7f9;
+  --foreground: #18181b;
+
+  /* Surfaces (cards, subtle fills) */
+  --card: #ffffff;
+  --surface: #f1f2f4;
+  --surface-strong: #e5e7eb;
+
+  /* Borders */
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+
+  /* Text emphasis ramp */
+  --muted: #3f3f46;
+  --subtle: #6b7280;
+  --faint: #9ca3af;
+
+  /* Brand + status (text + soft translucent background pairs) */
+  --brand: #4f46e5;
+  --brand-soft: rgba(99, 102, 241, 0.12);
+  --success: #047857;
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --danger: #b91c1c;
+  --danger-soft: rgba(239, 68, 68, 0.1);
+  --warning: #b45309;
+  --warning-soft: rgba(245, 158, 11, 0.12);
+
+  /* Chart-specific tokens (consumed by recharts via var()) */
+  --chart-grid: rgba(0, 0, 0, 0.08);
+  --chart-axis: #71717a;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e4e4e7;
+  --chart-tooltip-text: #18181b;
 }
 
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+
+  --card: rgba(18, 18, 26, 0.6);
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-strong: rgba(255, 255, 255, 0.1);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --muted: #d4d4d4;
+  --subtle: #a3a3a3;
+  --faint: #6b7280;
+
+  --brand: #a5b4fc;
+  --brand-soft: rgba(99, 102, 241, 0.12);
+  --success: #6ee7b7;
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --danger: #fca5a5;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+  --warning: #fcd34d;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-axis: #737373;
+  --chart-tooltip-bg: rgba(10, 10, 20, 0.92);
+  --chart-tooltip-border: rgba(255, 255, 255, 0.08);
+  --chart-tooltip-text: #ffffff;
+}
+
+/* Map tokens to Tailwind color utilities: bg-card, text-muted, border-border, … */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
   --font-sans: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SFMono-Regular", "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -29,7 +119,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid #a5b4fc;
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -41,7 +131,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.35);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

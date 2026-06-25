@@ -59,16 +59,16 @@ export function AuditLogs() {
   const actions = ["ALL", ...Array.from(new Set(logs.map((entry) => entry.action)))];
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-gray-800">Audit Logs</h2>
-          <p className="text-sm text-gray-500">Feature flag changes are persisted here.</p>
+          <h2 className="text-lg font-semibold text-foreground">Audit Logs</h2>
+          <p className="text-sm text-subtle">Feature flag changes are persisted here.</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-gray-500" />
+          <Filter className="h-4 w-4 text-subtle" />
           <select
-            className="border border-gray-200 rounded-md py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="border border-border rounded-md py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-card"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           >
@@ -82,14 +82,14 @@ export function AuditLogs() {
       </div>
 
       {error && (
-        <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+        <p className="mb-4 rounded-md border border-warning-soft bg-warning-soft px-3 py-2 text-sm text-warning">
           {error}
         </p>
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+        <table className="w-full text-left text-sm text-subtle">
+          <thead className="text-xs text-muted uppercase bg-background border-b border-border">
             <tr>
               <th className="px-4 py-3 rounded-tl-lg">Timestamp</th>
               <th className="px-4 py-3">Action</th>
@@ -99,12 +99,12 @@ export function AuditLogs() {
           </thead>
           <tbody>
             {filteredLogs.map((log) => (
-              <tr key={log.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+              <tr key={log.id} className="border-b border-border last:border-0 hover:bg-background">
                 <td className="px-4 py-3 whitespace-nowrap">
                   {new Date(log.createdAt).toLocaleString()}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-medium border border-gray-200">
+                  <span className="bg-surface text-foreground px-2 py-1 rounded text-xs font-medium border border-border">
                     {log.action}
                   </span>
                 </td>
@@ -119,7 +119,7 @@ export function AuditLogs() {
             ))}
             {filteredLogs.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-subtle">
                   No logs found matching the selected filter.
                 </td>
               </tr>
