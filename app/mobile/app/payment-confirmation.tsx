@@ -16,7 +16,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { ActivityIndicator } from "react-native";
 import { useContractRegistry } from "../hooks/useContractRegistry";
-import ErrorState from "@/components/resilience/error-state";
+import { ErrorState } from "@/components/resilience/error-state";
 
 // List of assets to attempt swaps from (hardcoded whitelist matching backend)
 const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
@@ -27,7 +27,16 @@ export default function PaymentConfirmationScreen() {
   const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
   const backendUrl = process.env.EXPO_PUBLIC_API_URL || "https://api.quickex.com";
-  const { isReady, error: registryError } = useContractRegistry(["Escrow"], backendUrl);
+  const {
+    isReady,
+    error: registryError,
+    status: registryStatus,
+    lastUpdatedLabel,
+    missingContracts,
+    fetchSource: registryFetchSource,
+    isRefreshing: registryRefreshing,
+    refresh: refreshRegistry,
+  } = useContractRegistry(["Escrow"], backendUrl);
   const params = useLocalSearchParams<{
     username: string;
     amount: string;
@@ -122,15 +131,24 @@ export default function PaymentConfirmationScreen() {
 
   const [savingContact, setSavingContact] = React.useState(false);
   
-if (registryError) {
+  if (registryStatus === "incompatible" || registryStatus === "unavailable") {
+    const isMissingDefinition = missingContracts.length > 0;
+
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
         <ErrorState 
-          title="Security Alert"
-          message={registryError} 
-          actionLabel="Go Back"
-          onAction={() => router.back()}
+          title={isMissingDefinition ? "Contract definition missing" : "Contract registry unavailable"}
+          message={
+            isMissingDefinition
+              ? `The registry does not include ${missingContracts.join(", ")}. Refresh contract metadata to recover from a stale or incompatible registry.`
+              : registryError || "Contract metadata could not be loaded. Refresh the registry and try again."
+          }
+          onRetry={() => void refreshRegistry()}
+          retryLabel={registryRefreshing ? "Refreshing..." : "Refresh Registry"}
         />
+        <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
@@ -140,7 +158,10 @@ if (registryError) {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 10 }}>
-          Verifying secure contracts...
+          {registryRefreshing ? "Refreshing contract registry..." : "Verifying secure contracts..."}
+        </Text>
+        <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6 }}>
+          {lastUpdatedLabel}
         </Text>
       </SafeAreaView>
     );
@@ -203,6 +224,40 @@ if (registryError) {
           <Text style={[styles.subheading, { color: theme.textSecondary }]}>
             {isConnected === false ? "Read-only mode: payment is disabled" : "Review the details below before paying"}
           </Text>
+
+          <View
+            style={[
+              styles.registryBanner,
+              {
+                backgroundColor:
+                  registryStatus === "stale" ? theme.status.warningBg : theme.surface,
+                borderColor:
+                  registryStatus === "stale" ? theme.status.warning : theme.divider,
+              },
+            ]}
+          >
+            <View style={styles.registryTextGroup}>
+              <Text style={[styles.registryTitle, { color: theme.textPrimary }]}>
+                Registry {registryStatus === "stale" ? "stale" : registryFetchSource === "cache" ? "cached" : "verified"}
+              </Text>
+              <Text style={[styles.registryMeta, { color: theme.textSecondary }]}>
+                {lastUpdatedLabel}
+              </Text>
+            </View>
+            <Pressable
+              style={[
+                styles.registryRefreshButton,
+                { borderColor: theme.divider },
+                registryRefreshing && { opacity: 0.6 },
+              ]}
+              onPress={() => void refreshRegistry()}
+              disabled={registryRefreshing}
+            >
+              <Text style={[styles.registryRefreshText, { color: theme.buttonPrimaryBg }]}>
+                {registryRefreshing ? "Refreshing" : "Refresh"}
+              </Text>
+            </Pressable>
+          </View>
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Row label="Recipient" value={`@${username}`} />
@@ -373,6 +428,40 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
+  },
+  registryBanner: {
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  registryTextGroup: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  registryTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  registryMeta: {
+    fontSize: 12,
+  },
+  registryRefreshButton: {
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 86,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  registryRefreshText: {
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
   },
   row: {
     flexDirection: "row",
