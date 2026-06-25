@@ -2,6 +2,7 @@ import { Module, forwardRef } from "@nestjs/common";
 
 import { SupabaseModule } from "../supabase/supabase.module";
 import { MetricsModule } from "../metrics/metrics.module";
+import { AuditModule } from "../audit/audit.module";
 import { MetricsService } from "../metrics/metrics.service";
 import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
@@ -21,6 +22,8 @@ import { TelegramController } from "./telegram/telegram.controller";
 import { WebhookService } from "./webhook.service";
 import { WebhooksController } from "./webhooks.controller";
 import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
+import { WebhookReplayService } from "./webhook-replay.service";
+import { WebhookReplayRepository } from "./webhook-replay.repository";
 import { JobQueueModule } from "../job-queue/job-queue.module";
 import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { TemplateService } from "./template.service";
@@ -38,7 +41,7 @@ import { NotificationsController } from "./notifications.controller";
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule, MetricsModule, forwardRef(() => JobQueueModule)],
+  imports: [SupabaseModule, MetricsModule, AuditModule, forwardRef(() => JobQueueModule)],
   controllers: [
     NotificationPreferencesController,
     TelegramController,
@@ -54,6 +57,8 @@ import { NotificationsController } from "./notifications.controller";
     TelegramBotService,
     TelegramNotificationProvider,
     WebhookRetryScheduler,
+    WebhookReplayRepository,
+    WebhookReplayService,
     WebhookService,
     {
       provide: NOTIFICATION_PROVIDERS,
