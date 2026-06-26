@@ -8,6 +8,15 @@ export type RefundReasonCode =
   | 'CUSTOMER_REQUEST'
   | 'TECHNICAL_ERROR';
 
+export type EligibilityReasonCode =
+  | 'ELIGIBLE'
+  | 'INVALID_STATE'
+  | 'ENTITY_NOT_FOUND'
+  | 'ALREADY_REFUNDED'
+  | 'TOO_OLD'
+  | 'CONTRACT_NOT_READY'
+  | 'INDEXER_NOT_SYNCED';
+
 export interface RefundAttemptRecord {
   id: string;
   idempotency_key: string;
@@ -29,4 +38,16 @@ export interface RefundAuditRecord {
   reason_code: RefundReasonCode | null;
   notes: string | null;
   created_at: string;
+}
+
+export interface EligibilityCheckResult {
+  eligible: boolean;
+  reasonCode: EligibilityReasonCode;
+  message: string;
+  details?: {
+    currentState?: string;
+    ageInDays?: number;
+    maxAgeInDays?: number;
+    existingRefundId?: string;
+  };
 }
