@@ -87,7 +87,25 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "ContractPaused",
         topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
-        payload_keys: &["paused", "schema_version", "timestamp"],
+        payload_keys: &["paused", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseDisabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseDisabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnforced",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnforced", "caller"],
+        payload_keys: &["action", "reason", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -378,15 +396,107 @@ pub struct ContractPausedEvent {
 
     pub schema_version: u32,
     pub paused: bool,
+    pub reason: u32,
     pub timestamp: u64,
 }
 
 #[allow(dead_code)]
-pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool) {
+pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, reason: u32) {
     ContractPausedEvent {
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         paused,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseEnabled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flag: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseDisabled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseDisabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flag: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseEnforced"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnforcedEvent {
+    #[topic]
+    pub caller: Option<Address>,
+    pub schema_version: u32,
+    pub action: soroban_sdk::Symbol,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseEnabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_disabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseDisabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enforced(
+    env: &Env,
+    caller: Option<Address>,
+    action: soroban_sdk::Symbol,
+    reason: u32,
+) {
+    PauseEnforcedEvent {
+        caller,
+        schema_version: EVENT_SCHEMA_VERSION,
+        action,
+        reason,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
