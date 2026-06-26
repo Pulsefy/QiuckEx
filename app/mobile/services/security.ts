@@ -138,6 +138,13 @@ export async function saveSecuritySettings(settings: SecuritySettings) {
   await setItem(SECURITY_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+/**
+ * Removes all stored security settings, returning to the default state.
+ */
+export async function clearSecuritySettings() {
+  await deleteItem(SECURITY_SETTINGS_KEY);
+}
+
 // ── Biometric Session Management ──────────────────────────────────────────────
 
 /**

@@ -1,5 +1,6 @@
 import {
   clearBiometricSession,
+  clearSecuritySettings,
   clearSensitiveToken,
   getSecuritySettings,
   getSensitiveToken,
@@ -14,6 +15,11 @@ import {
 import { DEFAULT_SESSION_TIMEOUT_MINUTES, MAX_SESSION_TIMEOUT_MINUTES, MIN_SESSION_TIMEOUT_MINUTES } from "../types/security";
 
 describe("security service", () => {
+  beforeEach(async () => {
+    await clearSecuritySettings();
+    await clearBiometricSession();
+  });
+
   afterEach(async () => {
     await clearBiometricSession();
   });
