@@ -9,19 +9,88 @@ import {
   RefundAttemptRecord,
   RefundReasonCode,
   RefundableEntityType,
+  EligibilityCheckResult,
 } from './refunds.types';
 import { InitiateRefundDto } from './dto/initiate-refund.dto';
 import {
-  isPaymentRefundable,
-  isEscrowRefundable,
-  isLinkRefundable,
+  checkPaymentEligibility,
+  checkEscrowEligibility,
+  checkLinkEligibility,
 } from './refunds.eligibility';
 
 @Injectable()
 export class RefundsService {
   private readonly logger = new Logger(RefundsService.name);
+  private readonly MAX_REFUND_AGE_DAYS = 90;
 
   constructor(private readonly supabaseService: SupabaseService) {}
+
+  /**
+   * Check refund eligibility for an entity without attempting the refund.
+   * This endpoint is for support/admin users to understand why a refund is or isn't allowed.
+   */
+  async checkEligibility(
+    entityType: RefundableEntityType,
+    entityId: string,
+  ): Promise<EligibilityCheckResult> {
+    const client = this.supabaseService.getClient();
+
+    // Check for existing refund attempts
+    const { data: existingRefund } = await client
+      .from('refund_attempts')
+      .select('id, status')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .in('status', ['pending', 'approved'])
+      .maybeSingle();
+
+    if (existingRefund) {
+      return {
+        eligible: false,
+        reasonCode: 'ALREADY_REFUNDED',
+        message: `A ${existingRefund.status} refund already exists for this entity`,
+        details: {
+          existingRefundId: existingRefund.id,
+        },
+      };
+    }
+
+    if (entityType === 'payment') {
+      const { data } = await client
+        .from('payment_records')
+        .select('status, created_at')
+        .eq('id', entityId)
+        .maybeSingle();
+
+      return checkPaymentEligibility(data, this.MAX_REFUND_AGE_DAYS);
+    }
+
+    if (entityType === 'escrow') {
+      const { data } = await client
+        .from('escrow_records')
+        .select('status, created_at')
+        .eq('id', entityId)
+        .maybeSingle();
+
+      return checkEscrowEligibility(data, this.MAX_REFUND_AGE_DAYS);
+    }
+
+    if (entityType === 'link') {
+      const { data } = await client
+        .from('payment_links')
+        .select('state, created_at')
+        .eq('id', entityId)
+        .maybeSingle();
+
+      return checkLinkEligibility(data, this.MAX_REFUND_AGE_DAYS);
+    }
+
+    return {
+      eligible: false,
+      reasonCode: 'ENTITY_NOT_FOUND',
+      message: `Unknown entity type: ${entityType as string}`,
+    };
+  }
 
   async initiateRefund(
     dto: InitiateRefundDto,
@@ -214,60 +283,16 @@ export class RefundsService {
     entityType: RefundableEntityType,
     entityId: string,
   ): Promise<void> {
-    const client = this.supabaseService.getClient();
-
-    if (entityType === 'payment') {
-      const { data } = await client
-        .from('payment_records')
-        .select('status')
-        .eq('id', entityId)
-        .maybeSingle();
-
-      if (!data || !isPaymentRefundable(data.status)) {
-        throw new ConflictException({
-          error: 'REFUND_NOT_ELIGIBLE',
-          message: `Payment ${entityId} is not in a refundable state (must be 'paid')`,
-        });
-      }
-      return;
+    const result = await this.checkEligibility(entityType, entityId);
+    
+    if (!result.eligible) {
+      throw new ConflictException({
+        error: 'REFUND_NOT_ELIGIBLE',
+        message: result.message,
+        reasonCode: result.reasonCode,
+        details: result.details,
+      });
     }
-
-    if (entityType === 'escrow') {
-      const { data } = await client
-        .from('escrow_records')
-        .select('status')
-        .eq('id', entityId)
-        .maybeSingle();
-
-      if (!data || !isEscrowRefundable(data.status)) {
-        throw new ConflictException({
-          error: 'REFUND_NOT_ELIGIBLE',
-          message: `Escrow ${entityId} is not in a refundable state (must be 'active' or 'claimed')`,
-        });
-      }
-      return;
-    }
-
-    if (entityType === 'link') {
-      const { data } = await client
-        .from('payment_links')
-        .select('state')
-        .eq('id', entityId)
-        .maybeSingle();
-
-      if (!data || !isLinkRefundable(data.state)) {
-        throw new ConflictException({
-          error: 'REFUND_NOT_ELIGIBLE',
-          message: `Link ${entityId} is not in a refundable state (must be 'PAID')`,
-        });
-      }
-      return;
-    }
-
-    throw new ConflictException({
-      error: 'REFUND_NOT_ELIGIBLE',
-      message: `Unknown entity type: ${entityType as string}`,
-    });
   }
 
   private async appendAudit(
