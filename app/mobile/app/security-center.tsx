@@ -8,6 +8,7 @@ import {
   getWalletSession,
   isSessionRestorable,
 } from "@/services/wallet-session";
+import { getSessionExpiryExplanation, isBiometricSessionValid } from "@/services/security";
 import { useTheme } from "../src/theme/ThemeContext";
 
 interface SecurityCheckItem {

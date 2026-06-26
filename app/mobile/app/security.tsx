@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Alert,
     Pressable,
+    ScrollView,
     StyleSheet,
     Switch,
     Text,
@@ -13,6 +14,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSecurity } from "@/hooks/use-security";
 import { useTheme } from "../src/theme/ThemeContext";
 
+const TIMEOUT_OPTIONS = [
+  { value: 1, label: "1 min", detail: "Maximum security — re-authenticate frequently" },
+  { value: 5, label: "5 min", detail: "Balanced for rapid testing cycles" },
+  { value: 15, label: "15 min", detail: "Convenient for extended sessions" },
+  { value: 30, label: "30 min", detail: "Relaxed — fewer prompts" },
+  { value: 60, label: "60 min", detail: "Minimal interruptions" },
+];
+
 export default function SecurityScreen() {
   const { theme } = useTheme();
   const {
@@ -21,11 +30,32 @@ export default function SecurityScreen() {
     hasPinConfigured,
     setBiometricLockEnabled,
     savePin,
+    setSessionTimeoutMinutes,
+    isSessionValid,
+    getSessionExplanation,
+    resetSession,
   } = useSecurity();
 
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
+  const [sessionExplanation, setSessionExplanation] = useState("");
+  const [sessionValid, setSessionValid] = useState(false);
+  const [loadingSessionStatus, setLoadingSessionStatus] = useState(false);
+
+  useEffect(() => {
+    const loadSessionStatus = async () => {
+      setLoadingSessionStatus(true);
+      const [valid, explanation] = await Promise.all([
+        isSessionValid(),
+        getSessionExplanation(),
+      ]);
+      setSessionValid(valid);
+      setSessionExplanation(explanation);
+      setLoadingSessionStatus(false);
+    };
+    loadSessionStatus();
+  }, [isSessionValid, getSessionExplanation, settings.sessionTimeoutMinutes]);
 
   const submitPin = async () => {
     if (pin !== confirmPin) {
@@ -70,7 +100,11 @@ export default function SecurityScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={[styles.title, { color: theme.textPrimary }]}>Security</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Protect sensitive flows with biometrics and a fallback PIN.
@@ -142,7 +176,128 @@ export default function SecurityScreen() {
             </Text>
           </Pressable>
         </View>
-      </View>
+
+        {/* Session Timeout Configuration */}
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>
+            Biometric Session Timeout
+          </Text>
+          <Text style={[styles.rowBody, { color: theme.textSecondary }]}>
+            After authenticating, how long should QuickEx remember you before
+            asking for biometrics or PIN again? High-risk actions (sending
+            payments, disconnecting wallet, clearing data) always require
+            re-authentication.
+          </Text>
+
+          <View style={styles.timeoutOptions}>
+            {TIMEOUT_OPTIONS.map((option) => {
+              const active = option.value === settings.sessionTimeoutMinutes;
+              return (
+                <Pressable
+                  key={option.value}
+                  style={[
+                    styles.timeoutCard,
+                    {
+                      borderColor: active
+                        ? theme.buttonPrimaryBg
+                        : theme.border,
+                      backgroundColor: active
+                        ? theme.chipActiveBg
+                        : theme.background,
+                    },
+                  ]}
+                  onPress={() => setSessionTimeoutMinutes(option.value)}
+                >
+                  <Text
+                    style={[
+                      styles.timeoutValue,
+                      {
+                        color: active
+                          ? theme.chipActiveText
+                          : theme.textPrimary,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timeoutDetail,
+                      { color: active ? theme.chipActiveText : theme.textSecondary },
+                    ]}
+                  >
+                    {option.detail}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Session Status */}
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>
+            Session Status
+          </Text>
+
+          {loadingSessionStatus ? (
+            <Text style={[styles.rowBody, { color: theme.textSecondary }]}>
+              Checking session status...
+            </Text>
+          ) : (
+            <>
+              <View style={styles.sessionStatusRow}>
+                <View
+                  style={[
+                    styles.sessionDot,
+                    {
+                      backgroundColor: sessionValid ? "#10B981" : "#EF4444",
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.sessionStatusText,
+                    { color: theme.textPrimary },
+                  ]}
+                >
+                  {sessionValid
+                    ? "Session Active"
+                    : "Session Expired"}
+                </Text>
+              </View>
+              <Text
+                style={[styles.sessionExplanation, { color: theme.textSecondary }]}
+              >
+                {sessionExplanation}
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.resetSessionBtn,
+                  { borderColor: theme.status.error },
+                ]}
+                onPress={async () => {
+                  await resetSession();
+                  setSessionValid(false);
+                  setSessionExplanation(
+                    "Session cleared. Next sensitive action will require authentication.",
+                  );
+                }}
+              >
+                <Text
+                  style={[
+                    styles.resetSessionText,
+                    { color: theme.status.error },
+                  ]}
+                >
+                  Clear Session Now
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -151,8 +306,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     padding: 24,
   },
   title: {
@@ -191,6 +348,56 @@ const styles = StyleSheet.create({
   },
   supportText: {
     fontSize: 13,
+  },
+  timeoutOptions: {
+    gap: 10,
+    marginTop: 14,
+  },
+  timeoutCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+  },
+  timeoutValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  timeoutDetail: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sessionStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  sessionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  sessionStatusText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  sessionExplanation: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  resetSessionBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: "flex-start",
+  },
+  resetSessionText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   divider: {
     height: 1,

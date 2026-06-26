@@ -162,7 +162,7 @@ function ThemeBridge() {
 
 function AppShell() {
   const router = useRouter();
-  const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
+  const { isAppLocked, isReady, settings, unlockApp, getSessionExplanation } = useSecurity();
   const { isLoading: onboardingLoading, hasCompletedOnboarding } = useOnboarding();
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkRoute | null>(null);
   const [pendingLinkError, setPendingLinkError] = useState<{ message: string; url: string } | null>(null);
@@ -251,7 +251,10 @@ function AppShell() {
         <Stack.Screen name="edit-contact" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
-        <AppLockOverlay visible={isAppLocked} onUnlock={unlockApp} />
+        <AppLockOverlay
+          visible={isAppLocked}
+          onUnlock={unlockApp}
+        />
       ) : null}
     </>
   );
