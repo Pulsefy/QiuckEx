@@ -22,6 +22,7 @@ import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { WalletProvider } from "../hooks/useWalletContext";
 import { NetworkGuardProvider } from "../contexts/NetworkGuardContext";
+import { EnvironmentProvider } from "../contexts/EnvironmentContext";
 import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
@@ -133,7 +134,8 @@ function ThemeBridge() {
 
   return (
     <ThemeProvider value={navTheme}>
-      <SecurityProvider>
+      <EnvironmentProvider>
+        <SecurityProvider>
         <WalletProvider>
           <NetworkGuardProvider expectedNetwork="testnet">
             <NotificationProvider>
@@ -152,6 +154,7 @@ function ThemeBridge() {
           </NetworkGuardProvider>
         </WalletProvider>
       </SecurityProvider>
+      </EnvironmentProvider>
       <StatusBar style={isDark ? "light" : "dark"} />
     </ThemeProvider>
   );
