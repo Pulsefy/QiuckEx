@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import TestnetFundingHelper from "../components/wallet/TestnetFundingHelper";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import { useNetworkStatus } from "../hooks/use-network-status";
 import { useSecurity } from "../hooks/use-security";
@@ -593,6 +594,8 @@ export default function WalletConnectScreen() {
             </>
           )}
         </View>
+
+        <TestnetFundingHelper />
 
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Text style={[styles.backButtonText, { color: theme.textMuted }]}>
