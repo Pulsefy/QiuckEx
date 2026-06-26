@@ -58,39 +58,96 @@ export function parsePushNotificationPayload(
   return null;
 }
 
+function trackNotificationDeepLinkFailure(
+  message: string,
+  payload: unknown,
+) {
+  const payloadDetails = typeof payload === 'object' && payload !== null
+    ? JSON.stringify(payload)
+    : String(payload);
+
+  console.warn('Notification deep link recovery:', message, payloadDetails);
+}
+
+function pushInboxFallback(router: Router, reason: string) {
+  router.push({
+    pathname: '/inbox',
+    params: {
+      source: 'notification_recovery',
+      reason,
+    },
+  });
+}
+
 export function routeFromPushPayload(
   router: Router,
   payload: PushNotificationPayload,
 ) {
   if (payload.type === PUSH_NOTIFICATION_TYPES.transactionDetail) {
+    if (!payload.transactionId) {
+      trackNotificationDeepLinkFailure(
+        'Missing transactionId for transaction detail notification',
+        payload,
+      );
+      pushInboxFallback(router, 'missing_transaction_id');
+      return;
+    }
+
     router.push({
-      pathname: "/transaction/[id]",
+      pathname: '/transaction/[id]',
       params: {
         id: payload.transactionId,
         txHash: payload.txHash ?? payload.transactionId,
-        amount: payload.amount ?? "0",
-        asset: payload.asset ?? "XLM",
-        status: payload.status ?? "Success",
+        amount: payload.amount ?? '0',
+        asset: payload.asset ?? 'XLM',
+        status: payload.status ?? 'Success',
         timestamp: new Date().toISOString(),
-        source: "notification",
-        destination: "notification",
+        source: 'notification',
+        destination: 'notification',
       },
     });
     return;
   }
 
   if (payload.type === PUSH_NOTIFICATION_TYPES.escrowDetail) {
+    if (!payload.escrowId) {
+      trackNotificationDeepLinkFailure(
+        'Missing escrowId for escrow detail notification',
+        payload,
+      );
+      pushInboxFallback(router, 'missing_escrow_id');
+      return;
+    }
+
     router.push({
-      pathname: "/escrow/[id]",
-      params: { id: payload.escrowId, status: payload.status ?? "open" },
+      pathname: '/escrow/[id]',
+      params: { id: payload.escrowId, status: payload.status ?? 'open' },
     });
     return;
   }
 
-  router.push({
-    pathname: "/listing/[id]",
-    params: { id: payload.listingId, sellerId: payload.sellerId ?? "unknown" },
-  });
+  if (payload.type === PUSH_NOTIFICATION_TYPES.listingDetail) {
+    if (!payload.listingId) {
+      trackNotificationDeepLinkFailure(
+        'Missing listingId for listing detail notification',
+        payload,
+      );
+      pushInboxFallback(router, 'missing_listing_id');
+      return;
+    }
+
+    router.push({
+      pathname: '/listing/[id]',
+      params: { id: payload.listingId, sellerId: payload.sellerId ?? 'unknown' },
+    });
+    return;
+  }
+
+  trackNotificationDeepLinkFailure(
+    'Unsupported notification payload type',
+    payload,
+  );
+  pushInboxFallback(router, 'unsupported_payload_type');
 }
 
 export function routeFromNotificationResponse(
@@ -100,7 +157,15 @@ export function routeFromNotificationResponse(
   const payload = parsePushNotificationPayload(
     response?.notification?.request?.content?.data,
   );
-  if (!payload) return false;
+  if (!payload) {
+    trackNotificationDeepLinkFailure(
+      'Malformed or incomplete push notification payload',
+      response?.notification?.request?.content?.data,
+    );
+    pushInboxFallback(router, 'invalid_payload');
+    return true;
+  }
+
   routeFromPushPayload(router, payload);
   return true;
 }
