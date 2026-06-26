@@ -27,6 +27,7 @@ import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { resolveDeepLink, type DeepLinkRoute } from "@/utils/deep-link-routing";
 import {
+  routeFromNotificationResponse,
   parsePushNotificationPayload,
   routeFromPushPayload,
 } from "../services/notification-routing";
@@ -67,11 +68,7 @@ function useDeepLinkHandler(
 function useNotificationTapRouting(onRoute: (route: DeepLinkRoute) => void) {
   useEffect(() => {
     function routeResponse(response: Notifications.NotificationResponse | null | undefined) {
-      const payload = parsePushNotificationPayload(
-        response?.notification?.request?.content?.data,
-      );
-      if (!payload) return;
-      routeFromPushPayload({ push: (route: DeepLinkRoute) => onRoute(route) } as any, payload);
+      routeFromNotificationResponse({ push: (route: DeepLinkRoute) => onRoute(route) } as any, response);
     }
 
     Notifications.getLastNotificationResponseAsync()
@@ -242,6 +239,7 @@ function AppShell() {
         <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="escrow/[id]" />
         <Stack.Screen name="listing/[id]" />
+        <Stack.Screen name="inbox" />
         <Stack.Screen name="notification-debug" />
         <Stack.Screen name="deep-link-debug" />
         <Stack.Screen name="link-error" />
