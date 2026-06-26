@@ -1,5 +1,6 @@
 import { Link, useRouter } from "expo-router";
 import React from "react";
+import { EnvironmentSwitcher } from "../components/EnvironmentSwitcher";
 import {
   Alert,
   Platform,
@@ -404,6 +405,8 @@ export default function SettingsScreen() {
           </Pressable>
           <Text style={[styles.helper, { color: theme.textMuted }]}>Remove all cached and secure data, sign out, and reset the app state.</Text>
         </View>
+
+        <EnvironmentSwitcher />
 
         {Platform.OS !== "web" ? (
           <View style={styles.section}>
