@@ -3535,7 +3535,7 @@ fn test_pause_reason_codes_and_events() {
         .unwrap()
         .try_into_val(&env)
         .unwrap();
-    assert_eq!(is_global, true);
+    assert!(is_global);
     let reason: u32 = data_map
         .get(Symbol::new(&env, "reason"))
         .unwrap()
@@ -3603,7 +3603,7 @@ fn test_pause_reason_codes_and_events() {
         .unwrap()
         .try_into_val(&env)
         .unwrap();
-    assert_eq!(is_global, false);
+    assert!(!is_global);
     let reason: u32 = data_map
         .get(Symbol::new(&env, "reason"))
         .unwrap()
