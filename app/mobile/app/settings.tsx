@@ -441,6 +441,22 @@ export default function SettingsScreen() {
                 </Text>
               </Pressable>
             </Link>
+            {APP_ENVIRONMENT !== "production" && (
+              <Link href="/offline-queue-inspector" asChild>
+                <Pressable
+                  style={[
+                    styles.debugButton,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                  >
+                    Offline Queue Inspector
+                  </Text>
+                </Pressable>
+              </Link>
+            )}
           </View>
         ) : null}
       </ScrollView>

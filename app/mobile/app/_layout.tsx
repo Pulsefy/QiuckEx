@@ -247,6 +247,7 @@ function AppShell() {
         <Stack.Screen name="deep-link-debug" />
         <Stack.Screen name="link-error" />
         <Stack.Screen name="qa-smoke-checklist" />
+        <Stack.Screen name="offline-queue-inspector" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
