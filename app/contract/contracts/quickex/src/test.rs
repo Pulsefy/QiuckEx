@@ -3528,7 +3528,7 @@ fn test_pause_reason_codes_and_events() {
     client.initialize(&admin);
 
     // 1. Test global pause reason code
-    client.set_paused(&admin, &true, &1u32); 
+    client.set_paused(&admin, &true, &1u32);
     assert!(client.is_paused());
     assert_eq!(client.get_global_pause_reason(), 1u32);
 
@@ -3543,16 +3543,18 @@ fn test_pause_reason_codes_and_events() {
     assert_eq!(client.get_global_pause_reason(), 0u32);
 
     // 2. Test feature-specific pause reason codes
-    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &1u32); 
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &1u32);
     assert!(client.is_feature_paused(&PauseFlag::Deposit));
     assert_eq!(client.get_feature_pause_reason(&PauseFlag::Deposit), 1u32);
 
     // Try a blocked action (e.g. try_deposit)
-    let token = env.register_stellar_asset_contract_v2(Address::generate(&env)).address();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&user, &1000i128);
     let salt = Bytes::from_slice(&env, b"test_salt");
-    
+
     let result = client.try_deposit(&token, &1000i128, &user, &salt, &100, &None);
     assert_contract_error(result, QuickexError::OperationPaused);
 }
