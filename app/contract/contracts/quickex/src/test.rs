@@ -1022,7 +1022,13 @@ fn test_event_snapshot_contract_paused_schema() {
     {
         extern crate std;
         for (i, e) in env.events().all().iter().enumerate() {
-            std::println!("Event #{}: contract={:?}, topics={:?}, data={:?}", i, e.0, e.1, e.2);
+            std::println!(
+                "Event #{}: contract={:?}, topics={:?}, data={:?}",
+                i,
+                e.0,
+                e.1,
+                e.2
+            );
         }
     }
 
@@ -3524,11 +3530,23 @@ fn test_pause_reason_codes_and_events() {
     assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "PauseEnabled"));
     let data_map = event_data_map(&env, data);
-    let is_global: bool = data_map.get(Symbol::new(&env, "is_global")).unwrap().try_into_val(&env).unwrap();
+    let is_global: bool = data_map
+        .get(Symbol::new(&env, "is_global"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(is_global, true);
-    let reason: u32 = data_map.get(Symbol::new(&env, "reason")).unwrap().try_into_val(&env).unwrap();
+    let reason: u32 = data_map
+        .get(Symbol::new(&env, "reason"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(reason, 2u32);
-    let flag: u64 = data_map.get(Symbol::new(&env, "flag")).unwrap().try_into_val(&env).unwrap();
+    let flag: u64 = data_map
+        .get(Symbol::new(&env, "flag"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(flag, 0u64);
 
     // Try a blocked action (e.g. dispute) and check error and PauseEnforcedEvent
@@ -3543,9 +3561,17 @@ fn test_pause_reason_codes_and_events() {
     assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "PauseEnforced"));
     let data_map = event_data_map(&env, data);
-    let action: Symbol = data_map.get(Symbol::new(&env, "action")).unwrap().try_into_val(&env).unwrap();
+    let action: Symbol = data_map
+        .get(Symbol::new(&env, "action"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(action, Symbol::new(&env, "dispute"));
-    let reason: u32 = data_map.get(Symbol::new(&env, "reason")).unwrap().try_into_val(&env).unwrap();
+    let reason: u32 = data_map
+        .get(Symbol::new(&env, "reason"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(reason, 2u32);
 
     // Unpause
@@ -3572,11 +3598,23 @@ fn test_pause_reason_codes_and_events() {
     assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "PauseEnabled"));
     let data_map = event_data_map(&env, data);
-    let is_global: bool = data_map.get(Symbol::new(&env, "is_global")).unwrap().try_into_val(&env).unwrap();
+    let is_global: bool = data_map
+        .get(Symbol::new(&env, "is_global"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(is_global, false);
-    let reason: u32 = data_map.get(Symbol::new(&env, "reason")).unwrap().try_into_val(&env).unwrap();
+    let reason: u32 = data_map
+        .get(Symbol::new(&env, "reason"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(reason, 3u32);
-    let flag: u64 = data_map.get(Symbol::new(&env, "flag")).unwrap().try_into_val(&env).unwrap();
+    let flag: u64 = data_map
+        .get(Symbol::new(&env, "flag"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(flag, PauseFlag::Deposit as u64);
 
     // Try a blocked action (e.g. try_deposit) and verify PauseEnforcedEvent
@@ -3594,8 +3632,16 @@ fn test_pause_reason_codes_and_events() {
     assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_ADMIN));
     assert_eq!(t1, Symbol::new(&env, "PauseEnforced"));
     let data_map = event_data_map(&env, data);
-    let action: Symbol = data_map.get(Symbol::new(&env, "action")).unwrap().try_into_val(&env).unwrap();
+    let action: Symbol = data_map
+        .get(Symbol::new(&env, "action"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(action, Symbol::new(&env, "deposit"));
-    let reason: u32 = data_map.get(Symbol::new(&env, "reason")).unwrap().try_into_val(&env).unwrap();
+    let reason: u32 = data_map
+        .get(Symbol::new(&env, "reason"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
     assert_eq!(reason, 3u32);
 }

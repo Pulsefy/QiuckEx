@@ -115,12 +115,22 @@ impl QuickexContract {
     ) -> Result<bool, QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(to.clone()), Symbol::new(&env, "withdraw"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(to.clone()),
+                Symbol::new(&env, "withdraw"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Withdrawal) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Withdrawal);
-            events::publish_pause_enforced(&env, Some(to.clone()), Symbol::new(&env, "withdraw"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(to.clone()),
+                Symbol::new(&env, "withdraw"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -223,12 +233,22 @@ impl QuickexContract {
         }
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(owner.clone()), Symbol::new(&env, "deposit"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Deposit) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(&env, Some(owner.clone()), Symbol::new(&env, "deposit"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -362,12 +382,22 @@ impl QuickexContract {
         }
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(from.clone()), Symbol::new(&env, "deposit_with_commitment"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(from.clone()),
+                Symbol::new(&env, "deposit_with_commitment"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::DepositWithCommitment);
-            events::publish_pause_enforced(&env, Some(from.clone()), Symbol::new(&env, "deposit_with_commitment"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(from.clone()),
+                Symbol::new(&env, "deposit_with_commitment"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -429,12 +459,22 @@ impl QuickexContract {
     ) -> Result<BytesN<32>, QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(owner.clone()), Symbol::new(&env, "deposit_partial"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_partial"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Deposit) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(&env, Some(owner.clone()), Symbol::new(&env, "deposit_partial"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_partial"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -476,12 +516,22 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(payer.clone()), Symbol::new(&env, "partial_payment"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(payer.clone()),
+                Symbol::new(&env, "partial_payment"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Deposit) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(&env, Some(payer.clone()), Symbol::new(&env, "partial_payment"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(payer.clone()),
+                Symbol::new(&env, "partial_payment"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -506,12 +556,22 @@ impl QuickexContract {
     pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(caller.clone()), Symbol::new(&env, "refund"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(caller.clone()),
+                Symbol::new(&env, "refund"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Refund) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Refund);
-            events::publish_pause_enforced(&env, Some(caller.clone()), Symbol::new(&env, "refund"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(caller.clone()),
+                Symbol::new(&env, "refund"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
 
@@ -583,7 +643,12 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(caller.clone()), Symbol::new(&env, "resolve_dispute"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(caller.clone()),
+                Symbol::new(&env, "resolve_dispute"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         hook::assert_not_reentrant(&env)?;
@@ -706,7 +771,12 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn set_paused(env: Env, caller: Address, new_state: bool, reason: u32) -> Result<(), QuickexError> {
+    pub fn set_paused(
+        env: Env,
+        caller: Address,
+        new_state: bool,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -742,7 +812,12 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn pause_features(env: Env, caller: Address, mask: u64, reason: u32) -> Result<(), QuickexError> {
+    pub fn pause_features(
+        env: Env,
+        caller: Address,
+        mask: u64,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -760,7 +835,12 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn unpause_features(env: Env, caller: Address, mask: u64, reason: u32) -> Result<(), QuickexError> {
+    pub fn unpause_features(
+        env: Env,
+        caller: Address,
+        mask: u64,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -1029,12 +1109,22 @@ impl QuickexContract {
     ) -> Result<BytesN<32>, QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(params.sender.clone()), Symbol::new(&env, "register_ephemeral_key"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(params.sender.clone()),
+                Symbol::new(&env, "register_ephemeral_key"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Deposit) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(&env, Some(params.sender.clone()), Symbol::new(&env, "register_ephemeral_key"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(params.sender.clone()),
+                Symbol::new(&env, "register_ephemeral_key"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         stealth::register_ephemeral_key(&env, params)
@@ -1070,12 +1160,22 @@ impl QuickexContract {
     ) -> Result<bool, QuickexError> {
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(&env, Some(recipient.clone()), Symbol::new(&env, "stealth_withdraw"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(recipient.clone()),
+                Symbol::new(&env, "stealth_withdraw"),
+                reason,
+            );
             return Err(QuickexError::ContractPaused);
         }
         if is_feature_paused(&env, PauseFlag::Withdrawal) {
             let reason = storage::get_feature_pause_reason(&env, PauseFlag::Withdrawal);
-            events::publish_pause_enforced(&env, Some(recipient.clone()), Symbol::new(&env, "stealth_withdraw"), reason);
+            events::publish_pause_enforced(
+                &env,
+                Some(recipient.clone()),
+                Symbol::new(&env, "stealth_withdraw"),
+                reason,
+            );
             return Err(QuickexError::OperationPaused);
         }
         stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address)

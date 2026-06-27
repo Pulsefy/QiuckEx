@@ -162,7 +162,12 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 }
 
 /// Set the paused state (**Admin or Operator only**).
-pub fn set_paused(env: &Env, caller: Address, new_state: bool, reason: u32) -> Result<(), QuickexError> {
+pub fn set_paused(
+    env: &Env,
+    caller: Address,
+    new_state: bool,
+    reason: u32,
+) -> Result<(), QuickexError> {
     require_any_role(env, &caller, &[Role::Admin, Role::Operator])?;
 
     storage::set_paused(env, new_state, reason);

@@ -276,4 +276,3 @@ pub enum PauseReason {
     RegulatoryCompliance = 4,
     OperatorIntervention = 5,
 }
-
