@@ -96,7 +96,7 @@ export function ContractErrorState({
       {/* Error Metadata / Code Badge */}
       <View style={[styles.badge, { backgroundColor: theme.divider || "#E5E7EB" }]}>
         <ThemedText style={[styles.badgeText, { color: theme.textMuted }]}>
-          Code: {mapped.code}
+          {`Code: ${mapped.code}`}
         </ThemedText>
       </View>
 
