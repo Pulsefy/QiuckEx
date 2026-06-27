@@ -51,52 +51,54 @@ import { EnvironmentParityModule } from "./environment-parity/environment-parity
 import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
 import { OperationsModule } from "./operations/operations.module";
+import { DeploymentSyncModule } from "./deployment-sync/deployment-sync.module";
 
 type AppImport =
-| Type<unknown>
-| DynamicModule
-| Promise<DynamicModule>
-| ForwardReference<unknown>;
+  | Type<unknown>
+  | DynamicModule
+  | Promise<DynamicModule>
+  | ForwardReference<unknown>;
 
 @Module({
-imports: ((): AppImport[] => {
-const baseImports: AppImport[] = [
-SentryModule,
-AppConfigModule,
-ScheduleModule.forRoot(),
-EventEmitterModule.forRoot({
-wildcard: true,
-delimiter: ".",
-}),
-ThrottlerModule.forRoot(throttlerModuleProfiles),
-SupabaseModule,
-HealthModule,
-AssetMetadataModule,
-StellarModule,
-UsernamesModule,
-MetricsModule,
-AnalyticsModule,
-LinksModule,
-ScamAlertsModule,
-TransactionsModule,
-PaymentsModule,
-IngestionModule,
-ApiKeysModule,
-MarketplaceModule,
-FiatRampsModule,
-RefundsModule,
-ExportsModule,
-JobQueueModule,
-AuditModule,
-ContractsModule,
-FeatureFlagsModule,
-PrivacyModule,
-SorobanToolingModule,
-EnvironmentParityModule,
-IndexerLagModule,
-SupportBundleModule,
-OperationsModule,
-];
+  imports: ((): AppImport[] => {
+    const baseImports: AppImport[] = [
+      SentryModule,
+      AppConfigModule,
+      ScheduleModule.forRoot(),
+      EventEmitterModule.forRoot({
+        wildcard: true,
+        delimiter: ".",
+      }),
+      ThrottlerModule.forRoot(throttlerModuleProfiles),
+      SupabaseModule,
+      HealthModule,
+      AssetMetadataModule,
+      StellarModule,
+      UsernamesModule,
+      MetricsModule,
+      AnalyticsModule,
+      LinksModule,
+      ScamAlertsModule,
+      TransactionsModule,
+      PaymentsModule,
+      IngestionModule,
+      ApiKeysModule,
+      MarketplaceModule,
+      FiatRampsModule,
+      RefundsModule,
+      ExportsModule,
+      JobQueueModule,
+      AuditModule,
+      ContractsModule,
+      FeatureFlagsModule,
+      PrivacyModule,
+      SorobanToolingModule,
+      EnvironmentParityModule,
+      IndexerLagModule,
+      SupportBundleModule,
+      OperationsModule,
+      DeploymentSyncModule,
+    ];
 
 try {
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
