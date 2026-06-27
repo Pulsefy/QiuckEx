@@ -21,6 +21,7 @@ export class AdminEventRepository {
       .upsert(
         {
           event_type: event.eventType,
+          event_id: event.eventId,
           payload,
           schema_version: event.schemaVersion,
           contract_timestamp: Number(event.contractTimestamp),
