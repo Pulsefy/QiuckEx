@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { BranchEnvironmentsService } from './branch-environments.service';
 import { AuditService } from '../audit/audit.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
