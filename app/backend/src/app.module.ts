@@ -51,6 +51,7 @@ import { EnvironmentParityModule } from "./environment-parity/environment-parity
 import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
 import { OperationsModule } from "./operations/operations.module";
+import { BranchEnvironmentsModule } from "./branch-environments/branch-environments.module";
 
 type AppImport =
 | Type<unknown>
@@ -96,6 +97,7 @@ EnvironmentParityModule,
 IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
+BranchEnvironmentsModule,
 ];
 
 try {
