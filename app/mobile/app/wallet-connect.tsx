@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import TestnetFundingHelper from "../components/wallet/TestnetFundingHelper";
+import { StaleSessionBanner } from "../components/wallet/StaleSessionBanner";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import { useNetworkStatus } from "../hooks/use-network-status";
 import { useSecurity } from "../hooks/use-security";
@@ -49,6 +50,14 @@ const ERROR_BANNER: Record<
   session_expired: {
     icon: "time-outline",
     title: "Session Expired",
+  },
+  session_environment_mismatch: {
+    icon: "git-branch-outline",
+    title: "Environment Changed",
+  },
+  session_corrupted: {
+    icon: "warning-outline",
+    title: "Session Corrupted",
   },
   wallet_not_found: {
     icon: "search-outline",
@@ -206,9 +215,18 @@ export default function WalletConnectScreen() {
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.background }]}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, styles.restoringContent]}>
+          <Ionicons
+            name="refresh-outline"
+            size={28}
+            color={theme.textMuted}
+            style={styles.restoringIcon}
+          />
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             Restoring session…
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Checking previous wallet connection
           </Text>
         </View>
       </SafeAreaView>
@@ -253,6 +271,20 @@ export default function WalletConnectScreen() {
               verify in recordings.
             </Text>
           </View>
+        ) : null}
+
+        {/* ── Stale / environment-mismatch banner ──────────────────────── */}
+        {wallet.error?.code === "session_expired" ||
+        wallet.error?.code === "session_environment_mismatch" ||
+        wallet.error?.code === "session_corrupted" ? (
+          <StaleSessionBanner
+            onReconnect={() => {
+              if (selectedWallet) {
+                void handleConnect();
+              }
+            }}
+            onDismiss={clearError}
+          />
         ) : null}
 
         {/* ── Error banner ─────────────────────────────────────────────── */}
@@ -613,6 +645,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+  },
+  restoringContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+  },
+  restoringIcon: {
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
