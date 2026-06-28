@@ -10,9 +10,22 @@ export interface WalletSession {
   connectedAt: number;
   /** ISO-8601 timestamp when the session was last confirmed active */
   lastConfirmedAt: string;
+  /** Environment the session was created in (production/staging/testnet/branch-preview) */
+  environmentId?: string;
+  /** Build tag from when the session was created */
+  buildTag?: string;
 }
 
-const WALLET_SESSION_KEY = "quickex.wallet.session.v2";
+/**
+ * Reason a session was deemed invalid and could not be restored.
+ */
+export type SessionInvalidReason =
+  | "expired"
+  | "environment_mismatch"
+  | "corrupted"
+  | "none";
+
+const WALLET_SESSION_KEY = "quickex.wallet.session.v3";
 const LAST_WALLET_TYPE_KEY = "quickex.wallet.lastType";
 
 /**
@@ -60,20 +73,48 @@ export async function getWalletSession(): Promise<WalletSession | null> {
       walletType: parsed.walletType,
       connectedAt: parsed.connectedAt,
       lastConfirmedAt: parsed.lastConfirmedAt ?? new Date(parsed.connectedAt).toISOString(),
+      environmentId: parsed.environmentId,
+      buildTag: parsed.buildTag,
     };
   } catch {
     return null;
   }
 }
 
-export async function saveWalletSession(session: WalletSession): Promise<void> {
-  await AsyncStorage.setItem(WALLET_SESSION_KEY, JSON.stringify(session));
-  // Also persist the wallet type so we can offer it as default next time
+export async function saveWalletSession(
+  session: WalletSession,
+  environmentId?: string,
+  buildTag?: string,
+): Promise<void> {
+  const enriched: WalletSession = {
+    ...session,
+    environmentId: environmentId ?? session.environmentId,
+    buildTag: buildTag ?? session.buildTag,
+  };
+  await AsyncStorage.setItem(WALLET_SESSION_KEY, JSON.stringify(enriched));
   await AsyncStorage.setItem(LAST_WALLET_TYPE_KEY, session.walletType);
 }
 
 export async function clearWalletSession(): Promise<void> {
   await AsyncStorage.removeItem(WALLET_SESSION_KEY);
+}
+
+/**
+ * Safely resets an invalid session and returns the reason.
+ * Unlike direct clear, this preserves diagnostic information so the UI
+ * can explain to the user why their session was reset.
+ */
+export async function resetInvalidSession(
+  currentEnvironmentId?: string,
+): Promise<{ reason: SessionInvalidReason; session?: WalletSession }> {
+  const session = await getWalletSession();
+  if (!session) return { reason: "corrupted" };
+
+  const result = getSessionInvalidReason(session, currentEnvironmentId);
+  if (!result.invalid) return { reason: "none", session };
+
+  await clearWalletSession();
+  return { reason: result.reason, session };
 }
 
 // ── Session Validation ───────────────────────────────────────────────────────
@@ -99,6 +140,53 @@ export function isSessionRestorable(session: WalletSession): boolean {
   }
 
   return true;
+}
+
+/**
+ * Returns the reason a session is invalid, or `"none"` if it is restorable.
+ * This is more detailed than `isSessionRestorable` so the UI can surface
+ * specific recovery instructions.
+ */
+export function getSessionInvalidReason(
+  session: WalletSession | null,
+  currentEnvironmentId?: string,
+): { invalid: false } | { invalid: true; reason: SessionInvalidReason } {
+  if (!session) return { invalid: true, reason: "corrupted" };
+
+  const now = Date.now();
+  const age = now - session.connectedAt;
+
+  if (age > SESSION_MAX_AGE_MS) return { invalid: true, reason: "expired" };
+
+  try {
+    const lastConfirmed = new Date(session.lastConfirmedAt).getTime();
+    if (Number.isNaN(lastConfirmed)) return { invalid: true, reason: "corrupted" };
+    if (now - lastConfirmed > SESSION_MAX_AGE_MS) return { invalid: true, reason: "expired" };
+  } catch {
+    return { invalid: true, reason: "corrupted" };
+  }
+
+  if (
+    currentEnvironmentId &&
+    session.environmentId &&
+    session.environmentId !== currentEnvironmentId
+  ) {
+    return { invalid: true, reason: "environment_mismatch" };
+  }
+
+  return { invalid: false };
+}
+
+/**
+ * Checks whether the session was created in a different environment/branch
+ * than the app is currently running in.
+ */
+export function isSessionEnvironmentMismatch(
+  session: WalletSession,
+  currentEnvironmentId: string,
+): boolean {
+  if (!session.environmentId) return false;
+  return session.environmentId !== currentEnvironmentId;
 }
 
 /**
