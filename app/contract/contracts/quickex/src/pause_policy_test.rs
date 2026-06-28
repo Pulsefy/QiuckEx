@@ -9,7 +9,9 @@ use crate::{
 };
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
-    token, xdr::ToXdr, Address, Bytes, BytesN, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
+    token,
+    xdr::ToXdr,
+    Address, Bytes, BytesN, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
 
 fn setup<'a>() -> (Env, QuickexContractClient<'a>) {
@@ -31,7 +33,7 @@ fn assert_contract_error<T>(
 ) {
     match result {
         Err(Ok(actual)) => assert_eq!(actual, expected),
-        other => panic!("expected contract error {expected:?}, got {other:?}"),
+        _ => panic!("expected contract error"),
     }
 }
 
@@ -159,8 +161,7 @@ fn test_safe_entry_points_remain_usable_in_emergency_mode() {
 
     client.initialize(&admin);
 
-    let refund_commitment =
-        setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
+    let refund_commitment = setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
     let (withdraw_commitment, withdraw_salt) =
         setup_withdrawable_escrow(&env, &client, &token, &recipient, amount);
 
@@ -168,9 +169,15 @@ fn test_safe_entry_points_remain_usable_in_emergency_mode() {
     env.mock_all_auths();
 
     client.refund(&refund_commitment, &owner);
-    client.withdraw(&token, &amount, &withdraw_commitment, &recipient, &withdraw_salt);
-    client.try_cleanup_escrow(&refund_commitment).unwrap();
-    client.try_extend_escrow_ttl(&withdraw_commitment).unwrap();
+    client.withdraw(
+        &token,
+        &amount,
+        &withdraw_commitment,
+        &recipient,
+        &withdraw_salt,
+    );
+    let _ = client.try_cleanup_escrow(&refund_commitment).unwrap();
+    let _ = client.try_extend_escrow_ttl(&withdraw_commitment).unwrap();
 }
 
 #[test]
@@ -184,8 +191,7 @@ fn test_global_pause_blocks_all_non_view_entry_points() {
 
     client.initialize(&admin);
 
-    let refund_commitment =
-        setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
+    let refund_commitment = setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
     let (withdraw_commitment, withdraw_salt) =
         setup_withdrawable_escrow(&env, &client, &token, &recipient, amount);
 
@@ -225,8 +231,7 @@ fn test_feature_pause_blocks_only_targeted_entry_points() {
 
     client.initialize(&admin);
 
-    let refund_commitment =
-        setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
+    let refund_commitment = setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
 
     client.pause_features(&admin, &(PauseFlag::Deposit as u64));
 
@@ -368,5 +373,5 @@ fn test_emergency_mode_blocks_risky_entry_points_and_allows_safe_paths() {
 
     env.mock_all_auths();
     client.refund(&commitment, &user);
-    client.try_cleanup_escrow(&commitment).unwrap();
+    let _ = client.try_cleanup_escrow(&commitment).unwrap();
 }

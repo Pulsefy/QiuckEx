@@ -4,8 +4,8 @@ use crate::events::{
     publish_contract_paused, publish_fee_collector_rotated, publish_pause_flags_changed,
     publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
 };
-use crate::pause_policy::PauseChangeReason;
 use crate::fee_router;
+use crate::pause_policy::PauseChangeReason;
 use crate::storage;
 use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};

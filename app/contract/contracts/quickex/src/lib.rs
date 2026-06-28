@@ -49,7 +49,7 @@ mod types;
 mod upgrade_test;
 
 use errors::QuickexError;
-use pause_policy::{self, EntryPoint};
+use pause_policy::EntryPoint;
 use storage::*;
 use types::{
     DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
