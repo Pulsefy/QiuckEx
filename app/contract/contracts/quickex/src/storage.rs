@@ -434,11 +434,15 @@ pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags
     env.storage().persistent().set(&key, &updated);
 }
 
+/// Read the current granular pause flag bitmask.
+pub fn get_pause_flags(env: &Env) -> u64 {
+    let key = DataKey::PauseFlags;
+    env.storage().persistent().get(&key).unwrap_or(0)
+}
+
 /// Check whether a specific operation flag is paused.
 pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
-    let key = DataKey::PauseFlags;
-    let flags: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-    flags & (flag as u64) != 0
+    get_pause_flags(env) & (flag as u64) != 0
 }
 
 /// Get paused state.

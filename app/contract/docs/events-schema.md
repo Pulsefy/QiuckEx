@@ -110,7 +110,15 @@ accidental breakage.
 
 - `ContractPaused`
   - Topics: `TOPIC_ADMIN`, `ContractPaused`, `admin`
-  - Data: `schema_version`, `paused`, `timestamp`
+  - Data: `schema_version`, `paused`, `reason`, `timestamp`
+
+- `PauseFlagsChanged`
+  - Topics: `TOPIC_ADMIN`, `PauseFlagsChanged`, `admin`
+  - Data: `schema_version`, `enabled`, `disabled`, `flags`, `reason`, `timestamp`
+
+- `EmergencyModeActivated`
+  - Topics: `TOPIC_ADMIN`, `EmergencyModeActivated`, `admin`
+  - Data: `schema_version`, `timestamp`
 
 - `AdminChanged`
   - Topics: `TOPIC_ADMIN`, `AdminChanged`, `old_admin`, `new_admin`
