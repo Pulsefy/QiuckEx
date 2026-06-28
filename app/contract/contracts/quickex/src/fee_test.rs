@@ -6,8 +6,8 @@ use crate::{
     QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    token, Address, Bytes, ConversionError, Env, InvokeError, Map, Symbol, Val,
+    testutils::{Address as _, Events as _, Ledger},
+    token, Address, Bytes, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
 
 fn setup_test(
@@ -180,7 +180,12 @@ fn test_set_fee_config_rejects_bps_above_max() {
     let (client, admin, _, _, _) = setup_test(&env);
     env.mock_all_auths();
 
-    let result = client.try_set_fee_config(&admin, &FeeConfig { fee_bps: MAX_FEE_BPS + 1 });
+    let result = client.try_set_fee_config(
+        &admin,
+        &FeeConfig {
+            fee_bps: MAX_FEE_BPS + 1,
+        },
+    );
     assert_contract_error(result, QuickexError::InvalidAmount);
 }
 
@@ -190,7 +195,12 @@ fn test_set_fee_config_accepts_max_bps() {
     let (client, admin, _, _, _) = setup_test(&env);
     env.mock_all_auths();
 
-    client.set_fee_config(&admin, &FeeConfig { fee_bps: MAX_FEE_BPS });
+    client.set_fee_config(
+        &admin,
+        &FeeConfig {
+            fee_bps: MAX_FEE_BPS,
+        },
+    );
     assert_eq!(client.get_fee_config().fee_bps, MAX_FEE_BPS);
 }
 
@@ -276,8 +286,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
     // 1 stroop deposit: floor fee = 0, user gets full amount back.
     let tiny_amount: i128 = 1;
     let salt = Bytes::from_array(&env, &[2; 32]);
-    let commitment =
-        client.deposit(&token_id, &tiny_amount, &owner, &salt, &3600, &None);
+    let commitment = client.deposit(&token_id, &tiny_amount, &owner, &salt, &3600, &None);
     client.withdraw(&token_id, &tiny_amount, &commitment, &owner, &salt);
     assert_eq!(token_client.balance(&platform_wallet), 0);
     assert_eq!(token_client.balance(&owner), 100_000);
@@ -285,8 +294,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
     // 9_999 stroops at 1 bps: fee floors to 0.
     let edge_amount: i128 = 9_999;
     let salt2 = Bytes::from_array(&env, &[3; 32]);
-    let commitment2 =
-        client.deposit(&token_id, &edge_amount, &owner, &salt2, &3600, &None);
+    let commitment2 = client.deposit(&token_id, &edge_amount, &owner, &salt2, &3600, &None);
     client.withdraw(&token_id, &edge_amount, &commitment2, &owner, &salt2);
     assert_eq!(token_client.balance(&platform_wallet), 0);
     assert_eq!(token_client.balance(&owner), 100_000);
@@ -294,21 +302,8 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
     // 10_000 stroops at 1 bps: fee = 1.
     let threshold_amount: i128 = 10_000;
     let salt3 = Bytes::from_array(&env, &[4; 32]);
-    let commitment3 = client.deposit(
-        &token_id,
-        &threshold_amount,
-        &owner,
-        &salt3,
-        &3600,
-        &None,
-    );
-    client.withdraw(
-        &token_id,
-        &threshold_amount,
-        &commitment3,
-        &owner,
-        &salt3,
-    );
+    let commitment3 = client.deposit(&token_id, &threshold_amount, &owner, &salt3, &3600, &None);
+    client.withdraw(&token_id, &threshold_amount, &commitment3, &owner, &salt3);
     assert_eq!(token_client.balance(&platform_wallet), 1);
     assert_eq!(token_client.balance(&owner), 99_999);
 }
@@ -330,15 +325,19 @@ fn test_fee_extreme_values() {
     let large_amount: i128 = i128::MAX / 2;
     token_admin_client.mint(&owner, &large_amount);
 
-    client.set_fee_config(&admin, &FeeConfig { fee_bps: MAX_FEE_BPS });
+    client.set_fee_config(
+        &admin,
+        &FeeConfig {
+            fee_bps: MAX_FEE_BPS,
+        },
+    );
     client.set_platform_wallet(&admin, &platform_wallet);
 
     let expected_fee = fee_from_bps_floor(large_amount, MAX_FEE_BPS);
     assert_eq!(expected_fee, large_amount);
 
     let salt = Bytes::from_array(&env, &[5; 32]);
-    let commitment =
-        client.deposit(&token_id, &large_amount, &owner, &salt, &3600, &None);
+    let commitment = client.deposit(&token_id, &large_amount, &owner, &salt, &3600, &None);
     client.withdraw(&token_id, &large_amount, &commitment, &owner, &salt);
 
     assert_eq!(token_client.balance(&platform_wallet), expected_fee);

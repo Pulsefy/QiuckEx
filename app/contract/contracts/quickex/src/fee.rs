@@ -24,19 +24,41 @@ pub fn fee_from_bps_floor(amount: i128, bps: u32) -> i128 {
     if amount <= 0 || bps == 0 {
         return 0;
     }
-    (amount * bps as i128) / BPS_DENOMINATOR
+    let bps_i = bps as i128;
+    if bps_i >= BPS_DENOMINATOR {
+        return amount;
+    }
+    if let Some(numerator) = amount.checked_mul(bps_i) {
+        return numerator / BPS_DENOMINATOR;
+    }
+    let quotient = amount / BPS_DENOMINATOR;
+    let remainder = amount % BPS_DENOMINATOR;
+    quotient
+        .saturating_mul(bps_i)
+        .saturating_add(remainder.saturating_mul(bps_i) / BPS_DENOMINATOR)
 }
 
-/// Compute a bps fee using ceil rounding (deterministic, platform-favorable).
-///
 /// Reserved for paths that must not under-collect when splitting fees; the primary
 /// fee path uses [`fee_from_bps_floor`].
+#[allow(dead_code)]
 pub fn fee_from_bps_ceil(amount: i128, bps: u32) -> i128 {
     if amount <= 0 || bps == 0 {
         return 0;
     }
-    let numerator = amount * bps as i128;
-    (numerator + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR
+    let bps_i = bps as i128;
+    if bps_i >= BPS_DENOMINATOR {
+        return amount;
+    }
+    if let Some(numerator) = amount.checked_mul(bps_i) {
+        return (numerator + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR;
+    }
+    let floor = fee_from_bps_floor(amount, bps);
+    let remainder = amount % BPS_DENOMINATOR;
+    if remainder.saturating_mul(bps_i) % BPS_DENOMINATOR == 0 {
+        floor
+    } else {
+        floor.saturating_add(1)
+    }
 }
 
 /// Calculate the platform fee for a given amount using the global config.
