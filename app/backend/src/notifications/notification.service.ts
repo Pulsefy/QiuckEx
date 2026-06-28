@@ -39,7 +39,7 @@ import { JobType } from "../job-queue/types";
 import type { WebhookDeliveryPayload } from "../job-queue/types/job-payloads.types";
 
 import { InAppNotificationRepository } from "./in-app-notification.repository";
-import { TemplateService } from "./template.service";
+import { TemplateVersionService } from "./template-versioning/template-version.service";
 
 const MAX_ATTEMPTS = 3;
 
@@ -54,7 +54,7 @@ export class NotificationService implements OnModuleInit {
     private readonly providers: INotificationProvider[],
     private readonly prefsRepo: NotificationPreferencesRepository,
     private readonly inAppRepo: InAppNotificationRepository,
-    private readonly templateService: TemplateService,
+    private readonly templateVersionService: TemplateVersionService,
     private readonly logRepo: NotificationLogRepository,
     @Optional() private readonly jobQueueService?: JobQueueService,
   ) {}
@@ -237,24 +237,27 @@ export class NotificationService implements OnModuleInit {
 
     if (preferences.length === 0) return;
 
-    const template = this.templateService.getTemplate(payload.eventType);
+    // Use versioned template service to render active template and get its ID
+    const renderedTemplate = await this.templateVersionService.renderActiveTemplateForEventType(
+      payload.eventType, 
+      payload as unknown as Record<string, unknown>
+    );
 
     const renderedPayload: NotificationPayload = {
       ...payload,
-      title: template
-        ? this.templateService.render(template.title, payload as unknown as Record<string, unknown>)
-        : payload.title,
-      body: template
-        ? this.templateService.render(template.body, payload as unknown as Record<string, unknown>)
-        : payload.body,
+      title: renderedTemplate ? renderedTemplate.title : payload.title,
+      body: renderedTemplate ? renderedTemplate.body : payload.body,
     };
+
+    // Store template version ID for persistence in notification logs
+    const templateVersionId = renderedTemplate?.templateVersionId;
 
     const filtered = preferences.filter((pref) =>
       this.matchesPreference(renderedPayload, pref),
     );
 
     await Promise.allSettled(
-      filtered.map((pref) => this.sendToChannel(pref, renderedPayload)),
+      filtered.map((pref) => this.sendToChannel(pref, renderedPayload, templateVersionId)),
     );
   }
 
@@ -265,6 +268,7 @@ export class NotificationService implements OnModuleInit {
   async sendToChannel(
     pref: NotificationPreference,
     payload: NotificationPayload,
+    templateVersionId?: string,
   ): Promise<void> {
     const { publicKey, channel } = pref;
     const { eventType, eventId } = payload;
@@ -282,7 +286,7 @@ export class NotificationService implements OnModuleInit {
 
     // ✅ IN-APP CHANNEL
     if (channel === "in_app") {
-      await this.logRepo.createPending(publicKey, channel, eventType, eventId);
+      await this.logRepo.createPending(publicKey, channel, eventType, eventId, templateVersionId);
 
       try {
         await this.inAppRepo.create({
@@ -310,14 +314,14 @@ export class NotificationService implements OnModuleInit {
 
     // webhook async handling
     if (channel === "webhook" && this.jobQueueService) {
-      await this.enqueueWebhookJob(pref, payload);
+      await this.enqueueWebhookJob(pref, payload, templateVersionId);
       return;
     }
 
     const provider = this.providerMap.get(channel);
     if (!provider) return;
 
-    await this.logRepo.createPending(publicKey, channel, eventType, eventId);
+    await this.logRepo.createPending(publicKey, channel, eventType, eventId, templateVersionId);
 
     try {
       const result = await provider.send(pref, payload);
@@ -401,13 +405,14 @@ export class NotificationService implements OnModuleInit {
   private async enqueueWebhookJob(
     pref: NotificationPreference,
     payload: NotificationPayload,
+    templateVersionId?: string,
   ): Promise<void> {
     const { publicKey, webhookUrl } = pref;
     const { eventType, eventId } = payload;
 
     if (!webhookUrl) return;
 
-    await this.logRepo.createPending(publicKey, "webhook", eventType, eventId);
+    await this.logRepo.createPending(publicKey, "webhook", eventType, eventId, templateVersionId);
 
     const jobPayload: WebhookDeliveryPayload = {
       recipientPublicKey: publicKey,

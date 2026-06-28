@@ -17,6 +17,7 @@ export class NotificationLogRepository {
     channel: NotificationChannel,
     eventType: NotificationEventType,
     eventId: string,
+    templateVersionId?: string,
   ): Promise<string | null> {
     const { data, error } = await this.supabase
       .getClient()
@@ -29,6 +30,7 @@ export class NotificationLogRepository {
           event_id: eventId,
           status: "pending",
           attempts: 0,
+          template_version_id: templateVersionId ?? null,
         },
         {
           onConflict: "public_key,channel,event_id,event_type",

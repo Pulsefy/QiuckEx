@@ -28,6 +28,10 @@ import { JobQueueModule } from "../job-queue/job-queue.module";
 import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { TemplateService } from "./template.service";
 import { NotificationsController } from "./notifications.controller";
+// Template versioning system
+import { TemplatesController } from "./template-versioning/templates.controller";
+import { TemplateVersionRepository } from "./template-versioning/template-version.repository";
+import { TemplateVersionService } from "./template-versioning/template-version.service";
 
 /**
  * Notification engine module.
@@ -47,12 +51,16 @@ import { NotificationsController } from "./notifications.controller";
     TelegramController,
     WebhooksController,
     NotificationsController,
+    TemplatesController, // New template versioning controller
   ],
   providers: [
     NotificationPreferencesRepository,
     NotificationLogRepository,
     InAppNotificationRepository,
     TemplateService,
+    // Template versioning system
+    TemplateVersionRepository,
+    TemplateVersionService,
     TelegramRepository,
     TelegramBotService,
     TelegramNotificationProvider,
