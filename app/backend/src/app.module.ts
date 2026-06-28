@@ -52,6 +52,8 @@ import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
 import { OperationsModule } from "./operations/operations.module";
 import { RcValidationModule } from "./rc-validation/rc-validation.module";
+import { AbuseSignalsModule } from "./abuse-signals/abuse-signal.module";
+import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
 
 type AppImport =
 | Type<unknown>
@@ -97,10 +99,11 @@ EnvironmentParityModule,
 IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
-RcValidationModule,
-];
+    RcValidationModule,
+    AbuseSignalsModule,
+    ];
 
-try {
+    try {
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
   const isLocalSupabase =
     supabaseUrl.includes("localhost") ||
@@ -141,13 +144,17 @@ useClass: OrganizationRoleGuard,
 })
 export class AppModule implements NestModule {
 configure(consumer: MiddlewareConsumer) {
-consumer
-.apply(
-MetricsMiddleware,
-CorrelationIdMiddleware,
-OrganizationContextMiddleware,
-ShadowTrafficMiddleware,
-)
-.forRoutes("*");
+  consumer
+    .apply(
+      MetricsMiddleware,
+      CorrelationIdMiddleware,
+      OrganizationContextMiddleware,
+      ShadowTrafficMiddleware,
+    )
+    .forRoutes("*");
+
+  consumer
+    .apply(AbuseSignalMiddleware)
+    .forRoutes("payment-links", "links");
 }
 }
