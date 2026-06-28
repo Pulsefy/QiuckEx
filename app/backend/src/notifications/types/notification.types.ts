@@ -47,6 +47,8 @@ export interface BaseNotificationPayload {
   amountStroops?: bigint;
   /** Arbitrary extra context for provider templates. */
   metadata?: Record<string, unknown>;
+  /** Preview scope identifier when the event originated from a preview environment. */
+  previewScope?: string;
 }
 
 export interface EscrowDepositedPayload extends BaseNotificationPayload {

@@ -21,6 +21,9 @@ export interface WebhookDeliveryPayload {
   
   /** Unique identifier for this event */
   eventId: string;
+
+  /** Preview scope identifier when the event originated from a preview environment. */
+  previewScope?: string;
   
   /** Event-specific payload data */
   payload: Record<string, unknown>;

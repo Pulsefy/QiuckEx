@@ -54,6 +54,8 @@ import { OperationsModule } from "./operations/operations.module";
 import { RcValidationModule } from "./rc-validation/rc-validation.module";
 import { AbuseSignalsModule } from "./abuse-signals/abuse-signal.module";
 import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
+import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
+import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
 
 type AppImport =
 | Type<unknown>
@@ -101,6 +103,7 @@ SupportBundleModule,
 OperationsModule,
     RcValidationModule,
     AbuseSignalsModule,
+    PreviewScopeModule,
     ];
 
     try {
@@ -156,5 +159,9 @@ configure(consumer: MiddlewareConsumer) {
   consumer
     .apply(AbuseSignalMiddleware)
     .forRoutes("payment-links", "links");
+
+  consumer
+    .apply(PreviewScopeMiddleware)
+    .forRoutes("*");
 }
 }
