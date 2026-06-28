@@ -188,7 +188,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "FeeConfigChanged",
         topics: &[EVENT_TOPIC_ADMIN, "FeeConfigChanged"],
-        payload_keys: &["fee_bps", "schema_version", "timestamp"],
+        payload_keys: &["fee_bps", "old_fee_bps", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -207,7 +207,14 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "PerAssetFeeSet",
         topics: &[EVENT_TOPIC_ADMIN, "PerAssetFeeSet", "token"],
-        payload_keys: &["arbiter_bps", "fee_bps", "schema_version", "timestamp"],
+        payload_keys: &[
+            "arbiter_bps",
+            "fee_bps",
+            "old_arbiter_bps",
+            "old_fee_bps",
+            "schema_version",
+            "timestamp",
+        ],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -783,15 +790,17 @@ pub(crate) fn publish_stealth_withdrawn(
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeConfigChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigChangedEvent {
-    pub schema_version: u32,
+    pub old_fee_bps: u32,
     pub fee_bps: u32,
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
+pub(crate) fn publish_fee_config_changed(env: &Env, old_fee_bps: u32, fee_bps: u32) {
     FeeConfigChangedEvent {
-        schema_version: EVENT_SCHEMA_VERSION,
+        old_fee_bps,
         fee_bps,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -922,15 +931,26 @@ pub(crate) fn publish_fee_collector_rotated(
 pub struct PerAssetFeeSetEvent {
     #[topic]
     pub token: Address,
+    pub old_fee_bps: u32,
+    pub old_arbiter_bps: u32,
     pub fee_bps: u32,
     pub arbiter_bps: u32,
     pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
+pub(crate) fn publish_per_asset_fee_set(
+    env: &Env,
+    token: Address,
+    old_fee_bps: u32,
+    old_arbiter_bps: u32,
+    fee_bps: u32,
+    arbiter_bps: u32,
+) {
     PerAssetFeeSetEvent {
         token,
+        old_fee_bps,
+        old_arbiter_bps,
         fee_bps,
         arbiter_bps,
         schema_version: EVENT_SCHEMA_VERSION,

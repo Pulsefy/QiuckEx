@@ -4,6 +4,7 @@ use crate::events::{
     publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
     publish_upgrade_completed, publish_upgrade_started,
 };
+use crate::fee;
 use crate::fee_router;
 use crate::storage;
 use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
@@ -336,9 +337,11 @@ pub fn set_pause_flags(
 /// Set fee configuration (**Admin or Operator only**).
 pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
+    fee::validate_fee_bps(config.fee_bps)?;
 
+    let old_fee_bps = storage::get_fee_config(env).fee_bps;
     storage::set_fee_config(env, &config);
-    crate::events::publish_fee_config_changed(env, config.fee_bps);
+    crate::events::publish_fee_config_changed(env, old_fee_bps, config.fee_bps);
     Ok(())
 }
 
@@ -351,12 +354,22 @@ pub fn set_per_asset_fee(
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
-    if config.fee_bps > 10_000 || config.arbiter_bps > 10_000 {
-        return Err(QuickexError::InvalidAmount);
-    }
+    fee::validate_fee_bps(config.fee_bps)?;
+    fee::validate_fee_bps(config.arbiter_bps)?;
+
+    let previous = storage::get_per_asset_fee(env, &token);
+    let old_fee_bps = previous.as_ref().map(|c| c.fee_bps).unwrap_or(0);
+    let old_arbiter_bps = previous.as_ref().map(|c| c.arbiter_bps).unwrap_or(0);
 
     storage::set_per_asset_fee(env, &token, &config);
-    publish_per_asset_fee_set(env, token, config.fee_bps, config.arbiter_bps);
+    publish_per_asset_fee_set(
+        env,
+        token,
+        old_fee_bps,
+        old_arbiter_bps,
+        config.fee_bps,
+        config.arbiter_bps,
+    );
     Ok(())
 }
 
