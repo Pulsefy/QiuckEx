@@ -1,4 +1,4 @@
-import { ExecutionContext } from "@nestjs/common";
+import { ExecutionContext, Logger } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   ThrottlerException,
@@ -9,6 +9,7 @@ import {
 import { CustomThrottlerGuard } from "./custom-throttler.guard";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
+  RateLimitAllowlist,
   THROTTLER_BURST_NAME,
   THROTTLER_SUSTAINED_NAME,
   throttlerConfig,
@@ -29,6 +30,7 @@ type ReqShape = {
 interface GuardSurface {
   handleRequest(requestProps: ThrottlerRequest): Promise<boolean>;
   getTracker(req: ReqShape): Promise<string>;
+  getAllowlist(): RateLimitAllowlist;
 }
 
 function buildContext(
@@ -66,10 +68,13 @@ function buildProps(
 
 const throttlerProto = ThrottlerGuard.prototype as unknown as GuardSurface;
 
+const EMPTY_ALLOWLIST: RateLimitAllowlist = { ips: [], apiKeys: [] };
+
 describe("CustomThrottlerGuard", () => {
   let guard: GuardSurface;
   let superHandleRequest: jest.SpyInstance;
   let metricsServiceRecordMock: jest.Mock;
+  let metricsServiceBypassMock: jest.Mock;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -93,13 +98,20 @@ describe("CustomThrottlerGuard", () => {
           provide: MetricsService,
           useValue: {
             recordRateLimitedRequest: jest.fn(),
+            recordRateLimitAllowlistBypass: jest.fn(),
           },
         },
       ],
     }).compile();
 
     guard = module.get(CustomThrottlerGuard) as unknown as GuardSurface;
-    metricsServiceRecordMock = module.get(MetricsService).recordRateLimitedRequest as jest.Mock;
+    const metrics = module.get(MetricsService);
+    metricsServiceRecordMock = metrics.recordRateLimitedRequest as jest.Mock;
+    metricsServiceBypassMock =
+      metrics.recordRateLimitAllowlistBypass as jest.Mock;
+
+    // Default: no allowlist entries unless a test overrides this.
+    jest.spyOn(guard, "getAllowlist").mockReturnValue(EMPTY_ALLOWLIST);
 
     superHandleRequest = jest
       .spyOn(throttlerProto, "handleRequest")
@@ -212,6 +224,119 @@ describe("CustomThrottlerGuard", () => {
       "public",
       "ip",
     );
+  });
+
+  it("logs a warning when a request is throttled", async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, "warn");
+
+    const context = buildContext({
+      ip: "127.0.0.1",
+      baseUrl: "/links",
+      route: { path: "/metadata" },
+      method: "GET",
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    superHandleRequest.mockRejectedValueOnce(new ThrottlerException());
+
+    await expect(guard.handleRequest(props)).rejects.toBeInstanceOf(
+      ThrottlerException,
+    );
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("Rate limit exceeded");
+    expect(warnSpy.mock.calls[0][0]).toContain("GET /metadata");
+  });
+
+  it("bypasses throttling for an allowlisted IP", async () => {
+    (guard.getAllowlist as jest.Mock).mockReturnValue({
+      ips: ["203.0.113.7"],
+      apiKeys: [],
+    });
+
+    const context = buildContext({
+      ip: "203.0.113.7",
+      baseUrl: "/stellar",
+      route: { path: "/quote" },
+      method: "POST",
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    const result = await guard.handleRequest(props);
+
+    expect(result).toBe(true);
+    expect(superHandleRequest).not.toHaveBeenCalled();
+    expect(metricsServiceBypassMock).toHaveBeenCalledWith(
+      "POST",
+      "/quote",
+      "ip",
+    );
+  });
+
+  it("bypasses throttling for an allowlisted API key", async () => {
+    (guard.getAllowlist as jest.Mock).mockReturnValue({
+      ips: [],
+      apiKeys: ["ci-bypass-token"],
+    });
+
+    const context = buildContext({
+      headers: { "x-api-key": "ci-bypass-token" },
+      ip: "198.51.100.4",
+      baseUrl: "/links",
+      route: { path: "/scan" },
+      method: "POST",
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    const result = await guard.handleRequest(props);
+
+    expect(result).toBe(true);
+    expect(superHandleRequest).not.toHaveBeenCalled();
+    expect(metricsServiceBypassMock).toHaveBeenCalledWith(
+      "POST",
+      "/scan",
+      "api_key",
+    );
+  });
+
+  it("does not bypass throttling for a non-allowlisted identity", async () => {
+    (guard.getAllowlist as jest.Mock).mockReturnValue({
+      ips: ["203.0.113.7"],
+      apiKeys: ["ci-bypass-token"],
+    });
+
+    const context = buildContext({
+      ip: "10.0.0.1",
+      baseUrl: "/links",
+      route: { path: "/scan" },
+      method: "POST",
+    });
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledTimes(1);
+    expect(metricsServiceBypassMock).not.toHaveBeenCalled();
+  });
+
+  it("audits an allowlist bypass only once across burst and sustained windows", async () => {
+    (guard.getAllowlist as jest.Mock).mockReturnValue({
+      ips: ["203.0.113.7"],
+      apiKeys: [],
+    });
+
+    const req = {
+      ip: "203.0.113.7",
+      baseUrl: "/stellar",
+      route: { path: "/quote" },
+      method: "POST",
+    };
+    const context = buildContext(req);
+
+    await guard.handleRequest(buildProps(context, THROTTLER_BURST_NAME));
+    await guard.handleRequest(buildProps(context, THROTTLER_SUSTAINED_NAME));
+
+    expect(metricsServiceBypassMock).toHaveBeenCalledTimes(1);
   });
 
   it("builds tracker from user id when available", async () => {

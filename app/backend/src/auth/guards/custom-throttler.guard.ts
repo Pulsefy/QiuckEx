@@ -1,4 +1,4 @@
-import { ExecutionContext, Injectable, Inject } from "@nestjs/common";
+import { ExecutionContext, Injectable, Inject, Logger } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
   ThrottlerException,
@@ -7,12 +7,16 @@ import {
 } from "@nestjs/throttler";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
+  RateLimitAllowlist,
   RateLimitGroup,
   RateLimitKeyType,
+  rateLimitAllowlist,
   THROTTLER_BURST_NAME,
   throttlerConfig,
 } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
+
+type AllowlistMatch = { matchedBy: "ip" | "api_key" } | { matchedBy: null };
 
 type RequestWithRateLimitContext = Record<string, unknown> & {
   headers?: Record<string, string | string[] | undefined>;
@@ -28,6 +32,8 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
     group: RateLimitGroup;
     keyType: RateLimitKeyType;
   };
+  /** Set once an allowlist bypass has been audited, to avoid double-logging. */
+  rateLimitAllowlistAudited?: boolean;
 };
 
 @Injectable()
@@ -37,6 +43,8 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
   protected readonly reflector = new Reflector();
 
+  private readonly logger = new Logger(CustomThrottlerGuard.name);
+
   protected async handleRequest(
     requestProps: ThrottlerRequest,
   ): Promise<boolean> {
@@ -44,6 +52,15 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const req = context
       .switchToHttp()
       .getRequest<RequestWithRateLimitContext>();
+
+    // Allowlisted callers (CI and trusted contributors on testnet) bypass
+    // throttling entirely. Every bypass is logged and metered so the allowlist
+    // stays auditable.
+    const allowlistMatch = this.matchAllowlist(req);
+    if (allowlistMatch.matchedBy !== null) {
+      this.auditAllowlistBypass(req, allowlistMatch.matchedBy);
+      return true;
+    }
 
     const group = this.resolveGroup(context, req);
     const window =
@@ -78,13 +95,20 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
         }
 
         const method = req.method ?? "unknown";
-        const routePath = req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
-        
+        const routePath =
+          req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
+        const keyType = req.rateLimitContext.keyType;
+
         this.metricsService.recordRateLimitedRequest(
           method,
           routePath,
           group,
-          req.rateLimitContext.keyType,
+          keyType,
+        );
+
+        this.logger.warn(
+          `Rate limit exceeded: ${method} ${routePath} ` +
+            `[group=${group} key_type=${keyType} retry_after=${retryAfterSeconds}s]`,
         );
       }
 
@@ -180,5 +204,71 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     }
 
     return req.ip ?? "unknown";
+  }
+
+  /**
+   * Resolves the active allowlist. Indirection keeps the guard testable without
+   * mutating process state.
+   */
+  protected getAllowlist(): RateLimitAllowlist {
+    return rateLimitAllowlist;
+  }
+
+  /**
+   * Returns how the request matched the allowlist, if at all. API keys are
+   * checked before IPs so a trusted token wins over a shared egress IP.
+   */
+  private matchAllowlist(req: RequestWithRateLimitContext): AllowlistMatch {
+    const allowlist = this.getAllowlist();
+
+    const apiKey = this.getApiKeyValue(req);
+    if (apiKey && allowlist.apiKeys.includes(apiKey)) {
+      return { matchedBy: "api_key" };
+    }
+
+    const ip = this.getIp(req);
+    if (ip && ip !== "unknown" && allowlist.ips.includes(ip)) {
+      return { matchedBy: "ip" };
+    }
+
+    return { matchedBy: null };
+  }
+
+  /** Logs and meters an allowlist bypass exactly once per request. */
+  private auditAllowlistBypass(
+    req: RequestWithRateLimitContext,
+    matchedBy: "ip" | "api_key",
+  ): void {
+    if (req.rateLimitAllowlistAudited) {
+      return;
+    }
+    req.rateLimitAllowlistAudited = true;
+
+    const method = req.method ?? "unknown";
+    const routePath =
+      req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
+
+    this.metricsService.recordRateLimitAllowlistBypass(
+      method,
+      routePath,
+      matchedBy,
+    );
+
+    const principal =
+      matchedBy === "api_key"
+        ? `api_key=${this.redactSecret(this.getApiKeyValue(req))}`
+        : `ip=${this.getIp(req)}`;
+
+    this.logger.log(
+      `Rate limit bypassed via allowlist: ${method} ${routePath} ` +
+        `[matched_by=${matchedBy} ${principal}]`,
+    );
+  }
+
+  /** Redacts a secret for safe logging, keeping only a short identifying prefix. */
+  private redactSecret(value?: string): string {
+    if (!value) return "unknown";
+    if (value.length <= 4) return "****";
+    return `${value.slice(0, 4)}****`;
   }
 }

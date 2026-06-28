@@ -140,7 +140,13 @@ describe("MetricsService", () => {
         labelNames: ["service", "error_type"],
       });
 
-      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(14);
+      expect(client.Counter).toHaveBeenCalledWith({
+        name: "http_rate_limit_allowlist_bypass_total",
+        help: "Total number of requests that bypassed rate limiting via the allowlist",
+        labelNames: ["method", "route", "matched_by"],
+      });
+
+      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(18);
     });
 
     it("should handle initialization errors gracefully", () => {
@@ -392,6 +398,26 @@ describe("MetricsService", () => {
         "public",
         "ip",
       );
+      expect(mockRateLimitedCounter.labels).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("recordRateLimitAllowlistBypass", () => {
+    it("should record allowlist bypasses when initialized", () => {
+      service.onModuleInit();
+
+      service.recordRateLimitAllowlistBypass("POST", "/stellar/quote", "ip");
+
+      expect(mockRateLimitedCounter.labels).toHaveBeenCalledWith(
+        "POST",
+        "/stellar/quote",
+        "ip",
+      );
+      expect(mockRateLimitedCounter.inc).toHaveBeenCalled();
+    });
+
+    it("should be a no-op when service is not initialized", () => {
+      service.recordRateLimitAllowlistBypass("POST", "/stellar/quote", "ip");
       expect(mockRateLimitedCounter.labels).not.toHaveBeenCalled();
     });
   });

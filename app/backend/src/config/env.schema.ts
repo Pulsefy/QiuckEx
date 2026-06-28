@@ -261,6 +261,21 @@ export const envSchema = Joi.object({
       "Preferred key order for rate-limit identity. Allowed values: user_id,api_key,ip",
     ),
 
+  RATE_LIMIT_ALLOWLIST_IPS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated client IPs that bypass rate limiting entirely. " +
+        "Intended for CI and trusted contributors on testnet. Matched exactly.",
+    ),
+  RATE_LIMIT_ALLOWLIST_API_KEYS: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Comma-separated x-api-key values that bypass rate limiting entirely. " +
+        "Treat as shared testnet bypass tokens; every use is logged.",
+    ),
+
   // ---------------------------------------------------------------------------
   // Sentry Error Monitoring (optional; omit to disable)
   // ---------------------------------------------------------------------------
@@ -403,6 +418,8 @@ export interface EnvConfig {
   RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: number;
   RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: number;
   RATE_LIMIT_KEY_ORDER: string;
+  RATE_LIMIT_ALLOWLIST_IPS?: string;
+  RATE_LIMIT_ALLOWLIST_API_KEYS?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;

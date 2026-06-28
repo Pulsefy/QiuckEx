@@ -7,6 +7,7 @@ export class MetricsService implements OnModuleInit {
   private httpRequestDuration: client.Histogram<string>;
   private httpRequestTotal: client.Counter<string>;
   private rateLimitedRequestsTotal: client.Counter<string>;
+  private rateLimitAllowlistBypassTotal: client.Counter<string>;
   private activeConnections: client.Gauge<string>;
   private ingestionLagSeconds: client.Gauge<string>;
   private webhookRetryTotal: client.Counter<string>;
@@ -46,6 +47,12 @@ export class MetricsService implements OnModuleInit {
         name: "http_rate_limited_requests_total",
         help: "Total number of requests blocked by rate limiting",
         labelNames: ["method", "route", "group", "key_type"],
+      });
+
+      this.rateLimitAllowlistBypassTotal = new client.Counter({
+        name: "http_rate_limit_allowlist_bypass_total",
+        help: "Total number of requests that bypassed rate limiting via the allowlist",
+        labelNames: ["method", "route", "matched_by"],
       });
 
       this.activeConnections = new client.Gauge({
@@ -134,6 +141,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
+      this.register.registerMetric(this.rateLimitAllowlistBypassTotal);
       this.register.registerMetric(this.activeConnections);
       this.register.registerMetric(this.ingestionLagSeconds);
       this.register.registerMetric(this.webhookRetryTotal);
@@ -214,6 +222,22 @@ export class MetricsService implements OnModuleInit {
 
     try {
       this.rateLimitedRequestsTotal.labels(method, route, group, keyType).inc();
+    } catch (error) {}
+  }
+
+  recordRateLimitAllowlistBypass(
+    method: string,
+    route: string,
+    matchedBy: string,
+  ) {
+    if (!this.initialized || !this.rateLimitAllowlistBypassTotal) {
+      return;
+    }
+
+    try {
+      this.rateLimitAllowlistBypassTotal
+        .labels(method, route, matchedBy)
+        .inc();
     } catch (error) {}
   }
 

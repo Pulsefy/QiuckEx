@@ -21,7 +21,32 @@ export type RateLimitConfig = {
   keyOrder: RateLimitKeyType[];
 };
 
+/**
+ * Identities that bypass rate limiting entirely. Intended for testnet so CI
+ * jobs and trusted contributors are not throttled while exercising the public
+ * API. Matching is exact (no wildcards/CIDR) to keep the bypass surface small
+ * and auditable.
+ */
+export type RateLimitAllowlist = {
+  /** Client IPs, matched exactly against the resolved request IP. */
+  ips: string[];
+  /**
+   * API-key identifiers, matched exactly against the `x-api-key` header (or a
+   * resolved `apiKey.id`). On testnet these act as shared bypass tokens.
+   */
+  apiKeys: string[];
+};
+
 const DEFAULT_KEY_ORDER: RateLimitKeyType[] = ["user_id", "api_key", "ip"];
+
+function parseCsvList(raw?: string): string[] {
+  if (!raw) return [];
+
+  return raw
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
 
 function parseKeyOrder(raw?: string): RateLimitKeyType[] {
   if (!raw) return DEFAULT_KEY_ORDER;
@@ -37,6 +62,19 @@ function parseKeyOrder(raw?: string): RateLimitKeyType[] {
   );
 
   return ordered.length > 0 ? ordered : DEFAULT_KEY_ORDER;
+}
+
+/**
+ * Builds the rate-limit allowlist from the environment. Exposed as a pure
+ * function so it can be unit-tested without mutating process state.
+ */
+export function parseRateLimitAllowlist(
+  env: NodeJS.ProcessEnv = process.env,
+): RateLimitAllowlist {
+  return {
+    ips: parseCsvList(env["RATE_LIMIT_ALLOWLIST_IPS"]),
+    apiKeys: parseCsvList(env["RATE_LIMIT_ALLOWLIST_API_KEYS"]),
+  };
 }
 
 export const throttlerConfig: RateLimitConfig = {
@@ -88,6 +126,9 @@ export const throttlerConfig: RateLimitConfig = {
   },
   keyOrder: parseKeyOrder(process.env["RATE_LIMIT_KEY_ORDER"]),
 };
+
+export const rateLimitAllowlist: RateLimitAllowlist =
+  parseRateLimitAllowlist();
 
 export const throttlerModuleProfiles = [
   {
