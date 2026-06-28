@@ -87,7 +87,20 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "ContractPaused",
         topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
-        payload_keys: &["paused", "schema_version", "timestamp"],
+        payload_keys: &["paused", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseFlagsChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseFlagsChanged", "admin"],
+        payload_keys: &[
+            "disabled",
+            "enabled",
+            "flags",
+            "reason",
+            "schema_version",
+            "timestamp",
+        ],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -262,6 +275,11 @@ pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
         current_version: EVENT_SCHEMA_VERSION,
         compatible_versions: &[1, EVENT_SCHEMA_VERSION],
     },
+    EventCompatibility {
+        name: "PauseFlagsChanged",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[EVENT_SCHEMA_VERSION],
+    },
 ];
 
 #[contractevent(topics = ["TOPIC_ADMIN", "EmergencyModeActivated"])]
@@ -378,15 +396,50 @@ pub struct ContractPausedEvent {
 
     pub schema_version: u32,
     pub paused: bool,
+    pub reason: u32,
     pub timestamp: u64,
 }
 
 #[allow(dead_code)]
-pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool) {
+pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, reason: u32) {
     ContractPausedEvent {
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         paused,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseFlagsChangedEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub enabled: u64,
+    pub disabled: u64,
+    pub flags: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_pause_flags_changed(
+    env: &Env,
+    admin: Address,
+    enabled: u64,
+    disabled: u64,
+    flags: u64,
+    reason: u32,
+) {
+    PauseFlagsChangedEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        enabled,
+        disabled,
+        flags,
+        reason,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

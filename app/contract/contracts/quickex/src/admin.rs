@@ -1,10 +1,11 @@
 use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_contract_initialized, publish_contract_migrated,
-    publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
-    publish_upgrade_completed, publish_upgrade_started,
+    publish_contract_paused, publish_fee_collector_rotated, publish_pause_flags_changed,
+    publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee_router;
+use crate::pause_policy::PauseChangeReason;
 use crate::storage;
 use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
@@ -166,7 +167,12 @@ pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), Qui
     require_any_role(env, &caller, &[Role::Admin, Role::Operator])?;
 
     storage::set_paused(env, new_state);
-    publish_contract_paused(env, caller, new_state);
+    let reason = if new_state {
+        PauseChangeReason::GlobalPause as u32
+    } else {
+        PauseChangeReason::GlobalUnpause as u32
+    };
+    publish_contract_paused(env, caller, new_state, reason);
     Ok(())
 }
 
@@ -330,6 +336,14 @@ pub fn set_pause_flags(
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
     storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable);
+    publish_pause_flags_changed(
+        env,
+        caller.clone(),
+        flags_to_enable,
+        flags_to_disable,
+        storage::get_pause_flags(env),
+        PauseChangeReason::FeatureFlagsUpdated as u32,
+    );
     Ok(())
 }
 
