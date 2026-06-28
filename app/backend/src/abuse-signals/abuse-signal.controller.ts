@@ -7,7 +7,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
 } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiQuery } from "@nestjs/swagger";
 import { AbuseSignalService } from "./abuse-signal.service";
 
 @ApiTags("admin/abuse-signals")
