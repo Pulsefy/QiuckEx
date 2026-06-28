@@ -8,7 +8,9 @@
 //!
 //! | Key Variant            | Value Type     | Description |
 //! |------------------------|----------------|-------------|
-//! | [`Escrow`](DataKey::Escrow) | `EscrowEntry`  | Escrow entry keyed by commitment hash (32 bytes). One entry per unique deposit. |
+//! | [`Escrow`](DataKey::Escrow) | `EscrowEntry`  | Legacy escrow entry keyed by commitment hash (32 bytes). Read as a fallback during lazy migration. |
+//! | [`EscrowCore`](DataKey::EscrowCore) | `CompactEscrowEntry` | Compact escrow record used for new writes and hot-path reads. |
+//! | [`EscrowDispute`](DataKey::EscrowDispute) | `EscrowDisputeConfig` | Optional dispute-only metadata written only when an escrow uses arbiters. |
 //! | [`EscrowCounter`](DataKey::EscrowCounter) | `u64`       | Global monotonic counter for escrow creation. |
 //! | [`ContractVersion`](DataKey::ContractVersion) | `u32` | Stored schema/version marker for upgrade migrations. |
 //! | [`Admin`](DataKey::Admin) | `Address`     | Contract admin address. Set during initialisation, transferable by admin. |
@@ -38,8 +40,14 @@
 //! - **Add** new variants for new keys; they will not collide with existing ones.
 //! - **Value layout**: Changing `EscrowEntry` fields may require migration logic; adding optional
 //!   fields can be done carefully with defaults.
+//! - **Lazy migration**: Reads still fall back to the legacy [`DataKey::Escrow`] payload.
+//!   Any subsequent write rewrites the escrow into the compact layout and removes the
+//!   legacy record.
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
+
+#[cfg(test)]
+use soroban_sdk::xdr::ToXdr;
 
 use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
 
@@ -47,6 +55,7 @@ use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RecordType {
     Escrow,
+    EscrowDispute,
     FeeConfig,
     StealthEscrow,
     EscrowIdMap,
@@ -65,6 +74,10 @@ pub struct TtlPolicy {
 fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
     match record_type {
         RecordType::Escrow => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::EscrowDispute => TtlPolicy {
             threshold: LEDGER_THRESHOLD,
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
@@ -123,8 +136,13 @@ pub enum PauseFlag {
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
-    /// Escrow entry keyed by commitment hash (`Bytes`, typically 32 bytes).
+    /// Legacy escrow entry keyed by commitment hash (`Bytes`, typically 32 bytes).
+    /// Kept for backward-compatible reads after the storage compaction pass.
     Escrow(Bytes),
+    /// Compact escrow payload used for new and rewritten records.
+    EscrowCore(Bytes),
+    /// Optional dispute-only metadata for escrows that actually use arbiters.
+    EscrowDispute(Bytes),
     /// Global escrow counter (singleton).
     EscrowCounter,
     /// Current contract schema version (singleton).
@@ -179,6 +197,148 @@ pub enum DataKey {
     FeeCollector(u32),
     /// Tracks arbiter votes for disputed escrows. Keyed by (commitment, arbiter).
     DisputeVote(Bytes, Address),
+}
+
+/// Compact escrow record stored on the hot path.
+///
+/// Dispute metadata is intentionally split into a separate record so the common
+/// no-arbiter escrow avoids paying storage rent for empty optional fields.
+#[contracttype]
+#[derive(Clone)]
+struct CompactEscrowEntry {
+    token: Address,
+    amount_due: i128,
+    amount_paid: i128,
+    owner: Address,
+    status: crate::types::EscrowStatus,
+    created_at: u64,
+    expires_at: u64,
+}
+
+impl CompactEscrowEntry {
+    fn from_public(entry: &EscrowEntry) -> Self {
+        Self {
+            token: entry.token.clone(),
+            amount_due: entry.amount_due,
+            amount_paid: entry.amount_paid,
+            owner: entry.owner.clone(),
+            status: entry.status,
+            created_at: entry.created_at,
+            expires_at: entry.expires_at,
+        }
+    }
+
+    fn into_public(self, dispute: EscrowDisputeConfig) -> EscrowEntry {
+        EscrowEntry {
+            token: self.token,
+            amount_due: self.amount_due,
+            amount_paid: self.amount_paid,
+            owner: self.owner,
+            status: self.status,
+            created_at: self.created_at,
+            expires_at: self.expires_at,
+            arbiter: dispute.arbiter,
+            arbiters: dispute.arbiters,
+            arbiter_threshold: dispute.arbiter_threshold,
+        }
+    }
+}
+
+/// Dispute-only escrow metadata stored separately from the hot-path core record.
+#[contracttype]
+#[derive(Clone)]
+struct EscrowDisputeConfig {
+    arbiter: Option<Address>,
+    arbiters: Vec<Address>,
+    arbiter_threshold: u32,
+}
+
+impl EscrowDisputeConfig {
+    fn empty(env: &Env) -> Self {
+        Self {
+            arbiter: None,
+            arbiters: Vec::new(env),
+            arbiter_threshold: 0,
+        }
+    }
+
+    fn from_public(env: &Env, entry: &EscrowEntry) -> Self {
+        Self {
+            arbiter: entry.arbiter.clone(),
+            arbiters: if entry.arbiters.is_empty() {
+                Vec::new(env)
+            } else {
+                entry.arbiters.clone()
+            },
+            arbiter_threshold: entry.arbiter_threshold,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.arbiter.is_none() && self.arbiters.is_empty() && self.arbiter_threshold == 0
+    }
+}
+
+fn legacy_escrow_key(commitment: &Bytes) -> DataKey {
+    DataKey::Escrow(commitment.clone())
+}
+
+fn compact_escrow_key(commitment: &Bytes) -> DataKey {
+    DataKey::EscrowCore(commitment.clone())
+}
+
+fn escrow_dispute_key(commitment: &Bytes) -> DataKey {
+    DataKey::EscrowDispute(commitment.clone())
+}
+
+fn get_escrow_dispute_config(env: &Env, commitment: &Bytes) -> EscrowDisputeConfig {
+    let key = escrow_dispute_key(commitment);
+    let dispute = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or_else(|| EscrowDisputeConfig::empty(env));
+
+    if !dispute.is_empty() {
+        set_or_extend_ttl(env, &key, RecordType::EscrowDispute);
+    }
+
+    dispute
+}
+
+fn put_escrow_dispute_config(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
+    let key = escrow_dispute_key(commitment);
+    let dispute = EscrowDisputeConfig::from_public(env, entry);
+
+    if dispute.is_empty() {
+        env.storage().persistent().remove(&key);
+        return;
+    }
+
+    env.storage().persistent().set(&key, &dispute);
+    set_or_extend_ttl(env, &key, RecordType::EscrowDispute);
+}
+
+fn extend_escrow_compaction_ttl(env: &Env, commitment: &Bytes) -> bool {
+    let core_key = compact_escrow_key(commitment);
+    if env.storage().persistent().has(&core_key) {
+        set_or_extend_ttl(env, &core_key, RecordType::Escrow);
+
+        let dispute_key = escrow_dispute_key(commitment);
+        if env.storage().persistent().has(&dispute_key) {
+            set_or_extend_ttl(env, &dispute_key, RecordType::EscrowDispute);
+        }
+
+        return true;
+    }
+
+    let legacy_key = legacy_escrow_key(commitment);
+    if env.storage().persistent().has(&legacy_key) {
+        set_or_extend_ttl(env, &legacy_key, RecordType::Escrow);
+        return true;
+    }
+
+    false
 }
 
 // -----------------------------------------------------------------------------
@@ -306,34 +466,94 @@ pub fn assert_post_upgrade_invariants(env: &Env) -> Result<(), &'static str> {
 /// **Contract**: Overwrites any existing entry for the same commitment.
 /// The commitment should be the 32-byte `SHA256(owner || amount || salt)` hash.
 pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
-    let key = DataKey::Escrow(commitment.clone());
-    env.storage().persistent().set(&key, entry);
-    set_or_extend_ttl(env, &key, RecordType::Escrow);
+    let compact_key = compact_escrow_key(commitment);
+    let compact_entry = CompactEscrowEntry::from_public(entry);
+
+    env.storage().persistent().set(&compact_key, &compact_entry);
+    set_or_extend_ttl(env, &compact_key, RecordType::Escrow);
+    put_escrow_dispute_config(env, commitment, entry);
+
+    // Lazy migration: once an escrow is rewritten, retire the legacy payload.
+    env.storage()
+        .persistent()
+        .remove(&legacy_escrow_key(commitment));
 }
 
 /// Remove an escrow entry from storage and reclaim the storage deposit.
 pub fn remove_escrow(env: &Env, commitment: &Bytes) {
-    let key = DataKey::Escrow(commitment.clone());
-    env.storage().persistent().remove(&key);
+    env.storage()
+        .persistent()
+        .remove(&compact_escrow_key(commitment));
+    env.storage()
+        .persistent()
+        .remove(&escrow_dispute_key(commitment));
+    env.storage()
+        .persistent()
+        .remove(&legacy_escrow_key(commitment));
 }
 
 /// Get an escrow entry from storage.
 ///
 /// **Contract**: Returns `None` if no escrow exists for the commitment.
 pub fn get_escrow(env: &Env, commitment: &Bytes) -> Option<EscrowEntry> {
-    let key = DataKey::Escrow(commitment.clone());
-    let result = env.storage().persistent().get(&key);
-    if result.is_some() {
-        set_or_extend_ttl(env, &key, RecordType::Escrow);
+    let compact_key = compact_escrow_key(commitment);
+    let compact_result: Option<CompactEscrowEntry> = env.storage().persistent().get(&compact_key);
+    if let Some(compact_entry) = compact_result {
+        set_or_extend_ttl(env, &compact_key, RecordType::Escrow);
+        let dispute = get_escrow_dispute_config(env, commitment);
+        return Some(compact_entry.into_public(dispute));
     }
-    result
+
+    let legacy_key = legacy_escrow_key(commitment);
+    let legacy_result: Option<EscrowEntry> = env.storage().persistent().get(&legacy_key);
+    if legacy_result.is_some() {
+        set_or_extend_ttl(env, &legacy_key, RecordType::Escrow);
+    }
+    legacy_result
 }
 
 /// Check if an escrow entry exists in storage.
 #[allow(dead_code)]
 pub fn has_escrow(env: &Env, commitment: &Bytes) -> bool {
-    let key = DataKey::Escrow(commitment.clone());
-    env.storage().persistent().has(&key)
+    env.storage()
+        .persistent()
+        .has(&compact_escrow_key(commitment))
+        || env
+            .storage()
+            .persistent()
+            .has(&legacy_escrow_key(commitment))
+}
+
+/// Extend the TTL of whichever escrow representation is currently stored.
+pub fn extend_escrow_storage_ttl(env: &Env, commitment: &Bytes) -> bool {
+    extend_escrow_compaction_ttl(env, commitment)
+}
+
+#[cfg(test)]
+pub(crate) fn legacy_escrow_storage_footprint_bytes(
+    env: &Env,
+    commitment: &Bytes,
+    entry: &EscrowEntry,
+) -> usize {
+    (legacy_escrow_key(commitment).to_xdr(env).len() + entry.to_xdr(env).len()) as usize
+}
+
+#[cfg(test)]
+pub(crate) fn compact_escrow_storage_footprint_bytes(
+    env: &Env,
+    commitment: &Bytes,
+    entry: &EscrowEntry,
+) -> usize {
+    let compact_key = compact_escrow_key(commitment);
+    let compact_entry = CompactEscrowEntry::from_public(entry);
+    let mut total = compact_key.to_xdr(env).len() + compact_entry.to_xdr(env).len();
+
+    let dispute = EscrowDisputeConfig::from_public(env, entry);
+    if !dispute.is_empty() {
+        total += escrow_dispute_key(commitment).to_xdr(env).len() + dispute.to_xdr(env).len();
+    }
+
+    total as usize
 }
 
 /// Get the next escrow counter value.

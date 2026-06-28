@@ -102,6 +102,21 @@ use crate::{
     types::{EscrowEntry, EscrowStatus},
 };
 
+fn make_entry(env: &Env, amount: i128) -> EscrowEntry {
+    EscrowEntry {
+        token: Address::generate(env),
+        amount_due: amount,
+        amount_paid: amount,
+        owner: Address::generate(env),
+        status: EscrowStatus::Pending,
+        created_at: env.ledger().timestamp(),
+        expires_at: 0,
+        arbiter: None,
+        arbiters: Vec::new(env),
+        arbiter_threshold: 0,
+    }
+}
+
 #[test]
 fn test_escrow_storage() {
     let env = Env::default();
@@ -146,6 +161,99 @@ fn test_escrow_storage() {
         let non_existent_commitment: Bytes = Bytes::from_array(&env, &[2u8; 32]);
         assert!(!has_escrow(&env, &non_existent_commitment));
         assert!(get_escrow(&env, &non_existent_commitment).is_none());
+    });
+}
+
+#[test]
+fn test_common_escrow_is_compacted_and_smaller_than_legacy_layout() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        let commitment: Bytes = Bytes::from_array(&env, &[6u8; 32]);
+        let entry = make_entry(&env, 2_500);
+
+        put_escrow(&env, &commitment, &entry);
+
+        assert!(env
+            .storage()
+            .persistent()
+            .has(&DataKey::EscrowCore(commitment.clone())));
+        assert!(!env
+            .storage()
+            .persistent()
+            .has(&DataKey::Escrow(commitment.clone())));
+        assert!(!env
+            .storage()
+            .persistent()
+            .has(&DataKey::EscrowDispute(commitment.clone())));
+
+        let compact_bytes = compact_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+        let legacy_bytes = legacy_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+        assert!(
+            compact_bytes < legacy_bytes,
+            "expected compact footprint {compact_bytes} to be smaller than legacy {legacy_bytes}"
+        );
+    });
+}
+
+#[test]
+fn test_arbiter_escrow_round_trips_via_separate_dispute_record() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        let commitment: Bytes = Bytes::from_array(&env, &[7u8; 32]);
+        let arbiter = Address::generate(&env);
+        let mut entry = make_entry(&env, 5_000);
+        entry.arbiter = Some(arbiter.clone());
+
+        put_escrow(&env, &commitment, &entry);
+
+        assert!(env
+            .storage()
+            .persistent()
+            .has(&DataKey::EscrowCore(commitment.clone())));
+        assert!(env
+            .storage()
+            .persistent()
+            .has(&DataKey::EscrowDispute(commitment.clone())));
+
+        let stored = get_escrow(&env, &commitment).unwrap();
+        assert_eq!(stored.arbiter, Some(arbiter));
+        assert!(stored.arbiters.is_empty());
+        assert_eq!(stored.arbiter_threshold, 0);
+    });
+}
+
+#[test]
+fn test_legacy_escrow_can_be_rewritten_to_compact_storage() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        let commitment: Bytes = Bytes::from_array(&env, &[8u8; 32]);
+        let entry = make_entry(&env, 7_500);
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(commitment.clone()), &entry);
+
+        let mut updated = get_escrow(&env, &commitment).unwrap();
+        assert_eq!(updated.amount_due, entry.amount_due);
+        updated.status = EscrowStatus::Spent;
+
+        put_escrow(&env, &commitment, &updated);
+
+        assert!(env
+            .storage()
+            .persistent()
+            .has(&DataKey::EscrowCore(commitment.clone())));
+        assert!(!env
+            .storage()
+            .persistent()
+            .has(&DataKey::Escrow(commitment.clone())));
+        assert_eq!(
+            get_escrow(&env, &commitment).unwrap().status,
+            EscrowStatus::Spent
+        );
     });
 }
 

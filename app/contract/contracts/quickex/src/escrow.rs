@@ -67,9 +67,9 @@ use crate::{
     errors::QuickexError,
     escrow_id, events, fee_router, hook,
     storage::{
-        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping, has_dispute_vote,
-        has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping, remove_escrow,
-        LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
+        count_dispute_votes, extend_escrow_storage_ttl, get_dispute_vote, get_escrow,
+        get_escrow_id_mapping, has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
+        put_escrow_id_mapping, remove_escrow,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
@@ -662,15 +662,9 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
 /// Any user can call this to keep an escrow from being archived.
 pub fn extend_escrow_ttl(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.into();
-    if !has_escrow(env, &commitment_bytes) {
+    if !extend_escrow_storage_ttl(env, &commitment_bytes) {
         return Err(QuickexError::CommitmentNotFound);
     }
-
-    env.storage().persistent().extend_ttl(
-        &crate::storage::DataKey::Escrow(commitment_bytes),
-        LEDGER_THRESHOLD,
-        SIX_MONTHS_IN_LEDGERS,
-    );
     Ok(())
 }
 
