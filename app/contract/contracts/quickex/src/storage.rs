@@ -429,9 +429,9 @@ pub fn is_upgrade_in_progress(env: &Env) -> bool {
 /// Called after migration to validate state machine and fee bounds.
 /// Returns `Ok(())` if all invariants hold; `Err(msg)` deterministically if violated.
 pub fn assert_post_upgrade_invariants(env: &Env) -> Result<(), &'static str> {
-    // Invariant 1: Fee bounds must be within [0, 10000] basis points.
+    // Invariant 1: Fee bounds must be within [0, MAX_FEE_BPS] basis points.
     let fee_cfg = get_fee_config(env);
-    if fee_cfg.fee_bps > 10_000 {
+    if fee_cfg.fee_bps > crate::fee::MAX_FEE_BPS {
         return Err("fee_bps exceeds maximum (10000)");
     }
 

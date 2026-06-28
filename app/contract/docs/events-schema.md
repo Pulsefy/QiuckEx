@@ -134,7 +134,7 @@ accidental breakage.
 
 - `FeeConfigChanged`
   - Topics: `TOPIC_ADMIN`, `FeeConfigChanged`
-  - Data: `schema_version`, `fee_bps`, `timestamp`
+  - Data: `schema_version`, `old_fee_bps`, `fee_bps`, `timestamp`
 
 - `PlatformWalletChanged`
   - Topics: `TOPIC_ADMIN`, `PlatformWalletChanged`, `wallet`
