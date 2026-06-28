@@ -20,6 +20,7 @@ export class StealthEventRepository {
       .upsert(
         {
           event_type: event.eventType,
+          event_id: event.eventId,
           stealth_address: event.stealthAddress,
           counterparty: isRegistered ? registered!.ephPub : (event as { recipient: string }).recipient,
           token: event.token,

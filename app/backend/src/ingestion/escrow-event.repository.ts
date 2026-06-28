@@ -25,6 +25,7 @@ export class EscrowEventRepository {
 
     const row: Record<string, unknown> = {
       event_type: event.eventType,
+      event_id: event.eventId,
       commitment: event.commitment,
       owner: event.owner,
       token: event.token,
