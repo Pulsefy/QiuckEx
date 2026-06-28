@@ -3,26 +3,18 @@
  * Ensures all required variables are present at build/startup time.
  */
 
-// Define required and optional environment variables
+// Define required environment variables
 const requiredEnvVars = [
   "NEXT_PUBLIC_QUICKEX_API_URL",
   "NEXT_PUBLIC_STELLAR_NETWORK",
 ] as const;
 
-const optionalEnvVars = [
-  "NEXT_PUBLIC_SITE_URL",
-  "NEXT_PUBLIC_ERROR_REPORTING_ENABLED",
-  "NEXT_PUBLIC_APP_VERSION",
-] as const;
-
 type RequiredEnvVar = typeof requiredEnvVars[number];
-type OptionalEnvVar = typeof optionalEnvVars[number];
-type EnvVar = RequiredEnvVar | OptionalEnvVar;
 
 // Validate environment variables
 export function validateEnv() {
   const missing: RequiredEnvVar[] = [];
-  const invalid: { key: EnvVar; reason: string }[] = [];
+  const invalid: { key: string; reason: string }[] = [];
 
   // Check required variables
   for (const key of requiredEnvVars) {
