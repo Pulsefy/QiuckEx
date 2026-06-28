@@ -356,6 +356,27 @@ export const envSchema = Joi.object({
   INDEXER_LAG_GUARD_OVERRIDE: Joi.boolean()
     .default(false)
     .description("Admin override to disable lag guard temporarily (for emergencies)"),
+
+  // ── Abuse Signal Configuration ──────────────────────────────────────────
+  ABUSE_SIGNAL_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(90)
+    .description("Days to retain abuse signals before auto-pruning"),
+  ABUSE_SIGNAL_SCORE_THRESHOLD: Joi.number()
+    .integer()
+    .min(0)
+    .max(100)
+    .default(30)
+    .description("Abuse score threshold for flagging as suspicious"),
+  ABUSE_SIGNAL_GEO_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable geo-lite lookups for abuse signals"),
+  ABUSE_SIGNAL_HASH_SALT: Joi.string()
+    .empty("")
+    .default("default-abuse-salt")
+    .description("Salt for IP/UA hashing in abuse signals"),
 });
 
 /**
@@ -418,4 +439,8 @@ export interface EnvConfig {
   INDEXER_LAG_THRESHOLD_LEDGERS: number;
   INDEXER_LAG_GUARD_ENABLED: boolean;
   INDEXER_LAG_GUARD_OVERRIDE: boolean;
+  ABUSE_SIGNAL_RETENTION_DAYS: number;
+  ABUSE_SIGNAL_SCORE_THRESHOLD: number;
+  ABUSE_SIGNAL_GEO_ENABLED: boolean;
+  ABUSE_SIGNAL_HASH_SALT: string;
 }
