@@ -10,6 +10,10 @@ interface PaymentLinkStatus {
   transactionHash: string | null;
   paidAt: string | null;
   userMessage: string;
+  receiptHash?: string | null;
+  contractId?: string | null;
+  network?: string | null;
+  correlationId?: string | null;
 }
 
 interface RefundedPaymentStateProps {
@@ -19,6 +23,30 @@ interface RefundedPaymentStateProps {
 export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
   return (
     <div className="space-y-8">
+      {/* Status Timeline */}
+      <div className="flex items-center justify-center gap-2 mb-4 text-sm font-medium">
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <span className="text-muted text-[10px] uppercase tracking-wider">Initiated</span>
+        </div>
+        <div className="w-12 h-0.5 bg-indigo-500/50 -mt-6"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <span className="text-muted text-[10px] uppercase tracking-wider">Pending</span>
+        </div>
+        <div className="w-12 h-0.5 bg-purple-500/50 -mt-6"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+          </div>
+          <span className="text-purple-400 text-[10px] uppercase tracking-wider font-bold">Refunded</span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="text-center">
         <div
@@ -123,11 +151,46 @@ export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
 
         <button
           type="button"
-          onClick={() => window.history.back()}
-          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label="Share receipt data for support"
+          onClick={() => {
+            const debugData = `--- Support Receipt Data ---\nStatus: REFUNDED\nTx Hash: ${status.transactionHash || 'N/A'}\nReceipt Hash: ${status.receiptHash || 'N/A'}\nContract: ${status.contractId || 'N/A'}\nNetwork: ${status.network || 'N/A'}\nCorrelation ID: ${status.correlationId || 'N/A'}\nOriginal Recipient: @${status.username}\nAmount: ${status.amount} ${status.asset}\nTime: ${status.paidAt || 'N/A'}`;
+            navigator.clipboard.writeText(debugData);
+          }}
+          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background flex items-center justify-center gap-2"
         >
-          Go Back
+          <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          Share Receipt Data
         </button>
+      </div>
+
+      {/* Technical Details for Support */}
+      <div className="bg-card/30 border border-border rounded-xl p-4 mt-8">
+        <details className="group">
+          <summary className="flex cursor-pointer items-center justify-between font-semibold text-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 rounded">
+            <span>Technical Details (Support)</span>
+            <span className="transition group-open:rotate-180">
+              <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24"><polyline points="6 9 12 15 18 9" /></svg>
+            </span>
+          </summary>
+          <div className="mt-4 space-y-2 text-xs font-mono text-muted overflow-x-auto">
+            <div className="flex justify-between border-b border-border/50 pb-2">
+              <span>Receipt Hash:</span>
+              <span className="text-foreground">{status.receiptHash || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between border-b border-border/50 pb-2">
+              <span>Contract ID:</span>
+              <span className="text-foreground">{status.contractId || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between border-b border-border/50 pb-2">
+              <span>Network:</span>
+              <span className="text-foreground">{status.network || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Correlation ID:</span>
+              <span className="text-foreground">{status.correlationId || 'N/A'}</span>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   );

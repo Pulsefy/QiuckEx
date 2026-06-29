@@ -9,6 +9,10 @@ interface PaymentLinkStatus {
   memo: string | null;
   expiresAt: string | null;
   userMessage: string;
+  receiptHash?: string | null;
+  contractId?: string | null;
+  network?: string | null;
+  correlationId?: string | null;
 }
 
 interface ExpiredPaymentStateProps {

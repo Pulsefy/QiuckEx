@@ -23,6 +23,10 @@ type PaymentLinkStatus = {
   expiresAt: string | null;
   transactionHash: string | null;
   paidAt: string | null;
+  receiptHash?: string | null;
+  contractId?: string | null;
+  network?: string | null;
+  correlationId?: string | null;
   swapOptions?: Array<{
     sourceAmount: string;
     sourceAsset: string;

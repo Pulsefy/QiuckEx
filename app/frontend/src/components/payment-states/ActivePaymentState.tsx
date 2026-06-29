@@ -35,6 +35,10 @@ interface PaymentLinkStatus {
   acceptedAssets: string[] | null;
   userMessage: string;
   availableActions: string[];
+  receiptHash?: string | null;
+  contractId?: string | null;
+  network?: string | null;
+  correlationId?: string | null;
 }
 
 interface ActivePaymentStateProps {
