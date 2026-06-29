@@ -242,7 +242,7 @@ export class TemplateVersionRepository {
 
     return data.map(template => {
       const activeVersion = template.notification_template_versions?.find(
-        (v: any) => v.status === TemplateVersionStatus.ACTIVE
+        (v: NotificationTemplateVersion) => v.status === TemplateVersionStatus.ACTIVE
       );
       return {
         ...this.mapToTemplate(template),
@@ -251,29 +251,29 @@ export class TemplateVersionRepository {
     });
   }
 
-  private mapToTemplate(data: any): NotificationTemplate {
+  private mapToTemplate(data: Record<string, unknown>): NotificationTemplate {
     return {
-      id: data.id,
-      eventType: data.event_type,
-      name: data.name,
-      description: data.description ?? undefined,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      id: data.id as string,
+      eventType: data.event_type as string,
+      name: data.name as string,
+      description: (data.description as string) ?? undefined,
+      createdAt: data.created_at as string,
+      updatedAt: data.updated_at as string,
     };
   }
 
-  private mapToVersion(data: any): NotificationTemplateVersion {
+  private mapToVersion(data: Record<string, unknown>): NotificationTemplateVersion {
     return {
-      id: data.id,
-      templateId: data.template_id,
-      versionNumber: data.version_number,
-      title: data.title,
-      body: data.body,
+      id: data.id as string,
+      templateId: data.template_id as string,
+      versionNumber: data.version_number as number,
+      title: data.title as string,
+      body: data.body as string,
       status: data.status as TemplateVersionStatus,
-      changeNotes: data.change_notes ?? undefined,
-      createdBy: data.created_by,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      changeNotes: (data.change_notes as string) ?? undefined,
+      createdBy: data.created_by as string,
+      createdAt: data.created_at as string,
+      updatedAt: data.updated_at as string,
     };
   }
 }

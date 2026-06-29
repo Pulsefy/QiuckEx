@@ -15,7 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { RequireScopes } from '../../auth/guards/require-scopes.guard';
+import { RequireScopes } from '../../auth/decorators/require-scopes.decorator';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { TemplateVersionRepository } from './template-version.repository';
 import { TemplateVersionService } from './template-version.service';
