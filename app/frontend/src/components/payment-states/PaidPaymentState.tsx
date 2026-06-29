@@ -51,7 +51,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       </div>
 
       {/* Payment Success Card */}
-      <div className="bg-gradient-to-br from-green-500/10 to-indigo-500/10 border border-green-400/30 rounded-2xl p-8">
+      <div className="bg-gradient-to-br from-green-500/10 to-indigo-500/10 border border-success/30 rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Summary</h2>
 
         <dl className="space-y-4">
@@ -125,7 +125,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       )}
 
       {/* Success Message */}
-      <div className="bg-green-500/10 border border-green-400/30 rounded-xl p-6">
+      <div className="bg-success-soft border border-green-400/30 rounded-xl p-6">
         <div className="flex gap-4">
           <div className="flex-shrink-0" aria-hidden="true">
             <svg
@@ -160,7 +160,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="block w-full py-4 bg-brand hover:opacity-90 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Back to Homepage
         </Link>
@@ -172,7 +172,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
             onClick={() => {
               navigator.clipboard.writeText(status.transactionHash!);
             }}
-            className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="w-full py-3 bg-card border border-border hover:bg-surface hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Copy Transaction Hash
           </button>

@@ -517,7 +517,8 @@ export function ActivePaymentState({
                   className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
                     simulatorOutcome === "success"
                       ? "border-emerald-500/50 bg-success-soft text-emerald-400"
-                      : "border-border bg-background text-subtle hover:border-border-strong"
+                      : "border-border bg-background text-subtle hover:border-brand
+hover:bg-brand-soft"
                   }`}
                 >
                   <p className="font-bold">Always Succeed</p>
@@ -576,7 +577,7 @@ export function ActivePaymentState({
       <div className="text-center">
         <div
           aria-hidden="true"
-          className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-6"
         >
           <svg
             className="w-10 h-10 text-green-500"
@@ -597,7 +598,7 @@ export function ActivePaymentState({
         <p className="text-muted">{status.userMessage}</p>
       </div>
 
-      <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
+      <div className="bg-card border border-border-strong rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Details</h2>
 
         <dl className="space-y-4">
@@ -652,8 +653,9 @@ export function ActivePaymentState({
               onClick={() => setSelectedSourceAsset(null)}
               className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 selectedSourceAsset === null
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-border-strong hover:border-border-strong"
+                  ? "border-brand
+bg-brand-soft bg-indigo-500/10"
+                  : " hover:borborder-border-strongder-border-strong"
               }`}
             >
               <div className="flex justify-between items-center">
@@ -678,7 +680,7 @@ export function ActivePaymentState({
                 className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   selectedSourceAsset === option.sourceAsset
                     ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-border-strong hover:border-border-strong"
+                    : "border-border hover:border-border-strong"
                 }`}
               >
                 <div className="flex justify-between items-center">
@@ -737,7 +739,7 @@ export function ActivePaymentState({
               ? `Confirm payment to ${status.username}`
               : `Review payment details for ${status.username}`
           }
-          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="w-full py-4 bg-brand hover:opacity-90 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {showPreview ? "Open Wallet & Pay" : "Review Payment"}
         </button>
@@ -746,7 +748,7 @@ export function ActivePaymentState({
           type="button"
           onClick={handleCopyLink}
           aria-label="Copy payment link to clipboard"
-          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="w-full py-3 bg-card border border-border hover:bg-surface hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Copy Payment Link
         </button>
@@ -756,7 +758,7 @@ export function ActivePaymentState({
         </p>
       </div>
 
-      <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-4">
+      <div className="bg-brand-soft border border-blue-400/30 rounded-xl p-4">
         <p className="text-sm text-brand">
           <strong>How it works:</strong> Review the transaction summary before your Stellar wallet opens. After confirmation, your wallet will request the signature for this exact payload.
         </p>
