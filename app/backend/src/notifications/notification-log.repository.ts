@@ -17,6 +17,7 @@ export class NotificationLogRepository {
     channel: NotificationChannel,
     eventType: NotificationEventType,
     eventId: string,
+    templateVersionId?: string,
     previewScope?: string,
   ): Promise<string | null> {
     const insertData: Record<string, unknown> = {
@@ -35,10 +36,21 @@ export class NotificationLogRepository {
     const { data, error } = await this.supabase
       .getClient()
       .from("notification_log")
-      .upsert(insertData, {
-        onConflict: "public_key,channel,event_id,event_type",
-        ignoreDuplicates: true,
-      })
+      .upsert(
+        {
+          public_key: publicKey,
+          channel,
+          event_type: eventType,
+          event_id: eventId,
+          status: "pending",
+          attempts: 0,
+          template_version_id: templateVersionId ?? null,
+        },
+        {
+          onConflict: "public_key,channel,event_id,event_type",
+          ignoreDuplicates: true,
+        },
+      )
       .select("id")
       .maybeSingle();
 
