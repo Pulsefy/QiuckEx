@@ -10,7 +10,7 @@ import { EscrowEventRepository } from "./escrow-event.repository";
 import { PrivacyEventRepository } from "./privacy-event.repository";
 import { AdminEventRepository } from "./admin-event.repository";
 import { StealthEventRepository } from "./stealth-event.repository";
-import { UnparsedSorobanEventRepository } from "./unparsed-soroban-event.repository";
+import { UnparsedSorobanEventRepository, UnparsedSorobanEventReason, UnparsedSorobanEventRecord } from "./unparsed-soroban-event.repository";
 import type {
   QuickExContractEvent,
   EscrowEvent,
@@ -309,16 +309,54 @@ export class SorobanEventIndexerService {
     }
   }
 
-  async listUnparsedEvents(limit = 100) {
-    return this.unparsedRepo.listPending(limit);
+  async listUnparsedEvents(
+    limit = 100,
+    filters?: {
+      contractId?: string;
+      schemaVersion?: number;
+      errorType?: UnparsedSorobanEventReason;
+    },
+  ) {
+    return this.unparsedRepo.listPending(limit, filters);
   }
 
   async replayUnparsedEvents(limit = 100): Promise<ReplayUnparsedResult> {
     const pending = await this.unparsedRepo.listPending(limit);
+    return this.replayBatch(pending);
+  }
+
+  async replaySingleEvent(pagingToken: string): Promise<{ success: boolean; message: string }> {
+    const record = await this.unparsedRepo.getByPagingToken(pagingToken);
+    if (!record) {
+      return { success: false, message: "Event not found" };
+    }
+    if (record.status === "replayed") {
+      return { success: false, message: "Event already replayed" };
+    }
+
+    const result = await this.replayBatch([record]);
+    if (result.replayed === 1) {
+      return { success: true, message: "Event successfully replayed" };
+    }
+    return { success: false, message: "Event failed to replay" };
+  }
+
+  async replaySpecificBatch(pagingTokens: string[]): Promise<ReplayUnparsedResult> {
+    const records: UnparsedSorobanEventRecord[] = [];
+    for (const token of pagingTokens) {
+      const record = await this.unparsedRepo.getByPagingToken(token);
+      if (record && record.status === "pending") {
+        records.push(record);
+      }
+    }
+    return this.replayBatch(records);
+  }
+
+  async replayBatch(records: UnparsedSorobanEventRecord[]): Promise<ReplayUnparsedResult> {
     let replayed = 0;
     let stillUnparsed = 0;
 
-    for (const record of pending) {
+    for (const record of records) {
       const event = this.parser.parse(record.raw);
       if (event) {
         try {
@@ -342,7 +380,7 @@ export class SorobanEventIndexerService {
       }
     }
 
-    return { attempted: pending.length, replayed, stillUnparsed };
+    return { attempted: records.length, replayed, stillUnparsed };
   }
 
   private async captureUnparsedEvent(

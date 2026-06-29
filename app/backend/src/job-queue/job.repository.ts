@@ -38,6 +38,7 @@ export interface JobFilters {
   status?: JobStatus;
   createdAfter?: Date;
   createdBefore?: Date;
+  failureReasonContains?: string;
   limit?: number;
   offset?: number;
 }
@@ -258,6 +259,9 @@ export class JobRepository {
     }
     if (filters.createdBefore) {
       query = query.lte('created_at', filters.createdBefore.toISOString());
+    }
+    if (filters.failureReasonContains) {
+      query = query.ilike('failure_reason', `%${filters.failureReasonContains}%`);
     }
 
     // Apply pagination and ordering
