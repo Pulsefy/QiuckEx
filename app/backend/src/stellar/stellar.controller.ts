@@ -14,6 +14,7 @@ import {
 import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 import { AssetMetadataService } from "../asset-metadata/asset-metadata.service";
 import { AssetListResponseDto } from "../asset-metadata/dto/asset-metadata.dto";
 import { AppConfigService } from "../config/app-config.service";
@@ -37,6 +38,7 @@ import { QuoteService } from "./quote.service";
   required: false,
 })
 @UseGuards(ApiKeyGuard)
+@RateLimitGroupTag("public")
 @Controller("stellar")
 export class StellarController {
   constructor(
