@@ -1,5 +1,6 @@
 export enum NotificationEvent {
   PaymentReceived = 'payment.received',
+  PaymentLinkExpired = 'payment.link.expired',
   UsernameClaimed = 'username.claimed',
   RecurringLinkCreated = 'recurring.link.created',
   RecurringLinkUpdated = 'recurring.link.updated',
