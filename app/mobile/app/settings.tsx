@@ -1,5 +1,6 @@
 import { Link, useRouter } from "expo-router";
 import React from "react";
+import { EnvironmentSwitcher } from "../components/EnvironmentSwitcher";
 import {
   Alert,
   Platform,
@@ -405,6 +406,8 @@ export default function SettingsScreen() {
           <Text style={[styles.helper, { color: theme.textMuted }]}>Remove all cached and secure data, sign out, and reset the app state.</Text>
         </View>
 
+        <EnvironmentSwitcher />
+
         {Platform.OS !== "web" ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
@@ -438,6 +441,22 @@ export default function SettingsScreen() {
                 </Text>
               </Pressable>
             </Link>
+            {APP_ENVIRONMENT !== "production" && (
+              <Link href="/offline-queue-inspector" asChild>
+                <Pressable
+                  style={[
+                    styles.debugButton,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                  >
+                    Offline Queue Inspector
+                  </Text>
+                </Pressable>
+              </Link>
+            )}
           </View>
         ) : null}
       </ScrollView>

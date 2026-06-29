@@ -11,9 +11,11 @@ import { useTheme } from "../../src/theme/ThemeContext";
 interface AppLockOverlayProps {
   visible: boolean;
   onUnlock: () => Promise<boolean>;
+  /** Optional session expiry explanation (shown when session has expired) */
+  expiryExplanation?: string;
 }
 
-export function AppLockOverlay({ visible, onUnlock }: AppLockOverlayProps) {
+export function AppLockOverlay({ visible, onUnlock, expiryExplanation }: AppLockOverlayProps) {
   const { theme } = useTheme();
   const [unlocking, setUnlocking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -51,7 +53,9 @@ export function AppLockOverlay({ visible, onUnlock }: AppLockOverlayProps) {
       <View style={[styles.card, { backgroundColor: theme.surfaceElevated }]}>
         <Text style={[styles.title, { color: theme.textPrimary }]}>QuickEx Security Lock</Text>
         <Text style={[styles.body, { color: theme.textSecondary }]}>
-          Use biometrics or your fallback PIN to continue.
+          {expiryExplanation
+            ? expiryExplanation
+            : "Use biometrics or your fallback PIN to continue."}
         </Text>
 
         {unlocking ? <ActivityIndicator size="small" color={theme.primary} /> : null}

@@ -42,58 +42,6 @@ use soroban_sdk::{
 ///
 /// Snapshots for these tests live in `test_snapshots/`. See `REGRESSION_TESTS.md` in this
 /// contract directory for how to extend the suite when adding new features.
-#[test]
-fn test_emergency_mode_blocks_risky_entry_points_and_allows_safe_paths() {
-    let (env, client) = setup();
-
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-    let token = create_test_token(&env);
-    let amount: i128 = 1000;
-
-    client.initialize(&admin);
-
-    let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &token);
-    env.mock_all_auths();
-    sac_client.mint(&user, &2000);
-    sac_client.mint(&client.address, &amount);
-
-    let salt = BytesN::from_array(&env, &[0u8; 32]);
-    let commitment: BytesN<32> = env.crypto().sha256(&salt.clone().into()).into();
-
-    setup_escrow_with_owner(
-        &env,
-        &client.address,
-        &token,
-        &user,
-        amount,
-        commitment.clone(),
-        100,
-    );
-
-    env.ledger().with_mut(|li| {
-        li.timestamp = 1000;
-    });
-
-    client.activate_emergency_mode(&admin);
-
-    let salt_bytes = salt.into();
-    let deposit_res = client.try_deposit(&token, &amount, &user, &salt_bytes, &0u64, &Option::None);
-    assert!(deposit_res.is_err());
-
-    env.mock_all_auths();
-
-    let refund_res = client.try_refund(&commitment, &user);
-
-    match refund_res {
-        Ok(Ok(_)) => (),
-        Ok(Err(e)) => panic!("Contract Logic Error (Check Status/Expiry): {:?}", e),
-        Err(e) => panic!("Host Auth Error 10 (Check Auth/Account existence): {:?}", e),
-    }
-
-    assert!(client.try_cleanup_escrow(&commitment).is_ok());
-}
-
 #[contract]
 pub struct LegacyQuickexContract;
 

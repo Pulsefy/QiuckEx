@@ -20,6 +20,7 @@ import {
 import { Request } from 'express';
 import { RefundsService } from './refunds.service';
 import { InitiateRefundDto } from './dto/initiate-refund.dto';
+import { CheckEligibilityDto } from './dto/check-eligibility.dto';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
@@ -40,6 +41,42 @@ interface ApiKeyRequest extends Request {
 @Controller('admin/refunds')
 export class RefundsController {
   constructor(private readonly refundsService: RefundsService) {}
+
+  @Post('check-eligibility')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check refund eligibility',
+    description: 'Audit endpoint that explains refund eligibility decisions without attempting a refund. Returns reason codes and detailed explanations for support/admin users.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Eligibility check completed',
+    schema: {
+      type: 'object',
+      properties: {
+        eligible: { type: 'boolean', description: 'Whether the entity is eligible for refund' },
+        reasonCode: {
+          type: 'string',
+          enum: ['ELIGIBLE', 'INVALID_STATE', 'ENTITY_NOT_FOUND', 'ALREADY_REFUNDED', 'TOO_OLD', 'CONTRACT_NOT_READY', 'INDEXER_NOT_SYNCED'],
+          description: 'Stable reason code for the eligibility decision',
+        },
+        message: { type: 'string', description: 'Human-readable explanation of the decision' },
+        details: {
+          type: 'object',
+          description: 'Additional context about the eligibility check',
+          properties: {
+            currentState: { type: 'string' },
+            ageInDays: { type: 'number' },
+            maxAgeInDays: { type: 'number' },
+            existingRefundId: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  async checkEligibility(@Body() dto: CheckEligibilityDto) {
+    return this.refundsService.checkEligibility(dto.entityType, dto.entityId);
+  }
 
   @Post()
   @HttpCode(HttpStatus.OK)

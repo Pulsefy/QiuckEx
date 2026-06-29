@@ -28,15 +28,27 @@ try {
   AsyncStorage = undefined;
 }
 
-import type { SecuritySettings } from "@/types/security";
+import type {
+  BiometricSessionInfo,
+  SecurityAuthReason,
+  SecuritySettings,
+} from "@/types/security";
+import {
+  DEFAULT_SESSION_TIMEOUT_MINUTES,
+  MIN_SESSION_TIMEOUT_MINUTES,
+  MAX_SESSION_TIMEOUT_MINUTES,
+} from "@/types/security";
 
 const SECURITY_SETTINGS_KEY = "quickex.security.settings";
 const FALLBACK_PIN_HASH_KEY = "quickex.security.pinHash";
 const SENSITIVE_TOKEN_KEY = "quickex.security.sensitiveToken";
 const PIN_HASH_SALT = "quickex.v2.pin.salt";
 
-const DEFAULT_SETTINGS: SecuritySettings = {
+const BIOMETRIC_SESSION_KEY = "quickex.security.biometricSession";
+
+export const DEFAULT_SETTINGS: SecuritySettings = {
   biometricLockEnabled: false,
+  sessionTimeoutMinutes: DEFAULT_SESSION_TIMEOUT_MINUTES,
 };
 
 async function isSecureStoreAvailable() {
@@ -110,6 +122,12 @@ export async function getSecuritySettings(): Promise<SecuritySettings> {
     const parsed = JSON.parse(raw) as Partial<SecuritySettings>;
     return {
       biometricLockEnabled: Boolean(parsed.biometricLockEnabled),
+      sessionTimeoutMinutes:
+        typeof parsed.sessionTimeoutMinutes === "number" &&
+        parsed.sessionTimeoutMinutes >= MIN_SESSION_TIMEOUT_MINUTES &&
+        parsed.sessionTimeoutMinutes <= MAX_SESSION_TIMEOUT_MINUTES
+          ? parsed.sessionTimeoutMinutes
+          : DEFAULT_SESSION_TIMEOUT_MINUTES,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -118,6 +136,108 @@ export async function getSecuritySettings(): Promise<SecuritySettings> {
 
 export async function saveSecuritySettings(settings: SecuritySettings) {
   await setItem(SECURITY_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+/**
+ * Removes all stored security settings, returning to the default state.
+ */
+export async function clearSecuritySettings() {
+  await deleteItem(SECURITY_SETTINGS_KEY);
+}
+
+// ── Biometric Session Management ──────────────────────────────────────────────
+
+/**
+ * Records a successful biometric/PIN authentication event.
+ * This is used to allow subsequent low-risk actions without re-prompting.
+ */
+export async function recordBiometricAuth(reason: SecurityAuthReason) {
+  const sessionInfo: BiometricSessionInfo = {
+    lastAuthenticatedAt: new Date().toISOString(),
+    lastAuthReason: reason,
+  };
+  await setItem(BIOMETRIC_SESSION_KEY, JSON.stringify(sessionInfo));
+}
+
+/**
+ * Retrieves the last biometric session info.
+ */
+export async function getBiometricSession(): Promise<BiometricSessionInfo | null> {
+  const raw = await getItem(BIOMETRIC_SESSION_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as BiometricSessionInfo;
+    if (!parsed.lastAuthenticatedAt || !parsed.lastAuthReason) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clears the biometric session, forcing re-authentication on the next action.
+ */
+export async function clearBiometricSession() {
+  await deleteItem(BIOMETRIC_SESSION_KEY);
+}
+
+/**
+ * Checks whether the current biometric session is still valid based on
+ * the configured timeout.
+ *
+ * @param sessionTimeoutMinutes - The configured timeout in minutes.
+ * @returns `true` if the session is still valid (not expired).
+ */
+export async function isBiometricSessionValid(
+  sessionTimeoutMinutes?: number,
+): Promise<boolean> {
+  const session = await getBiometricSession();
+  if (!session) return false;
+
+  const timeoutMs =
+    (sessionTimeoutMinutes ?? DEFAULT_SESSION_TIMEOUT_MINUTES) * 60 * 1000;
+  const lastAuth = new Date(session.lastAuthenticatedAt).getTime();
+  const now = Date.now();
+
+  return now - lastAuth < timeoutMs;
+}
+
+/**
+ * Returns a human-readable message explaining when the session will expire
+ * or has expired.
+ */
+export async function getSessionExpiryExplanation(): Promise<string> {
+  const settings = await getSecuritySettings();
+  const session = await getBiometricSession();
+
+  if (!session) {
+    return "No active biometric session. Authentication is required.";
+  }
+
+  const timeoutMs = settings.sessionTimeoutMinutes * 60 * 1000;
+  const lastAuth = new Date(session.lastAuthenticatedAt).getTime();
+  const now = Date.now();
+  const elapsedMs = now - lastAuth;
+
+  if (elapsedMs >= timeoutMs) {
+    const expiredSinceMs = elapsedMs - timeoutMs;
+    const expiredMinutes = Math.floor(expiredSinceMs / 60000);
+    const expiredSeconds = Math.floor((expiredSinceMs % 60000) / 1000);
+    if (expiredMinutes > 0) {
+      return `Your session expired ${expiredMinutes} minute${expiredMinutes > 1 ? "s" : ""} ago. Please re-authenticate to continue.`;
+    }
+    return `Your session expired ${expiredSeconds} second${expiredSeconds !== 1 ? "s" : ""} ago. Please re-authenticate to continue.`;
+  }
+
+  const remainingMs = timeoutMs - elapsedMs;
+  const remainingMinutes = Math.floor(remainingMs / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+
+  if (remainingMinutes > 0) {
+    return `Your session expires in ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}.`;
+  }
+  return `Your session expires in ${remainingSeconds} second${remainingSeconds !== 1 ? "s" : ""}.`;
 }
 
 async function hashPin(pin: string) {
@@ -195,5 +315,6 @@ export async function clearSecurityData(): Promise<void> {
     deleteItem(SECURITY_SETTINGS_KEY),
     deleteItem(FALLBACK_PIN_HASH_KEY),
     deleteItem(SENSITIVE_TOKEN_KEY),
+    deleteItem(BIOMETRIC_SESSION_KEY),
   ]);
 }

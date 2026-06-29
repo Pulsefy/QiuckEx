@@ -282,7 +282,7 @@ export class NotificationService implements OnModuleInit {
 
     // ✅ IN-APP CHANNEL
     if (channel === "in_app") {
-      await this.logRepo.createPending(publicKey, channel, eventType, eventId);
+      await this.logRepo.createPending(publicKey, channel, eventType, eventId, payload.previewScope);
 
       try {
         await this.inAppRepo.create({
@@ -292,6 +292,7 @@ export class NotificationService implements OnModuleInit {
           title: payload.title,
           body: payload.body,
           metadata: payload.metadata,
+          previewScope: payload.previewScope,
         });
 
         await this.logRepo.markSent(publicKey, channel, eventType, eventId);
@@ -317,7 +318,7 @@ export class NotificationService implements OnModuleInit {
     const provider = this.providerMap.get(channel);
     if (!provider) return;
 
-    await this.logRepo.createPending(publicKey, channel, eventType, eventId);
+    await this.logRepo.createPending(publicKey, channel, eventType, eventId, payload.previewScope);
 
     try {
       const result = await provider.send(pref, payload);
@@ -407,13 +408,14 @@ export class NotificationService implements OnModuleInit {
 
     if (!webhookUrl) return;
 
-    await this.logRepo.createPending(publicKey, "webhook", eventType, eventId);
+    await this.logRepo.createPending(publicKey, "webhook", eventType, eventId, payload.previewScope);
 
     const jobPayload: WebhookDeliveryPayload = {
       recipientPublicKey: publicKey,
       webhookUrl,
       eventType,
       eventId,
+      previewScope: payload.previewScope,
       payload: {
         title: payload.title,
         body: payload.body,
