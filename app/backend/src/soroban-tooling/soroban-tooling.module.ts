@@ -7,11 +7,17 @@ import { StellarModule } from '../stellar/stellar.module';
 import { DeploymentService } from './deployment.service';
 import { FundingHelperService } from './funding-helper.service';
 import { SorobanToolingController } from './soroban-tooling.controller';
+import { SupabaseModule } from '../supabase/supabase.module';
+import { IngestionModule } from '../ingestion/ingestion.module';
+import { MetricsModule } from '../metrics/metrics.module';
+import { AuditModule } from '../audit/audit.module';
+import { AppConfigModule } from '../config';
+import { TestnetResetService } from './testnet-reset.service';
 
 @Module({
-  imports: [ApiKeysModule, StellarModule, ContractsModule],
+  imports: [ApiKeysModule, StellarModule, ContractsModule, SupabaseModule, IngestionModule, MetricsModule, AuditModule, AppConfigModule],
   controllers: [SorobanToolingController],
-  providers: [FundingHelperService, DeploymentService, ApiKeyGuard],
-  exports: [FundingHelperService, DeploymentService],
+  providers: [FundingHelperService, DeploymentService, ApiKeyGuard, TestnetResetService],
+  exports: [FundingHelperService, DeploymentService, TestnetResetService],
 })
 export class SorobanToolingModule {}
