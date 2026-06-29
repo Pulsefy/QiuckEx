@@ -186,7 +186,7 @@ export class JobAdminController {
     // Requirement 14.3: Reject retry for completed or cancelled jobs
     if (job.status === JobStatus.COMPLETED || job.status === JobStatus.CANCELLED) {
       // Log rejected replay attempt
-      const rejectedLog = await this.jobReplayRepository.createReplayLog({
+      await this.jobReplayRepository.createReplayLog({
         jobId: id,
         jobType: job.type,
         status: 'rejected',
