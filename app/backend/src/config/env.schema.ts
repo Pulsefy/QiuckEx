@@ -138,6 +138,16 @@ export const envSchema = Joi.object({
     .default(15000)
     .description("Cache TTL in milliseconds for feature flag snapshots"),
 
+  // Branch preview fallback configuration
+  FALLBACK_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://api.quickex.io")
+    .description("Fallback API URL for unknown branches"),
+  FALLBACK_FRONTEND_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://app.quickex.io")
+    .description("Fallback frontend URL for unknown branches"),
+
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
     .optional()

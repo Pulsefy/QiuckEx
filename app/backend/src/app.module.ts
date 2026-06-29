@@ -56,6 +56,7 @@ import { AbuseSignalsModule } from "./abuse-signals/abuse-signal.module";
 import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
 import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
 import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
+import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
 
 type AppImport =
 | Type<unknown>
@@ -98,7 +99,8 @@ FeatureFlagsModule,
 PrivacyModule,
 SorobanToolingModule,
 EnvironmentParityModule,
-IndexerLagModule,
+  BranchPreviewModule,
+  IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
     RcValidationModule,
