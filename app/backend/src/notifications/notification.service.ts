@@ -196,6 +196,24 @@ export class NotificationService implements OnModuleInit {
     await this.dispatch(payload);
   }
 
+  @OnEvent("payment.link.expired", { async: true })
+  async onPaymentLinkExpired(event: { linkId: string; expiresAt?: string | null; ownerPublicKey?: string | null }): Promise<void> {
+    if (!event.ownerPublicKey) return;
+    const payload = {
+      eventType: 'payment.link.expired' as const,
+      eventId: `link:${event.linkId}:expired:${event.expiresAt ?? ''}`,
+      recipientPublicKey: event.ownerPublicKey,
+      title: 'Payment Link Expired',
+      body: 'A payment link you created has expired.',
+      occurredAt: new Date().toISOString(),
+      linkId: event.linkId,
+      expiredAt: event.expiresAt ?? null,
+      metadata: { linkId: event.linkId, expiredAt: event.expiresAt ?? null },
+    } as unknown as any;
+
+    await this.dispatch(payload);
+  }
+
   @OnEvent(NotificationEvent.UsernameClaimed, { async: true })
   async onUsernameClaimed(event: UsernameClaimedEvent): Promise<void> {
     const payload: UsernameClaimedPayload = {

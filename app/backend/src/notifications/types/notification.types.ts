@@ -29,6 +29,15 @@ export type NotificationEventType =
   | "recurring.link.resumed"
   | "recurring.link.completed"
   | "auto_reconciliation.succeeded";
+  | "payment.link.expired";
+
+export type PaymentLinkExpiredEvent = "payment.link.expired";
+
+export interface PaymentLinkExpiredPayload extends BaseNotificationPayload {
+  eventType: PaymentLinkExpiredEvent;
+  linkId: string;
+  expiredAt: string | null;
+}
 
 export interface BaseNotificationPayload {
   /** The event kind — used to match against user preference filters. */
@@ -152,6 +161,7 @@ export type NotificationPayload =
   | RecurringPaymentFailedPayload
   | RecurringLinkStatusPayload
   | AutoReconciliationSucceededNotificationPayload;
+  | PaymentLinkExpiredPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences
