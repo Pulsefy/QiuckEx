@@ -28,7 +28,7 @@ export type NotificationEventType =
   | "recurring.link.paused"
   | "recurring.link.resumed"
   | "recurring.link.completed"
-  | "auto_reconciliation.succeeded";
+  | "auto_reconciliation.succeeded"
   | "payment.link.expired";
 
 export type PaymentLinkExpiredEvent = "payment.link.expired";
@@ -160,7 +160,7 @@ export type NotificationPayload =
   | RecurringPaymentExecutedPayload
   | RecurringPaymentFailedPayload
   | RecurringLinkStatusPayload
-  | AutoReconciliationSucceededNotificationPayload;
+  | AutoReconciliationSucceededNotificationPayload
   | PaymentLinkExpiredPayload;
 
 // ---------------------------------------------------------------------------

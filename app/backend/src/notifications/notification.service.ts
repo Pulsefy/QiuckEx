@@ -19,6 +19,7 @@ import type {
   PaymentReceivedPayload,
   UsernameClaimedPayload,
   AutoReconciliationSucceededNotificationPayload,
+  PaymentLinkExpiredPayload,
 } from "./types/notification.types";
 
 import {
@@ -199,8 +200,8 @@ export class NotificationService implements OnModuleInit {
   @OnEvent("payment.link.expired", { async: true })
   async onPaymentLinkExpired(event: { linkId: string; expiresAt?: string | null; ownerPublicKey?: string | null }): Promise<void> {
     if (!event.ownerPublicKey) return;
-    const payload = {
-      eventType: 'payment.link.expired' as const,
+    const payload: PaymentLinkExpiredPayload = {
+      eventType: 'payment.link.expired',
       eventId: `link:${event.linkId}:expired:${event.expiresAt ?? ''}`,
       recipientPublicKey: event.ownerPublicKey,
       title: 'Payment Link Expired',
@@ -209,7 +210,7 @@ export class NotificationService implements OnModuleInit {
       linkId: event.linkId,
       expiredAt: event.expiresAt ?? null,
       metadata: { linkId: event.linkId, expiredAt: event.expiresAt ?? null },
-    } as unknown as any;
+    };
 
     await this.dispatch(payload);
   }

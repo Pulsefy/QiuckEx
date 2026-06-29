@@ -6,8 +6,8 @@ import { AuditService } from '../../audit/audit.service';
 
 describe('PaymentLinkExpiryService', () => {
   let svc: PaymentLinkExpiryService;
-  let mockSupabase: any;
-  let mockAudit: any;
+  let mockSupabase: { getClient: jest.Mock };
+  let mockAudit: { log: jest.Mock };
   let events: EventEmitter2;
 
   beforeEach(async () => {
