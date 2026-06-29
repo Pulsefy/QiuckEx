@@ -19,7 +19,10 @@
 extern crate std;
 
 use crate::{
-    storage::{put_escrow, DataKey, PRIVACY_ENABLED_KEY},
+    storage::{
+        compact_escrow_storage_footprint_bytes, legacy_escrow_storage_footprint_bytes, put_escrow,
+        DataKey, PRIVACY_ENABLED_KEY,
+    },
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
@@ -98,6 +101,13 @@ fn print_budget(env: &Env, label: &str) {
 
 fn legacy_privacy_storage_key(env: &Env, owner: &Address) -> (Symbol, Address) {
     (Symbol::new(env, PRIVACY_ENABLED_KEY), owner.clone())
+}
+
+fn print_storage_delta(label: &str, legacy_bytes: usize, compact_bytes: usize) {
+    let saved = legacy_bytes.saturating_sub(compact_bytes);
+    std::println!(
+        "[bench] {label:<35}  legacy={legacy_bytes:<6} compact={compact_bytes:<6} saved={saved}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -369,4 +379,57 @@ fn bench_resolve_dispute_recipient() {
     env.cost_estimate().budget().reset_default();
     client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
     print_budget(&env, "resolve_dispute_recipient");
+}
+
+/// Benchmark: common escrow storage footprint before/after compaction.
+///
+/// Measures the serialized storage bytes for the typical no-arbiter escrow.
+#[test]
+fn bench_common_escrow_storage_footprint() {
+    let env = Env::default();
+    let commitment: Bytes = Bytes::from_array(&env, &[0x11; 32]);
+    let entry = EscrowEntry {
+        token: Address::generate(&env),
+        amount_due: 1_000_000,
+        amount_paid: 1_000_000,
+        owner: Address::generate(&env),
+        status: EscrowStatus::Pending,
+        created_at: env.ledger().timestamp(),
+        expires_at: 0,
+        arbiter: None,
+        arbiters: Vec::new(&env),
+        arbiter_threshold: 0,
+    };
+
+    let legacy_bytes = legacy_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+    let compact_bytes = compact_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+
+    print_storage_delta("common_escrow_storage", legacy_bytes, compact_bytes);
+    assert!(compact_bytes < legacy_bytes);
+}
+
+/// Benchmark: arbiter escrow storage footprint before/after compaction.
+///
+/// Documents the tradeoff for less-common escrows that opt into dispute config.
+#[test]
+fn bench_arbiter_escrow_storage_footprint() {
+    let env = Env::default();
+    let commitment: Bytes = Bytes::from_array(&env, &[0x22; 32]);
+    let entry = EscrowEntry {
+        token: Address::generate(&env),
+        amount_due: 1_000_000,
+        amount_paid: 1_000_000,
+        owner: Address::generate(&env),
+        status: EscrowStatus::Pending,
+        created_at: env.ledger().timestamp(),
+        expires_at: 0,
+        arbiter: Some(Address::generate(&env)),
+        arbiters: Vec::new(&env),
+        arbiter_threshold: 0,
+    };
+
+    let legacy_bytes = legacy_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+    let compact_bytes = compact_escrow_storage_footprint_bytes(&env, &commitment, &entry);
+
+    print_storage_delta("arbiter_escrow_storage", legacy_bytes, compact_bytes);
 }

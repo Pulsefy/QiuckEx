@@ -19,8 +19,6 @@
 //! 3. If the test found a concrete bug, add a deterministic regression case to the
 //!    `regression_corpus` module at the bottom of this file.
 
-#![cfg(test)]
-
 use proptest::prelude::*;
 
 use crate::test_context::TestContext;

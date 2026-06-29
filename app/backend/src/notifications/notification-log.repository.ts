@@ -18,7 +18,21 @@ export class NotificationLogRepository {
     eventType: NotificationEventType,
     eventId: string,
     templateVersionId?: string,
+    previewScope?: string,
   ): Promise<string | null> {
+    const insertData: Record<string, unknown> = {
+      public_key: publicKey,
+      channel,
+      event_type: eventType,
+      event_id: eventId,
+      status: "pending",
+      attempts: 0,
+    };
+
+    if (previewScope) {
+      insertData.preview_scope = previewScope;
+    }
+
     const { data, error } = await this.supabase
       .getClient()
       .from("notification_log")

@@ -271,4 +271,38 @@ export class AppConfigService {
   get indexerLagGuardOverride(): boolean {
     return this.configService.get("INDEXER_LAG_GUARD_OVERRIDE", { infer: true });
   }
+
+  /**
+   * Days to retain abuse signals before auto-pruning
+   */
+  get abuseSignalRetentionDays(): number {
+    return this.configService.get("ABUSE_SIGNAL_RETENTION_DAYS", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Abuse score threshold for flagging as suspicious (0-100)
+   */
+  get abuseSignalScoreThreshold(): number {
+    return this.configService.get("ABUSE_SIGNAL_SCORE_THRESHOLD", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Enable geo-lite lookups for abuse signals
+   */
+  get abuseSignalGeoEnabled(): boolean {
+    return this.configService.get("ABUSE_SIGNAL_GEO_ENABLED", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Salt for IP/UA hashing in abuse signals
+   */
+  get abuseSignalHashSalt(): string {
+    return this.configService.get("ABUSE_SIGNAL_HASH_SALT", { infer: true });
+  }
 }

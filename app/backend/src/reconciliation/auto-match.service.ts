@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MetricsService } from '../metrics/metrics.service';
 import { HORIZON_BASE_URLS } from '../config/stellar.config';
 import { UnmatchedQueueRepository } from './unmatched-queue.repository';
+import { PreviewScopeService } from '../preview-scope/preview-scope.service';
 import {
   AutoReconciliationSucceededPayload,
   IncomingTransaction,
@@ -90,6 +91,7 @@ export class AutoMatchService {
     private readonly unmatchedQueue: UnmatchedQueueRepository,
     private readonly metrics: MetricsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly previewScopeService?: PreviewScopeService,
   ) {
     const horizonUrl = HORIZON_BASE_URLS[config.network];
     this.server = new Horizon.Server(horizonUrl);
@@ -522,9 +524,32 @@ export class AutoMatchService {
     };
   }
 
+  /**
+   * Fetch open payment links scoped to a specific preview scope.
+   * Used by preview environment endpoints to run on-demand matching.
+   */
+  async fetchOpenLinksForPreviewScope(previewScope: string): Promise<PaymentLink[]> {
+    const now = new Date().toISOString();
+
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('payment_links')
+      .select('*')
+      .eq('status', PaymentLinkStatus.Open)
+      .eq('preview_scope', previewScope)
+      .or(`expires_at.is.null,expires_at.gt.${now}`);
+
+    if (error) {
+      this.logger.error(`Failed to fetch preview-scoped links: ${error.message}`);
+      return [];
+    }
+
+    return (data ?? []) as PaymentLink[];
+  }
+
   // ─── Supabase queries ──────────────────────────────────────────────────────
 
-  /** Fetch every open, non-expired payment link. */
+  /** Fetch every open, non-expired payment link (non-preview-scoped only). */
   private async fetchOpenPaymentLinks(): Promise<PaymentLink[]> {
     const now = new Date().toISOString();
 
@@ -533,6 +558,7 @@ export class AutoMatchService {
       .from('payment_links')
       .select('*')
       .eq('status', PaymentLinkStatus.Open)
+      .is('preview_scope', null)
       .or(`expires_at.is.null,expires_at.gt.${now}`);
 
     if (error) {
@@ -543,7 +569,7 @@ export class AutoMatchService {
     return (data ?? []) as PaymentLink[];
   }
 
-  /** Fetch open payment links for a specific destination address. */
+  /** Fetch open payment links for a specific destination address (non-preview-scoped only). */
   private async fetchOpenLinksForDestination(destination: string): Promise<PaymentLink[]> {
     const now = new Date().toISOString();
 
@@ -553,6 +579,7 @@ export class AutoMatchService {
       .select('*')
       .eq('status', PaymentLinkStatus.Open)
       .eq('destination_public_key', destination)
+      .is('preview_scope', null)
       .or(`expires_at.is.null,expires_at.gt.${now}`);
 
     if (error) {

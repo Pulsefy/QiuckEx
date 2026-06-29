@@ -317,6 +317,7 @@ describe("NotificationService", () => {
         "email",
         "payment.received",
         "tx-abc",
+        undefined,
       );
       expect(logRepo.markSent).toHaveBeenCalledWith(
         PUBLIC_KEY,
