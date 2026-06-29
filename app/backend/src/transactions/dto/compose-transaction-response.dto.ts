@@ -44,3 +44,32 @@ export interface ComposeTransactionError {
   userMessage: string;
   details?: Record<string, unknown>;
 }
+
+export interface SubmitTransactionResponse {
+  success: boolean;
+  transactionId?: string;
+  idempotencyKey: string;
+  submittedAt: string;
+  error?: string;
+  userMessage?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface SimulationResponse {
+  success: boolean;
+  simulationStatus: "success" | "failed" | "restore_required";
+  resourceEstimate?: ResourceEstimate;
+  feeEstimate?: FeeEstimate;
+  error?: string;
+  userMessage?: string;
+  details?: Record<string, unknown>;
+  idempotencyKey: string;
+  simulationLatencyMs: number;
+}
+
+export interface DeterministicFailureDefinition {
+  code: string;
+  userMessage: string;
+  description: string;
+  actionableSteps: string[];
+}

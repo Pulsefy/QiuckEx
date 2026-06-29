@@ -99,6 +99,11 @@ export const envSchema = Joi.object({
         "Required in production when no wildcard is desired.",
     ),
 
+  // New rate limit allowlist configuration
+  RATE_LIMIT_ALLOWLIST_CIDRS: Joi.string().optional().description("Comma-separated CIDRs to whitelist from rate limits (CI, trusted contributors)"),
+  RATE_LIMIT_ALLOWLIST_API_KEYS: Joi.string().optional().description("Comma-separated API keys to whitelist from rate limits"),
+  RATE_LIMIT_ALLOWLIST_USER_IDS: Joi.string().optional().description("Comma-separated user IDs to whitelist from rate limits"),
+
   CORS_VERCEL_PROJECT: Joi.string()
     .empty("")
     .optional()
