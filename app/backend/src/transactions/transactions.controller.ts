@@ -22,7 +22,7 @@ import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { TESTNET_CONTRACT_WRITES_FLAG } from "../feature-flags/contract-write-kill-switch.constants";
 import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
 import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
-import { ComposeTransactionDto } from "./dto/compose-transaction.dto";
+import { ComposeTransactionDto, SimulateOperationDto, SubmitSignedTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
 
 @ApiTags("transactions")
@@ -92,9 +92,33 @@ export class TransactionsController {
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
-    summary: "Build unsigned Soroban transaction XDR with simulation summary",
+    summary: "Build unsigned Soroban transaction XDR with canonical memo/params",
   })
   async buildUnsignedXdr(@Body() dto: ComposeTransactionDto) {
     return this.transactionService.composeTransaction(dto);
+  }
+
+  @Post("simulate")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({
+    summary: "Simulate contract operations with deterministic failure reasons",
+  })
+  async simulateOperation(@Body() dto: SimulateOperationDto) {
+    return this.transactionService.simulateOperation(dto);
+  }
+
+  @Post("submit")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({
+    summary: "Submit an already-signed transaction with idempotency support",
+  })
+  async submitSignedTransaction(@Body() dto: SubmitSignedTransactionDto) {
+    return this.transactionService.submitSignedTransaction(dto);
   }
 }
