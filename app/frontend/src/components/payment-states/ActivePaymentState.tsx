@@ -652,11 +652,10 @@ hover:bg-brand-soft"
               aria-checked={selectedSourceAsset === null}
               onClick={() => setSelectedSourceAsset(null)}
               className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                selectedSourceAsset === null
-                  ? "border-brand
-bg-brand-soft bg-indigo-500/10"
-                  : " hover:borborder-border-strongder-border-strong"
-              }`}
+  selectedSourceAsset === null
+    ? "border-brand bg-brand-soft bg-indigo-500/10"
+    : "border-border hover:border-border-strong"
+}`}
             >
               <div className="flex justify-between items-center">
                 <div>
