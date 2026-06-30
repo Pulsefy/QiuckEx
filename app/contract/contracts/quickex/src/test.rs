@@ -439,10 +439,12 @@ fn test_double_withdrawal_fails() {
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&client.address, &(amount * 2));
 
-    let first_result = client.try_withdraw(&token, &amount, &commitment, &to, &salt, &0u64, &u64::MAX);
+    let first_result =
+        client.try_withdraw(&token, &amount, &commitment, &to, &salt, &0u64, &u64::MAX);
     assert!(first_result.is_ok());
     assert_eq!(first_result.unwrap(), Ok(true));
-    let second_result = client.try_withdraw(&token, &amount, &commitment, &to, &salt, &0u64, &u64::MAX);
+    let second_result =
+        client.try_withdraw(&token, &amount, &commitment, &to, &salt, &0u64, &u64::MAX);
     assert_contract_error(second_result, QuickexError::AlreadySpent);
 }
 
@@ -465,7 +467,15 @@ fn test_invalid_salt_fails() {
     setup_escrow(&env, &client.address, &token, amount, commitment.clone(), 0);
 
     env.mock_all_auths();
-    let result = client.try_withdraw(&token, &amount, &commitment, &to, &wrong_salt, &0u64, &u64::MAX);
+    let result = client.try_withdraw(
+        &token,
+        &amount,
+        &commitment,
+        &to,
+        &wrong_salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
@@ -496,7 +506,15 @@ fn test_invalid_amount_fails() {
 
     env.mock_all_auths();
 
-    let result = client.try_withdraw(&token, &wrong_amount, &commitment, &to, &salt, &0u64, &u64::MAX);
+    let result = client.try_withdraw(
+        &token,
+        &wrong_amount,
+        &commitment,
+        &to,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::CommitmentNotFound);
 }
 
@@ -734,7 +752,16 @@ fn test_deposit() {
 
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    client.deposit_with_commitment(&user, &token_id, &500, &commitment, &0, &None, &0u64, &u64::MAX);
+    client.deposit_with_commitment(
+        &user,
+        &token_id,
+        &500,
+        &commitment,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     assert_eq!(token_client.balance(&user), 500);
     assert_eq!(token_client.balance(&contract_id), 500);
@@ -758,7 +785,16 @@ fn test_event_snapshot_escrow_deposited_schema() {
     let client = QuickexContractClient::new(&env, &contract_id);
 
     let commitment = BytesN::from_array(&env, &[7; 32]);
-    client.deposit_with_commitment(&user, &token_id, &250, &commitment, &0, &None, &0u64, &u64::MAX);
+    client.deposit_with_commitment(
+        &user,
+        &token_id,
+        &250,
+        &commitment,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     let (topics, data) = latest_contract_event(&env, &contract_id);
 
@@ -844,7 +880,16 @@ fn test_event_snapshot_escrow_refunded_schema() {
     token_client.mint(&owner, &amount);
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     env.ledger()
         .set_timestamp(env.ledger().timestamp() + timeout);
 
@@ -886,7 +931,16 @@ fn test_event_snapshot_escrow_disputed_schema() {
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
 
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, &Some(arbiter.clone()), &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &100,
+        &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
+    );
     client.dispute(&commitment);
 
     let (topics, data) = latest_contract_event(&env, &client.address);
@@ -1103,7 +1157,16 @@ fn test_deposit_with_commitment_fails_when_paused() {
     client.initialize(&admin);
     client.pause_features(&admin, &(PauseFlag::DepositWithCommitment as u64));
 
-    let result = client.try_deposit_with_commitment(&user, &token_id, &500, &commitment, &0, &None, &0u64, &u64::MAX);
+    let result = client.try_deposit_with_commitment(
+        &user,
+        &token_id,
+        &500,
+        &commitment,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::OperationPaused);
 }
 
@@ -1157,7 +1220,16 @@ fn test_deposit_fails_when_paused() {
     client.initialize(&admin);
     client.pause_features(&admin, &(PauseFlag::Deposit as u64));
 
-    let result = client.try_deposit(&token, &amount, &owner, &salt, &timeout, &None, &0u64, &u64::MAX);
+    let result = client.try_deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::OperationPaused);
 }
 
@@ -1178,7 +1250,16 @@ fn test_refund_fails_when_paused() {
     client.pause_features(&admin, &(PauseFlag::Refund as u64));
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     let start_time = env.ledger().timestamp();
     let expires_at = start_time + timeout;
@@ -1207,7 +1288,16 @@ fn test_refund_pause_unpause() {
     client.pause_features(&admin, &(PauseFlag::Refund as u64));
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     let start_time = env.ledger().timestamp();
     let expires_at = start_time + timeout;
@@ -1743,7 +1833,15 @@ fn test_upgrade_migration_preserves_legacy_escrow_data() {
     let commitment_state = client.get_commitment_state(&commitment);
     assert_eq!(commitment_state, Some(EscrowStatus::Pending));
 
-    let withdrew = client.withdraw(&token, &amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
+    let withdrew = client.withdraw(
+        &token,
+        &amount,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert!(withdrew);
     assert_eq!(
         client.get_commitment_state(&commitment),
@@ -1860,7 +1958,16 @@ fn test_refund_successful() {
     token_client.mint(&owner, &amount);
 
     let timeout = 100;
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     let start_time = env.ledger().timestamp();
     let expires_at = start_time + timeout;
@@ -1897,7 +2004,16 @@ fn test_refund_unauthorized_fails() {
     let salt = Bytes::from_slice(&env, b"thief_salt");
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &100,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Advance past expiry
     env.ledger().set_timestamp(env.ledger().timestamp() + 101);
@@ -1916,7 +2032,16 @@ fn test_double_refund_fails() {
     let salt = Bytes::from_slice(&env, b"double_refund");
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &100, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &100,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 101);
 
@@ -1997,7 +2122,9 @@ fn test_dispute_successful() {
         &salt,
         &timeout_secs,
         &Some(arbiter),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify initial state
     assert_eq!(
@@ -2026,7 +2153,16 @@ fn test_dispute_fails_without_arbiter() {
     // Create escrow without arbiter
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Attempt dispute should fail
     let res = client.try_dispute(&commitment);
@@ -2052,8 +2188,18 @@ fn test_dispute_fails_on_non_pending_status() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
-    client.withdraw(&token, &amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token,
+        &amount,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Attempt dispute on spent escrow should fail
     let res = client.try_dispute(&commitment);
@@ -2082,7 +2228,9 @@ fn test_resolve_dispute_for_owner() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -2124,7 +2272,9 @@ fn test_resolve_dispute_for_recipient() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -2165,7 +2315,9 @@ fn test_resolve_dispute_fails_for_non_arbiter() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
@@ -2194,7 +2346,9 @@ fn test_resolve_dispute_fails_on_non_disputed_status() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Attempt resolution without dispute should fail
     let res = client.try_resolve_dispute(&arbiter, &commitment, &true, &owner, &0u64, &u64::MAX);
@@ -2223,13 +2377,23 @@ fn test_withdraw_fails_during_dispute() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Initiate dispute
     client.dispute(&commitment);
 
     // Withdrawal should fail during dispute
-    let res = client.try_withdraw(&token, &amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
+    let res = client.try_withdraw(
+        &token,
+        &amount,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert_eq!(
         res,
         Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
@@ -2248,7 +2412,16 @@ fn test_refund_fails_during_dispute() {
     // Create escrow with arbiter and set expiry
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1, &Some(arbiter.clone()), &0u64, &u64::MAX); // 1 second expiry
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1,
+        &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
+    ); // 1 second expiry
 
     // Fast forward past expiry
     env.ledger().set_timestamp(env.ledger().timestamp() + 2);
@@ -2285,7 +2458,9 @@ fn test_get_escrow_details_shows_arbiter_to_owner_and_arbiter() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     client.initialize(&admin);
 
@@ -2342,7 +2517,16 @@ fn test_cross_asset_native_xlm_deposit_withdrawal() {
     xlm_client.mint(&user, &amount);
 
     // Deposit XLM into escrow
-    let commitment = client.deposit(&xlm_token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &xlm_token,
+        &amount,
+        &user,
+        &salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify escrow created
     assert_eq!(
@@ -2353,7 +2537,15 @@ fn test_cross_asset_native_xlm_deposit_withdrawal() {
     assert_eq!(xlm_client.balance(&client.address), amount);
 
     // Withdraw XLM from escrow
-    let result = client.withdraw(&xlm_token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+    let result = client.withdraw(
+        &xlm_token,
+        &amount,
+        &commitment,
+        &user,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert!(result);
 
     // Verify balances after withdrawal
@@ -2378,7 +2570,16 @@ fn test_cross_asset_usdc_sac_deposit_withdrawal() {
     usdc_client.mint(&user, &amount);
 
     // Deposit USDC into escrow
-    let commitment = client.deposit(&usdc_token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &usdc_token,
+        &amount,
+        &user,
+        &salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify escrow created
     assert_eq!(
@@ -2389,7 +2590,15 @@ fn test_cross_asset_usdc_sac_deposit_withdrawal() {
     assert_eq!(usdc_client.balance(&client.address), amount);
 
     // Withdraw USDC from escrow
-    let result = client.withdraw(&usdc_token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+    let result = client.withdraw(
+        &usdc_token,
+        &amount,
+        &commitment,
+        &user,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert!(result);
 
     // Verify balances after withdrawal
@@ -2415,7 +2624,16 @@ fn test_cross_asset_custom_token_deposit_refund() {
     custom_client.mint(&owner, &amount);
 
     // Deposit with timeout
-    let commitment = client.deposit(&custom_token, &amount, &owner, &salt, &timeout_secs, &None, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &custom_token,
+        &amount,
+        &owner,
+        &salt,
+        &timeout_secs,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Advance time past expiry
     env.ledger()
@@ -2459,9 +2677,36 @@ fn test_cross_asset_multiple_tokens_concurrent() {
     let salt_b = Bytes::from_slice(&env, b"token_b_salt");
     let salt_c = Bytes::from_slice(&env, b"token_c_salt");
 
-    let commitment_a = client.deposit(&token_a, &amount_a, &user, &salt_a, &0, &None, &0u64, &u64::MAX);
-    let commitment_b = client.deposit(&token_b, &amount_b, &user, &salt_b, &0, &None, &0u64, &u64::MAX);
-    let commitment_c = client.deposit(&token_c, &amount_c, &user, &salt_c, &0, &None, &0u64, &u64::MAX);
+    let commitment_a = client.deposit(
+        &token_a,
+        &amount_a,
+        &user,
+        &salt_a,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    let commitment_b = client.deposit(
+        &token_b,
+        &amount_b,
+        &user,
+        &salt_b,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    let commitment_c = client.deposit(
+        &token_c,
+        &amount_c,
+        &user,
+        &salt_c,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify all escrows created
     assert_eq!(
@@ -2483,9 +2728,33 @@ fn test_cross_asset_multiple_tokens_concurrent() {
     assert_eq!(client_c.balance(&client.address), amount_c);
 
     // Withdraw all three escrows
-    client.withdraw(&token_a, &amount_a, &commitment_a, &user, &salt_a, &0u64, &u64::MAX);
-    client.withdraw(&token_b, &amount_b, &commitment_b, &user, &salt_b, &0u64, &u64::MAX);
-    client.withdraw(&token_c, &amount_c, &commitment_c, &user, &salt_c, &0u64, &u64::MAX);
+    client.withdraw(
+        &token_a,
+        &amount_a,
+        &commitment_a,
+        &user,
+        &salt_a,
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token_b,
+        &amount_b,
+        &commitment_b,
+        &user,
+        &salt_b,
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token_c,
+        &amount_c,
+        &commitment_c,
+        &user,
+        &salt_c,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify all withdrawals completed
     assert_eq!(client_a.balance(&user), amount_a);
@@ -2519,7 +2788,9 @@ fn test_cross_asset_dispute_resolution_multi_token() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Dispute
     client.dispute(&commitment);
@@ -2597,7 +2868,16 @@ fn test_cross_asset_privacy_preserved_across_tokens() {
 
     // Create escrows with privacy enabled
     client_a.mint(&owner, &amount);
-    let commitment_a = client.deposit(&token_a, &amount, &owner, &_salt, &0, &None, &0u64, &u64::MAX);
+    let commitment_a = client.deposit(
+        &token_a,
+        &amount,
+        &owner,
+        &_salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     client.initialize(&admin);
 
@@ -2626,7 +2906,16 @@ fn test_cross_asset_deposit_with_commitment_various_tokens() {
     usdc_client.mint(&user, &amount);
 
     // Deposit with pre-generated commitment
-    client.deposit_with_commitment(&user, &usdc_token, &amount, &commitment, &0, &None, &0u64, &u64::MAX);
+    client.deposit_with_commitment(
+        &user,
+        &usdc_token,
+        &amount,
+        &commitment,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify deposit
     assert_eq!(usdc_client.balance(&user), 0);
@@ -2663,7 +2952,16 @@ fn test_cross_asset_token_authorization() {
     let commitment = BytesN::from_array(&env, &[99u8; 32]);
 
     // Deposit should require user authorization
-    client.deposit_with_commitment(&user, &token_id, &500, &commitment, &0, &None, &0u64, &u64::MAX);
+    client.deposit_with_commitment(
+        &user,
+        &token_id,
+        &500,
+        &commitment,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify auth was required (mock_all_auths handles this)
     assert_eq!(token_client.balance(&contract_id), 500);
@@ -3022,7 +3320,9 @@ fn test_partial_payment_success() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Make partial payment
     let payment_amount: i128 = 300;
@@ -3064,7 +3364,9 @@ fn test_partial_payment_overpayment_rejected() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Try to overpay
     let payment_amount: i128 = 501; // More than remaining (500)
@@ -3101,7 +3403,9 @@ fn test_partial_payment_fully_paid_triggers_finalization() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Make payment to complete the escrow
     let payment_amount: i128 = 500;
@@ -3142,7 +3446,9 @@ fn test_partial_payment_invalid_amount_rejected() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Try to pay zero
     let result = client.try_partial_payment(&commitment, &payer, &0, &0u64, &u64::MAX);
@@ -3188,8 +3494,25 @@ fn test_partial_payment_terminal_state_rejected() {
     token_client.mint(&owner, &amount_due);
 
     // Create and withdraw escrow (fully paid)
-    let commitment = client.deposit(&token, &amount_due, &owner, &salt, &0, &None, &0u64, &u64::MAX);
-    client.withdraw(&token, &amount_due, &commitment, &owner, &salt, &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount_due,
+        &owner,
+        &salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token,
+        &amount_due,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Try to make partial payment on spent escrow
     let result = client.try_partial_payment(&commitment, &payer, &100, &0u64, &u64::MAX);
@@ -3223,10 +3546,20 @@ fn test_withdraw_requires_fully_paid() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Try to withdraw before fully paid
-    let result = client.try_withdraw(&token, &amount_due, &commitment, &owner, &salt, &0u64, &u64::MAX);
+    let result = client.try_withdraw(
+        &token,
+        &amount_due,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::Overpayment);
 }
 
@@ -3263,7 +3596,9 @@ fn test_multi_payment_sequence() {
         &salt,
         &0,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // First partial payment: 200
     client.partial_payment(&commitment, &payer1, &200, &0u64, &u64::MAX);
@@ -3307,7 +3642,16 @@ fn test_multi_sig_vote_threshold_reached() {
     // In production, this would be done via a new deposit function variant
     // For testing purposes, we'll use the existing deposit and then manually
     // update the storage to have multi-sig arbiters
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter1), &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter1),
+        &0u64,
+        &u64::MAX,
+    );
     // Initiate dispute
     client.dispute(&commitment);
     assert_eq!(
@@ -3339,7 +3683,9 @@ fn test_multi_sig_arbiter_can_only_vote_once() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     client.dispute(&commitment);
     // With single arbiter (threshold=0), voting should fail with NoArbiter
@@ -3362,7 +3708,16 @@ fn test_multi_sig_invalid_signer_cannot_vote() {
 
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter), &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter),
+        &0u64,
+        &u64::MAX,
+    );
 
     client.dispute(&commitment);
     // Impostor should not be able to vote
@@ -3383,7 +3738,16 @@ fn test_multi_sig_insufficient_votes_cannot_resolve() {
 
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    let commitment = client.deposit(&token, &amount, &owner, &salt, &1000, &Some(arbiter), &0u64, &u64::MAX);
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter),
+        &0u64,
+        &u64::MAX,
+    );
 
     client.dispute(&commitment);
     // Should fail because no votes have been cast and threshold not met
@@ -3410,7 +3774,9 @@ fn test_single_arbiter_still_works() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Initiate dispute
     client.dispute(&commitment);

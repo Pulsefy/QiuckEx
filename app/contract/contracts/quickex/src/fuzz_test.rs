@@ -75,7 +75,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         // Advance to exactly the expiry boundary (now >= expires_at)
         ctx.advance_time(timeout);
@@ -106,7 +108,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         // Advance time but stay within the window
         ctx.advance_time(timeout / 2);
@@ -160,7 +164,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         // Advance to just before expiry
         ctx.advance_time(timeout - 1);
@@ -190,7 +196,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         ctx.advance_time(timeout + 1);
 
@@ -230,7 +238,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
         // We only assert no panic; the contract may return InvalidTimeout for u64::MAX
         let _ = result;
     }
@@ -327,7 +337,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         ctx.advance_time(timeout + 1);
         ctx.client.refund(&commitment, &ctx.alice.clone(), &0u64, &u64::MAX);
@@ -357,7 +369,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         ctx.advance_time(timeout + 1);
         ctx.client.refund(&commitment, &ctx.alice.clone(), &0u64, &u64::MAX);
@@ -393,7 +407,9 @@ proptest! {
             &ctx.salt(&salt),
             &0,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         // Try to overpay by 1
         let overpay = amount_due; // remaining is amount_due - initial, overpay > remaining
@@ -482,7 +498,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         // Advance to exactly the expiry boundary
         ctx.advance_time(timeout);
@@ -512,7 +530,9 @@ proptest! {
             &ctx.salt(&salt),
             &timeout,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         ctx.advance_time(timeout);
 
@@ -560,7 +580,9 @@ proptest! {
             &commitment,
             &true,
             &ctx.bob.clone(), // recipient ignored when resolve_for_owner=true
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         let balance_after = ctx.balance(&ctx.alice.clone());
         prop_assert!(
@@ -592,7 +614,9 @@ proptest! {
             &commitment,
             &false,
             &ctx.bob.clone(),
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
 
         let balance_after = ctx.balance(&ctx.bob.clone());
         prop_assert!(
@@ -635,7 +659,9 @@ mod regression_corpus {
             &ctx.salt(b"zero"),
             &0,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
         assert!(
             result.is_err(),
             "REGRESSION-001: zero-amount deposit was accepted"
@@ -653,7 +679,9 @@ mod regression_corpus {
             &ctx.salt(b"neg"),
             &0,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
         assert!(
             result.is_err(),
             "REGRESSION-002: negative-amount deposit was accepted"
@@ -684,10 +712,14 @@ mod regression_corpus {
             &ctx.salt(b"owner-check"),
             &1,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
         ctx.advance_time(2);
         // Bob tries to refund Alice's escrow
-        let result = ctx.client.try_refund(&commitment, &ctx.bob.clone(), &0u64, &u64::MAX);
+        let result = ctx
+            .client
+            .try_refund(&commitment, &ctx.bob.clone(), &0u64, &u64::MAX);
         assert!(
             result.is_err(),
             "REGRESSION-004: non-owner refund was accepted"
@@ -707,7 +739,9 @@ mod regression_corpus {
             &ctx.salt(b"overflow"),
             &u64::MAX,
             &None,
-        , &0u64, &u64::MAX);
+            &0u64,
+            &u64::MAX,
+        );
     }
 
     /// REGRESSION-006: nonce replay across different signers must be independent.
@@ -724,11 +758,16 @@ mod regression_corpus {
         let contract_id = ctx.client.address.clone();
 
         let bob_ok = ctx.env.as_contract(&contract_id, || {
-            verify_and_consume(&ctx.env, &ctx.alice, nonce, valid_until, ActionType::Withdraw)
-                .unwrap();
+            verify_and_consume(
+                &ctx.env,
+                &ctx.alice,
+                nonce,
+                valid_until,
+                ActionType::Withdraw,
+            )
+            .unwrap();
             // Bob's nonce N is independent of Alice's
-            verify_and_consume(&ctx.env, &ctx.bob, nonce, valid_until, ActionType::Withdraw)
-                .is_ok()
+            verify_and_consume(&ctx.env, &ctx.bob, nonce, valid_until, ActionType::Withdraw).is_ok()
         });
 
         assert!(bob_ok, "REGRESSION-006: nonce namespace not per-signer");

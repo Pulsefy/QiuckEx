@@ -16,8 +16,8 @@ mod tests {
     use crate::{
         errors::QuickexError,
         nonce::{
-            self, build_canonical_payload, domain_prefix_v1, hash_canonical_payload,
-            is_nonce_used, verify_and_consume, ActionType,
+            self, build_canonical_payload, domain_prefix_v1, hash_canonical_payload, is_nonce_used,
+            verify_and_consume, ActionType,
         },
         test_context::TestContext,
     };
@@ -62,8 +62,7 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer, 7, 2_000_000, ActionType::Withdraw).unwrap();
-            let result =
-                verify_and_consume(&ctx.env, &signer, 7, 2_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 7, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -78,8 +77,9 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).unwrap();
-            assert!(verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw)
-                .is_ok());
+            assert!(
+                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw).is_ok()
+            );
         });
     }
 
@@ -110,8 +110,7 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw).unwrap();
-            let result =
-                verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -161,8 +160,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 999_999, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 999_999, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::SignatureExpired));
         });
     }
@@ -175,8 +173,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::SignatureExpired));
         });
     }
@@ -189,8 +186,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
             assert!(result.is_ok());
         });
     }
@@ -206,8 +202,9 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer, 100, 2_000_000, ActionType::Withdraw).unwrap();
-            assert!(verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw)
-                .is_ok());
+            assert!(
+                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw).is_ok()
+            );
             assert_eq!(
                 verify_and_consume(&ctx.env, &signer, 100, 2_000_000, ActionType::Withdraw),
                 Err(QuickexError::NonceAlreadyUsed)
@@ -418,8 +415,7 @@ mod tests {
 
         // Still available on B
         ctx.env.as_contract(&contract_b, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
             assert!(
                 result.is_ok(),
                 "nonce should be scoped per-contract — contract B must accept"
@@ -428,8 +424,7 @@ mod tests {
 
         // Replay on A must still fail
         ctx.env.as_contract(&contract_a, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -442,7 +437,10 @@ mod tests {
             (ActionType::Dispute, "DISPUTE"),
             (ActionType::ResolveDispute, "RESOLVE_DISPUTE"),
             (ActionType::VoteForDispute, "VOTE_FOR_DISPUTE"),
-            (ActionType::ResolveDisputeMultiSig, "RESOLVE_DISPUTE_MULTI_SIG"),
+            (
+                ActionType::ResolveDisputeMultiSig,
+                "RESOLVE_DISPUTE_MULTI_SIG",
+            ),
             (ActionType::Deposit, "DEPOSIT"),
             (ActionType::DepositWithCommitment, "DEPOSIT_WITH_COMMITMENT"),
             (ActionType::DepositPartial, "DEPOSIT_PARTIAL"),

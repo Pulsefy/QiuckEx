@@ -125,7 +125,13 @@ pub fn register_ephemeral_key(
 
     sender.require_auth();
 
-    nonce::verify_and_consume(env, &sender, nonce_val, valid_until, ActionType::StealthDeposit)?;
+    nonce::verify_and_consume(
+        env,
+        &sender,
+        nonce_val,
+        valid_until,
+        ActionType::StealthDeposit,
+    )?;
 
     // Re-derive on-chain to verify sender's computation.
     // shared_secret = KDF(eph_pub || spend_pub)
@@ -209,7 +215,13 @@ pub fn stealth_withdraw(
 ) -> Result<bool, QuickexError> {
     recipient.require_auth();
 
-    nonce::verify_and_consume(env, &recipient, nonce_val, valid_until, ActionType::StealthWithdraw)?;
+    nonce::verify_and_consume(
+        env,
+        &recipient,
+        nonce_val,
+        valid_until,
+        ActionType::StealthWithdraw,
+    )?;
 
     let mut entry =
         get_stealth_escrow(env, &stealth_address).ok_or(QuickexError::StealthEscrowNotFound)?;

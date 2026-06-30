@@ -220,7 +220,17 @@ impl QuickexContract {
     ) -> Result<BytesN<32>, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::Deposit)?;
         hook::assert_not_reentrant(&env)?;
-        escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter, nonce, valid_until)
+        escrow::deposit(
+            &env,
+            token,
+            amount,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Derive a deterministic 32-byte escrow id from the full creation payload.
@@ -548,7 +558,15 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDispute)?;
         hook::assert_not_reentrant(&env)?;
-        escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient, nonce, valid_until)
+        escrow::resolve_dispute(
+            &env,
+            caller,
+            commitment,
+            resolve_for_owner,
+            recipient,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Cast a vote on a disputed escrow (multi-sig mode).
@@ -577,7 +595,14 @@ impl QuickexContract {
     ) -> Result<(), QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::VoteForDispute)?;
         hook::assert_not_reentrant(&env)?;
-        escrow::vote_for_dispute(&env, caller, commitment, resolve_for_owner, nonce, valid_until)
+        escrow::vote_for_dispute(
+            &env,
+            caller,
+            commitment,
+            resolve_for_owner,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Resolve a disputed escrow using multi-sig arbitration.
@@ -1021,7 +1046,15 @@ impl QuickexContract {
         valid_until: u64,
     ) -> Result<bool, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::StealthWithdraw)?;
-        stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address, nonce, valid_until)
+        stealth::stealth_withdraw(
+            &env,
+            recipient,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Get the status of a stealth escrow (read-only).

@@ -141,8 +141,16 @@ impl<'a> TestContext<'a> {
     /// Mint tokens then deposit — no arbiter, no timeout. Returns the commitment hash.
     pub fn simple_deposit(&self, owner: &Address, amount: i128, salt: &[u8]) -> BytesN<32> {
         self.mint(owner, amount);
-        self.client
-            .deposit(&self.token, &amount, owner, &self.salt(salt), &0, &None, &Self::TEST_DEPOSIT_NONCE, &Self::TEST_DEPOSIT_VALID_UNTIL)
+        self.client.deposit(
+            &self.token,
+            &amount,
+            owner,
+            &self.salt(salt),
+            &0,
+            &None,
+            &Self::TEST_DEPOSIT_NONCE,
+            &Self::TEST_DEPOSIT_VALID_UNTIL,
+        )
     }
 
     /// Like `simple_deposit` but wires in the arbiter and a timeout.

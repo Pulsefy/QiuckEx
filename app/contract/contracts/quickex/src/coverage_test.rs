@@ -115,7 +115,9 @@ fn test_deposit_with_commitment_duplicate_fails() {
             &commitment,
             &0,
             &None,
-        , &0u64, &u64::MAX),
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::CommitmentAlreadyExists,
     );
 }
@@ -134,7 +136,9 @@ fn test_deposit_with_commitment_with_arbiter_stores_arbiter() {
         &commitment,
         &0,
         &Some(ctx.arbiter.clone()),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     assert_escrow_pending(&ctx.client, &commitment);
 
@@ -177,7 +181,9 @@ fn test_deposit_with_commitment_paused_feature_fails() {
             &commitment,
             &0,
             &None,
-        , &0u64, &u64::MAX),
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::OperationPaused,
     );
 }
@@ -211,7 +217,9 @@ fn test_refund_before_timeout_window_fails() {
         &ctx.salt(b"timed_refund"),
         &3600,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Time has not advanced — refund is not yet available
     assert_qx_err(
@@ -237,7 +245,9 @@ fn test_verify_proof_view_expired_returns_false() {
         &ctx.salt(b"proof_exp"),
         &timeout,
         &None,
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
 
     // Advance past expiry
     ctx.advance_time(timeout + 1);
@@ -267,7 +277,9 @@ fn test_assert_helpers_pending_and_spent() {
         &commitment,
         &ctx.alice,
         &ctx.salt(b"h_pending"),
-    , &0u64, &u64::MAX);
+        &0u64,
+        &u64::MAX,
+    );
     assert_escrow_spent(&ctx.client, &commitment);
 }
 
