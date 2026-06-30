@@ -548,14 +548,14 @@ proptest! {
     /// Nonce expiry edge: valid_until == now MUST be rejected (boundary is exclusive).
     #[test]
     fn nonce_expiry_boundary_rejected(nonce in any::<u64>()) {
-        use crate::nonce::verify_and_consume;
+        use crate::nonce::{verify_and_consume, ActionType};
 
         let ctx = TestContext::with_admin();
         let now = ctx.env.ledger().timestamp();
         let contract_id = ctx.client.address.clone();
 
         let result_ok = ctx.env.as_contract(&contract_id, || {
-            verify_and_consume(&ctx.env, &ctx.alice, nonce, now).is_ok()
+            verify_and_consume(&ctx.env, &ctx.alice, nonce, now, ActionType::Withdraw).is_ok()
         });
 
         prop_assert!(!result_ok, "Nonce expiry boundary violated: accepted when valid_until == now");

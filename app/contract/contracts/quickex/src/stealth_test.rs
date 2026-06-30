@@ -12,6 +12,7 @@ use soroban_sdk::{
 /// Default nonce and valid_until values for test helper calls.
 /// These are passed to functions that now require nonce verification.
 /// Each test uses a unique nonce to avoid collisions.
+#[allow(dead_code)]
 const TEST_NONCE_BASE: u64 = 9000;
 const TEST_VALID_UNTIL: u64 = 2_000_000;
 

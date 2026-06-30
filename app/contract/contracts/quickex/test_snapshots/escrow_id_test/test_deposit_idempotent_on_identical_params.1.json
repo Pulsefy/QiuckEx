@@ -71,7 +71,13 @@
                 {
                   "u64": "0"
                 },
-                "void"
+                "void",
+                {
+                  "u64": "0"
+                },
+                {
+                  "u64": "18446744073709551615"
+                }
               ]
             }
           },
@@ -100,40 +106,6 @@
         }
       ]
     ],
-    [],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "deposit",
-              "args": [
-                {
-                  "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
-                },
-                {
-                  "i128": "1000"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                },
-                {
-                  "bytes": "6964656d"
-                },
-                {
-                  "u64": "0"
-                },
-                "void"
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
-    [],
     [],
     []
   ],
@@ -215,7 +187,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "Escrow"
+                  "symbol": "EscrowCore"
                 },
                 {
                   "bytes": "a8d23aded119b0c847bc7756299f15730d79bf0a2af9e5e2c49305ca131b8511"
@@ -235,7 +207,7 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "Escrow"
+                      "symbol": "EscrowCore"
                     },
                     {
                       "bytes": "a8d23aded119b0c847bc7756299f15730d79bf0a2af9e5e2c49305ca131b8511"
@@ -259,28 +231,6 @@
                       },
                       "val": {
                         "i128": "1000"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "arbiter"
-                      },
-                      "val": "void"
-                    },
-                    {
-                      "key": {
-                        "symbol": "arbiter_threshold"
-                      },
-                      "val": {
-                        "u32": 0
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "arbiters"
-                      },
-                      "val": {
-                        "vec": []
                       }
                     },
                     {
@@ -346,7 +296,7 @@
                   "symbol": "EscrowIdMap"
                 },
                 {
-                  "bytes": "cec1606af9d11ca88bdd3a2b1eceb33e30a7f040531510b6f1b13ecd09cca7c6"
+                  "bytes": "51633421c685accbbac1f0d8d9e7c9bcbd0b9f187063c26de6f765d87eafb144"
                 }
               ]
             },
@@ -366,7 +316,7 @@
                       "symbol": "EscrowIdMap"
                     },
                     {
-                      "bytes": "cec1606af9d11ca88bdd3a2b1eceb33e30a7f040531510b6f1b13ecd09cca7c6"
+                      "bytes": "51633421c685accbbac1f0d8d9e7c9bcbd0b9f187063c26de6f765d87eafb144"
                     }
                   ]
                 },
@@ -418,6 +368,71 @@
             "ext": "v0"
           },
           4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "Used"
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                },
+                {
+                  "u64": "0"
+                },
+                {
+                  "vec": [
+                    {
+                      "symbol": "Deposit"
+                    }
+                  ]
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "Used"
+                    },
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    },
+                    {
+                      "u64": "0"
+                    },
+                    {
+                      "vec": [
+                        {
+                          "symbol": "Deposit"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "bool": true
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          3110400
         ]
       ],
       [
@@ -507,39 +522,6 @@
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": "1033654523790656264"
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": "4837995959683129791"
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": "4837995959683129791"
                   }
                 },
                 "durability": "temporary",

@@ -376,8 +376,6 @@ mod tests {
     /// that the canonical payload produced by contract A differs from B.
     #[test]
     fn canonical_payload_differs_across_contracts() {
-        use soroban_sdk::{Env, IntoVal};
-
         let ctx_a = TestContext::new();
         ctx_a.env.ledger().set_timestamp(1_000_000);
         let contract_a = ctx_a.client.address.clone();

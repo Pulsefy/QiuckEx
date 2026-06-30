@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
 
 mod admin;
@@ -85,8 +86,8 @@ use types::{
 #[contract]
 pub struct QuickexContract;
 
-#[contractimpl]
 #[allow(clippy::too_many_arguments)]
+#[contractimpl]
 impl QuickexContract {
     /// Withdraw escrowed funds by proving commitment ownership.
     ///

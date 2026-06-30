@@ -45,6 +45,7 @@ use soroban_sdk::{
 #[contract]
 pub struct LegacyQuickexContract;
 
+#[allow(clippy::too_many_arguments)]
 #[contractimpl]
 impl LegacyQuickexContract {
     pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
@@ -58,6 +59,7 @@ impl LegacyQuickexContract {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn deposit(
         env: Env,
         token: Address,
@@ -66,6 +68,8 @@ impl LegacyQuickexContract {
         salt: Bytes,
         timeout_secs: u64,
         arbiter: Option<Address>,
+        nonce_val: u64,
+        valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
         if crate::admin::is_paused(&env) {
             return Err(QuickexError::ContractPaused);
@@ -74,7 +78,17 @@ impl LegacyQuickexContract {
             return Err(QuickexError::OperationPaused);
         }
 
-        crate::escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
+        crate::escrow::deposit(
+            &env,
+            token,
+            amount,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+            nonce_val,
+            valid_until,
+        )
     }
 }
 
@@ -1812,7 +1826,16 @@ fn test_upgrade_migration_preserves_legacy_escrow_data() {
     legacy_client.initialize(&admin);
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
 
-    let commitment = legacy_client.deposit(&token, &amount, &owner, &salt, &300, &None);
+    let commitment = legacy_client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &300,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     env.register_at(&contract_id, QuickexContract, ());
     let client = QuickexContractClient::new(&env, &contract_id);

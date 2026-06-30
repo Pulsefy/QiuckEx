@@ -143,6 +143,7 @@ fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError>
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`InvalidSalt`] – salt > 1024 bytes.
+#[allow(clippy::too_many_arguments)]
 pub fn deposit(
     env: &Env,
     token: Address,
@@ -246,6 +247,7 @@ pub fn deposit(
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`CommitmentAlreadyExists`] – commitment already in storage.
 /// - [`InvalidTimeout`] – timeout_secs would overflow u64 when added to now.
+#[allow(clippy::too_many_arguments)]
 pub fn deposit_with_commitment(
     env: &Env,
     from: Address,
