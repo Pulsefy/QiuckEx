@@ -44,6 +44,7 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 use crate::{
     errors::QuickexError,
     events,
+    nonce::{self, ActionType},
     storage::{get_stealth_escrow, put_stealth_escrow},
     types::{EscrowStatus, StealthDepositParams, StealthEscrowEntry},
 };
@@ -100,6 +101,8 @@ pub fn derive_stealth_address(
 pub fn register_ephemeral_key(
     env: &Env,
     params: StealthDepositParams,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
     let StealthDepositParams {
         sender,
@@ -121,6 +124,8 @@ pub fn register_ephemeral_key(
     }
 
     sender.require_auth();
+
+    nonce::verify_and_consume(env, &sender, nonce_val, valid_until, ActionType::StealthDeposit)?;
 
     // Re-derive on-chain to verify sender's computation.
     // shared_secret = KDF(eph_pub || spend_pub)
@@ -199,8 +204,12 @@ pub fn stealth_withdraw(
     eph_pub: BytesN<32>,
     spend_pub: BytesN<32>,
     stealth_address: BytesN<32>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<bool, QuickexError> {
     recipient.require_auth();
+
+    nonce::verify_and_consume(env, &recipient, nonce_val, valid_until, ActionType::StealthWithdraw)?;
 
     let mut entry =
         get_stealth_escrow(env, &stealth_address).ok_or(QuickexError::StealthEscrowNotFound)?;

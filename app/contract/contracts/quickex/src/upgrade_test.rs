@@ -327,7 +327,7 @@ fn upgrade_harness_pending_escrow_is_withdrawable_post_upgrade() {
         &gs.commitment_pending,
         &gs.alice,
         &salt,
-    );
+    , &0u64, &u64::MAX);
     assert!(withdrew, "withdrawal must succeed post-upgrade");
 
     assert_eq!(
@@ -360,7 +360,7 @@ fn upgrade_harness_disputed_escrow_arbitration_works_post_upgrade() {
     client.migrate(&gs.admin);
 
     let recipient = Address::generate(&env);
-    client.resolve_dispute(&gs.arbiter, &gs.commitment_disputed, &false, &recipient);
+    client.resolve_dispute(&gs.arbiter, &gs.commitment_disputed, &false, &recipient, &0u64, &u64::MAX);
 
     assert_eq!(
         client.get_commitment_state(&gs.commitment_disputed),
@@ -414,7 +414,7 @@ fn upgrade_harness_already_spent_escrow_rejects_re_withdrawal() {
         &gs.commitment_spent,
         &gs.alice,
         &salt,
-    );
+    , &0u64, &u64::MAX);
     assert!(
         result.is_err(),
         "re-withdrawal of an already-Spent escrow must fail post-upgrade"

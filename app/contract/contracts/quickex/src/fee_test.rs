@@ -104,7 +104,7 @@ fn test_withdrawal_with_fee() {
     // Deposit
     let amount = 1000i128;
     let salt = Bytes::from_array(&env, &[1; 32]);
-    let commitment = client.deposit(&token_id, &amount, &owner, &salt, &3600, &None);
+    let commitment = client.deposit(&token_id, &amount, &owner, &salt, &3600, &None, &0u64, &u64::MAX);
 
     assert_eq!(token_client.balance(&owner), 9000);
     assert_eq!(token_client.balance(&client.address), 1000);
@@ -134,7 +134,7 @@ fn test_withdrawal_with_fee() {
     // If Alice deposits, the commitment is `SHA256(Alice || amount || salt)`. Only Alice can withdraw using this commitment.
 
     // Let's proceed with Alice (owner) withdrawing to herself.
-    client.withdraw(&token_id, &amount, &commitment, &owner, &salt);
+    client.withdraw(&token_id, &amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
 
     // Fee is 10% of 1000 = 100.
     // Alice should get 1000 - 100 = 900.
@@ -166,9 +166,9 @@ fn test_zero_fee() {
 
     let amount = 1000i128;
     let salt = Bytes::from_array(&env, &[1; 32]);
-    let commitment = client.deposit(&token_id, &amount, &owner, &salt, &3600, &None);
+    let commitment = client.deposit(&token_id, &amount, &owner, &salt, &3600, &None, &0u64, &u64::MAX);
 
-    client.withdraw(&token_id, &amount, &commitment, &owner, &salt);
+    client.withdraw(&token_id, &amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
 
     assert_eq!(token_client.balance(&owner), 10000);
     assert_eq!(token_client.balance(&platform_wallet), 0);
@@ -286,24 +286,24 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
     // 1 stroop deposit: floor fee = 0, user gets full amount back.
     let tiny_amount: i128 = 1;
     let salt = Bytes::from_array(&env, &[2; 32]);
-    let commitment = client.deposit(&token_id, &tiny_amount, &owner, &salt, &3600, &None);
-    client.withdraw(&token_id, &tiny_amount, &commitment, &owner, &salt);
+    let commitment = client.deposit(&token_id, &tiny_amount, &owner, &salt, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_id, &tiny_amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
     assert_eq!(token_client.balance(&platform_wallet), 0);
     assert_eq!(token_client.balance(&owner), 100_000);
 
     // 9_999 stroops at 1 bps: fee floors to 0.
     let edge_amount: i128 = 9_999;
     let salt2 = Bytes::from_array(&env, &[3; 32]);
-    let commitment2 = client.deposit(&token_id, &edge_amount, &owner, &salt2, &3600, &None);
-    client.withdraw(&token_id, &edge_amount, &commitment2, &owner, &salt2);
+    let commitment2 = client.deposit(&token_id, &edge_amount, &owner, &salt2, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_id, &edge_amount, &commitment2, &owner, &salt2, &0u64, &u64::MAX);
     assert_eq!(token_client.balance(&platform_wallet), 0);
     assert_eq!(token_client.balance(&owner), 100_000);
 
     // 10_000 stroops at 1 bps: fee = 1.
     let threshold_amount: i128 = 10_000;
     let salt3 = Bytes::from_array(&env, &[4; 32]);
-    let commitment3 = client.deposit(&token_id, &threshold_amount, &owner, &salt3, &3600, &None);
-    client.withdraw(&token_id, &threshold_amount, &commitment3, &owner, &salt3);
+    let commitment3 = client.deposit(&token_id, &threshold_amount, &owner, &salt3, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_id, &threshold_amount, &commitment3, &owner, &salt3, &0u64, &u64::MAX);
     assert_eq!(token_client.balance(&platform_wallet), 1);
     assert_eq!(token_client.balance(&owner), 99_999);
 }
@@ -337,8 +337,8 @@ fn test_fee_extreme_values() {
     assert_eq!(expected_fee, large_amount);
 
     let salt = Bytes::from_array(&env, &[5; 32]);
-    let commitment = client.deposit(&token_id, &large_amount, &owner, &salt, &3600, &None);
-    client.withdraw(&token_id, &large_amount, &commitment, &owner, &salt);
+    let commitment = client.deposit(&token_id, &large_amount, &owner, &salt, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_id, &large_amount, &commitment, &owner, &salt, &0u64, &u64::MAX);
 
     assert_eq!(token_client.balance(&platform_wallet), expected_fee);
     assert_eq!(token_client.balance(&owner), 0);
@@ -415,12 +415,12 @@ fn test_fee_deterministic_across_assets() {
     let expected_fee = fee_from_bps_floor(amount, 333);
 
     let salt_a = Bytes::from_array(&env, &[10; 32]);
-    let commitment_a = client.deposit(&token_a, &amount, &owner, &salt_a, &3600, &None);
-    client.withdraw(&token_a, &amount, &commitment_a, &owner, &salt_a);
+    let commitment_a = client.deposit(&token_a, &amount, &owner, &salt_a, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_a, &amount, &commitment_a, &owner, &salt_a, &0u64, &u64::MAX);
 
     let salt_b = Bytes::from_array(&env, &[11; 32]);
-    let commitment_b = client.deposit(&token_b, &amount, &owner, &salt_b, &3600, &None);
-    client.withdraw(&token_b, &amount, &commitment_b, &owner, &salt_b);
+    let commitment_b = client.deposit(&token_b, &amount, &owner, &salt_b, &3600, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_b, &amount, &commitment_b, &owner, &salt_b, &0u64, &u64::MAX);
 
     assert_eq!(token_a_client.balance(&platform_wallet), expected_fee);
     assert_eq!(token_b_client.balance(&platform_wallet), expected_fee);

@@ -59,14 +59,14 @@ fn test_fee_router_per_asset_overrides_global_across_assets() {
     // Withdraw XLM path: fee should use per-asset 10%.
     let xlm_amount: i128 = 1_000;
     let xlm_salt = Bytes::from_slice(&env, b"fee_router_xlm_salt");
-    let xlm_commitment = client.deposit(&xlm_token, &xlm_amount, &user, &xlm_salt, &0, &None);
-    client.withdraw(&xlm_token, &xlm_amount, &xlm_commitment, &user, &xlm_salt);
+    let xlm_commitment = client.deposit(&xlm_token, &xlm_amount, &user, &xlm_salt, &0, &None, &0u64, &u64::MAX);
+    client.withdraw(&xlm_token, &xlm_amount, &xlm_commitment, &user, &xlm_salt, &0u64, &u64::MAX);
 
     // Withdraw SAC path: fee should use global 5%.
     let sac_amount: i128 = 1_000;
     let sac_salt = Bytes::from_slice(&env, b"fee_router_sac_salt");
-    let sac_commitment = client.deposit(&sac_token, &sac_amount, &user, &sac_salt, &0, &None);
-    client.withdraw(&sac_token, &sac_amount, &sac_commitment, &user, &sac_salt);
+    let sac_commitment = client.deposit(&sac_token, &sac_amount, &user, &sac_salt, &0, &None, &0u64, &u64::MAX);
+    client.withdraw(&sac_token, &sac_amount, &sac_commitment, &user, &sac_salt, &0u64, &u64::MAX);
 
     // Expected fees: XLM 100 + SAC 50 = 150 to collector.
     assert_eq!(xlm_client.balance(&collector), 100);
@@ -121,10 +121,10 @@ fn test_fee_router_dispute_with_optional_arbiter_split() {
         &salt,
         &1000,
         &Some(arbiter.clone()),
-    );
+    , &0u64, &u64::MAX);
 
     client.dispute(&commitment);
-    client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient, &0u64, &u64::MAX);
 
     // Fee math:
     // total_fee = 100
@@ -168,7 +168,7 @@ fn test_fee_router_collector_rotation_applies_to_new_payouts_and_old_escrows() {
     // Escrow created before rotation.
     let amount_old: i128 = 1_000;
     let salt_old = Bytes::from_slice(&env, b"fee_router_old_escrow");
-    let old_commitment = client.deposit(&token_id, &amount_old, &owner, &salt_old, &0, &None);
+    let old_commitment = client.deposit(&token_id, &amount_old, &owner, &salt_old, &0, &None, &0u64, &u64::MAX);
 
     // Rotate collector safely.
     let next_idx = client.rotate_fee_collector(&admin, &collector_v2);
@@ -179,13 +179,13 @@ fn test_fee_router_collector_rotation_applies_to_new_payouts_and_old_escrows() {
     );
 
     // Settling old escrow after rotation should route fee to collector_v2.
-    client.withdraw(&token_id, &amount_old, &old_commitment, &owner, &salt_old);
+    client.withdraw(&token_id, &amount_old, &old_commitment, &owner, &salt_old, &0u64, &u64::MAX);
 
     // New escrow after rotation should also route to collector_v2.
     let amount_new: i128 = 1_000;
     let salt_new = Bytes::from_slice(&env, b"fee_router_new_escrow");
-    let new_commitment = client.deposit(&token_id, &amount_new, &owner, &salt_new, &0, &None);
-    client.withdraw(&token_id, &amount_new, &new_commitment, &owner, &salt_new);
+    let new_commitment = client.deposit(&token_id, &amount_new, &owner, &salt_new, &0, &None, &0u64, &u64::MAX);
+    client.withdraw(&token_id, &amount_new, &new_commitment, &owner, &salt_new, &0u64, &u64::MAX);
 
     // 10% fee on each withdrawal => 100 + 100.
     assert_eq!(token_client.balance(&collector_v1), 0);

@@ -9,6 +9,12 @@ use soroban_sdk::{
     token, Address, BytesN, Env,
 };
 
+/// Default nonce and valid_until values for test helper calls.
+/// These are passed to functions that now require nonce verification.
+/// Each test uses a unique nonce to avoid collisions.
+const TEST_NONCE_BASE: u64 = 9000;
+const TEST_VALID_UNTIL: u64 = 2_000_000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -90,7 +96,7 @@ fn test_stealth_full_flow() {
         spend_pub.clone(),
         stealth_address.clone(),
         0,
-    ));
+    ), &1000, &2000000);
 
     assert_eq!(returned_stealth, stealth_address);
     assert_eq!(
@@ -98,7 +104,7 @@ fn test_stealth_full_flow() {
         Some(EscrowStatus::Pending)
     );
 
-    let ok = client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
+    let ok = client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address, &1000, &TEST_VALID_UNTIL);
     assert!(ok);
 
     assert_eq!(
@@ -134,7 +140,7 @@ fn test_register_wrong_stealth_address_fails() {
             spend_pub,
             wrong_stealth,
             0,
-        ))
+        ), &1001, &2000000)
         .unwrap_err()
         .unwrap();
 
@@ -164,7 +170,7 @@ fn test_register_duplicate_stealth_address_fails() {
         spend_pub.clone(),
         stealth_address.clone(),
         0,
-    ));
+    ), &1001, &TEST_VALID_UNTIL);
 
     let err = client
         .try_register_ephemeral_key(&make_params(
@@ -176,7 +182,7 @@ fn test_register_duplicate_stealth_address_fails() {
             spend_pub,
             stealth_address,
             0,
-        ))
+        ), &1002, &TEST_VALID_UNTIL)
         .unwrap_err()
         .unwrap();
 
@@ -207,12 +213,12 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
         spend_pub,
         stealth_address.clone(),
         0,
-    ));
+    ), &1001, &TEST_VALID_UNTIL);
 
     let wrong_spend_pub: BytesN<32> = BytesN::from_array(&env, &[99u8; 32]);
 
     let err = client
-        .try_stealth_withdraw(&recipient, &eph_pub, &wrong_spend_pub, &stealth_address)
+        .try_stealth_withdraw(&recipient, &eph_pub, &wrong_spend_pub, &stealth_address, &1002, &TEST_VALID_UNTIL)
         .unwrap_err()
         .unwrap();
 
@@ -243,12 +249,12 @@ fn test_stealth_double_withdraw_fails() {
         spend_pub.clone(),
         stealth_address.clone(),
         0,
-    ));
+    ), &1001, &TEST_VALID_UNTIL);
 
-    client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
+    client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address, &1002, &TEST_VALID_UNTIL);
 
     let err = client
-        .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address)
+        .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address, &1003, &TEST_VALID_UNTIL)
         .unwrap_err()
         .unwrap();
 
@@ -279,12 +285,12 @@ fn test_stealth_withdraw_after_expiry_fails() {
         spend_pub.clone(),
         stealth_address.clone(),
         100,
-    ));
+    ), &1001, &2000000);
 
     env.ledger().with_mut(|l| l.timestamp += 200);
 
     let err = client
-        .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address)
+        .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address, &1002, &2000001)
         .unwrap_err()
         .unwrap();
 
@@ -312,7 +318,7 @@ fn test_stealth_register_zero_amount_fails() {
             spend_pub,
             stealth_address,
             0,
-        ))
+        ), &1001, &2000000)
         .unwrap_err()
         .unwrap();
 
@@ -355,7 +361,7 @@ fn test_stealth_register_fails_when_paused() {
             spend_pub,
             stealth_address,
             0,
-        ))
+        ), &1001, &2000000)
         .unwrap_err()
         .unwrap();
 

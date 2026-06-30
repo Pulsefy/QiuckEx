@@ -65,7 +65,7 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env, Vec};
 use crate::{
     admin, commitment,
     errors::QuickexError,
-    escrow_id, events, fee_router, hook,
+    escrow_id, events, fee_router, hook, nonce::{self, ActionType},
     storage::{
         count_dispute_votes, extend_escrow_storage_ttl, get_dispute_vote, get_escrow,
         get_escrow_id_mapping, has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
@@ -150,12 +150,16 @@ pub fn deposit(
     salt: Bytes,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     owner.require_auth();
+
+    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, ActionType::Deposit)?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -249,12 +253,16 @@ pub fn deposit_with_commitment(
     commitment: BytesN<32>,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     from.require_auth();
+
+    nonce::verify_and_consume(env, &from, nonce_val, valid_until, ActionType::DepositWithCommitment)?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -335,6 +343,8 @@ pub fn deposit_partial(
     salt: Bytes,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
     if initial_payment <= 0 {
         return Err(QuickexError::InvalidAmount);
@@ -344,6 +354,8 @@ pub fn deposit_partial(
     }
 
     owner.require_auth();
+
+    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, ActionType::DepositPartial)?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -415,12 +427,16 @@ pub fn partial_payment(
     commitment: BytesN<32>,
     payer: Address,
     payment_amount: i128,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     if payment_amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     payer.require_auth();
+
+    nonce::verify_and_consume(env, &payer, nonce_val, valid_until, ActionType::PartialPayment)?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let mut entry: EscrowEntry =
@@ -497,12 +513,21 @@ pub fn partial_payment(
 /// - [`AlreadySpent`] – escrow already spent or refunded.
 /// - [`InvalidCommitment`] – stored amount_due ≠ requested amount_due.
 /// - [`Overpayment`] – escrow is not fully paid yet.
-pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<bool, QuickexError> {
+pub fn withdraw(
+    env: &Env,
+    amount: i128,
+    to: Address,
+    salt: Bytes,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<bool, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     to.require_auth();
+
+    nonce::verify_and_consume(env, &to, nonce_val, valid_until, ActionType::Withdraw)?;
 
     let (commitment, legacy_commitment) =
         commitment::amount_commitment_hashes(env, &to, amount, &salt)?;
@@ -596,8 +621,16 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 /// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
 /// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
 /// - [`InvalidOwner`] – caller is not the original owner.
-pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
+pub fn refund(
+    env: &Env,
+    commitment: BytesN<32>,
+    caller: Address,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<(), QuickexError> {
     caller.require_auth();
+
+    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, ActionType::Refund)?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -747,6 +780,8 @@ pub fn resolve_dispute(
     commitment: BytesN<32>,
     resolve_for_owner: bool,
     recipient: Address,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -754,6 +789,8 @@ pub fn resolve_dispute(
 
     // Guard: caller must be either the assigned arbiter OR have the global Arbiter role.
     caller.require_auth();
+
+    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, ActionType::ResolveDispute)?;
     let mut is_authorized = admin::has_role(env, &caller, Role::Arbiter);
 
     if !is_authorized {
@@ -869,8 +906,12 @@ pub fn vote_for_dispute(
     caller: Address,
     commitment: BytesN<32>,
     resolve_for_owner: bool,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     caller.require_auth();
+
+    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, ActionType::VoteForDispute)?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =

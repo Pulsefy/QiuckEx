@@ -73,14 +73,14 @@ fn test_arbiter_role_resolution() {
         &ctx.salt(b"salt"),
         &3600,
         &Some(per_escrow_arbiter.clone()),
-    );
+    , &0u64, &u64::MAX);
 
     // Dispute it
     ctx.client.dispute(&commitment);
 
     // Global arbiter (Bob) resolves it
     ctx.client
-        .resolve_dispute(&global_arbiter, &commitment, &true, &ctx.alice);
+        .resolve_dispute(&global_arbiter, &commitment, &true, &ctx.alice, &0u64, &u64::MAX);
 
     // Verify resolution
     let status = ctx.client.get_commitment_state(&commitment).unwrap();
