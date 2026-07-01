@@ -163,6 +163,7 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 }
 
 /// Set the paused state (**Admin or Operator only**).
+#[allow(dead_code)]
 pub fn set_paused(
     env: &Env,
     caller: Address,
