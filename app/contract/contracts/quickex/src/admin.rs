@@ -1,8 +1,8 @@
 use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_contract_initialized, publish_contract_migrated,
-    publish_contract_paused, publish_fee_collector_rotated,
-    publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
+    publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
+    publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee;
 use crate::fee_router;
