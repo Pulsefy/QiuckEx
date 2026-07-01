@@ -340,16 +340,17 @@ pub fn set_pause_flags(
     flags_to_enable: u64,
     flags_to_disable: u64,
     reason: u32,
+    event_reason: u32,
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
     storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable, reason);
 
     if flags_to_enable > 0 {
-        crate::events::publish_pause_enabled(env, caller.clone(), false, flags_to_enable, reason);
+        crate::events::publish_pause_enabled(env, caller.clone(), false, flags_to_enable, event_reason);
     }
     if flags_to_disable > 0 {
-        crate::events::publish_pause_disabled(env, caller.clone(), false, flags_to_disable, reason);
+        crate::events::publish_pause_disabled(env, caller.clone(), false, flags_to_disable, event_reason);
     }
     Ok(())
 }

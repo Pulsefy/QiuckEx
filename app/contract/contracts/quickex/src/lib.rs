@@ -818,7 +818,7 @@ impl QuickexContract {
         env: Env,
         caller: Address,
         mask: u64,
-        _reason: u32,
+        reason: u32,
     ) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
@@ -828,6 +828,7 @@ impl QuickexContract {
             &caller,
             mask,
             0,
+            reason,
             PauseChangeReason::FeatureFlagsUpdated as u32,
         )
     }
@@ -847,7 +848,7 @@ impl QuickexContract {
         env: Env,
         caller: Address,
         mask: u64,
-        _reason: u32,
+        reason: u32,
     ) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
@@ -857,6 +858,7 @@ impl QuickexContract {
             &caller,
             0,
             mask,
+            reason,
             PauseChangeReason::FeatureFlagsUpdated as u32,
         )
     }
