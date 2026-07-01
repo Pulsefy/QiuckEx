@@ -49,7 +49,7 @@ mod types;
 mod upgrade_test;
 
 use errors::QuickexError;
-use pause_policy::EntryPoint;
+use pause_policy::{EntryPoint, PauseChangeReason};
 use storage::*;
 use types::{
     DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
@@ -117,26 +117,7 @@ impl QuickexContract {
         to: Address,
         salt: Bytes,
     ) -> Result<bool, QuickexError> {
-        if admin::is_paused(&env) {
-            let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(
-                &env,
-                Some(to.clone()),
-                Symbol::new(&env, "withdraw"),
-                reason,
-            );
-            return Err(QuickexError::ContractPaused);
-        }
-        if is_feature_paused(&env, PauseFlag::Withdrawal) {
-            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Withdrawal);
-            events::publish_pause_enforced(
-                &env,
-                Some(to.clone()),
-                Symbol::new(&env, "withdraw"),
-                reason,
-            );
-            return Err(QuickexError::OperationPaused);
-        }
+        pause_policy::require_entry_allowed(&env, EntryPoint::Withdraw)?;
         hook::assert_not_reentrant(&env)?;
         escrow::withdraw(&env, amount, to, salt)
     }
@@ -462,6 +443,9 @@ impl QuickexContract {
         timeout_secs: u64,
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
             events::publish_pause_enforced(
@@ -519,6 +503,9 @@ impl QuickexContract {
         payer: Address,
         payment_amount: i128,
     ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
             events::publish_pause_enforced(
@@ -616,6 +603,9 @@ impl QuickexContract {
     /// * `NoArbiter` - No arbiter assigned to the escrow
     /// * `InvalidDisputeState` - Escrow is not in `Pending` status
     pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
             events::publish_pause_enforced(&env, None, Symbol::new(&env, "dispute"), reason);
@@ -784,7 +774,15 @@ impl QuickexContract {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        admin::set_paused(&env, caller, new_state, reason)
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        storage::set_paused(&env, new_state, reason);
+        let event_reason = if new_state {
+            PauseChangeReason::GlobalPause as u32
+        } else {
+            PauseChangeReason::GlobalUnpause as u32
+        };
+        events::publish_contract_paused(&env, caller, new_state, event_reason);
+        Ok(())
     }
 
     /// Check if the function is currently paused.
@@ -825,7 +823,13 @@ impl QuickexContract {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        admin::set_pause_flags(&env, &caller, mask, 0, reason)
+        admin::set_pause_flags(
+            &env,
+            &caller,
+            mask,
+            0,
+            PauseChangeReason::FeatureFlagsUpdated as u32,
+        )
     }
 
     /// UnPause a function in the contract (**Admin only**).
@@ -848,7 +852,13 @@ impl QuickexContract {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
-        admin::set_pause_flags(&env, &caller, 0, mask, reason)
+        admin::set_pause_flags(
+            &env,
+            &caller,
+            0,
+            mask,
+            PauseChangeReason::FeatureFlagsUpdated as u32,
+        )
     }
 
     /// Transfer admin rights to a new address (**Admin only**).
@@ -1126,26 +1136,7 @@ impl QuickexContract {
         env: Env,
         params: StealthDepositParams,
     ) -> Result<BytesN<32>, QuickexError> {
-        if admin::is_paused(&env) {
-            let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(
-                &env,
-                Some(params.sender.clone()),
-                Symbol::new(&env, "register_ephemeral_key"),
-                reason,
-            );
-            return Err(QuickexError::ContractPaused);
-        }
-        if is_feature_paused(&env, PauseFlag::Deposit) {
-            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(
-                &env,
-                Some(params.sender.clone()),
-                Symbol::new(&env, "register_ephemeral_key"),
-                reason,
-            );
-            return Err(QuickexError::OperationPaused);
-        }
+        pause_policy::require_entry_allowed(&env, EntryPoint::StealthDeposit)?;
         stealth::register_ephemeral_key(&env, params)
     }
 
@@ -1177,26 +1168,7 @@ impl QuickexContract {
         spend_pub: BytesN<32>,
         stealth_address: BytesN<32>,
     ) -> Result<bool, QuickexError> {
-        if admin::is_paused(&env) {
-            let reason = storage::get_global_pause_reason(&env);
-            events::publish_pause_enforced(
-                &env,
-                Some(recipient.clone()),
-                Symbol::new(&env, "stealth_withdraw"),
-                reason,
-            );
-            return Err(QuickexError::ContractPaused);
-        }
-        if is_feature_paused(&env, PauseFlag::Withdrawal) {
-            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Withdrawal);
-            events::publish_pause_enforced(
-                &env,
-                Some(recipient.clone()),
-                Symbol::new(&env, "stealth_withdraw"),
-                reason,
-            );
-            return Err(QuickexError::OperationPaused);
-        }
+        pause_policy::require_entry_allowed(&env, EntryPoint::StealthWithdraw)?;
         stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address)
     }
 

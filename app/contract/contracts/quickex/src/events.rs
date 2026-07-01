@@ -424,26 +424,26 @@ pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, r
     .publish(env);
 }
 
-#[contractevent(topics = ["TOPIC_ADMIN", "PauseEnabled"])]
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PauseEnabledEvent {
     #[topic]
     pub admin: Address,
     pub schema_version: u32,
     pub is_global: bool,
-    pub flag: u64,
+    pub flags: u64,
     pub reason: u32,
     pub timestamp: u64,
 }
 
-#[contractevent(topics = ["TOPIC_ADMIN", "PauseDisabled"])]
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PauseDisabledEvent {
     #[topic]
     pub admin: Address,
     pub schema_version: u32,
     pub is_global: bool,
-    pub flag: u64,
+    pub flags: u64,
     pub reason: u32,
     pub timestamp: u64,
 }
@@ -471,7 +471,7 @@ pub(crate) fn publish_pause_enabled(
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         is_global,
-        flag,
+        flags: flag,
         reason,
         timestamp: env.ledger().timestamp(),
     }
@@ -490,7 +490,7 @@ pub(crate) fn publish_pause_disabled(
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         is_global,
-        flag,
+        flags: flag,
         reason,
         timestamp: env.ledger().timestamp(),
     }
