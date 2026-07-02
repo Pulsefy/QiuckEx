@@ -19,6 +19,7 @@
 extern crate std;
 
 use crate::{
+    escrow_id,
     storage::{
         compact_escrow_storage_footprint_bytes, legacy_escrow_storage_footprint_bytes, put_escrow,
         DataKey, PRIVACY_ENABLED_KEY,
@@ -327,8 +328,8 @@ fn bench_core_lifecycle_costs() {
             &env,
             "create",
             storage_fee_bytes,
-            500_000,
-            100_000,
+            600_000,
+            150_000,
             1_000,
             || {
                 client.deposit(&token, &amount, &owner, &salt, &timeout_secs, &arbiter);
