@@ -138,8 +138,8 @@ impl CoreBenchResult {
     }
 }
 
-fn storage_bytes_for_pair<K: ToXdr, V: ToXdr>(env: &Env, key: &K, value: &V) -> u64 {
-    key.to_xdr(env).len() as u64 + value.to_xdr(env).len() as u64
+fn storage_bytes_for_pair<K: ToXdr + Clone, V: ToXdr + Clone>(env: &Env, key: &K, value: &V) -> u64 {
+    key.clone().to_xdr(env).len() as u64 + value.clone().to_xdr(env).len() as u64
 }
 
 fn escrow_storage_fee_bytes(env: &Env, commitment: &BytesN<32>, entry: &EscrowEntry) -> u64 {
