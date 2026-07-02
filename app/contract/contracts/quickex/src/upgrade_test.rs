@@ -59,7 +59,7 @@ impl LegacyV0Contract {
             return Err(QuickexError::AlreadyInitialized);
         }
         crate::storage::set_admin(&env, &admin);
-        crate::storage::set_paused(&env, false);
+        crate::storage::set_paused(&env, false, 0);
         // Seed the Admin role so admin-gated calls (e.g. set_upgrade_window)
         // work before migrate() is called. This matches production initialize().
         let roles = soroban_sdk::vec![&env, crate::types::Role::Admin];

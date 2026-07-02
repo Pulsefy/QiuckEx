@@ -263,3 +263,16 @@ pub enum Role {
     /// Authorized to resolve disputes across escrows.
     Arbiter = 3,
 }
+
+/// Canonical pause reason codes.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum PauseReason {
+    Unknown = 0,
+    SystemMaintenance = 1,
+    SecurityEmergency = 2,
+    FeatureUpgrade = 3,
+    RegulatoryCompliance = 4,
+    OperatorIntervention = 5,
+}
