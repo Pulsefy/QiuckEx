@@ -44,7 +44,7 @@
 //!   Any subsequent write rewrites the escrow into the compact layout and removes the
 //!   legacy record.
 
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
 
 #[cfg(test)]
 use soroban_sdk::xdr::ToXdr;
@@ -169,6 +169,10 @@ pub enum DataKey {
     StealthEscrow(BytesN<32>),
     /// Granular operation pause bitmask (singleton).
     PauseFlags,
+    /// Reason code for global pause.
+    GlobalPauseReason,
+    /// Reason codes for feature-specific pauses.
+    FeaturePauseReasons,
     /// Fee configuration (singleton).
     FeeConfig,
     /// Platform wallet address for fee collection (singleton).
@@ -641,17 +645,55 @@ pub fn set_or_extend_ttl(env: &Env, key: &DataKey, record_type: RecordType) {
 
 /// Set paused state.
 #[allow(dead_code)]
-pub fn set_paused(env: &Env, paused: bool) {
+pub fn set_paused(env: &Env, paused: bool, reason: u32) {
     let key = DataKey::Paused;
     env.storage().persistent().set(&key, &paused);
+
+    let reason_key = DataKey::GlobalPauseReason;
+    if paused {
+        env.storage().persistent().set(&reason_key, &reason);
+    } else {
+        env.storage().persistent().set(&reason_key, &0u32);
+    }
+}
+
+/// Get global pause reason code.
+pub fn get_global_pause_reason(env: &Env) -> u32 {
+    let key = DataKey::GlobalPauseReason;
+    env.storage().persistent().get(&key).unwrap_or(0u32)
 }
 
 /// Set pause flags (granular pause control – caller already verified by admin module).
-pub fn set_pause_flags(env: &Env, _caller: &Address, flags_to_enable: u64, flags_to_disable: u64) {
+pub fn set_pause_flags(
+    env: &Env,
+    _caller: &Address,
+    flags_to_enable: u64,
+    flags_to_disable: u64,
+    reason: u32,
+) {
     let key = DataKey::PauseFlags;
     let current: u64 = env.storage().persistent().get(&key).unwrap_or(0);
     let updated = (current | flags_to_enable) & !flags_to_disable;
     env.storage().persistent().set(&key, &updated);
+
+    let reasons_key = DataKey::FeaturePauseReasons;
+    let mut reasons: Map<u32, u32> = env
+        .storage()
+        .persistent()
+        .get(&reasons_key)
+        .unwrap_or_else(|| Map::new(env));
+
+    let flags = [1u32, 2u32, 4u32, 8u32, 16u32, 32u32];
+    for &f in &flags {
+        let u64_f = f as u64;
+        if (flags_to_enable & u64_f) != 0 {
+            reasons.set(f, reason);
+        }
+        if (flags_to_disable & u64_f) != 0 {
+            reasons.remove(f);
+        }
+    }
+    env.storage().persistent().set(&reasons_key, &reasons);
 }
 
 /// Read the current granular pause flag bitmask.
@@ -663,6 +705,17 @@ pub fn get_pause_flags(env: &Env) -> u64 {
 /// Check whether a specific operation flag is paused.
 pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
     get_pause_flags(env) & (flag as u64) != 0
+}
+
+/// Get the reason a specific feature was paused.
+pub fn get_feature_pause_reason(env: &Env, flag: PauseFlag) -> u32 {
+    let key = DataKey::FeaturePauseReasons;
+    let reasons: Map<u32, u32> = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or_else(|| Map::new(env));
+    reasons.get(flag as u32).unwrap_or(0u32)
 }
 
 /// Get paused state.

@@ -514,7 +514,7 @@ pub fn partial_payment(
 }
 
 // ---------------------------------------------------------------------------
-// withdraw
+// withdraw – authorization matrix enforced (SC‑W6‑03)
 // ---------------------------------------------------------------------------
 
 /// Withdraw escrowed funds by proving commitment ownership.

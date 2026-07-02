@@ -334,9 +334,9 @@ fn test_demo_full_lifecycle_under_10_lines() {
 fn test_demo_admin_lifecycle_under_10_lines() {
     let ctx = TestContext::with_admin(); // 1
     assert_eq!(ctx.client.get_admin(), Some(ctx.admin.clone())); // 2
-    ctx.client.set_paused(&ctx.admin, &true); // 3
+    ctx.client.set_paused(&ctx.admin, &true, &1u32); // 3
     assert!(ctx.client.is_paused()); // 4
-    ctx.client.set_paused(&ctx.admin, &false); // 5
+    ctx.client.set_paused(&ctx.admin, &false, &0u32); // 5
     assert!(!ctx.client.is_paused()); // 6
 }
 

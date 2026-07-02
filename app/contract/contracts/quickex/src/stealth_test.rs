@@ -406,7 +406,7 @@ fn test_stealth_register_fails_when_paused() {
     let stealth_address = compute_stealth_address(&env, &eph_pub, &spend_pub);
 
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &1u32);
 
     mint(&env, &token, &sender, amount);
 

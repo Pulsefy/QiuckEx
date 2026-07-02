@@ -45,11 +45,11 @@ fn test_operator_can_pause() {
         .grant_role(&ctx.admin, &operator, &Role::Operator);
 
     // Alice (Operator) pauses the contract
-    ctx.client.set_paused(&operator, &true);
+    ctx.client.set_paused(&operator, &true, &1u32);
     assert!(ctx.client.is_paused());
 
     // Alice unpauses
-    ctx.client.set_paused(&operator, &false);
+    ctx.client.set_paused(&operator, &false, &0u32);
     assert!(!ctx.client.is_paused());
 }
 
