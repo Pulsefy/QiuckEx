@@ -322,7 +322,7 @@ fn test_deposit_idempotent_on_identical_params() {
         &salt,
         &0u64,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     assert_eq!(commitment1, commitment2);
@@ -361,7 +361,7 @@ fn test_deposit_different_params_yield_different_ids() {
         &Bytes::from_slice(&env, b"s2"),
         &0u64,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     assert_ne!(c1, c2);

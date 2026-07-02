@@ -234,7 +234,7 @@ fn build_golden_state() -> (Env, GoldenState) {
             &salt_spent,
             &0u64,
             &None,
-            &0u64,
+            &1u64,
             &u64::MAX,
         );
         client.withdraw(
@@ -243,7 +243,7 @@ fn build_golden_state() -> (Env, GoldenState) {
             &c_spent,
             &alice,
             &salt_spent,
-            &0u64,
+            &1u64,
             &u64::MAX,
         );
 
@@ -257,7 +257,7 @@ fn build_golden_state() -> (Env, GoldenState) {
             &salt_pending,
             &0u64,
             &None,
-            &0u64,
+            &2u64,
             &u64::MAX,
         );
 

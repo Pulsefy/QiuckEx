@@ -352,7 +352,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
         &salt2,
         &3600,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -361,7 +361,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
         &commitment2,
         &owner,
         &salt2,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     assert_eq!(token_client.balance(&platform_wallet), 0);
@@ -377,7 +377,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
         &salt3,
         &3600,
         &None,
-        &0u64,
+        &2u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -386,7 +386,7 @@ fn test_fee_small_amount_edge_cases_on_withdrawal() {
         &commitment3,
         &owner,
         &salt3,
-        &0u64,
+        &2u64,
         &u64::MAX,
     );
     assert_eq!(token_client.balance(&platform_wallet), 1);
@@ -545,7 +545,7 @@ fn test_fee_deterministic_across_assets() {
         &salt_b,
         &3600,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -554,7 +554,7 @@ fn test_fee_deterministic_across_assets() {
         &commitment_b,
         &owner,
         &salt_b,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
 

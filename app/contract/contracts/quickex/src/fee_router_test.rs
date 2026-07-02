@@ -89,7 +89,7 @@ fn test_fee_router_per_asset_overrides_global_across_assets() {
         &sac_salt,
         &0,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -98,7 +98,7 @@ fn test_fee_router_per_asset_overrides_global_across_assets() {
         &sac_commitment,
         &user,
         &sac_salt,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
 
@@ -244,7 +244,7 @@ fn test_fee_router_collector_rotation_applies_to_new_payouts_and_old_escrows() {
         &salt_new,
         &0,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -253,7 +253,7 @@ fn test_fee_router_collector_rotation_applies_to_new_payouts_and_old_escrows() {
         &new_commitment,
         &owner,
         &salt_new,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
 

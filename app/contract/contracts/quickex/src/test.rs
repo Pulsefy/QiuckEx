@@ -458,7 +458,7 @@ fn test_double_withdrawal_fails() {
     assert!(first_result.is_ok());
     assert_eq!(first_result.unwrap(), Ok(true));
     let second_result =
-        client.try_withdraw(&token, &amount, &commitment, &to, &salt, &0u64, &u64::MAX);
+        client.try_withdraw(&token, &amount, &commitment, &to, &salt, &1u64, &u64::MAX);
     assert_contract_error(second_result, QuickexError::AlreadySpent);
 }
 
@@ -1963,7 +1963,7 @@ fn test_withdrawal_fails_after_expiry() {
     env.ledger().set_timestamp(expires_at + 1);
 
     // Withdrawal should fail with EscrowExpired (error #13)
-    let res = client.try_withdraw(&token, &amount, &commitment2, &to, &salt2, &0u64, &u64::MAX);
+    let res = client.try_withdraw(&token, &amount, &commitment2, &to, &salt2, &1u64, &u64::MAX);
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::EscrowExpired)));
 }
 
@@ -2071,7 +2071,7 @@ fn test_double_refund_fails() {
     client.refund(&commitment, &owner, &0u64, &u64::MAX);
 
     // Second refund attempt - should fail with AlreadySpent (error #9)
-    let res = client.try_refund(&commitment, &owner, &0u64, &u64::MAX);
+    let res = client.try_refund(&commitment, &owner, &1u64, &u64::MAX);
     assert_eq!(res, Err(Ok(crate::errors::QuickexError::AlreadySpent)));
 }
 
@@ -2717,7 +2717,7 @@ fn test_cross_asset_multiple_tokens_concurrent() {
         &salt_b,
         &0,
         &None,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     let commitment_c = client.deposit(
@@ -2727,7 +2727,7 @@ fn test_cross_asset_multiple_tokens_concurrent() {
         &salt_c,
         &0,
         &None,
-        &0u64,
+        &2u64,
         &u64::MAX,
     );
 
@@ -2766,7 +2766,7 @@ fn test_cross_asset_multiple_tokens_concurrent() {
         &commitment_b,
         &user,
         &salt_b,
-        &0u64,
+        &1u64,
         &u64::MAX,
     );
     client.withdraw(
@@ -2775,7 +2775,7 @@ fn test_cross_asset_multiple_tokens_concurrent() {
         &commitment_c,
         &user,
         &salt_c,
-        &0u64,
+        &2u64,
         &u64::MAX,
     );
 
