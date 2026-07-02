@@ -347,10 +347,22 @@ pub fn set_pause_flags(
     storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable, reason);
 
     if flags_to_enable > 0 {
-        crate::events::publish_pause_enabled(env, caller.clone(), false, flags_to_enable, event_reason);
+        crate::events::publish_pause_enabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_enable,
+            event_reason,
+        );
     }
     if flags_to_disable > 0 {
-        crate::events::publish_pause_disabled(env, caller.clone(), false, flags_to_disable, event_reason);
+        crate::events::publish_pause_disabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_disable,
+            event_reason,
+        );
     }
     Ok(())
 }
