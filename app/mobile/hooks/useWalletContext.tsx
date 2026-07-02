@@ -18,11 +18,15 @@ import {
   clearWalletSession,
   getLastWalletType,
   getWalletSession,
+  getSessionInvalidReason,
   isSessionRestorable,
+  isSessionEnvironmentMismatch,
+  resetInvalidSession,
   saveWalletSession,
   touchSession,
 } from "../services/wallet-session";
 import { useSecurity } from "./use-security";
+import { useEnvironment } from "../contexts/EnvironmentContext";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -94,6 +98,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
   const [wallet, setWallet] = useState<WalletState>(INITIAL_STATE);
   const { clearSensitiveSessionToken, saveSensitiveSessionToken } =
     useSecurity();
+  const { currentId: currentEnvironmentId } = useEnvironment();
 
   // ── Session restore on mount ─────────────────────────────────────────────
 
@@ -106,7 +111,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (cancelled) return;
 
-        if (session && isSessionRestorable(session)) {
+        const invalidReason = getSessionInvalidReason(
+          session,
+          currentEnvironmentId,
+        );
+
+        if (session && !invalidReason.invalid) {
           setWallet({
             connected: true,
             publicKey: session.publicKey,
@@ -117,25 +127,35 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
             isRestoring: false,
           });
 
-          // Bump the last-confirmed timestamp
           await touchSession();
-        } else if (session && !isSessionRestorable(session)) {
-          // Session expired — clear it silently
+        } else if (session && invalidReason.invalid) {
           await clearWalletSession();
           await clearSensitiveSessionToken();
 
           const lastType = await getLastWalletType();
-          setWallet({
-            ...INITIAL_STATE,
-            isRestoring: false,
-            walletType: lastType ?? undefined,
-            error: walletError(
-              "session_expired",
-              "Your previous session has expired. Please reconnect your wallet.",
-            ),
-          });
+
+          if (invalidReason.reason === "environment_mismatch") {
+            setWallet({
+              ...INITIAL_STATE,
+              isRestoring: false,
+              walletType: lastType ?? undefined,
+              error: walletError(
+                "session_environment_mismatch",
+                `Your session was created in "${session.environmentId ?? "unknown"}" environment but the app is now running "${currentEnvironmentId}". Please reconnect your wallet.`,
+              ),
+            });
+          } else {
+            setWallet({
+              ...INITIAL_STATE,
+              isRestoring: false,
+              walletType: lastType ?? undefined,
+              error: walletError(
+                "session_expired",
+                "Your previous session has expired. Please reconnect your wallet.",
+              ),
+            });
+          }
         } else {
-          // No prior session
           const lastType = await getLastWalletType();
           setWallet({
             ...INITIAL_STATE,
@@ -156,7 +176,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentEnvironmentId]);
 
   // ── Periodic session touch (every 15 min while connected) ────────────────
 
@@ -177,13 +197,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
       setWallet((prev) => ({ ...prev, error: undefined }));
 
       try {
-        // In a real integration each branch would invoke the wallet SDK.
-        // For now we simulate the common failure modes + happy path.
         const selectedNetwork = network ?? wallet.network ?? "testnet";
 
-        // ── Edge-case simulation (real SDKs will throw these naturally) ────
         if (walletType !== "demo") {
-          // Simulate: ~5 % chance the wallet is locked
           if (Math.random() < 0.05) {
             throw walletError(
               "wallet_locked",
@@ -191,7 +207,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
             );
           }
 
-          // Simulate: ~5 % chance the wallet is on the wrong network
           if (Math.random() < 0.05) {
             throw walletError(
               "wrong_network",
@@ -199,7 +214,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
             );
           }
 
-          // Simulate: ~5 % chance the user rejects the signature request
           if (Math.random() < 0.15) {
             throw walletError(
               "signature_rejected",
@@ -209,17 +223,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         const publicKey =
-          walletType === "demo" ? DEMO_PUBLIC_KEY : DEMO_PUBLIC_KEY; // TODO: real key from SDK
+          walletType === "demo" ? DEMO_PUBLIC_KEY : DEMO_PUBLIC_KEY;
 
         const now = Date.now();
 
-        await saveWalletSession({
-          publicKey,
-          network: selectedNetwork,
-          walletType,
-          connectedAt: now,
-          lastConfirmedAt: new Date(now).toISOString(),
-        });
+        await saveWalletSession(
+          {
+            publicKey,
+            network: selectedNetwork,
+            walletType,
+            connectedAt: now,
+            lastConfirmedAt: new Date(now).toISOString(),
+          },
+          currentEnvironmentId,
+        );
 
         await saveSensitiveSessionToken(
           `qex_session_${Math.random().toString(36).slice(2, 14)}`,
@@ -248,7 +265,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
         setWallet((prev) => ({ ...prev, error }));
       }
     },
-    [saveSensitiveSessionToken, wallet.network],
+    [saveSensitiveSessionToken, wallet.network, currentEnvironmentId],
   );
 
   // ── Disconnect ───────────────────────────────────────────────────────────
@@ -281,13 +298,16 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const now = Date.now();
 
-        await saveWalletSession({
-          publicKey: newPublicKey,
-          network: wallet.network,
-          walletType: wallet.walletType!,
-          connectedAt: now,
-          lastConfirmedAt: new Date(now).toISOString(),
-        });
+        await saveWalletSession(
+          {
+            publicKey: newPublicKey,
+            network: wallet.network,
+            walletType: wallet.walletType!,
+            connectedAt: now,
+            lastConfirmedAt: new Date(now).toISOString(),
+          },
+          currentEnvironmentId,
+        );
 
         setWallet((prev) => ({
           ...prev,
@@ -306,7 +326,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
         setWallet((prev) => ({ ...prev, error }));
       }
     },
-    [wallet.connected, wallet.walletType, wallet.network],
+    [wallet.connected, wallet.walletType, wallet.network, currentEnvironmentId],
   );
 
   // ── Switch network ───────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import { RecurringPaymentsRepository } from "./recurring-payments.repository";
 import { RecurringPaymentProcessor } from "../stellar/recurring-payment-processor";
 import { PaymentLinkController } from "./payment-link.controller";
 import { PaymentLinkService } from "./payment-link.service";
+import { PaymentLinkExpiryService } from './payment-link-expiry.service';
 import { SupabaseModule } from "../supabase/supabase.module";
 import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
@@ -28,6 +29,7 @@ import { AuditModule } from "../audit/audit.module";
   ],
   providers: [
     LinksService,
+    PaymentLinkExpiryService,
     BulkPaymentLinksService,
     RecurringPaymentsService,
     RecurringPaymentsScheduler,
@@ -37,6 +39,7 @@ import { AuditModule } from "../audit/audit.module";
   ],
   exports: [
     LinksService,
+    PaymentLinkExpiryService,
     RecurringPaymentsService,
     BulkPaymentLinksService,
     RecurringPaymentsRepository,

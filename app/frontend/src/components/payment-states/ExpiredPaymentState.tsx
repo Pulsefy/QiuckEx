@@ -22,7 +22,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
       <div className="text-center">
         <div
           aria-hidden="true"
-          className="w-20 h-20 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 bg-warning-soft rounded-full flex items-center justify-center mx-auto mb-6"
         >
           <svg
             className="w-10 h-10 text-orange-500"
@@ -79,7 +79,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
       </div>
 
       {/* Warning */}
-      <div className="bg-orange-500/10 border border-orange-400/30 rounded-xl p-6">
+      <div className="bg-warning-soft border border-warning/30 rounded-xl p-6">
         <div className="flex gap-4">
           <div className="flex-shrink-0" aria-hidden="true">
             <svg
@@ -114,7 +114,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="block w-full py-4 bg-brand hover:opacity-90 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go to Homepage
         </Link>

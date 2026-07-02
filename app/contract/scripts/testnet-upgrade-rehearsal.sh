@@ -38,6 +38,12 @@ else
   WASM_SHA="$(sha256sum "$WASM_PATH" | awk '{print $1}')"
 fi
 
+if [[ -f "$WASM_PATH" ]] && command -v "$STELLAR_BIN" >/dev/null 2>&1; then
+  echo "==> Exporting contract spec for this testnet build"
+  WASM_PATH="$WASM_PATH" OUT_PATH="$OUT_DIR/contract-spec.json" SKIP_BUILD=1 STELLAR_BIN="$STELLAR_BIN" \
+    "$ROOT_DIR/scripts/export-contract-spec.sh"
+fi
+
 BEFORE_METADATA='{}'
 AFTER_METADATA='{}'
 HEALTH='unknown'
@@ -77,6 +83,7 @@ manifest={
   "operator": source or None,
   "target_version": int(new_version) if new_version else None,
   "wasm": {"path": wasm_path, "sha256": wasm_sha or None},
+  "contract_spec": str(out/'contract-spec.json') if (out/'contract-spec.json').exists() else None,
   "checks": {
     "local_upgrade_tests": True,
     "health_check": health,

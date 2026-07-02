@@ -21,6 +21,10 @@ export class MetricsService implements OnModuleInit {
   private indexerLagLedgers: client.Gauge<string>;
   private indexerLagGuardBlockedRequests: client.Counter<string>;
   private indexerLagGuardStatus: client.Gauge<string>;
+  private abuseSignalsTotal: client.Counter<string>;
+  private abuseSignalsHighScore: client.Counter<string>;
+  private abuseSignalsByOutcome: client.Counter<string>;
+  private abuseScoresHistogram: client.Histogram<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -131,6 +135,31 @@ export class MetricsService implements OnModuleInit {
         help: "Indexer lag guard status (0=disabled, 1=enabled, 2=overridden, 3=lagging)",
       });
 
+      this.abuseSignalsTotal = new client.Counter({
+        name: "abuse_signals_total",
+        help: "Total number of abuse signals recorded",
+        labelNames: ["action_type", "action_outcome"],
+      });
+
+      this.abuseSignalsHighScore = new client.Counter({
+        name: "abuse_signals_high_score_total",
+        help: "Total number of high-score abuse signals (above threshold)",
+        labelNames: ["score_range", "top_tag"],
+      });
+
+      this.abuseSignalsByOutcome = new client.Counter({
+        name: "abuse_signals_by_outcome_total",
+        help: "Abuse signals broken down by outcome",
+        labelNames: ["outcome"],
+      });
+
+      this.abuseScoresHistogram = new client.Histogram({
+        name: "abuse_signal_score",
+        help: "Distribution of computed abuse scores",
+        labelNames: ["action_outcome"],
+        buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -148,6 +177,10 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.indexerLagLedgers);
       this.register.registerMetric(this.indexerLagGuardBlockedRequests);
       this.register.registerMetric(this.indexerLagGuardStatus);
+      this.register.registerMetric(this.abuseSignalsTotal);
+      this.register.registerMetric(this.abuseSignalsHighScore);
+      this.register.registerMetric(this.abuseSignalsByOutcome);
+      this.register.registerMetric(this.abuseScoresHistogram);
 
       this.initialized = true;
     } catch (error) {
@@ -352,6 +385,27 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.indexerLagGuardStatus) return;
     try {
       this.indexerLagGuardStatus.set(status);
+    } catch (error) {}
+  }
+
+  recordAbuseSignal(
+    actionType: string,
+    actionOutcome: string,
+    score: number,
+    tags: string[],
+  ) {
+    if (!this.initialized) return;
+    try {
+      this.abuseSignalsTotal?.labels(actionType, actionOutcome).inc();
+      this.abuseSignalsByOutcome?.labels(actionOutcome).inc();
+      this.abuseScoresHistogram?.labels(actionOutcome).observe(score);
+
+      if (score >= 30) {
+        const scoreRange =
+          score >= 80 ? "80-100" : score >= 50 ? "50-79" : "30-49";
+        const topTag = tags[0] ?? "none";
+        this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
+      }
     } catch (error) {}
   }
 }

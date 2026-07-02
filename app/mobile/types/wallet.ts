@@ -10,7 +10,9 @@ export type WalletErrorCode =
   | "signature_rejected"
   | "connection_failed"
   | "session_expired"
-  | "wallet_not_found";
+  | "wallet_not_found"
+  | "session_environment_mismatch"
+  | "session_corrupted";
 
 export interface WalletError {
   code: WalletErrorCode;

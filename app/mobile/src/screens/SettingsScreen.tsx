@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { themeTokens } from '../theme/tokens';
+import { BuildMetadataPanel } from '../components/BuildMetadataPanel';
 
 type ThemeOption = {
   value: 'system' | 'light' | 'dark';
@@ -102,6 +103,9 @@ export function SettingsScreen() {
           <Text style={styles.dangerText}>Disconnect Wallet</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Build Metadata */}
+      <BuildMetadataPanel />
 
       <Text style={styles.version}>QuickEx v2.3.0</Text>
     </ScrollView>

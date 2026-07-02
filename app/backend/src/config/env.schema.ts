@@ -99,6 +99,11 @@ export const envSchema = Joi.object({
         "Required in production when no wildcard is desired.",
     ),
 
+  // New rate limit allowlist configuration
+  RATE_LIMIT_ALLOWLIST_CIDRS: Joi.string().optional().description("Comma-separated CIDRs to whitelist from rate limits (CI, trusted contributors)"),
+  RATE_LIMIT_ALLOWLIST_API_KEYS: Joi.string().optional().description("Comma-separated API keys to whitelist from rate limits"),
+  RATE_LIMIT_ALLOWLIST_USER_IDS: Joi.string().optional().description("Comma-separated user IDs to whitelist from rate limits"),
+
   CORS_VERCEL_PROJECT: Joi.string()
     .empty("")
     .optional()
@@ -132,6 +137,16 @@ export const envSchema = Joi.object({
     .min(1000)
     .default(15000)
     .description("Cache TTL in milliseconds for feature flag snapshots"),
+
+  // Branch preview fallback configuration
+  FALLBACK_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://api.quickex.io")
+    .description("Fallback API URL for unknown branches"),
+  FALLBACK_FRONTEND_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://app.quickex.io")
+    .description("Fallback frontend URL for unknown branches"),
 
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
@@ -356,6 +371,27 @@ export const envSchema = Joi.object({
   INDEXER_LAG_GUARD_OVERRIDE: Joi.boolean()
     .default(false)
     .description("Admin override to disable lag guard temporarily (for emergencies)"),
+
+  // ── Abuse Signal Configuration ──────────────────────────────────────────
+  ABUSE_SIGNAL_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(90)
+    .description("Days to retain abuse signals before auto-pruning"),
+  ABUSE_SIGNAL_SCORE_THRESHOLD: Joi.number()
+    .integer()
+    .min(0)
+    .max(100)
+    .default(30)
+    .description("Abuse score threshold for flagging as suspicious"),
+  ABUSE_SIGNAL_GEO_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable geo-lite lookups for abuse signals"),
+  ABUSE_SIGNAL_HASH_SALT: Joi.string()
+    .empty("")
+    .default("default-abuse-salt")
+    .description("Salt for IP/UA hashing in abuse signals"),
 });
 
 /**
@@ -418,4 +454,8 @@ export interface EnvConfig {
   INDEXER_LAG_THRESHOLD_LEDGERS: number;
   INDEXER_LAG_GUARD_ENABLED: boolean;
   INDEXER_LAG_GUARD_OVERRIDE: boolean;
+  ABUSE_SIGNAL_RETENTION_DAYS: number;
+  ABUSE_SIGNAL_SCORE_THRESHOLD: number;
+  ABUSE_SIGNAL_GEO_ENABLED: boolean;
+  ABUSE_SIGNAL_HASH_SALT: string;
 }

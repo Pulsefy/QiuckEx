@@ -19,8 +19,8 @@ jest.mock("../services/wallet-session", () => {
 
   return {
     getWalletSession: jest.fn(async () => storedSession),
-    saveWalletSession: jest.fn(async (session: any) => {
-      storedSession = session;
+    saveWalletSession: jest.fn(async (session: any, environmentId?: string) => {
+      storedSession = { ...session, environmentId };
       lastWalletType = session.walletType;
     }),
     clearWalletSession: jest.fn(async () => {
@@ -31,10 +31,59 @@ jest.mock("../services/wallet-session", () => {
       const age = Date.now() - session.connectedAt;
       return age < 7 * 24 * 60 * 60 * 1000;
     }),
+    getSessionInvalidReason: jest.fn((session: any, currentEnvironmentId?: string) => {
+      if (!session) return { invalid: true, reason: "corrupted" };
+      const age = Date.now() - session.connectedAt;
+      if (age > 7 * 24 * 60 * 60 * 1000) return { invalid: true, reason: "expired" };
+      if (
+        currentEnvironmentId &&
+        session.environmentId &&
+        session.environmentId !== currentEnvironmentId
+      ) {
+        return { invalid: true, reason: "environment_mismatch" };
+      }
+      return { invalid: false };
+    }),
+    isSessionEnvironmentMismatch: jest.fn((session: any, envId: string) => {
+      return !!session.environmentId && session.environmentId !== envId;
+    }),
+    resetInvalidSession: jest.fn(async (currentEnvironmentId?: string) => {
+      if (!storedSession) return { reason: "corrupted" };
+      const age = Date.now() - storedSession.connectedAt;
+      if (age > 7 * 24 * 60 * 60 * 1000) {
+        storedSession = null;
+        return { reason: "expired", session: storedSession };
+      }
+      if (
+        currentEnvironmentId &&
+        storedSession.environmentId &&
+        storedSession.environmentId !== currentEnvironmentId
+      ) {
+        const session = { ...storedSession };
+        storedSession = null;
+        return { reason: "environment_mismatch", session };
+      }
+      return { reason: "none", session: storedSession };
+    }),
     touchSession: jest.fn(async () => {}),
     getLastWalletType: jest.fn(async () => lastWalletType),
   };
 });
+
+jest.mock("../contexts/EnvironmentContext", () => ({
+  useEnvironment: () => ({
+    currentId: "production",
+    current: { id: "production", label: "Production", stellarNetwork: "mainnet" },
+    available: [],
+    isReady: true,
+    switchEnvironment: jest.fn(async () => {}),
+    resetToDefault: jest.fn(async () => {}),
+    metadata: null,
+    compatibility: null,
+    isFetchingMetadata: false,
+    fetchMetadata: jest.fn(async () => {}),
+  }),
+}));
 
 jest.mock("../hooks/use-security", () => ({
   useSecurity: () => ({
@@ -134,7 +183,6 @@ describe("WalletProvider", () => {
         ).toISOString(),
       };
       sessionMod.getWalletSession.mockResolvedValue(expiredSession);
-      sessionMod.isSessionRestorable.mockReturnValue(false);
 
       const tree = renderWithProvider();
 
@@ -142,6 +190,70 @@ describe("WalletProvider", () => {
 
       expect(capturedWallet!.wallet.connected).toBe(false);
       expect(capturedWallet!.wallet.error?.code).toBe("session_expired");
+
+      tree.unmount();
+    });
+
+    it("does not restore a session from a different environment", async () => {
+      const sessionMod = jest.requireMock("../services/wallet-session");
+      const mismatchSession = {
+        publicKey: "GADIFFENVKEY00000000000000000000000000000000000",
+        network: "testnet",
+        walletType: "freighter",
+        connectedAt: Date.now(),
+        lastConfirmedAt: new Date().toISOString(),
+        environmentId: "staging",
+      };
+      sessionMod.getWalletSession.mockResolvedValue(mismatchSession);
+
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      expect(capturedWallet!.wallet.connected).toBe(false);
+      expect(capturedWallet!.wallet.error?.code).toBe(
+        "session_environment_mismatch",
+      );
+      expect(capturedWallet!.wallet.error?.message).toContain("staging");
+      expect(capturedWallet!.wallet.error?.message).toContain("production");
+
+      tree.unmount();
+    });
+
+    it("clears old session and resets to disconnected state when environment mismatches", async () => {
+      const sessionMod = jest.requireMock("../services/wallet-session");
+      const mismatchSession = {
+        publicKey: "GAENVSWITCHKEY00000000000000000000000000000000",
+        network: "mainnet",
+        walletType: "lobstr",
+        connectedAt: Date.now(),
+        lastConfirmedAt: new Date().toISOString(),
+        environmentId: "branch-preview",
+      };
+      sessionMod.getWalletSession.mockResolvedValue(mismatchSession);
+
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      expect(sessionMod.clearWalletSession).toHaveBeenCalled();
+      expect(capturedWallet!.wallet.connected).toBe(false);
+      expect(capturedWallet!.wallet.publicKey).toBeUndefined();
+
+      tree.unmount();
+    });
+
+    it("does not restore a corrupted session (null session)", async () => {
+      const sessionMod = jest.requireMock("../services/wallet-session");
+      sessionMod.getWalletSession.mockResolvedValue(null);
+
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      expect(capturedWallet!.wallet.connected).toBe(false);
+      expect(capturedWallet!.wallet.error).toBeUndefined();
+      expect(capturedWallet!.wallet.isRestoring).toBe(false);
 
       tree.unmount();
     });
@@ -179,6 +291,25 @@ describe("WalletProvider", () => {
       const savedSession = sessionMod.saveWalletSession.mock.calls[0][0];
       expect(savedSession.walletType).toBe("demo");
       expect(savedSession.network).toBe("testnet");
+
+      tree.unmount();
+    });
+
+    it("saves environmentId on connect", async () => {
+      const sessionMod = jest.requireMock("../services/wallet-session");
+      const tree = renderWithProvider();
+
+      await act(async () => {});
+
+      await act(async () => {
+        await capturedWallet!.connect("freighter", "testnet");
+      });
+
+      expect(sessionMod.saveWalletSession).toHaveBeenCalled();
+      const calls = sessionMod.saveWalletSession.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      const environmentId = lastCall[1];
+      expect(environmentId).toBe("production");
 
       tree.unmount();
     });

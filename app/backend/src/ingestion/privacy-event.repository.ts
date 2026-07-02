@@ -14,6 +14,7 @@ export class PrivacyEventRepository {
       .upsert(
         {
           event_type: event.eventType,
+          event_id: event.eventId,
           owner: event.owner,
           enabled: event.enabled,
           schema_version: event.schemaVersion,
