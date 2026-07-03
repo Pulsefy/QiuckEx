@@ -145,7 +145,7 @@ fn test_risky_entry_points_blocked_in_emergency_mode() {
     );
 
     assert_contract_error(
-        client.try_set_paused(&admin, &true),
+        client.try_set_paused(&admin, &true, &0),
         QuickexError::ContractPaused,
     );
 }
@@ -195,7 +195,7 @@ fn test_global_pause_blocks_all_non_view_entry_points() {
     let (withdraw_commitment, withdraw_salt) =
         setup_withdrawable_escrow(&env, &client, &token, &recipient, amount);
 
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &0);
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
     let salt = Bytes::from_slice(&env, b"global_pause_salt");
@@ -233,7 +233,7 @@ fn test_feature_pause_blocks_only_targeted_entry_points() {
 
     let refund_commitment = setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
 
-    client.pause_features(&admin, &(PauseFlag::Deposit as u64));
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &0);
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
     let salt = Bytes::from_slice(&env, b"feature_pause_salt");
@@ -317,7 +317,7 @@ fn test_pause_events_include_reason_fields() {
     let admin = Address::generate(&env);
 
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &0);
 
     let (topics, data) = latest_contract_event(&env, &client.address);
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
@@ -331,7 +331,7 @@ fn test_pause_events_include_reason_fields() {
         .unwrap();
     assert_eq!(reason, PauseChangeReason::GlobalPause as u32);
 
-    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+    client.pause_features(&admin, &(PauseFlag::Refund as u64), &0);
     let (topics, data) = latest_contract_event(&env, &client.address);
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
     assert_eq!(t1, Symbol::new(&env, "PauseFlagsChanged"));

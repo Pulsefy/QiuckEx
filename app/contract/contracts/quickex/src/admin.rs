@@ -1,12 +1,11 @@
 use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_contract_initialized, publish_contract_migrated,
-    publish_contract_paused, publish_fee_collector_rotated, publish_pause_flags_changed,
-    publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
+    publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
+    publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee;
 use crate::fee_router;
-use crate::pause_policy::PauseChangeReason;
 use crate::storage;
 use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
@@ -22,7 +21,7 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
 
     // Set initial admin address (singleton for compatibility).
     storage::set_admin(env, &admin);
-    storage::set_paused(env, false);
+    storage::set_paused(env, false, 0);
     storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
 
     // Grant Admin role to the initial administrator.
@@ -164,16 +163,23 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 }
 
 /// Set the paused state (**Admin or Operator only**).
-pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
+#[allow(dead_code)]
+pub fn set_paused(
+    env: &Env,
+    caller: Address,
+    new_state: bool,
+    reason: u32,
+) -> Result<(), QuickexError> {
     require_any_role(env, &caller, &[Role::Admin, Role::Operator])?;
 
-    storage::set_paused(env, new_state);
-    let reason = if new_state {
-        PauseChangeReason::GlobalPause as u32
+    storage::set_paused(env, new_state, reason);
+    publish_contract_paused(env, caller.clone(), new_state, reason);
+
+    if new_state {
+        crate::events::publish_pause_enabled(env, caller, true, 0, reason);
     } else {
-        PauseChangeReason::GlobalUnpause as u32
-    };
-    publish_contract_paused(env, caller, new_state, reason);
+        crate::events::publish_pause_disabled(env, caller, true, 0, reason);
+    }
     Ok(())
 }
 
@@ -333,18 +339,31 @@ pub fn set_pause_flags(
     caller: &Address,
     flags_to_enable: u64,
     flags_to_disable: u64,
+    reason: u32,
+    event_reason: u32,
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
-    storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable);
-    publish_pause_flags_changed(
-        env,
-        caller.clone(),
-        flags_to_enable,
-        flags_to_disable,
-        storage::get_pause_flags(env),
-        PauseChangeReason::FeatureFlagsUpdated as u32,
-    );
+    storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable, reason);
+
+    if flags_to_enable > 0 {
+        crate::events::publish_pause_enabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_enable,
+            event_reason,
+        );
+    }
+    if flags_to_disable > 0 {
+        crate::events::publish_pause_disabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_disable,
+            event_reason,
+        );
+    }
     Ok(())
 }
 

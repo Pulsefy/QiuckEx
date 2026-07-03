@@ -53,7 +53,7 @@ impl LegacyQuickexContract {
         }
 
         crate::storage::set_admin(&env, &admin);
-        crate::storage::set_paused(&env, false);
+        crate::storage::set_paused(&env, false, 0);
 
         Ok(())
     }
@@ -322,9 +322,12 @@ fn latest_contract_event(env: &Env, contract_id: &Address) -> (soroban_sdk::Vec<
     let all = env.events().all();
     let len = all.len();
 
+    extern crate std;
+    let expected_str = std::format!("{:?}", contract_id);
+
     for i in (0..len).rev() {
         let event = all.get(i).unwrap();
-        if event.0 == *contract_id {
+        if std::format!("{:?}", event.0) == expected_str {
             return (event.1, event.2);
         }
     }
@@ -339,7 +342,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 22);
+    assert_eq!(EVENT_SCHEMAS.len(), 24);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -965,9 +968,36 @@ fn test_event_snapshot_contract_paused_schema() {
     let admin = Address::generate(&env);
 
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &1u32);
 
-    let (topics, data) = latest_contract_event(&env, &client.address);
+    {
+        extern crate std;
+        for (i, e) in env.events().all().iter().enumerate() {
+            std::println!(
+                "Event #{}: contract={:?}, topics={:?}, data={:?}",
+                i,
+                e.0,
+                e.1,
+                e.2
+            );
+        }
+    }
+
+    let (topics, data) = {
+        let all = env.events().all();
+        let mut found = None;
+        for e in all.iter() {
+            if e.0 == client.address {
+                let topics = e.1;
+                let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+                if t1 == Symbol::new(&env, "ContractPaused") {
+                    found = Some((topics, e.2));
+                    break;
+                }
+            }
+        }
+        found.expect("expected ContractPaused event")
+    };
 
     let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
@@ -985,6 +1015,7 @@ fn test_event_snapshot_contract_paused_schema() {
         .unwrap();
     assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "paused")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "reason")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 
@@ -1101,7 +1132,7 @@ fn test_deposit_with_commitment_fails_when_paused() {
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
     client.initialize(&admin);
-    client.pause_features(&admin, &(PauseFlag::DepositWithCommitment as u64));
+    client.pause_features(&admin, &(PauseFlag::DepositWithCommitment as u64), &1u32);
 
     let result = client.try_deposit_with_commitment(&user, &token_id, &500, &commitment, &0, &None);
     assert_contract_error(result, QuickexError::OperationPaused);
@@ -1134,7 +1165,7 @@ fn test_withdraw_fails_when_paused() {
     token_client.mint(&client.address, &amount);
 
     client.initialize(&admin);
-    client.pause_features(&admin, &(PauseFlag::Withdrawal as u64));
+    client.pause_features(&admin, &(PauseFlag::Withdrawal as u64), &1u32);
 
     let result = client.try_withdraw(&token, &amount, &commitment, &to, &salt);
     assert_contract_error(result, QuickexError::OperationPaused);
@@ -1155,7 +1186,7 @@ fn test_deposit_fails_when_paused() {
     let timeout = 100;
 
     client.initialize(&admin);
-    client.pause_features(&admin, &(PauseFlag::Deposit as u64));
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &1u32);
 
     let result = client.try_deposit(&token, &amount, &owner, &salt, &timeout, &None);
     assert_contract_error(result, QuickexError::OperationPaused);
@@ -1175,7 +1206,7 @@ fn test_refund_fails_when_paused() {
     token_client.mint(&owner, &amount);
 
     client.initialize(&admin);
-    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+    client.pause_features(&admin, &(PauseFlag::Refund as u64), &1u32);
 
     let timeout = 100;
     let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None);
@@ -1204,7 +1235,7 @@ fn test_refund_pause_unpause() {
     token_client.mint(&owner, &amount);
 
     client.initialize(&admin);
-    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+    client.pause_features(&admin, &(PauseFlag::Refund as u64), &1u32);
 
     let timeout = 100;
     let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout, &None);
@@ -1218,7 +1249,7 @@ fn test_refund_pause_unpause() {
     let result = client.try_refund(&commitment, &owner);
     assert_contract_error(result, QuickexError::OperationPaused);
 
-    client.unpause_features(&admin, &(PauseFlag::Refund as u64));
+    client.unpause_features(&admin, &(PauseFlag::Refund as u64), &1u32);
     client.refund(&commitment, &owner);
 }
 
@@ -1231,11 +1262,11 @@ fn test_set_paused_by_admin() {
     client.initialize(&admin);
 
     // Admin pauses the contract
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &1u32);
     assert!(client.is_paused());
 
     // Admin unpauses the contract
-    client.set_paused(&admin, &false);
+    client.set_paused(&admin, &false, &0u32);
     assert!(!client.is_paused());
 }
 
@@ -1249,7 +1280,7 @@ fn test_set_paused_by_non_admin_fails() {
     client.initialize(&admin);
 
     // Non-admin tries to pause - should fail
-    let result = client.try_set_paused(&non_admin, &true);
+    let result = client.try_set_paused(&non_admin, &true, &1u32);
     assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
@@ -1269,7 +1300,7 @@ fn test_set_admin() {
     assert_eq!(client.get_admin(), Some(new_admin.clone()));
 
     // Verify new admin can pause
-    client.set_paused(&new_admin, &true);
+    client.set_paused(&new_admin, &true, &1u32);
     assert!(client.is_paused());
 }
 
@@ -1332,7 +1363,7 @@ fn test_old_admin_cannot_pause_after_transfer() {
     client.set_admin(&admin, &new_admin);
 
     // Old admin tries to pause - should fail
-    let result = client.try_set_paused(&admin, &true);
+    let result = client.try_set_paused(&admin, &true, &1u32);
     assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
@@ -3429,4 +3460,49 @@ fn test_single_arbiter_still_works() {
         Some(EscrowStatus::Spent)
     );
     assert_eq!(token_client.balance(&recipient), amount);
+}
+
+#[test]
+fn test_pause_reason_codes_and_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    client.initialize(&admin);
+
+    // 1. Test global pause reason code
+    client.set_paused(&admin, &true, &1u32);
+    assert!(client.is_paused());
+    assert_eq!(client.get_global_pause_reason(), 1u32);
+
+    // Try a blocked action (e.g. dispute) and check error code tracking
+    let commitment = BytesN::from_array(&env, &[1; 32]);
+    let result = client.try_dispute(&commitment);
+    assert_contract_error(result, QuickexError::ContractPaused);
+
+    // Unpause
+    client.set_paused(&admin, &false, &0u32);
+    assert!(!client.is_paused());
+    assert_eq!(client.get_global_pause_reason(), 0u32);
+
+    // 2. Test feature-specific pause reason codes
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &1u32);
+    assert!(client.is_feature_paused(&PauseFlag::Deposit));
+    assert_eq!(client.get_feature_pause_reason(&PauseFlag::Deposit), 1u32);
+
+    // Try a blocked action (e.g. try_deposit)
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&user, &1000i128);
+    let salt = Bytes::from_slice(&env, b"test_salt");
+
+    let result = client.try_deposit(&token, &1000i128, &user, &salt, &100, &None);
+    assert_contract_error(result, QuickexError::OperationPaused);
 }
