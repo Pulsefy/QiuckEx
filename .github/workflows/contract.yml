@@ -41,16 +41,3 @@ jobs:
 
       - name: Run tests
         run: cargo test
-
-      - name: Run performance benchmarks
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/benchmark-results"
-          QUICKEX_BENCH_ARTIFACT_DIR="$GITHUB_WORKSPACE/benchmark-results" cargo test bench_core_lifecycle_costs -- --nocapture --test-threads=1
-
-      - name: Upload performance benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quickex-contract-performance-benchmarks
-          path: benchmark-results/
-          if-no-files-found: error
