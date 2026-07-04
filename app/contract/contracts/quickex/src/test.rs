@@ -3892,6 +3892,15 @@ fn test_pause_reason_codes_and_events() {
     token_client.mint(&user, &1000i128);
     let salt = Bytes::from_slice(&env, b"test_salt");
 
-    let result = client.try_deposit(&token, &1000i128, &user, &salt, &100, &None, &0u64, &u64::MAX);
+    let result = client.try_deposit(
+        &token,
+        &1000i128,
+        &user,
+        &salt,
+        &100,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     assert_contract_error(result, QuickexError::OperationPaused);
 }
