@@ -51,6 +51,7 @@ use soroban_sdk::{
 #[contract]
 pub struct LegacyV0Contract;
 
+#[allow(clippy::too_many_arguments)]
 #[contractimpl]
 impl LegacyV0Contract {
     /// Initialize without writing `ContractVersion` — defining trait of a legacy (v0) deployment.
@@ -68,6 +69,7 @@ impl LegacyV0Contract {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn deposit(
         env: Env,
         token: Address,
@@ -76,10 +78,23 @@ impl LegacyV0Contract {
         salt: Bytes,
         timeout_secs: u64,
         arbiter: Option<Address>,
+        nonce_val: u64,
+        valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        crate::escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
+        crate::escrow::deposit(
+            &env,
+            token,
+            amount,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+            nonce_val,
+            valid_until,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn withdraw(
         env: Env,
         _token: Address,
@@ -87,16 +102,24 @@ impl LegacyV0Contract {
         _commitment: BytesN<32>,
         to: Address,
         salt: Bytes,
+        nonce_val: u64,
+        valid_until: u64,
     ) -> Result<bool, QuickexError> {
-        crate::escrow::withdraw(&env, amount, to, salt)
+        crate::escrow::withdraw(&env, amount, to, salt, nonce_val, valid_until)
     }
 
     pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         crate::escrow::dispute(&env, commitment)
     }
 
-    pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
-        crate::escrow::refund(&env, commitment, caller)
+    pub fn refund(
+        env: Env,
+        commitment: BytesN<32>,
+        caller: Address,
+        nonce_val: u64,
+        valid_until: u64,
+    ) -> Result<(), QuickexError> {
+        crate::escrow::refund(&env, commitment, caller, nonce_val, valid_until)
     }
 
     /// Store fee config directly — legacy simple-admin model (no role guard).
@@ -195,21 +218,48 @@ fn build_golden_state() -> (Env, GoldenState) {
             &salt_refunded,
             &100u64,
             &None,
+            &0u64,
+            &u64::MAX,
         );
         env.ledger().set_timestamp(200);
-        client.refund(&c_refunded, &alice);
+        client.refund(&c_refunded, &alice, &0u64, &u64::MAX);
 
         // ── Escrow 2: spent (withdrawn) ──────────────────────────────────
         tok.mint(&alice, &amount_spent);
         let salt_spent = Bytes::from_slice(&env, b"golden_spent");
-        let c_spent = client.deposit(&token, &amount_spent, &alice, &salt_spent, &0u64, &None);
-        client.withdraw(&token, &amount_spent, &c_spent, &alice, &salt_spent);
+        let c_spent = client.deposit(
+            &token,
+            &amount_spent,
+            &alice,
+            &salt_spent,
+            &0u64,
+            &None,
+            &1u64,
+            &u64::MAX,
+        );
+        client.withdraw(
+            &token,
+            &amount_spent,
+            &c_spent,
+            &alice,
+            &salt_spent,
+            &1u64,
+            &u64::MAX,
+        );
 
         // ── Escrow 3: pending (untouched until after upgrade) ─────────────
         tok.mint(&alice, &amount_pending);
         let salt_pending = Bytes::from_slice(&env, b"golden_pending");
-        let c_pending =
-            client.deposit(&token, &amount_pending, &alice, &salt_pending, &0u64, &None);
+        let c_pending = client.deposit(
+            &token,
+            &amount_pending,
+            &alice,
+            &salt_pending,
+            &0u64,
+            &None,
+            &2u64,
+            &u64::MAX,
+        );
 
         // ── Escrow 4: disputed ────────────────────────────────────────────
         tok.mint(&bob, &amount_disputed);
@@ -221,6 +271,8 @@ fn build_golden_state() -> (Env, GoldenState) {
             &salt_disputed,
             &0u64,
             &Some(arbiter.clone()),
+            &0u64,
+            &u64::MAX,
         );
         client.dispute(&c_disputed);
 
@@ -327,6 +379,8 @@ fn upgrade_harness_pending_escrow_is_withdrawable_post_upgrade() {
         &gs.commitment_pending,
         &gs.alice,
         &salt,
+        &0u64,
+        &u64::MAX,
     );
     assert!(withdrew, "withdrawal must succeed post-upgrade");
 
@@ -360,7 +414,14 @@ fn upgrade_harness_disputed_escrow_arbitration_works_post_upgrade() {
     client.migrate(&gs.admin);
 
     let recipient = Address::generate(&env);
-    client.resolve_dispute(&gs.arbiter, &gs.commitment_disputed, &false, &recipient);
+    client.resolve_dispute(
+        &gs.arbiter,
+        &gs.commitment_disputed,
+        &false,
+        &recipient,
+        &0u64,
+        &u64::MAX,
+    );
 
     assert_eq!(
         client.get_commitment_state(&gs.commitment_disputed),
@@ -414,6 +475,8 @@ fn upgrade_harness_already_spent_escrow_rejects_re_withdrawal() {
         &gs.commitment_spent,
         &gs.alice,
         &salt,
+        &0u64,
+        &u64::MAX,
     );
     assert!(
         result.is_err(),
