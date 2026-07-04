@@ -117,6 +117,10 @@ impl<'a> TestContext<'a> {
 
     // -- commitment helpers -------------------------------------------------
 
+    /// Default nonce and valid_until values for test helper methods.
+    pub const TEST_DEPOSIT_NONCE: u64 = 0;
+    pub const TEST_DEPOSIT_VALID_UNTIL: u64 = u64::MAX;
+
     /// Off-chain commitment hash matching the on-chain formula, useful for building expected values in tests.
     #[allow(dead_code)]
     pub fn commitment(&self, owner: &Address, amount: i128, salt: &[u8]) -> BytesN<32> {
@@ -137,8 +141,16 @@ impl<'a> TestContext<'a> {
     /// Mint tokens then deposit — no arbiter, no timeout. Returns the commitment hash.
     pub fn simple_deposit(&self, owner: &Address, amount: i128, salt: &[u8]) -> BytesN<32> {
         self.mint(owner, amount);
-        self.client
-            .deposit(&self.token, &amount, owner, &self.salt(salt), &0, &None)
+        self.client.deposit(
+            &self.token,
+            &amount,
+            owner,
+            &self.salt(salt),
+            &0,
+            &None,
+            &Self::TEST_DEPOSIT_NONCE,
+            &Self::TEST_DEPOSIT_VALID_UNTIL,
+        )
     }
 
     /// Like `simple_deposit` but wires in the arbiter and a timeout.
@@ -157,6 +169,8 @@ impl<'a> TestContext<'a> {
             &self.salt(salt),
             &timeout_secs,
             &Some(self.arbiter.clone()),
+            &Self::TEST_DEPOSIT_NONCE,
+            &Self::TEST_DEPOSIT_VALID_UNTIL,
         )
     }
 

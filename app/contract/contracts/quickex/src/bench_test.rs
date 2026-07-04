@@ -508,7 +508,16 @@ fn bench_deposit() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    let _ = client.deposit(&token, &amount, &owner, &salt, &0u64, &None);
+    let _ = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &0u64,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     print_budget(&env, "deposit");
 }
 
@@ -528,7 +537,16 @@ fn bench_deposit_with_commitment() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    client.deposit_with_commitment(&from, &token, &amount, &commitment, &0u64, &None);
+    client.deposit_with_commitment(
+        &from,
+        &token,
+        &amount,
+        &commitment,
+        &0u64,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     print_budget(&env, "deposit_with_commitment");
 }
 
@@ -557,7 +575,15 @@ fn bench_withdraw() {
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    client.withdraw(&token, &amount, &commitment, &owner, &salt);
+    client.withdraw(
+        &token,
+        &amount,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
     print_budget(&env, "withdraw");
 }
 
@@ -710,12 +736,14 @@ fn bench_resolve_dispute_recipient() {
         &salt,
         &1000u64,
         &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
     );
     client.dispute(&commitment);
 
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
-    client.resolve_dispute(&arbiter, &commitment, &false, &recipient);
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient, &0u64, &u64::MAX);
     print_budget(&env, "resolve_dispute_recipient");
 }
 
