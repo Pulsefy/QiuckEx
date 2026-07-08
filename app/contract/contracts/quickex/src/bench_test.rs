@@ -336,7 +336,16 @@ fn bench_core_lifecycle_costs() {
             150_000,
             1_000,
             || {
-                client.deposit(&token, &amount, &owner, &salt, &timeout_secs, &arbiter);
+                client.deposit(
+                    &token,
+                    &amount,
+                    &owner,
+                    &salt,
+                    &timeout_secs,
+                    &arbiter,
+                    &0u64,
+                    &u64::MAX,
+                );
             },
         ));
     }
@@ -368,7 +377,15 @@ fn bench_core_lifecycle_costs() {
             100_000,
             1_000,
             || {
-                client.withdraw(&token, &amount, &commitment, &owner, &salt);
+                client.withdraw(
+                    &token,
+                    &amount,
+                    &commitment,
+                    &owner,
+                    &salt,
+                    &0u64,
+                    &u64::MAX,
+                );
             },
         ));
     }
@@ -381,7 +398,16 @@ fn bench_core_lifecycle_costs() {
         let amount: i128 = 1_000_000;
         let timeout_secs = 10u64;
         token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
-        let commitment = client.deposit(&token, &amount, &owner, &salt, &timeout_secs, &None);
+        let commitment = client.deposit(
+            &token,
+            &amount,
+            &owner,
+            &salt,
+            &timeout_secs,
+            &None,
+            &0u64,
+            &u64::MAX,
+        );
         env.ledger()
             .set_timestamp(env.ledger().timestamp() + timeout_secs);
         let entry = expected_escrow_entry(
@@ -402,7 +428,7 @@ fn bench_core_lifecycle_costs() {
             100_000,
             1_000,
             || {
-                client.refund(&commitment, &owner);
+                client.refund(&commitment, &owner, &0u64, &u64::MAX);
             },
         ));
     }
@@ -422,6 +448,8 @@ fn bench_core_lifecycle_costs() {
             &salt,
             &600u64,
             &Some(arbiter.clone()),
+            &0u64,
+            &u64::MAX,
         );
         let entry = expected_escrow_entry(
             &env,
