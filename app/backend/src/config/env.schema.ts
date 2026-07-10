@@ -155,6 +155,21 @@ export const envSchema = Joi.object({
       "Optional JSON array of bootstrap feature flags used when the store is unavailable",
     ),
 
+  // Contract method allowlist (BE-67)
+  CONTRACT_METHOD_ALLOWLIST_MODE: Joi.string()
+    .valid("enforce", "off")
+    .default("enforce")
+    .description(
+      "When 'enforce', unlisted contract/method pairs are rejected on transaction build/submit endpoints",
+    ),
+
+  CONTRACT_METHOD_ALLOWLIST_JSON: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      'Optional JSON object mapping contractId -> allowed method names, or "*" to allow all methods for that contract. Example: {"CABC...":["swap","deposit"],"CDEF...":"*"}',
+    ),
+
   // Stellar ingestion (optional; omit to disable)
   QUICKEX_CONTRACT_ID: Joi.string()
     .empty("")
@@ -420,6 +435,8 @@ export interface EnvConfig {
   CACHE_TTL_MS: number;
   FEATURE_FLAGS_CACHE_TTL_MS: number;
   FEATURE_FLAGS_BOOTSTRAP_JSON?: string;
+  CONTRACT_METHOD_ALLOWLIST_MODE: "enforce" | "off";
+  CONTRACT_METHOD_ALLOWLIST_JSON?: string;
   QUICKEX_CONTRACT_ID?: string;
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;

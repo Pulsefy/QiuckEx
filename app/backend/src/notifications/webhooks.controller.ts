@@ -32,8 +32,11 @@ import {
   WebhookDeliveryStatusDto,
   WebhookReplayLogDto,
   WebhookRedeliverResponseDto,
+  VerifyWebhookSignatureDto,
+  VerifyWebhookSignatureResponseDto,
 } from "./dto/webhook.dto";
 import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
+import { WebhookProvider } from "./providers/notification-provider.interface";
 
 @ApiTags("Webhooks")
 @RateLimitGroupTag("webhooks")
@@ -42,6 +45,31 @@ export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);
 
   constructor(private readonly webhookService: WebhookService) {}
+
+  @Post("verify-signature")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Verify a webhook payload/signature/timestamp against a secret",
+    description:
+      "Debugging helper for integrators. Validates the signature using the exact " +
+      "canonicalization outgoing webhooks use (sha256=HMAC(secret, `${timestamp}.${body}`)) " +
+      "and returns a deterministic reason code. Does not persist or log the secret.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Deterministic verification result",
+    type: VerifyWebhookSignatureResponseDto,
+  })
+  verifySignature(
+    @Body() dto: VerifyWebhookSignatureDto,
+  ): VerifyWebhookSignatureResponseDto {
+    return WebhookProvider.verifySignatureDetailed(
+      dto.payload,
+      dto.signature,
+      dto.timestamp,
+      dto.secret,
+    );
+  }
 
   @Post(":publicKey")
   @ApiOperation({ summary: "Register a new webhook for payment events" })

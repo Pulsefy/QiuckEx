@@ -6,11 +6,13 @@ import {
   HttpStatus,
   Post,
   Query,
+  Req,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiHeader } from "@nestjs/swagger";
+import type { Request } from "express";
 
 import {
   GetTransactionsQueryDto,
@@ -24,6 +26,13 @@ import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
 import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
 import { ComposeTransactionDto, SimulateOperationDto, SubmitSignedTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
+import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
+
+function correlationIdOf(req: Request): string | undefined {
+  return (req as unknown as Record<string, unknown>)["correlationId"] as
+    | string
+    | undefined;
+}
 
 @ApiTags("transactions")
 @ApiHeader({
@@ -79,35 +88,38 @@ export class TransactionsController {
   }
   @Post("compose")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async compose(@Body() dto: ComposeTransactionDto) {
-    return this.transactionService.composeTransaction(dto);
+  async compose(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
+    const result = await this.transactionService.composeTransaction(dto);
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 
   @Post("build")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
     summary: "Build unsigned Soroban transaction XDR with canonical memo/params",
   })
-  async buildUnsignedXdr(@Body() dto: ComposeTransactionDto) {
-    return this.transactionService.composeTransaction(dto);
+  async buildUnsignedXdr(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
+    const result = await this.transactionService.composeTransaction(dto);
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 
   @Post("simulate")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
     summary: "Simulate contract operations with deterministic failure reasons",
   })
-  async simulateOperation(@Body() dto: SimulateOperationDto) {
-    return this.transactionService.simulateOperation(dto);
+  async simulateOperation(@Body() dto: SimulateOperationDto, @Req() req: Request) {
+    const result = await this.transactionService.simulateOperation(dto);
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 
   @Post("submit")
@@ -118,7 +130,11 @@ export class TransactionsController {
   @ApiOperation({
     summary: "Submit an already-signed transaction with idempotency support",
   })
-  async submitSignedTransaction(@Body() dto: SubmitSignedTransactionDto) {
-    return this.transactionService.submitSignedTransaction(dto);
+  async submitSignedTransaction(
+    @Body() dto: SubmitSignedTransactionDto,
+    @Req() req: Request,
+  ) {
+    const result = await this.transactionService.submitSignedTransaction(dto);
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 }
