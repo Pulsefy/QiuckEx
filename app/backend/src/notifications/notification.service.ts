@@ -443,6 +443,7 @@ export class NotificationService implements OnModuleInit {
       eventType,
       eventId,
       previewScope: payload.previewScope,
+      correlationId: payload.correlationId,
       payload: {
         title: payload.title,
         body: payload.body,

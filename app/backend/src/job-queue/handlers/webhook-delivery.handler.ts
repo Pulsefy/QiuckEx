@@ -58,10 +58,10 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
     // Check cancellation token before HTTP request
     cancellationToken.throwIfCancelled();
 
-    const { webhookUrl, eventType, eventId, payload, recipientPublicKey } = job.payload;
+    const { webhookUrl, eventType, eventId, payload, recipientPublicKey, correlationId } = job.payload;
 
     this.logger.log(
-      `Delivering webhook to ${webhookUrl} (eventType: ${eventType}, eventId: ${eventId}, jobId: ${job.id})`,
+      `Delivering webhook to ${webhookUrl} (eventType: ${eventType}, eventId: ${eventId}, jobId: ${job.id}, correlationId: ${correlationId ?? 'N/A'})`,
     );
 
     try {
@@ -77,6 +77,7 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
           'X-QuickEx-Event': eventType,
           'X-QuickEx-Event-Id': eventId,
           'User-Agent': 'QuickEx-Webhook/1.0',
+          ...(correlationId ? { 'X-QuickEx-Correlation-Id': correlationId } : {}),
         },
         body: JSON.stringify({
           eventType,
