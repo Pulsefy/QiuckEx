@@ -23,7 +23,7 @@ This tool is ideal for freelancers invoicing clients, creators accepting tips, i
 - Multi-asset support with auto-swap.
 - Recurring/subscription links.
 - Fiat on/off-ramps (MoneyGram, Banxa).
-- Notifications (email/Telegram).
+- Notifications (email/Telegram)..
 
 ## Tech Stack
 - **Frontend**: Next.js 15, Tailwind CSS, Vercel hosting.

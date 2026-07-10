@@ -58,6 +58,8 @@ export interface BaseNotificationPayload {
   metadata?: Record<string, unknown>;
   /** Preview scope identifier when the event originated from a preview environment. */
   previewScope?: string;
+  /** Correlation id of the originating request, propagated for end-to-end tracing. */
+  correlationId?: string;
 }
 
 export interface EscrowDepositedPayload extends BaseNotificationPayload {

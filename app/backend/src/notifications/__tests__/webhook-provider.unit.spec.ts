@@ -229,4 +229,89 @@ describe("WebhookProvider", () => {
       expect(isValid).toBe(false);
     });
   });
+
+  describe("verifySignatureDetailed", () => {
+    function sign(body: string, timestamp: string, secret: string): string {
+      const hmac = crypto.createHmac("sha256", secret);
+      hmac.update(`${timestamp}.${body}`);
+      return `sha256=${hmac.digest("hex")}`;
+    }
+
+    it("returns VALID for a correctly signed payload", () => {
+      const body = JSON.stringify({ eventType: "payment.received" });
+      const timestamp = new Date().toISOString();
+      const signature = sign(body, timestamp, WEBHOOK_SECRET);
+
+      const result = WebhookProvider.verifySignatureDetailed(
+        body,
+        signature,
+        timestamp,
+        WEBHOOK_SECRET,
+      );
+      expect(result).toEqual({ valid: true, reason: "VALID" });
+    });
+
+    it("returns MISSING_FIELDS when any required field is empty", () => {
+      expect(
+        WebhookProvider.verifySignatureDetailed("", "sha256=abc", "ts", "secret"),
+      ).toEqual({ valid: false, reason: "MISSING_FIELDS" });
+      expect(
+        WebhookProvider.verifySignatureDetailed("body", "", "ts", "secret"),
+      ).toEqual({ valid: false, reason: "MISSING_FIELDS" });
+    });
+
+    it("returns INVALID_SIGNATURE_FORMAT when the signature lacks the sha256= prefix", () => {
+      const body = "{}";
+      const timestamp = new Date().toISOString();
+
+      const result = WebhookProvider.verifySignatureDetailed(
+        body,
+        "not-a-real-signature",
+        timestamp,
+        WEBHOOK_SECRET,
+      );
+      expect(result).toEqual({ valid: false, reason: "INVALID_SIGNATURE_FORMAT" });
+    });
+
+    it("returns INVALID_TIMESTAMP for an unparseable timestamp", () => {
+      const body = "{}";
+      const signature = sign(body, "not-a-date", WEBHOOK_SECRET);
+
+      const result = WebhookProvider.verifySignatureDetailed(
+        body,
+        signature,
+        "not-a-date",
+        WEBHOOK_SECRET,
+      );
+      expect(result).toEqual({ valid: false, reason: "INVALID_TIMESTAMP" });
+    });
+
+    it("returns TIMESTAMP_OUT_OF_TOLERANCE for a stale timestamp", () => {
+      const body = "{}";
+      const staleTimestamp = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const signature = sign(body, staleTimestamp, WEBHOOK_SECRET);
+
+      const result = WebhookProvider.verifySignatureDetailed(
+        body,
+        signature,
+        staleTimestamp,
+        WEBHOOK_SECRET,
+      );
+      expect(result).toEqual({ valid: false, reason: "TIMESTAMP_OUT_OF_TOLERANCE" });
+    });
+
+    it("returns SIGNATURE_MISMATCH when the digest doesn't match", () => {
+      const body = "{}";
+      const timestamp = new Date().toISOString();
+      const signature = sign(body, timestamp, "a-different-secret");
+
+      const result = WebhookProvider.verifySignatureDetailed(
+        body,
+        signature,
+        timestamp,
+        WEBHOOK_SECRET,
+      );
+      expect(result).toEqual({ valid: false, reason: "SIGNATURE_MISMATCH" });
+    });
+  });
 });

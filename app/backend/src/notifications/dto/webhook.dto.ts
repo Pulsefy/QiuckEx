@@ -5,6 +5,7 @@ import {
   IsArray,
   IsIn,
   IsNumber,
+  IsNotEmpty,
   Min,
   MaxLength,
 } from "class-validator";
@@ -243,4 +244,48 @@ export class WebhookRedeliverResponseDto {
   @ApiProperty() message!: string;
   @ApiPropertyOptional() replayId?: string;
   @ApiPropertyOptional() deliverySuccess?: boolean;
+}
+
+export class VerifyWebhookSignatureDto {
+  @ApiProperty({
+    description:
+      "Raw JSON payload string exactly as it would be sent in the webhook body",
+    example: '{"eventType":"payment.received","eventId":"tx_abc123"}',
+  })
+  @IsString()
+  @IsNotEmpty()
+  payload!: string;
+
+  @ApiProperty({
+    description: "Value of the X-QuickEx-Signature header, e.g. sha256=<hex>",
+    example: "sha256=5d41402abc4b2a76b9719d911017c592",
+  })
+  @IsString()
+  @IsNotEmpty()
+  signature!: string;
+
+  @ApiProperty({
+    description: "Value of the X-QuickEx-Timestamp header (ISO-8601)",
+    example: "2026-07-10T12:00:00.000Z",
+  })
+  @IsString()
+  @IsNotEmpty()
+  timestamp!: string;
+
+  @ApiProperty({
+    description: "The webhook secret to verify against",
+    example: "whsec_mysecretkey123",
+  })
+  @IsString()
+  @IsNotEmpty()
+  secret!: string;
+}
+
+export class VerifyWebhookSignatureResponseDto {
+  @ApiProperty() valid!: boolean;
+  @ApiProperty({
+    description:
+      "VALID | MISSING_FIELDS | INVALID_SIGNATURE_FORMAT | INVALID_TIMESTAMP | TIMESTAMP_OUT_OF_TOLERANCE | SIGNATURE_MISMATCH",
+  })
+  reason!: string;
 }

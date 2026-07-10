@@ -24,7 +24,10 @@ export interface WebhookDeliveryPayload {
 
   /** Preview scope identifier when the event originated from a preview environment. */
   previewScope?: string;
-  
+
+  /** Correlation id of the originating HTTP request/event, propagated for end-to-end tracing. */
+  correlationId?: string;
+
   /** Event-specific payload data */
   payload: Record<string, unknown>;
 }

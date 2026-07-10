@@ -141,6 +141,24 @@ export class AppConfigService {
   }
 
   /**
+   * Contract method allowlist enforcement mode.
+   */
+  get contractMethodAllowlistMode(): "enforce" | "off" {
+    return this.configService.get("CONTRACT_METHOD_ALLOWLIST_MODE", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Raw JSON string describing the contract method allowlist, or undefined if unset.
+   */
+  get contractMethodAllowlistJson(): string | undefined {
+    return this.configService.get("CONTRACT_METHOD_ALLOWLIST_JSON", {
+      infer: true,
+    });
+  }
+
+  /**
    * Check if running on testnet
    */
   get isTestnet(): boolean {
