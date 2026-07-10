@@ -1,5 +1,6 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Vec};
+#![allow(clippy::too_many_arguments)]
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, Vec};
 
 mod admin;
 #[cfg(test)]
@@ -49,7 +50,7 @@ mod types;
 mod upgrade_test;
 
 use errors::QuickexError;
-use pause_policy::EntryPoint;
+use pause_policy::{EntryPoint, PauseChangeReason};
 use storage::*;
 use types::{
     DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
@@ -85,8 +86,8 @@ use types::{
 #[contract]
 pub struct QuickexContract;
 
-#[contractimpl]
 #[allow(clippy::too_many_arguments)]
+#[contractimpl]
 impl QuickexContract {
     /// Withdraw escrowed funds by proving commitment ownership.
     ///
@@ -116,10 +117,12 @@ impl QuickexContract {
         _commitment: BytesN<32>,
         to: Address,
         salt: Bytes,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<bool, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::Withdraw)?;
         hook::assert_not_reentrant(&env)?;
-        escrow::withdraw(&env, amount, to, salt)
+        escrow::withdraw(&env, amount, to, salt, nonce, valid_until)
     }
 
     /// Set a numeric privacy level for an account (legacy/level-based API).
@@ -213,10 +216,44 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
         arbiter: Option<Address>,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::Deposit)?;
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit"),
+                reason,
+            );
+            return Err(QuickexError::OperationPaused);
+        }
         hook::assert_not_reentrant(&env)?;
-        escrow::deposit(&env, token, amount, owner, salt, timeout_secs, arbiter)
+        escrow::deposit(
+            &env,
+            token,
+            amount,
+            owner,
+            salt,
+            timeout_secs,
+            arbiter,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Derive a deterministic 32-byte escrow id from the full creation payload.
@@ -340,8 +377,32 @@ impl QuickexContract {
         commitment: BytesN<32>,
         timeout_secs: u64,
         arbiter: Option<Address>,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<(), QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::DepositWithCommitment)?;
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(from.clone()),
+                Symbol::new(&env, "deposit_with_commitment"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::DepositWithCommitment) {
+            let reason = storage::get_feature_pause_reason(&env, PauseFlag::DepositWithCommitment);
+            events::publish_pause_enforced(
+                &env,
+                Some(from.clone()),
+                Symbol::new(&env, "deposit_with_commitment"),
+                reason,
+            );
+            return Err(QuickexError::OperationPaused);
+        }
         hook::assert_not_reentrant(&env)?;
         escrow::deposit_with_commitment(
             &env,
@@ -351,6 +412,8 @@ impl QuickexContract {
             commitment,
             timeout_secs,
             arbiter,
+            nonce,
+            valid_until,
         )
     }
     /// Activate emergency mode (irreversible). Only admin can call. Emits event.
@@ -398,8 +461,32 @@ impl QuickexContract {
         salt: Bytes,
         timeout_secs: u64,
         arbiter: Option<Address>,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::DepositPartial)?;
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_partial"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_partial"),
+                reason,
+            );
+            return Err(QuickexError::OperationPaused);
+        }
         hook::assert_not_reentrant(&env)?;
         escrow::deposit_partial(
             &env,
@@ -410,6 +497,8 @@ impl QuickexContract {
             salt,
             timeout_secs,
             arbiter,
+            nonce,
+            valid_until,
         )
     }
 
@@ -436,10 +525,34 @@ impl QuickexContract {
         commitment: BytesN<32>,
         payer: Address,
         payment_amount: i128,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<(), QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::PartialPayment)?;
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(payer.clone()),
+                Symbol::new(&env, "partial_payment"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
+            events::publish_pause_enforced(
+                &env,
+                Some(payer.clone()),
+                Symbol::new(&env, "partial_payment"),
+                reason,
+            );
+            return Err(QuickexError::OperationPaused);
+        }
         hook::assert_not_reentrant(&env)?;
-        escrow::partial_payment(&env, commitment, payer, payment_amount)
+        escrow::partial_payment(&env, commitment, payer, payment_amount, nonce, valid_until)
     }
 
     /// Refund an expired escrow back to its original owner.
@@ -457,11 +570,17 @@ impl QuickexContract {
     /// * `AlreadySpent` - Escrow is already in a terminal state
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
     /// * `InvalidOwner` - Caller is not the original owner
-    pub fn refund(env: Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
+    pub fn refund(
+        env: Env,
+        commitment: BytesN<32>,
+        caller: Address,
+        nonce: u64,
+        valid_until: u64,
+    ) -> Result<(), QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::Refund)?;
 
         hook::assert_not_reentrant(&env)?;
-        escrow::refund(&env, commitment, caller)
+        escrow::refund(&env, commitment, caller, nonce, valid_until)
     }
 
     /// Cleanup terminal escrow entries to reclaim storage deposits.
@@ -496,7 +615,14 @@ impl QuickexContract {
     /// * `NoArbiter` - No arbiter assigned to the escrow
     /// * `InvalidDisputeState` - Escrow is not in `Pending` status
     pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::Dispute)?;
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(&env, None, Symbol::new(&env, "dispute"), reason);
+            return Err(QuickexError::ContractPaused);
+        }
         hook::assert_not_reentrant(&env)?;
         escrow::dispute(&env, commitment)
     }
@@ -523,10 +649,29 @@ impl QuickexContract {
         commitment: BytesN<32>,
         resolve_for_owner: bool,
         recipient: Address,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<(), QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDispute)?;
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(caller.clone()),
+                Symbol::new(&env, "resolve_dispute"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
         hook::assert_not_reentrant(&env)?;
-        escrow::resolve_dispute(&env, caller, commitment, resolve_for_owner, recipient)
+        escrow::resolve_dispute(
+            &env,
+            caller,
+            commitment,
+            resolve_for_owner,
+            recipient,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Cast a vote on a disputed escrow (multi-sig mode).
@@ -550,10 +695,19 @@ impl QuickexContract {
         caller: Address,
         commitment: BytesN<32>,
         resolve_for_owner: bool,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<(), QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::VoteForDispute)?;
         hook::assert_not_reentrant(&env)?;
-        escrow::vote_for_dispute(&env, caller, commitment, resolve_for_owner)
+        escrow::vote_for_dispute(
+            &env,
+            caller,
+            commitment,
+            resolve_for_owner,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Resolve a disputed escrow using multi-sig arbitration.
@@ -642,9 +796,24 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn set_paused(env: Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
-        pause_policy::require_admin_entry_allowed(&env)?;
-        admin::set_paused(&env, caller, new_state)
+    pub fn set_paused(
+        env: Env,
+        caller: Address,
+        new_state: bool,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        storage::set_paused(&env, new_state, reason);
+        let event_reason = if new_state {
+            PauseChangeReason::GlobalPause as u32
+        } else {
+            PauseChangeReason::GlobalUnpause as u32
+        };
+        events::publish_contract_paused(&env, caller, new_state, event_reason);
+        Ok(())
     }
 
     /// Check if the function is currently paused.
@@ -652,6 +821,16 @@ impl QuickexContract {
     /// Returns `true` if paused, `false` otherwise.
     pub fn is_feature_paused(env: &Env, flag: PauseFlag) -> bool {
         storage::is_feature_paused(env, flag)
+    }
+
+    /// Get global pause reason code.
+    pub fn get_global_pause_reason(env: Env) -> u32 {
+        storage::get_global_pause_reason(&env)
+    }
+
+    /// Get the reason a specific feature was paused.
+    pub fn get_feature_pause_reason(env: Env, flag: PauseFlag) -> u32 {
+        storage::get_feature_pause_reason(&env, flag)
     }
 
     /// Pause a function in the contract (**Admin only**).
@@ -662,12 +841,27 @@ impl QuickexContract {
     /// * `env` - The contract environment
     /// * `caller` - Caller address (must equal admin)
     /// * `mask` - PauseFlag Enum
+    /// * `reason` - Reason code
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn pause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
-        pause_policy::require_admin_entry_allowed(&env)?;
-        admin::set_pause_flags(&env, &caller, mask, 0)
+    pub fn pause_features(
+        env: Env,
+        caller: Address,
+        mask: u64,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        admin::set_pause_flags(
+            &env,
+            &caller,
+            mask,
+            0,
+            reason,
+            PauseChangeReason::FeatureFlagsUpdated as u32,
+        )
     }
 
     /// UnPause a function in the contract (**Admin only**).
@@ -677,12 +871,27 @@ impl QuickexContract {
     /// * `env` - The contract environment
     /// * `caller` - Caller address (must equal admin)
     /// * `mask` - PauseFlag Enum
+    /// * `reason` - Reason code
     ///
     /// # Errors
     /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn unpause_features(env: Env, caller: Address, mask: u64) -> Result<(), QuickexError> {
-        pause_policy::require_admin_entry_allowed(&env)?;
-        admin::set_pause_flags(&env, &caller, 0, mask)
+    pub fn unpause_features(
+        env: Env,
+        caller: Address,
+        mask: u64,
+        reason: u32,
+    ) -> Result<(), QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        admin::set_pause_flags(
+            &env,
+            &caller,
+            0,
+            mask,
+            reason,
+            PauseChangeReason::FeatureFlagsUpdated as u32,
+        )
     }
 
     /// Transfer admin rights to a new address (**Admin only**).
@@ -959,9 +1168,11 @@ impl QuickexContract {
     pub fn register_ephemeral_key(
         env: Env,
         params: StealthDepositParams,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::StealthDeposit)?;
-        stealth::register_ephemeral_key(&env, params)
+        stealth::register_ephemeral_key(&env, params, nonce, valid_until)
     }
 
     /// Withdraw funds locked under a stealth address.
@@ -991,9 +1202,19 @@ impl QuickexContract {
         eph_pub: BytesN<32>,
         spend_pub: BytesN<32>,
         stealth_address: BytesN<32>,
+        nonce: u64,
+        valid_until: u64,
     ) -> Result<bool, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::StealthWithdraw)?;
-        stealth::stealth_withdraw(&env, recipient, eph_pub, spend_pub, stealth_address)
+        stealth::stealth_withdraw(
+            &env,
+            recipient,
+            eph_pub,
+            spend_pub,
+            stealth_address,
+            nonce,
+            valid_until,
+        )
     }
 
     /// Get the status of a stealth escrow (read-only).

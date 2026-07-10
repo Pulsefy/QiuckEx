@@ -47,7 +47,16 @@ fn setup_expired_refund_escrow(
     let salt = Bytes::from_slice(env, b"pause_policy_refund_salt");
     let timeout = 100u64;
     token::StellarAssetClient::new(env, token).mint(owner, &amount);
-    let commitment = client.deposit(token, &amount, owner, &salt, &timeout, &None);
+    let commitment = client.deposit(
+        token,
+        &amount,
+        owner,
+        &salt,
+        &timeout,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
     let expires_at = env.ledger().timestamp() + timeout;
     env.ledger().set_timestamp(expires_at);
     commitment
@@ -114,23 +123,51 @@ fn test_risky_entry_points_blocked_in_emergency_mode() {
     let salt = Bytes::from_slice(&env, b"emergency_deposit_salt");
 
     assert_contract_error(
-        client.try_deposit(&token, &amount, &user, &salt, &0u64, &None),
+        client.try_deposit(
+            &token,
+            &amount,
+            &user,
+            &salt,
+            &0u64,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::ContractPaused,
     );
 
     let commitment = BytesN::from_array(&env, &[9u8; 32]);
     assert_contract_error(
-        client.try_deposit_with_commitment(&user, &token, &amount, &commitment, &0, &None),
+        client.try_deposit_with_commitment(
+            &user,
+            &token,
+            &amount,
+            &commitment,
+            &0,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::ContractPaused,
     );
 
     assert_contract_error(
-        client.try_deposit_partial(&token, &amount, &500, &user, &salt, &0, &None),
+        client.try_deposit_partial(
+            &token,
+            &amount,
+            &500,
+            &user,
+            &salt,
+            &0,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::ContractPaused,
     );
 
     assert_contract_error(
-        client.try_partial_payment(&commitment, &user, &100),
+        client.try_partial_payment(&commitment, &user, &100, &0u64, &u64::MAX),
         QuickexError::ContractPaused,
     );
 
@@ -145,7 +182,7 @@ fn test_risky_entry_points_blocked_in_emergency_mode() {
     );
 
     assert_contract_error(
-        client.try_set_paused(&admin, &true),
+        client.try_set_paused(&admin, &true, &0),
         QuickexError::ContractPaused,
     );
 }
@@ -168,13 +205,15 @@ fn test_safe_entry_points_remain_usable_in_emergency_mode() {
     client.activate_emergency_mode(&admin);
     env.mock_all_auths();
 
-    client.refund(&refund_commitment, &owner);
+    client.refund(&refund_commitment, &owner, &0u64, &u64::MAX);
     client.withdraw(
         &token,
         &amount,
         &withdraw_commitment,
         &recipient,
         &withdraw_salt,
+        &0u64,
+        &u64::MAX,
     );
     let _ = client.try_cleanup_escrow(&refund_commitment).unwrap();
     let _ = client.try_extend_escrow_ttl(&withdraw_commitment).unwrap();
@@ -195,17 +234,26 @@ fn test_global_pause_blocks_all_non_view_entry_points() {
     let (withdraw_commitment, withdraw_salt) =
         setup_withdrawable_escrow(&env, &client, &token, &recipient, amount);
 
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &0);
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
     let salt = Bytes::from_slice(&env, b"global_pause_salt");
     assert_contract_error(
-        client.try_deposit(&token, &amount, &owner, &salt, &0u64, &None),
+        client.try_deposit(
+            &token,
+            &amount,
+            &owner,
+            &salt,
+            &0u64,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::ContractPaused,
     );
 
     assert_contract_error(
-        client.try_refund(&refund_commitment, &owner),
+        client.try_refund(&refund_commitment, &owner, &0u64, &u64::MAX),
         QuickexError::ContractPaused,
     );
 
@@ -216,6 +264,8 @@ fn test_global_pause_blocks_all_non_view_entry_points() {
             &withdraw_commitment,
             &recipient,
             &withdraw_salt,
+            &0u64,
+            &u64::MAX,
         ),
         QuickexError::ContractPaused,
     );
@@ -233,17 +283,26 @@ fn test_feature_pause_blocks_only_targeted_entry_points() {
 
     let refund_commitment = setup_expired_refund_escrow(&env, &client, &token, &owner, amount);
 
-    client.pause_features(&admin, &(PauseFlag::Deposit as u64));
+    client.pause_features(&admin, &(PauseFlag::Deposit as u64), &0);
 
     token::StellarAssetClient::new(&env, &token).mint(&owner, &amount);
     let salt = Bytes::from_slice(&env, b"feature_pause_salt");
     assert_contract_error(
-        client.try_deposit(&token, &amount, &owner, &salt, &0u64, &None),
+        client.try_deposit(
+            &token,
+            &amount,
+            &owner,
+            &salt,
+            &0u64,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::OperationPaused,
     );
 
     env.mock_all_auths();
-    client.refund(&refund_commitment, &owner);
+    client.refund(&refund_commitment, &owner, &0u64, &u64::MAX);
 }
 
 #[test]
@@ -274,7 +333,7 @@ fn test_emergency_mode_blocks_stealth_deposit_but_allows_withdraw() {
         timeout_secs: 0,
     };
 
-    client.register_ephemeral_key(&params);
+    client.register_ephemeral_key(&params, &0u64, &u64::MAX);
     client.activate_emergency_mode(&admin);
 
     let blocked_params = StealthDepositParams {
@@ -288,12 +347,19 @@ fn test_emergency_mode_blocks_stealth_deposit_but_allows_withdraw() {
         timeout_secs: 0,
     };
     assert_contract_error(
-        client.try_register_ephemeral_key(&blocked_params),
+        client.try_register_ephemeral_key(&blocked_params, &0u64, &u64::MAX),
         QuickexError::ContractPaused,
     );
 
     env.mock_all_auths();
-    client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
+    client.stealth_withdraw(
+        &recipient,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &0u64,
+        &u64::MAX,
+    );
 }
 
 fn latest_contract_event(env: &Env, contract_id: &Address) -> (soroban_sdk::Vec<Val>, Val) {
@@ -317,7 +383,7 @@ fn test_pause_events_include_reason_fields() {
     let admin = Address::generate(&env);
 
     client.initialize(&admin);
-    client.set_paused(&admin, &true);
+    client.set_paused(&admin, &true, &0);
 
     let (topics, data) = latest_contract_event(&env, &client.address);
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
@@ -331,7 +397,7 @@ fn test_pause_events_include_reason_fields() {
         .unwrap();
     assert_eq!(reason, PauseChangeReason::GlobalPause as u32);
 
-    client.pause_features(&admin, &(PauseFlag::Refund as u64));
+    client.pause_features(&admin, &(PauseFlag::Refund as u64), &0);
     let (topics, data) = latest_contract_event(&env, &client.address);
     let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
     assert_eq!(t1, Symbol::new(&env, "PauseFlagsChanged"));
@@ -367,11 +433,20 @@ fn test_emergency_mode_blocks_risky_entry_points_and_allows_safe_paths() {
     let salt = BytesN::from_array(&env, &[0u8; 32]);
     let salt_bytes: Bytes = salt.into();
     assert_contract_error(
-        client.try_deposit(&token, &amount, &user, &salt_bytes, &0u64, &None),
+        client.try_deposit(
+            &token,
+            &amount,
+            &user,
+            &salt_bytes,
+            &0u64,
+            &None,
+            &0u64,
+            &u64::MAX,
+        ),
         QuickexError::ContractPaused,
     );
 
     env.mock_all_auths();
-    client.refund(&commitment, &user);
+    client.refund(&commitment, &user, &0u64, &u64::MAX);
     let _ = client.try_cleanup_escrow(&commitment).unwrap();
 }

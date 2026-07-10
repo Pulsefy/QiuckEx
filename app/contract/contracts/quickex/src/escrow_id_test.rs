@@ -299,14 +299,32 @@ fn test_deposit_idempotent_on_identical_params() {
     // commitment without a second transfer.
     mint_client.mint(&owner, &amount);
 
-    let commitment1 = client.deposit(&token, &amount, &owner, &salt, &0u64, &None);
+    let commitment1 = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &0u64,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
 
     // After first deposit, owner's balance is 0 (transferred to contract).
     assert_eq!(token_client.balance(&owner), 0);
 
     // Re-submit the same exact request: should dedupe and return the
     // same commitment, without pulling more funds.
-    let commitment2 = client.deposit(&token, &amount, &owner, &salt, &0u64, &None);
+    let commitment2 = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &0u64,
+        &None,
+        &1u64,
+        &u64::MAX,
+    );
     assert_eq!(commitment1, commitment2);
     assert_eq!(token_client.balance(&owner), 0);
 
@@ -333,6 +351,8 @@ fn test_deposit_different_params_yield_different_ids() {
         &Bytes::from_slice(&env, b"s1"),
         &0u64,
         &None,
+        &0u64,
+        &u64::MAX,
     );
     let c2 = client.deposit(
         &token,
@@ -341,6 +361,8 @@ fn test_deposit_different_params_yield_different_ids() {
         &Bytes::from_slice(&env, b"s2"),
         &0u64,
         &None,
+        &1u64,
+        &u64::MAX,
     );
     assert_ne!(c1, c2);
 

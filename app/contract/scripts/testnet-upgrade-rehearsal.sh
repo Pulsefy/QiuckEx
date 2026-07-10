@@ -38,12 +38,6 @@ else
   WASM_SHA="$(sha256sum "$WASM_PATH" | awk '{print $1}')"
 fi
 
-if [[ -f "$WASM_PATH" ]] && command -v "$STELLAR_BIN" >/dev/null 2>&1; then
-  echo "==> Exporting contract spec for this testnet build"
-  WASM_PATH="$WASM_PATH" OUT_PATH="$OUT_DIR/contract-spec.json" SKIP_BUILD=1 STELLAR_BIN="$STELLAR_BIN" \
-    "$ROOT_DIR/scripts/export-contract-spec.sh"
-fi
-
 BEFORE_METADATA='{}'
 AFTER_METADATA='{}'
 HEALTH='unknown'
@@ -75,15 +69,37 @@ before_raw, after_raw, health, upgrade_executed = sys.argv[10:14]
 def parse(raw):
     try: return json.loads(raw)
     except Exception: return {"raw": raw}
-manifest={
-  "kind":"quickex-testnet-upgrade-rehearsal",
-  "generated_at": datetime.datetime.utcnow().replace(microsecond=0).isoformat()+"Z",
+generated_at = datetime.datetime.utcnow().replace(microsecond=0).isoformat()+"Z"
+
+# ── Canonical deployment manifest (conforms to manifest-schema.json) ──
+deploy_manifest={
+  "manifest_version": 1,
+  "application": "quickex",
+  "generated_at": generated_at,
+  "network": network,
+  "network_passphrase": os.environ.get("PASSPHRASE", ""),
+  "rpc_url": "",
+  "operator": source or None,
+  "contracts": [
+    {
+      "name": "quickex",
+      "contract_id": contract_id or None,
+      "wasm_hash": "0x" + wasm_sha if wasm_sha and not wasm_sha.startswith("0x") else wasm_sha or None,
+      "contract_version": parse(after_raw).get("contract_version", 0) if after_raw != "{}" else None,
+      "event_schema_version": parse(after_raw).get("event_schema_version", 0) if after_raw != "{}" else None,
+    }
+  ],
+}
+(out/'deployment-manifest.json').write_text(json.dumps(deploy_manifest, indent=2, sort_keys=True)+"\n")
+
+# ── Rehearsal detail artifact (supplementary, not canonical) ──
+rehearsal_artifact={
+  "kind": "quickex-testnet-upgrade-rehearsal",
+  "generated_at": generated_at,
   "network": network,
   "contract_id": contract_id or None,
-  "operator": source or None,
   "target_version": int(new_version) if new_version else None,
   "wasm": {"path": wasm_path, "sha256": wasm_sha or None},
-  "contract_spec": str(out/'contract-spec.json') if (out/'contract-spec.json').exists() else None,
   "checks": {
     "local_upgrade_tests": True,
     "health_check": health,
@@ -92,7 +108,8 @@ manifest={
   "metadata": {"before": parse(before_raw), "after": parse(after_raw)},
   "registry_source": str(registry),
 }
-(out/'rehearsal-manifest.json').write_text(json.dumps(manifest, indent=2)+"\n")
+(out/'rehearsal-artifact.json').write_text(json.dumps(rehearsal_artifact, indent=2)+"\n")
+
 if registry.exists(): shutil.copy2(registry, out/'environment-registry.toml')
 (out/'README.md').write_text(f"# QuickEx {network} upgrade rehearsal\n\nArtifacts for the latest testnet upgrade rehearsal.\n\n- Contract: `{contract_id or 'n/a'}`\n- Target version: `{new_version or 'n/a'}`\n- Health check: `{health}`\n")
 for item in out.iterdir():

@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quickex.to/schemas/deployment-manifest-v1.json",
+  "title": "QuickEx Deployment Manifest",
+  "description": "Canonical deployment manifest for QuickEx Soroban contracts. Every deployment emits this artifact so that deploy scripts, backend registry sync, and contributors all consume the same shape.",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "application",
+    "generated_at",
+    "network",
+    "network_passphrase",
+    "rpc_url",
+    "contracts"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "integer",
+      "description": "Schema version of this manifest format. Increment when the shape changes.",
+      "minimum": 1,
+      "examples": [1]
+    },
+    "application": {
+      "type": "string",
+      "description": "Application name that produced the manifest.",
+      "pattern": "^[a-z0-9_-]+$",
+      "examples": ["quickex"]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when this manifest was generated.",
+      "examples": ["2026-06-27T12:00:00Z"]
+    },
+    "network": {
+      "type": "string",
+      "description": "Stellar network name this deployment targets.",
+      "enum": ["testnet", "mainnet"],
+      "examples": ["testnet"]
+    },
+    "network_passphrase": {
+      "type": "string",
+      "description": "Stellar network passphrase that uniquely identifies the network. This field binds the manifest to a specific network and prevents cross-network confusion.",
+      "examples": ["Test SDF Network ; September 2015"]
+    },
+    "rpc_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Soroban RPC endpoint URL for the network used during deployment.",
+      "examples": ["https://soroban-testnet.stellar.org"]
+    },
+    "operator": {
+      "type": "string",
+      "description": "Identity or wallet address of the operator who ran the deploy.",
+      "examples": ["seyi"]
+    },
+    "contracts": {
+      "type": "array",
+      "description": "Deployed contract records, sorted alphabetically by name for stable ordering.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "contract_id",
+          "wasm_hash",
+          "contract_version",
+          "event_schema_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Canonical contract name matching the Cargo package name.",
+            "pattern": "^[a-z0-9_-]+$",
+            "examples": ["quickex"]
+          },
+          "contract_id": {
+            "type": "string",
+            "description": "Stellar contract address (C-prefixed, 56 chars). Uniquely identifies the contract instance on this network.",
+            "pattern": "^C[A-Z0-9]{55}$",
+            "examples": ["CCM5LR3XVTSDDNVEK7U4QQUN663TU4LZGDTMP3H4QIPIZO2WJOAJS2JH"]
+          },
+          "wasm_hash": {
+            "type": "string",
+            "description": "SHA-256 hash of the deployed WASM bytecode (0x-prefixed hex).",
+            "pattern": "^0x[A-Fa-f0-9]{64}$",
+            "examples": ["0x57025c36c2dca81767dfbe03e78e7abc383e138ef9fe44b61f327e2cac83ed92"]
+          },
+          "contract_version": {
+            "type": "integer",
+            "description": "On-chain contract schema version. Matches CURRENT_CONTRACT_VERSION from storage.",
+            "minimum": 0,
+            "examples": [1]
+          },
+          "event_schema_version": {
+            "type": "integer",
+            "description": "Event payload schema version. Matches EVENT_SCHEMA_VERSION from events module.",
+            "minimum": 0,
+            "examples": [2]
+          },
+          "admin_addresses": {
+            "type": "array",
+            "description": "List of admin addresses for the contract.",
+            "items": {
+              "type": "string",
+              "pattern": "^G[A-Z0-9]{55}$"
+            }
+          },
+          "init_params": {
+            "type": "object",
+            "description": "Key-value parameters passed to the initialize function during deployment.",
+            "examples": [{ "admin": "GA5TBSBGERHVMEFBJGEM3KYMRLWO73Y2QRAV6P66GPEBOJ5ZMJUT7LLY" }]
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 UTC timestamp when the contract was deployed."
+          },
+          "deployed_by": {
+            "type": "string",
+            "description": "Operator identity or wallet address that executed the deploy."
+          },
+          "upload_tx_hash": {
+            "type": "string",
+            "description": "Transaction hash of the stellar contract install operation.",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "deploy_tx_hash": {
+            "type": "string",
+            "description": "Transaction hash of the stellar contract deploy operation.",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "explorer_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Link to the contract on a Stellar block explorer."
+          },
+          "lab_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Link to the contract on Stellar Lab."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Free-form notes about this deployment."
+          }
+        }
+      }
+    }
+  }
+}
