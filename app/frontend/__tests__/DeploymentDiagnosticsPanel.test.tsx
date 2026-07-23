@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DeploymentDiagnosticsPanel } from "@/components/DeploymentDiagnosticsPanel";
