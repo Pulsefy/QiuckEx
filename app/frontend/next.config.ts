@@ -60,6 +60,19 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_QUICKEX_API_URL: process.env.NEXT_PUBLIC_QUICKEX_API_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
+    // Vercel system env vars (already NEXT_PUBLIC_ prefixed so Vercel exposes
+    // them to the browser automatically, but listing them here ensures they
+    // are available for local overrides via .env.local as well)
+    NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF,
+    NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
+    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
+    // Set by the GitHub Actions deploy workflow: date -u +%FT%TZ
+    NEXT_PUBLIC_VERCEL_DEPLOYED_AT: process.env.NEXT_PUBLIC_VERCEL_DEPLOYED_AT,
+    // Set by app/contract CI deploy step
+    NEXT_PUBLIC_CONTRACT_REGISTRY_VERSION: process.env.NEXT_PUBLIC_CONTRACT_REGISTRY_VERSION,
+    // App version
+    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
   },
 
   // Image optimization with allowed domains
