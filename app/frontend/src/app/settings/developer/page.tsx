@@ -1,6 +1,7 @@
 "use client";
 
 import CreateAPIKeyModal from "@/components/CreateAPIKeyModal";
+import { DeploymentDiagnosticsPanel } from "@/components/DeploymentDiagnosticsPanel";
 import { getQuickexApiBase } from "@/lib/api";
 import {
   type ApiKey,
@@ -416,6 +417,9 @@ export default function DeveloperSettings() {
               ))}
             </div>
           </section>
+
+          {/* Preview Deployment Diagnostics */}
+          <DeploymentDiagnosticsPanel />
         </div>
       </div>
 

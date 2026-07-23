@@ -17,6 +17,31 @@ This document outlines the environment variables required for deploying the Quic
 | `NEXT_PUBLIC_QUICKEX_ANALYTICS_PUBLIC_KEY` | Analytics public key | Optional | Optional |
 | `QUICKEX_INTERNAL_API_URL` | Internal API URL (server-side) | Optional | Optional |
 
+### Deployment Diagnostics Panel Variables
+
+These variables power the **Deployment Diagnostics Panel** shown on `/settings/developer`
+for contributors testing preview deployments. The panel is automatically hidden on
+mainnet + Vercel production so end users never see it.
+
+| Variable Name | Source | Description |
+|--------------|--------|-------------|
+| `NEXT_PUBLIC_VERCEL_ENV` | Auto-injected by Vercel | `"production"` \| `"preview"` \| `"development"` |
+| `NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF` | Auto-injected by Vercel | Branch name of the deployment |
+| `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` | Auto-injected by Vercel | Full 40-char commit SHA |
+| `NEXT_PUBLIC_VERCEL_URL` | Auto-injected by Vercel | Deployment URL without protocol |
+| `NEXT_PUBLIC_VERCEL_DEPLOYED_AT` | Set in CI workflow | ISO-8601 timestamp when build was stamped. Add `echo "NEXT_PUBLIC_VERCEL_DEPLOYED_AT=$(date -u +%FT%TZ)" >> $GITHUB_ENV` to the deploy step. |
+| `NEXT_PUBLIC_CONTRACT_REGISTRY_VERSION` | Set in contract deploy CI | Version string from `app/contract/scripts/deploy.sh`. Export it as an env var before running the Next.js build. |
+
+For local development you can set these in `.env.local`:
+
+```
+NEXT_PUBLIC_VERCEL_ENV=development
+NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF=my-local-branch
+NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA=0000000000000000000000000000000000000000
+NEXT_PUBLIC_VERCEL_DEPLOYED_AT=2026-07-23T12:00:00Z
+NEXT_PUBLIC_CONTRACT_REGISTRY_VERSION=local
+```
+
 ### Network Configuration
 
 #### Preview Environment
