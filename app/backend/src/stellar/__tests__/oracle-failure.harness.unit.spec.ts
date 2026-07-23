@@ -12,13 +12,9 @@
  *  5. Harness self-tests  – fixtures and helpers are internally consistent
  */
 
-import {
-  BadRequestException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { ServiceUnavailableException } from '@nestjs/common';
 
 import { PathPreviewService } from '../path-preview.service';
-import { QuoteService } from '../quote.service';
 
 // ---------------------------------------------------------------------------
 // Harness imports
