@@ -174,7 +174,8 @@ export class PathPreviewService {
       );
     }
 
-    const records = json._embedded?.records ?? [];
+    const rawRecords = json._embedded?.records;
+    const records: HorizonPathRecord[] = Array.isArray(rawRecords) ? rawRecords : [];
     const paths: PathPreviewRow[] = records.map((r) => ({
       sourceAmount: r.source_amount,
       sourceAsset: formatAssetLabel(
@@ -251,7 +252,8 @@ export class PathPreviewService {
       );
     }
 
-    const records = json._embedded?.records ?? [];
+    const rawRecords2 = json._embedded?.records;
+    const records: HorizonPathRecord[] = Array.isArray(rawRecords2) ? rawRecords2 : [];
     const paths: PathPreviewRow[] = records.map((r) => ({
       sourceAmount: r.source_amount,
       sourceAsset: formatAssetLabel(
