@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { DeploymentValidationService } from './deployment-validation.service';
+import { DeploymentValidationService } from '../deployment-validation.service';
 import { AppConfigService } from '../config';
 
 function buildService(network: string = 'testnet') {
