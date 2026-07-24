@@ -3,6 +3,7 @@ import { BranchPreviewService } from './branch-preview.service';
 import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
 import { AuditService } from '../audit/audit.service';
+import { BranchPreviewAutoExpiryService } from './branch-preview-auto-expiry.service';
 
 describe('BranchPreviewService', () => {
   let service: BranchPreviewService;
@@ -24,6 +25,11 @@ describe('BranchPreviewService', () => {
       delete: jest.fn(),
       findAll: jest.fn(),
       findExpired: jest.fn(),
+      touchLastActivity: jest.fn(),
+    };
+
+    const mockAutoExpiryService = {
+      runAutoExpirySweep: jest.fn(),
     };
 
     const mockAuditService = {
@@ -36,6 +42,10 @@ describe('BranchPreviewService', () => {
         { provide: BranchPreviewCache, useValue: mockCache },
         { provide: BranchPreviewRepository, useValue: mockRepository },
         { provide: AuditService, useValue: mockAuditService },
+        {
+          provide: BranchPreviewAutoExpiryService,
+          useValue: mockAutoExpiryService,
+        },
       ],
     }).compile();
 
@@ -69,6 +79,8 @@ describe('BranchPreviewService', () => {
       network: 'testnet' as const,
       contractRegistryVersion: 'v1.0.0',
       isActive: true,
+      isShared: false,
+      expiryExempt: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -92,6 +104,8 @@ describe('BranchPreviewService', () => {
       network: 'testnet' as const,
       contractRegistryVersion: 'v1.1.0',
       isActive: true,
+      isShared: false,
+      expiryExempt: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -115,6 +129,8 @@ describe('BranchPreviewService', () => {
       network: 'testnet' as const,
       contractRegistryVersion: 'v0.9.0',
       isActive: true,
+      isShared: false,
+      expiryExempt: false,
       createdAt: new Date(Date.now() - 86400000),
       updatedAt: new Date(Date.now() - 86400000),
       expiresAt: new Date(Date.now() - 3600000), // Expired 1 hour ago
