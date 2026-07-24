@@ -3,6 +3,7 @@ import {
   SupabaseService,
   SearchProfileResult,
   TrendingCreatorResult,
+  FeaturedProfileResult,
 } from "../supabase/supabase.service";
 import { decodeCursor } from "../common/pagination/cursor.util";
 import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
@@ -186,10 +187,7 @@ export class UsernamesService {
     limit: number = 10,
     cursor?: string,
   ): Promise<{ data: TrendingCreatorResult[]; next_cursor: string | null; has_more: boolean }> {
-    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
-    if (cursor) {
-      decodeCursor(cursor);
-    }
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
 
     if (timeWindowHours < 1 || timeWindowHours > 720) {
       throw new UsernameValidationError(
@@ -200,19 +198,44 @@ export class UsernamesService {
     }
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
+    // Trending is ranked in-memory (volume DESC, id ASC tiebreak); the
+    // underlying query does not support server-side cursor filtering, so we
+    // widen the fetch window when a cursor is present and slice locally.
+    const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
     const results = await this.supabase.getTrendingCreators(
       timeWindowHours,
-      effectiveLimit + 1,
+      fetchWindow,
     );
 
-    const hasMore = results.length > effectiveLimit;
-    const data = hasMore ? results.slice(0, effectiveLimit) : results;
+    let windowed = results;
+    if (decodedCursor) {
+      const cursorVolume = Number(decodedCursor.pk);
+      const cursorIndex = results.findIndex(
+        (row) =>
+          row.id === decodedCursor.id &&
+          row.transaction_volume === cursorVolume,
+      );
+      if (cursorIndex >= 0) {
+        windowed = results.slice(cursorIndex + 1);
+      } else {
+        // Fallback comparator for cursor continuity when the exact row is no
+        // longer in range (matches the volume DESC, id ASC ranking order).
+        windowed = results.filter((row) =>
+          row.transaction_volume !== cursorVolume
+            ? row.transaction_volume < cursorVolume
+            : row.id > decodedCursor.id,
+        );
+      }
+    }
+
+    const hasMore = windowed.length > effectiveLimit;
+    const data = hasMore ? windowed.slice(0, effectiveLimit) : windowed;
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {
       const last = data[data.length - 1];
       nextCursor = Buffer.from(
-        JSON.stringify({ pk: last.created_at, id: last.id }),
+        JSON.stringify({ pk: String(last.transaction_volume), id: last.id }),
         "utf-8",
       ).toString("base64url");
     }
@@ -229,10 +252,7 @@ export class UsernamesService {
     limit: number = 10,
     cursor?: string,
   ): Promise<{ data: SearchProfileResult[]; next_cursor: string | null; has_more: boolean }> {
-    // Validate cursor format if provided (actual filtering handled by limit+1 strategy)
-    if (cursor) {
-      decodeCursor(cursor);
-    }
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
 
     if (timeWindowHours < 1 || timeWindowHours > 168) {
       throw new UsernameValidationError(
@@ -243,19 +263,101 @@ export class UsernamesService {
     }
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
+    const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
     const results = await this.supabase.getRecentlyActiveUsers(
       timeWindowHours,
-      effectiveLimit + 1,
+      fetchWindow,
     );
 
-    const hasMore = results.length > effectiveLimit;
-    const data = hasMore ? results.slice(0, effectiveLimit) : results;
+    let windowed = results;
+    if (decodedCursor) {
+      const cursorIndex = results.findIndex(
+        (row) =>
+          row.id === decodedCursor.id &&
+          (row.last_active_at || row.created_at) === decodedCursor.pk,
+      );
+      if (cursorIndex >= 0) {
+        windowed = results.slice(cursorIndex + 1);
+      } else {
+        // Fallback comparator for cursor continuity when the exact row is no
+        // longer in range (matches the last_active_at DESC, id ASC ranking).
+        windowed = results.filter((row) => {
+          const rowKey = row.last_active_at || row.created_at;
+          return rowKey !== decodedCursor.pk
+            ? rowKey < decodedCursor.pk
+            : row.id > decodedCursor.id;
+        });
+      }
+    }
+
+    const hasMore = windowed.length > effectiveLimit;
+    const data = hasMore ? windowed.slice(0, effectiveLimit) : windowed;
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {
       const last = data[data.length - 1];
       nextCursor = Buffer.from(
-        JSON.stringify({ pk: last.created_at, id: last.id }),
+        JSON.stringify({
+          pk: last.last_active_at || last.created_at,
+          id: last.id,
+        }),
+        "utf-8",
+      ).toString("base64url");
+    }
+
+    return { data, next_cursor: nextCursor, has_more: hasMore };
+  }
+
+  /**
+   * Get curated/featured creators for discovery.
+   * Ordered by manual `featured_rank` (ascending, nulls last) with `id` as a
+   * deterministic tiebreaker.
+   */
+  async getFeaturedCreators(
+    limit: number = 10,
+    cursor?: string,
+  ): Promise<{ data: FeaturedProfileResult[]; next_cursor: string | null; has_more: boolean }> {
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
+
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+    const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
+    const results = await this.supabase.getFeaturedUsernames(fetchWindow);
+
+    let windowed = results;
+    if (decodedCursor) {
+      const cursorRank =
+        decodedCursor.pk === "" ? null : Number(decodedCursor.pk);
+      const cursorIndex = results.findIndex(
+        (row) => row.id === decodedCursor.id,
+      );
+      if (cursorIndex >= 0) {
+        windowed = results.slice(cursorIndex + 1);
+      } else {
+        // Fallback comparator for cursor continuity when the exact row is no
+        // longer in range (matches featured_rank ASC nulls-last, id ASC).
+        const rankValue = (rank: number | null) =>
+          rank === null ? Number.MAX_SAFE_INTEGER : rank;
+        windowed = results.filter((row) => {
+          const rowRank = rankValue(row.featured_rank);
+          const targetRank = rankValue(cursorRank);
+          return rowRank !== targetRank
+            ? rowRank > targetRank
+            : row.id > decodedCursor.id;
+        });
+      }
+    }
+
+    const hasMore = windowed.length > effectiveLimit;
+    const data = hasMore ? windowed.slice(0, effectiveLimit) : windowed;
+
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          pk: last.featured_rank === null ? "" : String(last.featured_rank),
+          id: last.id,
+        }),
         "utf-8",
       ).toString("base64url");
     }
