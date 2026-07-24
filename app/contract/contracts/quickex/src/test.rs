@@ -2,12 +2,13 @@ use crate::{
     errors::QuickexError,
     events::{
         EVENT_COMPATIBILITY, EVENT_SCHEMAS, EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN,
-        EVENT_TOPIC_ESCROW, EVENT_TOPIC_PRIVACY,
+        EVENT_TOPIC_ESCROW, EVENT_TOPIC_HOOK, EVENT_TOPIC_PRIVACY,
     },
     storage::{
         put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
         PRIVACY_ENABLED_KEY,
     },
+    types::HookFailureReason,
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 
@@ -89,6 +90,56 @@ impl LegacyQuickexContract {
             nonce_val,
             valid_until,
         )
+    }
+}
+
+#[contract]
+pub struct HookFailureHookContract;
+
+#[contractimpl]
+impl HookFailureHookContract {
+    pub fn on_escrow_event(
+        _env: Env,
+        _event_kind: u32,
+        _escrow_id: BytesN<32>,
+        _owner: Address,
+        _token: Address,
+        _amount: i128,
+        _fee: i128,
+    ) -> Result<(), ()> {
+        Err(())
+    }
+}
+
+#[contract]
+pub struct ReentrantHookContract;
+
+#[contractimpl]
+impl ReentrantHookContract {
+    pub fn init(env: Env, target: Address) {
+        env.storage()
+            .persistent()
+            .set(&Symbol::short("target"), &target);
+    }
+
+    pub fn on_escrow_event(
+        env: Env,
+        _event_kind: u32,
+        _escrow_id: BytesN<32>,
+        owner: Address,
+        token: Address,
+        amount: i128,
+        _fee: i128,
+    ) -> Result<(), ()> {
+        let target: Address = env
+            .storage()
+            .persistent()
+            .get(&Symbol::short("target"))
+            .unwrap();
+        let client = QuickexContractClient::new(&env, &target);
+        let salt = Bytes::from_slice(&env, b"reentrant_hook_salt");
+        let _ = client.deposit(&token, &amount, &owner, &salt, &3600, &None);
+        Ok(())
     }
 }
 
@@ -356,7 +407,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 24);
+    assert_eq!(EVENT_SCHEMAS.len(), 26);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -674,6 +725,114 @@ fn test_event_snapshot_privacy_toggled_schema() {
     assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "enabled")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+}
+
+#[test]
+fn test_hook_failed_event_emits_stable_reason_code_and_preserves_primary_flow() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let token = create_test_token(&env);
+    let hook_id = env.register(HookFailureHookContract, ());
+
+    client.initialize(&admin);
+    client.register_hook(&hook_id);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::Client::new(&env, &token_id);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    token_admin_client.mint(&owner, &10000);
+
+    let salt = Bytes::from_array(&env, &[9; 32]);
+    let commitment = client.deposit(&token_id, &1000i128, &owner, &salt, &3600, &None);
+    client.withdraw(&token_id, &1000i128, &commitment, &owner, &salt);
+
+    assert_eq!(token_client.balance(&owner), 9999);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+    let t2: BytesN<32> = topics.get(2).unwrap().try_into_val(&env).unwrap();
+    let t3: Address = topics.get(3).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_HOOK));
+    assert_eq!(t1, Symbol::new(&env, "HookFailed"));
+    assert_eq!(t3, hook_id);
+    assert_eq!(t2.len(), 32);
+
+    let data_map = event_data_map(&env, data);
+    let event_kind: u32 = data_map
+        .get(Symbol::new(&env, "event_kind"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    let reason_code: u32 = data_map
+        .get(Symbol::new(&env, "reason_code"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    let schema_version: u32 = data_map
+        .get(Symbol::new(&env, "schema_version"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+
+    assert_eq!(event_kind, 1);
+    assert_eq!(reason_code, HookFailureReason::ContractReturnedError as u32);
+    assert_eq!(schema_version, EVENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn test_hook_skipped_event_emits_stable_reason_code_for_reentrant_callback() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let hook_id = env.register(ReentrantHookContract, ());
+
+    client.initialize(&admin);
+    client.register_hook(&hook_id);
+
+    let hook_client = ReentrantHookContractClient::new(&env, &hook_id);
+    hook_client.init(&client.address);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::Client::new(&env, &token_id);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    token_admin_client.mint(&owner, &10000);
+
+    let salt = Bytes::from_array(&env, &[11; 32]);
+    let commitment = client.deposit(&token_id, &1000i128, &owner, &salt, &3600, &None);
+    client.withdraw(&token_id, &1000i128, &commitment, &owner, &salt);
+
+    assert_eq!(token_client.balance(&owner), 9999);
+
+    let (topics, data) = latest_contract_event(&env, &client.address);
+    let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
+    let t1: Symbol = topics.get(1).unwrap().try_into_val(&env).unwrap();
+
+    assert_eq!(t0, Symbol::new(&env, EVENT_TOPIC_HOOK));
+    assert_eq!(t1, Symbol::new(&env, "HookSkipped"));
+
+    let data_map = event_data_map(&env, data);
+    let event_kind: u32 = data_map
+        .get(Symbol::new(&env, "event_kind"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+    let reason_code: u32 = data_map
+        .get(Symbol::new(&env, "reason_code"))
+        .unwrap()
+        .try_into_val(&env)
+        .unwrap();
+
+    assert_eq!(event_kind, 1);
+    assert_eq!(reason_code, HookFailureReason::SkippedForReentrancy as u32);
 }
 
 #[test]

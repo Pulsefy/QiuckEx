@@ -1,4 +1,9 @@
-use crate::{errors::QuickexError, storage, types::HookEventKind};
+use crate::{
+    errors::QuickexError,
+    events::{publish_hook_failed, publish_hook_skipped},
+    storage,
+    types::{HookEventKind, HookFailureReason},
+};
 use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
@@ -50,6 +55,12 @@ pub fn invoke_hooks(
     fee: i128,
 ) {
     if storage::get_reentrancy_guard(env) {
+        publish_hook_skipped(
+            env,
+            escrow_id.clone(),
+            event_kind as u32,
+            HookFailureReason::SkippedForReentrancy as u32,
+        );
         return;
     }
 
@@ -65,12 +76,32 @@ pub fn invoke_hooks(
             amount.into_val(env),
             fee.into_val(env),
         ];
-        // Swallow result — a failing hook must never abort the primary transaction.
-        let _ = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
+
+        match env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
             &hook,
             &Symbol::new(env, "on_escrow_event"),
             args,
-        );
+        ) {
+            Ok(Ok(_)) => {}
+            Ok(Err(_invoke_error)) => {
+                publish_hook_failed(
+                    env,
+                    escrow_id.clone(),
+                    hook.clone(),
+                    event_kind as u32,
+                    HookFailureReason::ContractReturnedError as u32,
+                );
+            }
+            Err(_invoke_error) => {
+                publish_hook_failed(
+                    env,
+                    escrow_id.clone(),
+                    hook.clone(),
+                    event_kind as u32,
+                    HookFailureReason::HostInvokeError as u32,
+                );
+            }
+        }
     }
     storage::set_reentrancy_guard(env, &false);
 }

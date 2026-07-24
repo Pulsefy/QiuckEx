@@ -251,6 +251,22 @@ pub enum HookEventKind {
     Refund = 3,
 }
 
+/// Stable reason codes for hook callback outcomes.
+///
+/// These values are emitted in hook observability events so downstream
+/// indexers can distinguish a primary contract success from a hook-only fault.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum HookFailureReason {
+    /// Hook callback was skipped because a reentrancy guard was already active.
+    SkippedForReentrancy = 1,
+    /// Hook callback returned a contract-level error after invocation.
+    ContractReturnedError = 2,
+    /// Hook callback failed in the host layer and could not complete normally.
+    HostInvokeError = 3,
+}
+
 /// Privileged roles for contract governance and operations.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

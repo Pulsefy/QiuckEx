@@ -20,6 +20,8 @@ pub const EVENT_TOPIC_DISPUTE: &str = "TOPIC_DISPUTE";
 #[allow(dead_code)]
 pub const EVENT_TOPIC_ESCROW: &str = "TOPIC_ESCROW";
 #[allow(dead_code)]
+pub const EVENT_TOPIC_HOOK: &str = "TOPIC_HOOK";
+#[allow(dead_code)]
 pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
 #[allow(dead_code)]
 pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
@@ -273,6 +275,16 @@ pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
         compatible_versions: &[1, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
+        name: "HookFailed",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "HookSkipped",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
         name: "EscrowRefunded",
         current_version: EVENT_SCHEMA_VERSION,
         compatible_versions: &[1, EVENT_SCHEMA_VERSION],
@@ -354,6 +366,67 @@ pub struct EscrowDepositedEvent {
     pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_HOOK", "HookFailed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookFailedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub hook_contract: Address,
+
+    pub event_kind: u32,
+    pub reason_code: u32,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_HOOK", "HookSkipped"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookSkippedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    pub event_kind: u32,
+    pub reason_code: u32,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_failed(
+    env: &Env,
+    escrow_id: BytesN<32>,
+    hook_contract: Address,
+    event_kind: u32,
+    reason_code: u32,
+) {
+    HookFailedEvent {
+        escrow_id,
+        hook_contract,
+        event_kind,
+        reason_code,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_hook_skipped(
+    env: &Env,
+    escrow_id: BytesN<32>,
+    event_kind: u32,
+    reason_code: u32,
+) {
+    HookSkippedEvent {
+        escrow_id,
+        event_kind,
+        reason_code,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
 }
 
 pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) {
