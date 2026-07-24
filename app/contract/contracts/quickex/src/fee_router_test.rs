@@ -24,6 +24,89 @@ fn create_token(env: &Env) -> Address {
 }
 
 #[test]
+fn test_fee_router_uses_oracle_price_for_multiple_assets() {
+    let (env, client, admin) = setup();
+
+    let token_a = create_token(&env);
+    let token_b = create_token(&env);
+    let owner = Address::generate(&env);
+    let collector = Address::generate(&env);
+
+    let token_a_admin = token::StellarAssetClient::new(&env, &token_a);
+    let token_b_admin = token::StellarAssetClient::new(&env, &token_b);
+    let token_a_client = token::Client::new(&env, &token_a);
+    let token_b_client = token::Client::new(&env, &token_b);
+
+    token_a_admin.mint(&owner, &20_000);
+    token_b_admin.mint(&owner, &20_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 1_000 });
+    client.set_platform_wallet(&admin, &collector);
+
+    let oracle_id = env.register(crate::fee_test::MockOracleContract, ());
+    let oracle_client = crate::fee_test::MockOracleContractClient::new(&env, &oracle_id);
+    oracle_client.set_price(&1_000_000_000i128, &1_000u64);
+
+    client.set_oracle_fee_config(
+        &admin,
+        &crate::types::OracleFeeConfig {
+            oracle: oracle_id.clone(),
+            usd_fee_micros: 1_000_000,
+            stale_threshold_secs: 10_000,
+        },
+    );
+
+    let amount_a: i128 = 10_000;
+    let amount_b: i128 = 20_000;
+
+    let salt_a = Bytes::from_slice(&env, b"fee_router_oracle_a");
+    let salt_b = Bytes::from_slice(&env, b"fee_router_oracle_b");
+
+    let commitment_a = client.deposit(
+        &token_a,
+        &amount_a,
+        &owner,
+        &salt_a,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    let commitment_b = client.deposit(
+        &token_b,
+        &amount_b,
+        &owner,
+        &salt_b,
+        &0,
+        &None,
+        &1u64,
+        &u64::MAX,
+    );
+
+    client.withdraw(
+        &token_a,
+        &amount_a,
+        &commitment_a,
+        &owner,
+        &salt_a,
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token_b,
+        &amount_b,
+        &commitment_b,
+        &owner,
+        &salt_b,
+        &1u64,
+        &u64::MAX,
+    );
+
+    assert_eq!(token_a_client.balance(&collector), 1_000);
+    assert_eq!(token_b_client.balance(&collector), 1_000);
+}
+
+#[test]
 fn test_fee_router_per_asset_overrides_global_across_assets() {
     let (env, client, admin) = setup();
 

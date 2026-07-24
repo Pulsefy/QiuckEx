@@ -64,7 +64,9 @@ pub fn fee_from_bps_ceil(amount: i128, bps: u32) -> i128 {
 /// Calculate the platform fee for a given amount using the global config.
 ///
 /// Uses dynamic oracle pricing when configured and falls back to the static
-/// fee basis points if the oracle is unavailable or stale.
+/// fee basis points if the oracle is unavailable, stale, or produces an invalid
+/// price. This keeps the fee path deterministic and prevents silently incorrect
+/// amounts when the oracle is missing data.
 pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
     if amount <= 0 {
         return 0;
@@ -75,16 +77,14 @@ pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
             let now = env.ledger().timestamp();
             if price_micros > 0
                 && now.saturating_sub(timestamp) <= oracle_config.stale_threshold_secs
+                && oracle_config.usd_fee_micros > 0
             {
                 let fee = oracle_config
                     .usd_fee_micros
                     .saturating_mul(1_000_000)
                     .checked_div(price_micros)
                     .unwrap_or(0);
-                if fee > amount {
-                    return amount;
-                }
-                return fee;
+                return fee.min(amount);
             }
         }
     }

@@ -2,13 +2,44 @@ use crate::{
     errors::QuickexError,
     events::{EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN},
     fee::{fee_from_bps_ceil, fee_from_bps_floor, MAX_FEE_BPS},
-    types::{FeeConfig, PerAssetFeeConfig},
+    types::{FeeConfig, OracleFeeConfig, PerAssetFeeConfig},
     QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
+    contract, contractimpl,
     testutils::{Address as _, Events as _, Ledger},
     token, Address, Bytes, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
+
+#[contract]
+pub struct MockOracleContract;
+
+#[contractimpl]
+impl MockOracleContract {
+    pub fn set_price(env: Env, price_micros: i128, timestamp: u64) {
+        env.storage().persistent().set(&Symbol::short("price"), &price_micros);
+        env.storage()
+            .persistent()
+            .set(&Symbol::short("timestamp"), &timestamp);
+    }
+
+    pub fn get_price(env: Env) -> Result<(i128, u64), soroban_sdk::Error> {
+        let price: i128 = env
+            .storage()
+            .persistent()
+            .get(&Symbol::short("price"))
+            .unwrap_or(0);
+        let timestamp: u64 = env
+            .storage()
+            .persistent()
+            .get(&Symbol::short("timestamp"))
+            .unwrap_or(0);
+        if price <= 0 {
+            return Err(soroban_sdk::Error::from_contract_error(1));
+        }
+        Ok((price, timestamp))
+    }
+}
 
 fn setup_test(
     env: &Env,
@@ -58,6 +89,61 @@ fn assert_contract_error<T>(
         Err(Ok(actual)) => assert_eq!(actual, expected),
         _ => panic!("expected contract error"),
     }
+}
+
+#[test]
+fn test_oracle_fee_uses_validated_price_for_multiple_combinations() {
+    let env = Env::default();
+    env.ledger().with_mut(|li| li.timestamp = 1_000);
+    let (client, admin, _, _, _) = setup_test(&env);
+    env.mock_all_auths();
+
+    let oracle_id = env.register(MockOracleContract, ());
+    let oracle_client = MockOracleContractClient::new(&env, &oracle_id);
+
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_id.clone(),
+            usd_fee_micros: 1_000_000,
+            stale_threshold_secs: 10_000,
+        },
+    );
+
+    for (price, expected_fee) in [(2_000_000, 500_000), (4_000_000, 250_000), (1_000_000, 1_000_000)] {
+        oracle_client.set_price(&price, &1_000u64);
+        let fee = env.as_contract(&client.address, || crate::fee::calculate_fee(&env, 10_000_000));
+        assert_eq!(fee, expected_fee);
+    }
+
+    oracle_client.set_price(&1_000_000, &1_000u64);
+    let capped_fee = env.as_contract(&client.address, || crate::fee::calculate_fee(&env, 500_000));
+    assert_eq!(capped_fee, 500_000);
+}
+
+#[test]
+fn test_oracle_missing_price_falls_back_to_static_fee() {
+    let env = Env::default();
+    env.ledger().with_mut(|li| li.timestamp = 1_000);
+    let (client, admin, _, _, _) = setup_test(&env);
+    env.mock_all_auths();
+
+    let oracle_id = env.register(MockOracleContract, ());
+    let oracle_client = MockOracleContractClient::new(&env, &oracle_id);
+    oracle_client.set_price(&0, &1_000u64);
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_id.clone(),
+            usd_fee_micros: 1_000_000,
+            stale_threshold_secs: 10_000,
+        },
+    );
+
+    let fee = env.as_contract(&client.address, || crate::fee::calculate_fee(&env, 100_000));
+    assert_eq!(fee, 5_000);
 }
 
 #[test]
