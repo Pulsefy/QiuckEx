@@ -251,6 +251,7 @@ function AppShell() {
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
+        <Stack.Screen name="feedback" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
         <AppLockOverlay

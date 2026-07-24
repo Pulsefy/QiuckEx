@@ -29,6 +29,7 @@ export interface PaymentLink {
   matched_tx_hash: string | null;
   matched_at: string | null;
   match_confidence: number | null;
+  preview_scope: string | null;
   created_at: string;
   updated_at: string;
 }

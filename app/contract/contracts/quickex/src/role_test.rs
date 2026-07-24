@@ -45,11 +45,11 @@ fn test_operator_can_pause() {
         .grant_role(&ctx.admin, &operator, &Role::Operator);
 
     // Alice (Operator) pauses the contract
-    ctx.client.set_paused(&operator, &true);
+    ctx.client.set_paused(&operator, &true, &1u32);
     assert!(ctx.client.is_paused());
 
     // Alice unpauses
-    ctx.client.set_paused(&operator, &false);
+    ctx.client.set_paused(&operator, &false, &0u32);
     assert!(!ctx.client.is_paused());
 }
 
@@ -73,14 +73,22 @@ fn test_arbiter_role_resolution() {
         &ctx.salt(b"salt"),
         &3600,
         &Some(per_escrow_arbiter.clone()),
+        &0u64,
+        &u64::MAX,
     );
 
     // Dispute it
     ctx.client.dispute(&commitment);
 
     // Global arbiter (Bob) resolves it
-    ctx.client
-        .resolve_dispute(&global_arbiter, &commitment, &true, &ctx.alice);
+    ctx.client.resolve_dispute(
+        &global_arbiter,
+        &commitment,
+        &true,
+        &ctx.alice,
+        &0u64,
+        &u64::MAX,
+    );
 
     // Verify resolution
     let status = ctx.client.get_commitment_state(&commitment).unwrap();

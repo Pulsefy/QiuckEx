@@ -382,8 +382,34 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Feedback
+          </Text>
+
+          <Link href="/feedback" asChild>
+            <Pressable style={styles.row}>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  Send Feedback
+                </Text>
+                <Text style={[styles.helper, { color: theme.textMuted }]}>
+                  Report an issue or idea. Build and environment details are
+                  attached automatically.
+                </Text>
+              </View>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>→</Text>
+            </Pressable>
+          </Link>
+        </View>
+
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}> 
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             Onboarding
           </Text>
           <OnboardingResetButton />

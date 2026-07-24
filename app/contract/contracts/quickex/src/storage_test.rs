@@ -265,12 +265,14 @@ fn test_paused_storage() {
         assert!(!is_paused(&env));
 
         // Test setting paused to true
-        set_paused(&env, true);
+        set_paused(&env, true, 1);
         assert!(is_paused(&env));
+        assert_eq!(get_global_pause_reason(&env), 1);
 
         // Test setting paused to false
-        set_paused(&env, false);
+        set_paused(&env, false, 0);
         assert!(!is_paused(&env));
+        assert_eq!(get_global_pause_reason(&env), 0);
     });
 }
 

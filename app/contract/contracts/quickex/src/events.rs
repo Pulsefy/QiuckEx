@@ -87,7 +87,25 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "ContractPaused",
         topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
-        payload_keys: &["paused", "schema_version", "timestamp"],
+        payload_keys: &["paused", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseDisabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseDisabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnforced",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnforced", "caller"],
+        payload_keys: &["action", "reason", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -188,7 +206,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "FeeConfigChanged",
         topics: &[EVENT_TOPIC_ADMIN, "FeeConfigChanged"],
-        payload_keys: &["fee_bps", "schema_version", "timestamp"],
+        payload_keys: &["fee_bps", "old_fee_bps", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -207,7 +225,14 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "PerAssetFeeSet",
         topics: &[EVENT_TOPIC_ADMIN, "PerAssetFeeSet", "token"],
-        payload_keys: &["arbiter_bps", "fee_bps", "schema_version", "timestamp"],
+        payload_keys: &[
+            "arbiter_bps",
+            "fee_bps",
+            "old_arbiter_bps",
+            "old_fee_bps",
+            "schema_version",
+            "timestamp",
+        ],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -261,6 +286,11 @@ pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
         name: "PrivacyToggled",
         current_version: EVENT_SCHEMA_VERSION,
         compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "PauseFlagsChanged",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[EVENT_SCHEMA_VERSION],
     },
 ];
 
@@ -378,15 +408,107 @@ pub struct ContractPausedEvent {
 
     pub schema_version: u32,
     pub paused: bool,
+    pub reason: u32,
     pub timestamp: u64,
 }
 
 #[allow(dead_code)]
-pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool) {
+pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, reason: u32) {
     ContractPausedEvent {
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         paused,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flags: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseDisabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flags: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseEnforced"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnforcedEvent {
+    #[topic]
+    pub caller: Option<Address>,
+    pub schema_version: u32,
+    pub action: soroban_sdk::Symbol,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseEnabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flags: flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_disabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseDisabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flags: flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enforced(
+    env: &Env,
+    caller: Option<Address>,
+    action: soroban_sdk::Symbol,
+    reason: u32,
+) {
+    PauseEnforcedEvent {
+        caller,
+        schema_version: EVENT_SCHEMA_VERSION,
+        action,
+        reason,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -783,15 +905,17 @@ pub(crate) fn publish_stealth_withdrawn(
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeConfigChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigChangedEvent {
-    pub schema_version: u32,
+    pub old_fee_bps: u32,
     pub fee_bps: u32,
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
+pub(crate) fn publish_fee_config_changed(env: &Env, old_fee_bps: u32, fee_bps: u32) {
     FeeConfigChangedEvent {
-        schema_version: EVENT_SCHEMA_VERSION,
+        old_fee_bps,
         fee_bps,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -922,15 +1046,26 @@ pub(crate) fn publish_fee_collector_rotated(
 pub struct PerAssetFeeSetEvent {
     #[topic]
     pub token: Address,
+    pub old_fee_bps: u32,
+    pub old_arbiter_bps: u32,
     pub fee_bps: u32,
     pub arbiter_bps: u32,
     pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
+pub(crate) fn publish_per_asset_fee_set(
+    env: &Env,
+    token: Address,
+    old_fee_bps: u32,
+    old_arbiter_bps: u32,
+    fee_bps: u32,
+    arbiter_bps: u32,
+) {
     PerAssetFeeSetEvent {
         token,
+        old_fee_bps,
+        old_arbiter_bps,
         fee_bps,
         arbiter_bps,
         schema_version: EVENT_SCHEMA_VERSION,

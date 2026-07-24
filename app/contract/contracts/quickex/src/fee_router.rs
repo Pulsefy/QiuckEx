@@ -127,8 +127,8 @@ pub fn route_payout(
     if total_fee > 0 {
         let arbiter_bps = resolve_arbiter_bps(env, token);
         let arbiter_fee = if arbiter_bps > 0 && arbiter.is_some() {
-            // Arbiter share is a proportion of the total fee.
-            (total_fee * arbiter_bps as i128) / 10000
+            // Arbiter share is a proportion of the total fee (floor-rounded).
+            fee::fee_from_bps_floor(total_fee, arbiter_bps)
         } else {
             0
         };

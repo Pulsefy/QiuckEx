@@ -45,6 +45,7 @@ function PaymentPageContent() {
   const [fetchState, setFetchState] = useState<FetchState>("loading");
   const [status, setStatus] = useState<PaymentLinkStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [announce, setAnnounce] = useState("");
   const [retryCount, setRetryCount] = useState(0);
 
   const username = searchParams.get("username") || "";
@@ -87,12 +88,13 @@ function PaymentPageContent() {
         const errorData = await response.json().catch(() => null);
         throw new Error(
           errorData?.message ||
-            `Failed to fetch payment status (${response.status})`,
+          `Failed to fetch payment status (${response.status})`,
         );
       }
 
       const data: PaymentLinkStatus = await response.json();
       setStatus(data);
+      setAnnounce(`Payment page loaded. Current state is ${data.state}.`);
       setFetchState("success");
 
       // Track analytics event
@@ -103,6 +105,7 @@ function PaymentPageContent() {
         state: data.state,
       });
     } catch (err) {
+      setAnnounce("Unable to load payment information.");
       setFetchState("error");
       setError(err instanceof Error ? err.message : "Unknown error occurred");
 
@@ -226,7 +229,17 @@ function PaymentPageContent() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <NetworkBadge />
-      <main className="container mx-auto px-4 py-12 max-w-2xl">
+      <main
+        id="payment-page"
+        tabIndex={-1}
+        className="container mx-auto max-w-2xl px-4 py-8 sm:py-12 lg:py-16"
+      >
+        <div
+          className="sr-only"
+          aria-live="polite"
+        >
+          {announce}
+        </div>
         {renderStateComponent()}
       </main>
     </div>

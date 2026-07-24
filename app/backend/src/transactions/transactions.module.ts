@@ -8,9 +8,16 @@ import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { MetricsModule } from "../metrics/metrics.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
+import { ContractsModule } from "../contracts/contracts.module";
 
 @Module({
-  imports: [AppConfigModule, ApiKeysModule, MetricsModule, FeatureFlagsModule],
+  imports: [
+    AppConfigModule,
+    ApiKeysModule,
+    MetricsModule,
+    FeatureFlagsModule,
+    ContractsModule,
+  ],
   controllers: [TransactionsController],
   providers: [
     HorizonService,

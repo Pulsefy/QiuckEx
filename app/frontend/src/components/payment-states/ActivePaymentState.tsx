@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 import { SigningSummary } from "@/components/SigningSummary";
-import { 
-  CheckCircle2, 
-  Loader2, 
-  AlertCircle, 
-  RefreshCw, 
-  Settings, 
-  ChevronDown, 
-  ChevronUp, 
-  Terminal, 
-  WalletCards, 
-  AlertTriangle 
+import {
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Terminal,
+  WalletCards,
+  AlertTriangle
 } from "lucide-react";
 
 interface PaymentLinkStatus {
@@ -61,12 +61,12 @@ export function ActivePaymentState({
   const [simulateStatus, setSimulateStatus] = useState<StepStatus>("pending");
   const [signStatus, setSignStatus] = useState<StepStatus>("pending");
   const [submitStatus, setSubmitStatus] = useState<StepStatus>("pending");
-  
+
   const [errorType, setErrorType] = useState<"contract" | "rejection" | "network" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [signedPayload, setSignedPayload] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  
+
   // Dev Simulator Settings
   const [simulatorOutcome, setSimulatorOutcome] = useState<SimulatorOutcome>("success");
   const [showDevPanel, setShowDevPanel] = useState(false);
@@ -77,9 +77,9 @@ export function ActivePaymentState({
 
   const feeValue = selectedSwapOption
     ? Math.max(
-        0,
-        parseFloat(selectedSwapOption.sourceAmount) - parseFloat(status.amount),
-      )
+      0,
+      parseFloat(selectedSwapOption.sourceAmount) - parseFloat(status.amount),
+    )
     : 0;
 
   const feePercentage = selectedSwapOption
@@ -111,9 +111,9 @@ export function ActivePaymentState({
       setLogs([]);
       addLog("Starting transaction pipeline execution...");
       addLog("Validating recipient public key and destination address...");
-      
+
       await new Promise((r) => setTimeout(r, 1500));
-      
+
       if (simulatorOutcome === "fail_simulate") {
         setSimulateStatus("error");
         setErrorType("contract");
@@ -122,7 +122,7 @@ export function ActivePaymentState({
         addLog("ERROR: Transaction simulation failed (op_underfunded). Recipient balance is insufficient or swap path is invalid.");
         return;
       }
-      
+
       setSimulateStatus("success");
       addLog("Simulation successful: gas limit checked, swap path verified.");
       startStep = "sign";
@@ -132,9 +132,9 @@ export function ActivePaymentState({
       setTxStep("sign");
       setSignStatus("processing");
       addLog("Requesting transaction signature from Stellar wallet (Freighter/Lobstr)...");
-      
+
       await new Promise((r) => setTimeout(r, 2000));
-      
+
       if (simulatorOutcome === "fail_sign") {
         setSignStatus("error");
         setErrorType("rejection");
@@ -143,7 +143,7 @@ export function ActivePaymentState({
         addLog("ERROR: User rejected signature request in wallet extension.");
         return;
       }
-      
+
       // Simulate generating signed payload (XDR)
       const mockXdr = "AAAAA" + Math.random().toString(36).substring(7).toUpperCase() + "xdrSignedPayload314159265358979323846264";
       setSignedPayload(mockXdr);
@@ -160,9 +160,9 @@ export function ActivePaymentState({
       } else {
         addLog("Broadcasting transaction payload to Stellar Horizon network...");
       }
-      
+
       await new Promise((r) => setTimeout(r, 2000));
-      
+
       if (simulatorOutcome === "fail_submit") {
         setSubmitStatus("error");
         setErrorType("network");
@@ -172,15 +172,15 @@ export function ActivePaymentState({
         addLog("SAFE TO RETRY: The signed transaction envelope (XDR) is cached. Retrying will not duplicate payment.");
         return;
       }
-      
+
       setSubmitStatus("success");
       setTxStep("completed");
       addLog("Transaction confirmed in ledger! Fetching tx hash...");
-      
+
       // Complete payment
       const txHash = "tx_" + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
       addLog(`Transaction Hash: ${txHash}`);
-      
+
       await new Promise((r) => setTimeout(r, 1000));
       onPaymentCompleted(txHash);
     }
@@ -273,17 +273,17 @@ export function ActivePaymentState({
         <div className="bg-card/90 border border-border-strong rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
           {/* Subtle Glow backdrop */}
           <div className="absolute -right-20 -top-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          
+
           {/* Stepper Progress Bar */}
           <div className="relative flex items-center justify-between max-w-md mx-auto mb-8">
             {/* Connecting Lines */}
             <div className="absolute top-5 left-0 right-0 h-[2px] bg-surface-strong -translate-y-1/2 z-0" />
-            
+
             {/* Segment Progress Highlight */}
-            <div 
-              className="absolute top-5 left-0 h-[2px] bg-indigo-500 -translate-y-1/2 z-0 transition-all duration-500" 
+            <div
+              className="absolute top-5 left-0 h-[2px] bg-indigo-500 -translate-y-1/2 z-0 transition-all duration-500"
               style={{
-                width: simulateStatus === "success" 
+                width: simulateStatus === "success"
                   ? (signStatus === "success" ? "100%" : "50%")
                   : "0%"
               }}
@@ -291,16 +291,15 @@ export function ActivePaymentState({
 
             {/* Step 1: Simulate */}
             <div className="flex flex-col items-center z-10 relative flex-1">
-              <div 
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
-                  simulateStatus === "success"
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${simulateStatus === "success"
                     ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : simulateStatus === "processing"
-                    ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
-                    : simulateStatus === "error"
-                    ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-background border-border-strong text-subtle"
-                }`}
+                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
+                      : simulateStatus === "error"
+                        ? "bg-red-500/20 border-red-500 text-red-400"
+                        : "bg-background border-border-strong text-subtle"
+                  }`}
               >
                 {simulateStatus === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
@@ -312,25 +311,23 @@ export function ActivePaymentState({
                   "1"
                 )}
               </div>
-              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                simulateStatus === "processing" ? "text-indigo-400" : "text-subtle"
-              }`}>
+              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${simulateStatus === "processing" ? "text-indigo-400" : "text-subtle"
+                }`}>
                 Simulate
               </span>
             </div>
 
             {/* Step 2: Sign */}
             <div className="flex flex-col items-center z-10 relative flex-1">
-              <div 
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
-                  signStatus === "success"
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${signStatus === "success"
                     ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : signStatus === "processing"
-                    ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
-                    : signStatus === "error"
-                    ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-background border-border-strong text-subtle"
-                }`}
+                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
+                      : signStatus === "error"
+                        ? "bg-red-500/20 border-red-500 text-red-400"
+                        : "bg-background border-border-strong text-subtle"
+                  }`}
               >
                 {signStatus === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
@@ -342,25 +339,23 @@ export function ActivePaymentState({
                   "2"
                 )}
               </div>
-              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                signStatus === "processing" ? "text-indigo-400" : "text-subtle"
-              }`}>
+              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${signStatus === "processing" ? "text-indigo-400" : "text-subtle"
+                }`}>
                 Sign
               </span>
             </div>
 
             {/* Step 3: Submit */}
             <div className="flex flex-col items-center z-10 relative flex-1">
-              <div 
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
-                  submitStatus === "success"
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${submitStatus === "success"
                     ? "bg-success-soft border-emerald-500 text-emerald-400"
                     : submitStatus === "processing"
-                    ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
-                    : submitStatus === "error"
-                    ? "bg-red-500/20 border-red-500 text-red-400"
-                    : "bg-background border-border-strong text-subtle"
-                }`}
+                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
+                      : submitStatus === "error"
+                        ? "bg-red-500/20 border-red-500 text-red-400"
+                        : "bg-background border-border-strong text-subtle"
+                  }`}
               >
                 {submitStatus === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
@@ -372,9 +367,8 @@ export function ActivePaymentState({
                   "3"
                 )}
               </div>
-              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                submitStatus === "processing" ? "text-indigo-400" : "text-subtle"
-              }`}>
+              <span className={`text-[11px] font-black uppercase mt-2 tracking-wider ${submitStatus === "processing" ? "text-indigo-400" : "text-subtle"
+                }`}>
                 Submit
               </span>
             </div>
@@ -431,17 +425,16 @@ export function ActivePaymentState({
             </div>
             <div className="p-4 h-36 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-white/15">
               {logs.map((log, i) => (
-                <div 
-                  key={i} 
-                  className={`leading-relaxed ${
-                    log.includes("ERROR:") 
-                      ? "text-red-400" 
+                <div
+                  key={i}
+                  className={`leading-relaxed ${log.includes("ERROR:")
+                      ? "text-red-400"
                       : log.includes("successful") || log.includes("signed") || log.includes("confirmed")
-                      ? "text-emerald-400"
-                      : log.includes("SAFE TO RETRY")
-                      ? "text-indigo-400 font-bold"
-                      : "text-muted"
-                  }`}
+                        ? "text-emerald-400"
+                        : log.includes("SAFE TO RETRY")
+                          ? "text-indigo-400 font-bold"
+                          : "text-muted"
+                    }`}
                 >
                   {log}
                 </div>
@@ -509,16 +502,15 @@ export function ActivePaymentState({
               <p className="text-xs text-subtle leading-normal">
                 Toggle the behavior below to simulate and verify different outcomes, network errors, and contract rejections in the transaction stepper.
               </p>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setSimulatorOutcome("success")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "success"
+                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${simulatorOutcome === "success"
                       ? "border-emerald-500/50 bg-success-soft text-emerald-400"
-                      : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
+                      : "border-border bg-background text-subtle hover:border-brand hover:bg-brand-soft"
+                    }`}
                 >
                   <p className="font-bold">Always Succeed</p>
                   <p className="text-[10px] text-subtle mt-0.5">Success path through to PaidState</p>
@@ -527,11 +519,10 @@ export function ActivePaymentState({
                 <button
                   type="button"
                   onClick={() => setSimulatorOutcome("fail_simulate")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_simulate"
+                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${simulatorOutcome === "fail_simulate"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
                       : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
+                    }`}
                 >
                   <p className="font-bold">Fail on Simulation</p>
                   <p className="text-[10px] text-subtle mt-0.5">Simulate contract / funds error</p>
@@ -540,11 +531,10 @@ export function ActivePaymentState({
                 <button
                   type="button"
                   onClick={() => setSimulatorOutcome("fail_sign")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_sign"
+                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${simulatorOutcome === "fail_sign"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
                       : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
+                    }`}
                 >
                   <p className="font-bold">Fail on Signing</p>
                   <p className="text-[10px] text-subtle mt-0.5">Simulate user rejecting wallet pop-up</p>
@@ -553,11 +543,10 @@ export function ActivePaymentState({
                 <button
                   type="button"
                   onClick={() => setSimulatorOutcome("fail_submit")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_submit"
+                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${simulatorOutcome === "fail_submit"
                       ? "border-red-500/50 bg-red-500/10 text-red-400"
                       : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
+                    }`}
                 >
                   <p className="font-bold">Fail on Submission</p>
                   <p className="text-[10px] text-subtle mt-0.5">Simulate Horizon network broadcast timeout</p>
@@ -576,7 +565,7 @@ export function ActivePaymentState({
       <div className="text-center">
         <div
           aria-hidden="true"
-          className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-6"
         >
           <svg
             className="w-10 h-10 text-green-500"
@@ -597,7 +586,7 @@ export function ActivePaymentState({
         <p className="text-muted">{status.userMessage}</p>
       </div>
 
-      <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
+      <div className="bg-card border border-border-strong rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Payment Details</h2>
 
         <dl className="space-y-4">
@@ -650,11 +639,10 @@ export function ActivePaymentState({
               role="radio"
               aria-checked={selectedSourceAsset === null}
               onClick={() => setSelectedSourceAsset(null)}
-              className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                selectedSourceAsset === null
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-border-strong hover:border-border-strong"
-              }`}
+              className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedSourceAsset === null
+                  ? "border-brand bg-brand-soft bg-indigo-500/10"
+                  : "border-border hover:border-border-strong"
+                }`}
             >
               <div className="flex justify-between items-center">
                 <div>
@@ -675,11 +663,10 @@ export function ActivePaymentState({
                 aria-checked={selectedSourceAsset === option.sourceAsset}
                 aria-label={`Pay with ${option.sourceAmount} ${option.sourceAsset}, ${option.hopCount} hops, ${option.rateDescription}`}
                 onClick={() => setSelectedSourceAsset(option.sourceAsset)}
-                className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                  selectedSourceAsset === option.sourceAsset
+                className={`w-full p-4 rounded-xl border transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${selectedSourceAsset === option.sourceAsset
                     ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-border-strong hover:border-border-strong"
-                }`}
+                    : "border-border hover:border-border-strong"
+                  }`}
               >
                 <div className="flex justify-between items-center">
                   <div>
@@ -715,13 +702,13 @@ export function ActivePaymentState({
             fee={
               selectedSwapOption
                 ? {
-                    value: feeValue,
-                    asset: selectedSwapOption.sourceAsset,
-                    label: "Estimated Path Cost",
-                    percentage: feePercentage,
-                    thresholdPercent: 3,
-                    isHigh: feePercentage !== undefined && feePercentage >= 3,
-                  }
+                  value: feeValue,
+                  asset: selectedSwapOption.sourceAsset,
+                  label: "Estimated Path Cost",
+                  percentage: feePercentage,
+                  thresholdPercent: 3,
+                  isHigh: feePercentage !== undefined && feePercentage >= 3,
+                }
                 : undefined
             }
           />
@@ -737,7 +724,7 @@ export function ActivePaymentState({
               ? `Confirm payment to ${status.username}`
               : `Review payment details for ${status.username}`
           }
-          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="w-full py-4 bg-brand hover:opacity-90 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {showPreview ? "Open Wallet & Pay" : "Review Payment"}
         </button>
@@ -746,7 +733,7 @@ export function ActivePaymentState({
           type="button"
           onClick={handleCopyLink}
           aria-label="Copy payment link to clipboard"
-          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="w-full py-3 bg-card border border-border hover:bg-surface hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Copy Payment Link
         </button>
@@ -756,7 +743,7 @@ export function ActivePaymentState({
         </p>
       </div>
 
-      <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-4">
+      <div className="bg-brand-soft border border-blue-400/30 rounded-xl p-4">
         <p className="text-sm text-brand">
           <strong>How it works:</strong> Review the transaction summary before your Stellar wallet opens. After confirmation, your wallet will request the signature for this exact payload.
         </p>

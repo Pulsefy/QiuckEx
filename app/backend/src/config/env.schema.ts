@@ -99,6 +99,11 @@ export const envSchema = Joi.object({
         "Required in production when no wildcard is desired.",
     ),
 
+  // New rate limit allowlist configuration
+  RATE_LIMIT_ALLOWLIST_CIDRS: Joi.string().optional().description("Comma-separated CIDRs to whitelist from rate limits (CI, trusted contributors)"),
+  RATE_LIMIT_ALLOWLIST_API_KEYS: Joi.string().optional().description("Comma-separated API keys to whitelist from rate limits"),
+  RATE_LIMIT_ALLOWLIST_USER_IDS: Joi.string().optional().description("Comma-separated user IDs to whitelist from rate limits"),
+
   CORS_VERCEL_PROJECT: Joi.string()
     .empty("")
     .optional()
@@ -133,11 +138,36 @@ export const envSchema = Joi.object({
     .default(15000)
     .description("Cache TTL in milliseconds for feature flag snapshots"),
 
+  // Branch preview fallback configuration
+  FALLBACK_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://api.quickex.io")
+    .description("Fallback API URL for unknown branches"),
+  FALLBACK_FRONTEND_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://app.quickex.io")
+    .description("Fallback frontend URL for unknown branches"),
+
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
     .optional()
     .description(
       "Optional JSON array of bootstrap feature flags used when the store is unavailable",
+    ),
+
+  // Contract method allowlist (BE-67)
+  CONTRACT_METHOD_ALLOWLIST_MODE: Joi.string()
+    .valid("enforce", "off")
+    .default("enforce")
+    .description(
+      "When 'enforce', unlisted contract/method pairs are rejected on transaction build/submit endpoints",
+    ),
+
+  CONTRACT_METHOD_ALLOWLIST_JSON: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      'Optional JSON object mapping contractId -> allowed method names, or "*" to allow all methods for that contract. Example: {"CABC...":["swap","deposit"],"CDEF...":"*"}',
     ),
 
   // Stellar ingestion (optional; omit to disable)
@@ -405,6 +435,8 @@ export interface EnvConfig {
   CACHE_TTL_MS: number;
   FEATURE_FLAGS_CACHE_TTL_MS: number;
   FEATURE_FLAGS_BOOTSTRAP_JSON?: string;
+  CONTRACT_METHOD_ALLOWLIST_MODE: "enforce" | "off";
+  CONTRACT_METHOD_ALLOWLIST_JSON?: string;
   QUICKEX_CONTRACT_ID?: string;
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;

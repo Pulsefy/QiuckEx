@@ -15,7 +15,9 @@ declare namespace Express {
       organizationId?: string;
       role: "admin" | "member" | "read_only";
     };
-  }
+    /** Preview scope identifier from the X-Preview-Scope header. */
+    previewScope?: string;
+  };
 }
 
 export {};

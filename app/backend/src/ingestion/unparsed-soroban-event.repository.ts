@@ -22,6 +22,7 @@ export interface UnparsedSorobanEventRecord
   ledger: number;
   transactionHash: string;
   attempts: number;
+  status: "pending" | "replayed";
 }
 
 @Injectable()
@@ -60,14 +61,33 @@ export class UnparsedSorobanEventRepository {
     }
   }
 
-  async listPending(limit = 100): Promise<UnparsedSorobanEventRecord[]> {
-    const { data, error } = await this.supabase
+  async listPending(
+    limit = 100,
+    filters?: {
+      contractId?: string;
+      schemaVersion?: number;
+      errorType?: UnparsedSorobanEventReason;
+    },
+  ): Promise<UnparsedSorobanEventRecord[]> {
+    let query = this.supabase
       .getClient()
       .from("unparsed_soroban_events")
       .select("*")
       .eq("status", "pending")
       .order("ledger", { ascending: true })
       .limit(limit);
+
+    if (filters?.contractId) {
+      query = query.eq("contract_id", filters.contractId);
+    }
+    if (filters?.schemaVersion !== undefined) {
+      query = query.eq("schema_version", filters.schemaVersion);
+    }
+    if (filters?.errorType) {
+      query = query.eq("reason", filters.errorType);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       this.logger.error(`Failed to list unparsed Soroban events: ${error.message}`);
@@ -88,6 +108,7 @@ export class UnparsedSorobanEventRepository {
       ledger: Number(row.ledger),
       transactionHash: String(row.transaction_hash),
       attempts: Number(row.attempts ?? 0),
+      status: row.status as "pending" | "replayed",
     }));
   }
 
@@ -95,7 +116,20 @@ export class UnparsedSorobanEventRepository {
     await this.updateStatus(pagingToken, "replayed");
   }
 
+  private async incrementAttempts(pagingToken: string): Promise<number> {
+    const current = await this.getByPagingToken(pagingToken);
+    if (!current) return 0;
+    const newAttempts = current.attempts + 1;
+    await this.supabase
+      .getClient()
+      .from("unparsed_soroban_events")
+      .update({ attempts: newAttempts })
+      .eq("paging_token", pagingToken);
+    return newAttempts;
+  }
+
   async markFailed(pagingToken: string, errorMessage: string): Promise<void> {
+    await this.incrementAttempts(pagingToken);
     const { error } = await this.supabase
       .getClient()
       .from("unparsed_soroban_events")
@@ -109,11 +143,47 @@ export class UnparsedSorobanEventRepository {
     if (error) throw error;
   }
 
+  async getByPagingToken(pagingToken: string): Promise<UnparsedSorobanEventRecord | null> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("unparsed_soroban_events")
+      .select("*")
+      .eq("paging_token", pagingToken)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null; // No rows returned
+      this.logger.error(`Failed to get unparsed event: ${error.message}`);
+      throw error;
+    }
+
+    return {
+      raw: data.raw_event as RawHorizonContractEvent,
+      reason: data.reason as UnparsedSorobanEventReason,
+      eventName: (data.event_name as string | null) ?? null,
+      schemaVersion:
+        data.schema_version === null || data.schema_version === undefined
+          ? null
+          : Number(data.schema_version),
+      errorMessage: (data.error_message as string | null) ?? null,
+      pagingToken: String(data.paging_token),
+      contractId: String(data.contract_id),
+      ledger: Number(data.ledger),
+      transactionHash: String(data.transaction_hash),
+      attempts: Number(data.attempts ?? 0),
+      status: data.status as "pending" | "replayed",
+    };
+  }
+
   private async updateStatus(pagingToken: string, status: string): Promise<void> {
+    await this.incrementAttempts(pagingToken);
     const { error } = await this.supabase
       .getClient()
       .from("unparsed_soroban_events")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ 
+        status,
+        updated_at: new Date().toISOString() 
+      })
       .eq("paging_token", pagingToken);
 
     if (error) throw error;
