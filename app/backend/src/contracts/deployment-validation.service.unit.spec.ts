@@ -1,31 +1,20 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { DeploymentValidationService } from './deployment-validation.service';
 import { AppConfigService } from '../config';
 
+function buildService(network: string = 'testnet') {
+  const config = {
+    network,
+  } as unknown as AppConfigService;
+
+  return new DeploymentValidationService(config);
+}
+
 describe('DeploymentValidationService (SC-W7-08)', () => {
   let service: DeploymentValidationService;
-  let configService: AppConfigService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DeploymentValidationService,
-        {
-          provide: AppConfigService,
-          useValue: {
-            network: 'testnet',
-          },
-        },
-      ],
-    }).compile();
-
-    service = module.get<DeploymentValidationService>(DeploymentValidationService);
-    configService = module.get<AppConfigService>(AppConfigService);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+  beforeEach(() => {
+    service = buildService();
   });
 
   describe('validateNetworkBinding', () => {
@@ -78,20 +67,8 @@ describe('DeploymentValidationService (SC-W7-08)', () => {
       expect(() => service.validateLedgerSequence(47000000.5)).toThrow(BadRequestException);
     });
 
-    it('rejects zero for mainnet when configured for mainnet', async () => {
-      const mainnetModule: TestingModule = await Test.createTestingModule({
-        providers: [
-          DeploymentValidationService,
-          {
-            provide: AppConfigService,
-            useValue: {
-              network: 'mainnet',
-            },
-          },
-        ],
-      }).compile();
-
-      const mainnetService = mainnetModule.get<DeploymentValidationService>(DeploymentValidationService);
+    it('rejects zero for mainnet when configured for mainnet', () => {
+      const mainnetService = buildService('mainnet');
 
       expect(() => mainnetService.validateLedgerSequence(0)).toThrow(BadRequestException);
       expect(() => mainnetService.validateLedgerSequence(0)).toThrow(
@@ -201,20 +178,8 @@ describe('DeploymentValidationService (SC-W7-08)', () => {
   });
 
   describe('mismatched network/deployment scenarios', () => {
-    it('detects testnet deployment on mainnet backend', async () => {
-      const mainnetModule: TestingModule = await Test.createTestingModule({
-        providers: [
-          DeploymentValidationService,
-          {
-            provide: AppConfigService,
-            useValue: {
-              network: 'mainnet',
-            },
-          },
-        ],
-      }).compile();
-
-      const mainnetService = mainnetModule.get<DeploymentValidationService>(DeploymentValidationService);
+    it('detects testnet deployment on mainnet backend', () => {
+      const mainnetService = buildService('mainnet');
 
       const testnetManifest = {
         network: 'testnet',
