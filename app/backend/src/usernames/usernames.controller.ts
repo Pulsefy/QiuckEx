@@ -31,6 +31,8 @@ import {
   TrendingCreatorsResponseDto,
   RecentlyActiveQueryDto,
   RecentlyActiveResponseDto,
+  FeaturedUsernamesQueryDto,
+  FeaturedUsernamesResponseDto,
   PublicProfileDto,
 } from "../dto";
 import { UsernamesService } from "./usernames.service";
@@ -304,6 +306,52 @@ export class UsernamesController {
       calculatedAt: new Date().toISOString(),
       next_cursor: users.next_cursor,
       has_more: users.has_more,
+    };
+  }
+
+  @Get("featured")
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
+  @ApiOperation({
+    summary: "Get featured creators",
+    description:
+      "Returns curated/featured creator profiles for discovery, ordered by " +
+      "manual featured rank (lower rank shows first).",
+  })
+  @ApiQuery({
+    name: "limit",
+    description: "Maximum number of featured creators (1-100)",
+    required: false,
+    example: 10,
+  })
+  @ApiQuery({
+    name: "cursor",
+    description: "Opaque cursor for the next page of results",
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of featured creator profiles sorted by featured rank",
+    type: FeaturedUsernamesResponseDto,
+  })
+  async getFeaturedCreators(
+    @Query() query: FeaturedUsernamesQueryDto,
+  ): Promise<FeaturedUsernamesResponseDto> {
+    const creators = await this.usernamesService.getFeaturedCreators(
+      query.limit,
+      query.cursor,
+    );
+
+    return {
+      profiles: creators.data.map((c) => ({
+        id: c.id,
+        username: c.username,
+        publicKey: c.public_key,
+        lastActiveAt: c.last_active_at || c.created_at,
+        createdAt: c.created_at,
+        featuredRank: c.featured_rank,
+      })) as PublicProfileDto[],
+      next_cursor: creators.next_cursor,
+      has_more: creators.has_more,
     };
   }
 
