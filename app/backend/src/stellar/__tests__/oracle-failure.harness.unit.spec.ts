@@ -46,7 +46,6 @@ import {
   makePathPreviewService,
   makeQuoteService,
   wireFetchForState,
-  isStaleAmount,
   oracleScenariosTable,
   HARNESS_STRICT_RECEIVE_REQUEST,
   HARNESS_STRICT_SEND_REQUEST,
@@ -222,15 +221,14 @@ describe('PathPreviewService – malformed oracle responses (strict-receive)', (
 });
 
 describe('PathPreviewService – stale oracle data', () => {
-  it('returns stale paths without throwing (caller decides how to handle)', async () => {
+  it('throws ServiceUnavailableException when oracle data is stale', async () => {
     fetchSpy.mockResolvedValueOnce(
       makeOkFetchResponse(STALE_HORIZON_RESPONSE),
     );
 
-    const result = await service.previewPaths(HARNESS_STRICT_RECEIVE_REQUEST);
-    expect(result.paths).toHaveLength(1);
-    // The source amount should match the stale fixture value
-    expect(result.paths[0].sourceAmount).toBe('0.0000001');
+    await expect(
+      service.previewPaths(HARNESS_STRICT_RECEIVE_REQUEST)
+    ).rejects.toThrow(ServiceUnavailableException);
   });
 
   it('stale amounts are flagged by isStaleAmount()', () => {
@@ -489,12 +487,7 @@ describe('Parameterised oracle harness – QuoteService', () => {
           const quote = await svc.createQuote(HARNESS_QUOTE_REQUEST);
           expect(quote.quoteId).toMatch(/^qx_/);
           expect(new Date(quote.expiresAt).getTime()).toBeGreaterThan(Date.now());
-
-          // Stale scenario: verify staleness can be detected in the result
-          if (scenario.state === 'stale') {
-            const staleDetected = isStaleAmount(quote.paths[0].sourceAmount);
-            expect(staleDetected).toBe(true);
-          }
+          // Stale scenario is no longer expectsQuote, so no need to verify staleness in result
         }
       });
     },

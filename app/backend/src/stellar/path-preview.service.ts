@@ -53,6 +53,22 @@ function toAssetStroops(amountStr: string, decimals: number): string {
   return (whole * factor + frac).toString();
 }
 
+/** Amount threshold below which we treat an oracle response as stale */
+export const STALE_AMOUNT_THRESHOLD = 0.001;
+
+/**
+ * Returns true when a price amount string looks stale / degraded.
+ * Staleness is flagged when the parsed amount is below STALE_AMOUNT_THRESHOLD.
+ */
+export function isStaleAmount(amountStr: string): boolean {
+  const parsed = parseFloat(amountStr);
+  return (
+    Number.isFinite(parsed) &&
+    parsed > 0 &&
+    parsed < STALE_AMOUNT_THRESHOLD
+  );
+}
+
 function toHorizonSourceAssetParam(asset: VerifiedAssetRecord): string {
   if (asset.type === "native") {
     return "native";
@@ -176,29 +192,37 @@ export class PathPreviewService {
 
     const rawRecords = json._embedded?.records;
     const records: HorizonPathRecord[] = Array.isArray(rawRecords) ? rawRecords : [];
-    const paths: PathPreviewRow[] = records.map((r) => ({
-      sourceAmount: r.source_amount,
-      sourceAsset: formatAssetLabel(
-        r.source_asset_type,
-        r.source_asset_code,
-        r.source_asset_issuer,
-      ),
-      destinationAmount: r.destination_amount,
-      destinationAsset: formatAssetLabel(
-        r.destination_asset_type,
-        r.destination_asset_code,
-        r.destination_asset_issuer,
-      ),
-      hopCount: Array.isArray(r.path) ? r.path.length : 0,
-      pathHops: (r.path ?? []).map((hop) =>
-        formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
-      ),
-      /** Ratio of destination_amount : source_amount in smallest units (informative) */
-      rateDescription: formatStroopsRatio(
-        r.source_amount,
-        r.destination_amount,
-      ),
-    }));
+    const paths: PathPreviewRow[] = records.map((r) => {
+      if (isStaleAmount(r.source_amount) || isStaleAmount(r.destination_amount)) {
+        this.logger.warn(
+          `Stale oracle data detected in strict-receive. Source: ${r.source_amount}, Dest: ${r.destination_amount}`
+        );
+        throw new ServiceUnavailableException("Stale oracle data detected.");
+      }
+      return {
+        sourceAmount: r.source_amount,
+        sourceAsset: formatAssetLabel(
+          r.source_asset_type,
+          r.source_asset_code,
+          r.source_asset_issuer,
+        ),
+        destinationAmount: r.destination_amount,
+        destinationAsset: formatAssetLabel(
+          r.destination_asset_type,
+          r.destination_asset_code,
+          r.destination_asset_issuer,
+        ),
+        hopCount: Array.isArray(r.path) ? r.path.length : 0,
+        pathHops: (r.path ?? []).map((hop) =>
+          formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
+        ),
+        /** Ratio of destination_amount : source_amount in smallest units (informative) */
+        rateDescription: formatStroopsRatio(
+          r.source_amount,
+          r.destination_amount,
+        ),
+      };
+    });
 
     return { paths, horizonUrl: base };
   }
@@ -254,28 +278,36 @@ export class PathPreviewService {
 
     const rawRecords2 = json._embedded?.records;
     const records: HorizonPathRecord[] = Array.isArray(rawRecords2) ? rawRecords2 : [];
-    const paths: PathPreviewRow[] = records.map((r) => ({
-      sourceAmount: r.source_amount,
-      sourceAsset: formatAssetLabel(
-        r.source_asset_type,
-        r.source_asset_code,
-        r.source_asset_issuer,
-      ),
-      destinationAmount: r.destination_amount,
-      destinationAsset: formatAssetLabel(
-        r.destination_asset_type,
-        r.destination_asset_code,
-        r.destination_asset_issuer,
-      ),
-      hopCount: Array.isArray(r.path) ? r.path.length : 0,
-      pathHops: (r.path ?? []).map((hop) =>
-        formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
-      ),
-      rateDescription: formatStroopsRatio(
-        r.source_amount,
-        r.destination_amount,
-      ),
-    }));
+    const paths: PathPreviewRow[] = records.map((r) => {
+      if (isStaleAmount(r.source_amount) || isStaleAmount(r.destination_amount)) {
+        this.logger.warn(
+          `Stale oracle data detected in strict-send. Source: ${r.source_amount}, Dest: ${r.destination_amount}`
+        );
+        throw new ServiceUnavailableException("Stale oracle data detected.");
+      }
+      return {
+        sourceAmount: r.source_amount,
+        sourceAsset: formatAssetLabel(
+          r.source_asset_type,
+          r.source_asset_code,
+          r.source_asset_issuer,
+        ),
+        destinationAmount: r.destination_amount,
+        destinationAsset: formatAssetLabel(
+          r.destination_asset_type,
+          r.destination_asset_code,
+          r.destination_asset_issuer,
+        ),
+        hopCount: Array.isArray(r.path) ? r.path.length : 0,
+        pathHops: (r.path ?? []).map((hop) =>
+          formatAssetLabel(hop.asset_type, hop.asset_code, hop.asset_issuer),
+        ),
+        rateDescription: formatStroopsRatio(
+          r.source_amount,
+          r.destination_amount,
+        ),
+      };
+    });
 
     return { paths, horizonUrl: base };
   }

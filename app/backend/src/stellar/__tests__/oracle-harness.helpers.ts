@@ -27,7 +27,6 @@ import { AppConfigService } from '../../config/app-config.service';
 import {
   type OracleState,
   type OracleScenario,
-  STALE_AMOUNT_THRESHOLD,
   HEALTHY_HORIZON_RESPONSE,
   STALE_HORIZON_RESPONSE,
   INVALID_HORIZON_RESPONSE_NO_EMBEDDED,
@@ -39,6 +38,7 @@ import {
   USDC_ISSUER,
   makeOkFetchResponse,
 } from './oracle-harness.fixtures';
+import { isStaleAmount, STALE_AMOUNT_THRESHOLD } from '../path-preview.service';
 
 // ---------------------------------------------------------------------------
 // Standard request DTOs shared across harness tests
@@ -197,21 +197,8 @@ export function wireFetchForState(
 }
 
 // ---------------------------------------------------------------------------
-// Staleness detection
+// Staleness detection is now imported from path-preview.service.ts
 // ---------------------------------------------------------------------------
-
-/**
- * Returns true when a price amount string looks stale / degraded.
- * Staleness is flagged when the parsed amount is below STALE_AMOUNT_THRESHOLD.
- */
-export function isStaleAmount(amountStr: string): boolean {
-  const parsed = parseFloat(amountStr);
-  return (
-    Number.isFinite(parsed) &&
-    parsed > 0 &&
-    parsed < STALE_AMOUNT_THRESHOLD
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Assertion helpers

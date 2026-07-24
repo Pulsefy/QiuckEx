@@ -135,10 +135,7 @@ export const STALE_HORIZON_RESPONSE: HorizonPathsEnvelope = {
   _embedded: { records: [STALE_PATH_RECORD] },
 };
 
-/** Amount threshold below which we treat an oracle response as stale (in stroops-as-decimal) */
-export const STALE_AMOUNT_THRESHOLD = 0.001;
 
-// ---------------------------------------------------------------------------
 // INVALID – structurally broken Horizon payloads
 // ---------------------------------------------------------------------------
 
