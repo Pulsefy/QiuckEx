@@ -6,7 +6,7 @@ use crate::{
     QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
-    contract, contractimpl,
+    contract, contractimpl, symbol_short,
     testutils::{Address as _, Events as _, Ledger},
     token, Address, Bytes, ConversionError, Env, InvokeError, Map, Symbol, TryIntoVal, Val,
 };
@@ -17,22 +17,24 @@ pub struct MockOracleContract;
 #[contractimpl]
 impl MockOracleContract {
     pub fn set_price(env: Env, price_micros: i128, timestamp: u64) {
-        env.storage().persistent().set(&Symbol::short("price"), &price_micros);
         env.storage()
             .persistent()
-            .set(&Symbol::short("timestamp"), &timestamp);
+            .set(&symbol_short!("price"), &price_micros);
+        env.storage()
+            .persistent()
+            .set(&symbol_short!("timestamp"), &timestamp);
     }
 
     pub fn get_price(env: Env) -> Result<(i128, u64), soroban_sdk::Error> {
         let price: i128 = env
             .storage()
             .persistent()
-            .get(&Symbol::short("price"))
+            .get(&symbol_short!("price"))
             .unwrap_or(0);
         let timestamp: u64 = env
             .storage()
             .persistent()
-            .get(&Symbol::short("timestamp"))
+            .get(&symbol_short!("timestamp"))
             .unwrap_or(0);
         if price <= 0 {
             return Err(soroban_sdk::Error::from_contract_error(1));
@@ -110,9 +112,15 @@ fn test_oracle_fee_uses_validated_price_for_multiple_combinations() {
         },
     );
 
-    for (price, expected_fee) in [(2_000_000, 500_000), (4_000_000, 250_000), (1_000_000, 1_000_000)] {
+    for (price, expected_fee) in [
+        (2_000_000, 500_000),
+        (4_000_000, 250_000),
+        (1_000_000, 1_000_000),
+    ] {
         oracle_client.set_price(&price, &1_000u64);
-        let fee = env.as_contract(&client.address, || crate::fee::calculate_fee(&env, 10_000_000));
+        let fee = env.as_contract(&client.address, || {
+            crate::fee::calculate_fee(&env, 10_000_000)
+        });
         assert_eq!(fee, expected_fee);
     }
 
