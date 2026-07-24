@@ -63,6 +63,7 @@ export interface ContractPausedEvent extends BaseContractEvent {
   eventType: "ContractPaused";
   admin: string;
   paused: boolean;
+  reason: number;
 }
 
 export interface AdminChangedEvent extends BaseContractEvent {

@@ -41,7 +41,11 @@ export class AdminEventRepository {
   private buildPayload(event: AdminEvent): Record<string, unknown> {
     switch (event.eventType) {
       case "ContractPaused":
-        return { admin: (event as ContractPausedEvent).admin, paused: (event as ContractPausedEvent).paused };
+        return {
+          admin: (event as ContractPausedEvent).admin,
+          paused: (event as ContractPausedEvent).paused,
+          reason: (event as ContractPausedEvent).reason,
+        };
       case "AdminChanged":
         return { oldAdmin: (event as AdminChangedEvent).oldAdmin, newAdmin: (event as AdminChangedEvent).newAdmin };
       case "ContractUpgraded":

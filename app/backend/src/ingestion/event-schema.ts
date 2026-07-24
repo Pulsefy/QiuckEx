@@ -20,6 +20,40 @@ export interface EventSchemaContract {
   compatibleVersions: readonly number[];
 }
 
+/**
+ * Canonical client-facing action contract for the event stream consumed by
+ * downstream clients and indexers. The field names and required keys are
+ * intentionally stable across schema versions to preserve compatibility.
+ */
+export const QUICKEX_CLIENT_EVENT_ACTIONS = {
+  create: {
+    eventName: "EscrowDeposited",
+    requiredPayloadKeys: [
+      "amount_due",
+      "amount_paid",
+      "expires_at",
+      "schema_version",
+      "timestamp",
+      "token",
+    ],
+  },
+  settle: {
+    eventName: "EscrowWithdrawn",
+    requiredPayloadKeys: ["amount", "fee", "schema_version", "timestamp", "token"],
+  },
+  refund: {
+    eventName: "EscrowRefunded",
+    requiredPayloadKeys: ["amount", "schema_version", "timestamp", "token"],
+  },
+  pause: {
+    eventName: "ContractPaused",
+    requiredPayloadKeys: ["paused", "reason", "schema_version", "timestamp"],
+  },
+} as const satisfies Record<
+  string,
+  { eventName: string; requiredPayloadKeys: readonly string[] }
+>;
+
 export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
   EscrowDeposited: {
     topic: QUICKEX_EVENT_TOPICS.escrow,
@@ -64,7 +98,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     topic: QUICKEX_EVENT_TOPICS.admin,
     eventName: "ContractPaused",
     indexedFields: ["admin"],
-    payloadKeys: ["paused", "schema_version", "timestamp"],
+    payloadKeys: ["paused", "reason", "schema_version", "timestamp"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
     compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
   },

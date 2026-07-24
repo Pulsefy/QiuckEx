@@ -63,6 +63,7 @@ const FIXTURES: EventWithoutId[] = [
     eventType: "ContractPaused",
     admin: ADMIN,
     paused: true,
+    reason: 3,
   },
   {
     ...BASE,

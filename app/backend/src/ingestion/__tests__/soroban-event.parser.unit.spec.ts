@@ -4,6 +4,7 @@ import {
   RawHorizonContractEvent,
 } from "../soroban-event.parser";
 import {
+  QUICKEX_CLIENT_EVENT_ACTIONS,
   QUICKEX_EVENT_SCHEMA_CONTRACTS,
   QUICKEX_EVENT_SCHEMA_VERSION,
   QUICKEX_EVENT_TOPICS,
@@ -167,6 +168,30 @@ describe("SorobanEventParser", () => {
     });
   });
 
+  describe("ContractPaused", () => {
+    it("parses the pause reason and state for ContractPaused", () => {
+      const topics = [
+        symVal(QUICKEX_EVENT_TOPICS.admin),
+        symVal("ContractPaused"),
+        addressVal(OWNER),
+      ];
+      const data = mapVal({
+        paused: nativeToScVal(true),
+        reason: nativeToScVal(7, { type: "u32" }),
+        schema_version: nativeToScVal(QUICKEX_EVENT_SCHEMA_VERSION, {
+          type: "u32",
+        }),
+        timestamp: nativeToScVal(1700005000n, { type: "u64" }),
+      });
+
+      const result = parser.parse(makeRaw(topics, data));
+      expect(result?.eventType).toBe("ContractPaused");
+      if (result?.eventType !== "ContractPaused") return;
+      expect(result.paused).toBe(true);
+      expect(result.reason).toBe(7);
+    });
+  });
+
   describe("AdminChanged", () => {
     it("parses a valid AdminChanged event", () => {
       const ADMIN2 = "GB7QNDHSBQZENWGZUBJ4KLSZFRNHN5ATQXZSC3ZHZ5ZBQ6Y6X3TOBQ7S";
@@ -243,6 +268,52 @@ describe("SorobanEventParser", () => {
         expect(contract.payloadKeys).toEqual([...contract.payloadKeys].sort());
         expect(contract.compatibleVersions).toContain(contract.schemaVersion);
       }
+    });
+
+    it("snapshots the canonical client-facing create/settle/refund/pause payload contract", () => {
+      expect(QUICKEX_CLIENT_EVENT_ACTIONS).toMatchInlineSnapshot(`
+        Object {
+          "create": Object {
+            "eventName": "EscrowDeposited",
+            "requiredPayloadKeys": Array [
+              "amount_due",
+              "amount_paid",
+              "expires_at",
+              "schema_version",
+              "timestamp",
+              "token",
+            ],
+          },
+          "pause": Object {
+            "eventName": "ContractPaused",
+            "requiredPayloadKeys": Array [
+              "paused",
+              "reason",
+              "schema_version",
+              "timestamp",
+            ],
+          },
+          "refund": Object {
+            "eventName": "EscrowRefunded",
+            "requiredPayloadKeys": Array [
+              "amount",
+              "schema_version",
+              "timestamp",
+              "token",
+            ],
+          },
+          "settle": Object {
+            "eventName": "EscrowWithdrawn",
+            "requiredPayloadKeys": Array [
+              "amount",
+              "fee",
+              "schema_version",
+              "timestamp",
+              "token",
+            ],
+          },
+        }
+      `);
     });
   });
 });

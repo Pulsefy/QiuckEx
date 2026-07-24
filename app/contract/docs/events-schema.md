@@ -49,6 +49,12 @@ accidental breakage.
 - Event names use `PascalCase` topics.
 - Event structs use `<Topic>NameEvent` in code.
 - All events include `schema_version` and `timestamp` in the data payload.
+- The client-facing lifecycle actions use a stable contract for compatibility:
+  - `create` → `EscrowDeposited` with `amount_due`, `amount_paid`, `expires_at`, `schema_version`, `timestamp`, `token`
+  - `settle` → `EscrowWithdrawn` with `amount`, `fee`, `schema_version`, `timestamp`, `token`
+  - `refund` → `EscrowRefunded` with `amount`, `schema_version`, `timestamp`, `token`
+  - `pause` → `ContractPaused` with `paused`, `reason`, `schema_version`, `timestamp`
+- Compatibility rules: field names are canonical and must not be renamed without advancing the schema contract; new fields must be additive and snapshot tests must be updated in lockstep.
 
 ## Topic and payload rules
 

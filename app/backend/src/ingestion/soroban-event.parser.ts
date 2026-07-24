@@ -341,7 +341,7 @@ export class SorobanEventParser {
   private parseContractPaused(
     topics: xdr.ScVal[],
     data: xdr.ScVal,
-    base: Omit<ContractPausedEvent, "eventId" | "eventType" | "admin" | "paused">,
+    base: Omit<ContractPausedEvent, "eventId" | "eventType" | "admin" | "paused" | "reason">,
     indexedOffset: number,
   ): Omit<ContractPausedEvent, "eventId"> {
     const admin = this.decodeAddress(topics[indexedOffset]);
@@ -352,6 +352,7 @@ export class SorobanEventParser {
       ...base,
       admin,
       paused: Boolean(scValToNative(map["paused"])),
+      reason: Number(scValToNative(map["reason"] ?? 0)),
     };
   }
 
