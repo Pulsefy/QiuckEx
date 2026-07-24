@@ -707,6 +707,7 @@ pub struct EscrowRefundedEvent {
     pub token: Address,
     pub amount: i128,
     pub timestamp: u64,
+    pub receipt_reference: Bytes32,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "PartialPayment"])]
@@ -724,6 +725,7 @@ pub struct PartialPaymentEvent {
     pub amount_paid: i128,
     pub amount_due: i128,
     pub timestamp: u64,
+    pub receipt_reference: Bytes32,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "EscrowFinalized"])]
@@ -739,6 +741,7 @@ pub struct EscrowFinalizedEvent {
     pub token: Address,
     pub total_amount: i128,
     pub timestamp: u64,
+    pub receipt_reference: Bytes32,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "EscrowDisputed"])]
@@ -771,6 +774,8 @@ pub(crate) fn publish_escrow_refunded(
     token: Address,
     amount: i128,
 ) {
+    let receipt_reference = Bytes32::from(sha256::hash(&[commitment.as_bytes(), env.ledger().timestamp().to_bytes()].concat()));
+    
     EscrowRefundedEvent {
         escrow_id: commitment,
         owner,
@@ -791,6 +796,8 @@ pub(crate) fn publish_partial_payment(
     amount_paid: i128,
     amount_due: i128,
 ) {
+    let receipt_reference = Bytes32::from(sha256::hash(&[commitment.as_bytes(), env.ledger().timestamp().to_bytes()].concat()));
+    
     PartialPaymentEvent {
         escrow_id: commitment,
         payer,
@@ -800,6 +807,7 @@ pub(crate) fn publish_partial_payment(
         amount_paid,
         amount_due,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }
@@ -811,6 +819,8 @@ pub(crate) fn publish_escrow_finalized(
     token: Address,
     total_amount: i128,
 ) {
+    let receipt_reference = Bytes32::from(sha256::hash(&[commitment.as_bytes(), env.ledger().timestamp().to_bytes()].concat()));
+
     EscrowFinalizedEvent {
         escrow_id: commitment,
         owner,
