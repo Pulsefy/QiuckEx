@@ -27,6 +27,22 @@ export class CreateBranchPreviewRequestDto {
   @IsInt()
   @Min(0)
   ttlMs?: number;
+
+  @ApiProperty({
+    description: 'Shared/long-lived preview; excluded from auto-expiry worker',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isShared?: boolean;
+
+  @ApiProperty({
+    description: 'Explicit exemption from scheduled auto-expiry',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  expiryExempt?: boolean;
 }
 
 export class UpdateBranchPreviewRequestDto {
@@ -60,4 +76,14 @@ export class UpdateBranchPreviewRequestDto {
   @IsInt()
   @Min(0)
   ttlMs?: number;
+
+  @ApiProperty({ description: 'Mark preview as shared (auto-expiry exempt)', required: false })
+  @IsOptional()
+  @IsBoolean()
+  isShared?: boolean;
+
+  @ApiProperty({ description: 'Exempt from auto-expiry worker', required: false })
+  @IsOptional()
+  @IsBoolean()
+  expiryExempt?: boolean;
 }

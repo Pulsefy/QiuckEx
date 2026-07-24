@@ -407,6 +407,17 @@ export const envSchema = Joi.object({
     .empty("")
     .default("default-abuse-salt")
     .description("Salt for IP/UA hashing in abuse signals"),
+
+  PREVIEW_INACTIVITY_THRESHOLD_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(3 * 24 * 60 * 60 * 1000)
+    .description("Inactivity window before branch preview auto-expiry"),
+  PREVIEW_MAX_AGE_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(14 * 24 * 60 * 60 * 1000)
+    .description("Maximum age before branch preview auto-expiry"),
 });
 
 /**
@@ -475,4 +486,6 @@ export interface EnvConfig {
   ABUSE_SIGNAL_SCORE_THRESHOLD: number;
   ABUSE_SIGNAL_GEO_ENABLED: boolean;
   ABUSE_SIGNAL_HASH_SALT: string;
+  PREVIEW_INACTIVITY_THRESHOLD_MS: number;
+  PREVIEW_MAX_AGE_MS: number;
 }
