@@ -157,6 +157,7 @@ async function bootstrap() {
     .addTag("stellar", "Verified assets, path preview, Soroban preflight")
     .addTag("contracts", "Contract registry publication and discovery")
     .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
+    .addTag("dashboard", "Dashboard activity feed aggregating payments, refunds, notifications, contract actions, and more")
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

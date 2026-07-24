@@ -57,6 +57,7 @@ import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
 import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
 import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
 import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 
 type AppImport =
 | Type<unknown>
@@ -98,8 +99,8 @@ ContractsModule,
 FeatureFlagsModule,
 PrivacyModule,
 SorobanToolingModule,
-EnvironmentParityModule,
-  BranchPreviewModule,
+EnvironmentParityModule,    BranchPreviewModule,
+    DashboardModule,
   IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
