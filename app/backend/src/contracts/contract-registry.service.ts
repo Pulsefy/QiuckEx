@@ -28,7 +28,6 @@ import {
 import {
   ContractChangeWebhookDispatcher,
 } from './contract-change-webhook.dispatcher';
-import { DeploymentValidationService } from './deployment-validation.service';
 
 interface RegistryRecord {
   name: string;
@@ -49,7 +48,6 @@ interface RegistryRecord {
   createdAt: string;
   updatedAt: string;
   networkPassphrase: string;
-  ledgerSequence?: number;
   active: boolean;
 }
 
@@ -67,7 +65,6 @@ export class ContractRegistryService {
     private readonly eventEmitter: EventEmitter2,
     private readonly contractChangeWebhookService: ContractChangeWebhookService,
     private readonly webhookDispatcher: ContractChangeWebhookDispatcher,
-    private readonly deploymentValidationService: DeploymentValidationService,
   ) {
     this.expectedContracts = (process.env.CONTRACT_REGISTRY_EXPECTED_SET ?? 'quickex')
       .split(',')
@@ -150,12 +147,7 @@ export class ContractRegistryService {
     }
 
     this.validatePassphrase(dto.networkPassphrase);
-    
-    // Validate ledger sequence if provided
-    if (dto.ledgerSequence !== undefined) {
-      this.deploymentValidationService.validateLedgerSequence(dto.ledgerSequence);
-    }
-    
+
     const normalizedName = dto.name.trim().toLowerCase();
     const now = new Date().toISOString();
     const records = await this.readRecords();
@@ -192,7 +184,6 @@ export class ContractRegistryService {
       createdAt: now,
       updatedAt: now,
       networkPassphrase: dto.networkPassphrase,
-      ledgerSequence: dto.ledgerSequence,
       active: true,
     };
 
@@ -610,7 +601,6 @@ export class ContractRegistryService {
       updatedAt: record.updatedAt,
       registryVersion: record.version,
       deploymentId: record.deploymentId,
-      ledgerSequence: record.ledgerSequence,
     };
   }
 
