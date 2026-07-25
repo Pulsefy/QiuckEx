@@ -58,7 +58,6 @@ function buildSupabaseMock(overrides: {
 
 describe('TransactionTimelineService', () => {
   let service: TransactionTimelineService;
-  let supabase: { getClient: jest.Mock };
   let horizonService: { getPayments: jest.Mock };
 
   async function init(
@@ -76,7 +75,6 @@ describe('TransactionTimelineService', () => {
     }).compile();
 
     service = module.get(TransactionTimelineService);
-    supabase = supabaseMock as unknown as { getClient: jest.Mock };
   }
 
   // ── Complete timeline ────────────────────────────────────────────────────

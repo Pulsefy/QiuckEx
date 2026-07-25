@@ -4,7 +4,6 @@ import { HorizonService } from '../transactions/horizon.service';
 import type {
   TimelineItem,
   TimelineResponse,
-  TimelineEventKind,
   PaymentTimelineDetail,
   RefundTimelineDetail,
   WebhookTimelineDetail,
