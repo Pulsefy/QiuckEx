@@ -609,6 +609,29 @@ export class SupabaseService {
   }
 
   /**
+   * Fetch a single public profile by username
+   */
+  async getPublicProfile(
+    username: string,
+  ): Promise<SearchProfileResult | null> {
+    const { data, error } = await this.client
+      .from("usernames")
+      .select(
+        "id, username, public_key, created_at, last_active_at, is_public",
+      )
+      .eq("username", username)
+      .eq("is_public", true)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null; // not found
+      this.handleError(error);
+    }
+
+    return (data as SearchProfileResult) ?? null;
+  }
+
+  /**
    * Toggle public profile visibility
    */
   async togglePublicProfile(

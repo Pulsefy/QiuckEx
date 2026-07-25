@@ -19,6 +19,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
       updateUsernameActivity: jest.fn(),
       listUsernamesByPublicKey: jest.fn(),
       getUsername: jest.fn(),
+      getPublicProfile: jest.fn(),
     };
 
     configMock = { maxUsernamesPerWallet: 5 };
@@ -30,9 +31,13 @@ describe('UsernamesService - Public Profile Discovery', () => {
       setTrendingResults: jest.fn(),
       getRecentlyActiveResults: jest.fn(),
       setRecentlyActiveResults: jest.fn(),
+      getProfile: jest.fn(),
+      setProfile: jest.fn(),
       invalidateSearchCache: jest.fn(),
       invalidateTrendingCache: jest.fn(),
       invalidateRecentlyActiveCache: jest.fn(),
+      invalidateProfile: jest.fn(),
+      invalidateForUsername: jest.fn(),
       getStats: jest.fn(),
     };
 
