@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SearchBar } from "@/components/SearchBar";
 import "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -28,7 +29,7 @@ export function Header() {
       </a>
       <nav
         aria-label="Primary navigation"
-        className="container mx-auto flex items-center justify-between gap-4 px-6 py-4"
+        className="container mx-auto flex items-center justify-between gap-4 px-6 py-3"
       >
         <Link
           href="/"
@@ -46,12 +47,35 @@ export function Header() {
           </span>
         </Link>
 
-        <div className="hidden gap-8 text-sm font-medium md:flex">
+        {/* Global SearchBar in Header */}
+        <div className="hidden sm:block flex-1 max-w-sm mx-4">
+          <SearchBar placeholder="Search profiles & listings..." />
+        </div>
+
+        <div className="hidden gap-6 text-sm font-medium md:flex items-center">
+          <Link
+            href="/discovery"
+            aria-current={isActive("/discovery") ? "page" : undefined}
+            className={`${NAV_LINK_CLASS} ${
+              isActive("/discovery") ? "text-foreground font-semibold" : ""
+            }`}
+          >
+            Discover
+          </Link>
+          <Link
+            href="/marketplace"
+            aria-current={isActive("/marketplace") ? "page" : undefined}
+            className={`${NAV_LINK_CLASS} ${
+              isActive("/marketplace") ? "text-foreground font-semibold" : ""
+            }`}
+          >
+            Marketplace
+          </Link>
           <Link
             href="/dashboard"
             aria-current={isActive("/dashboard") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/dashboard") ? "text-foreground" : ""
+              isActive("/dashboard") ? "text-foreground font-semibold" : ""
             }`}
           >
             {t("dashboard")}
@@ -60,7 +84,7 @@ export function Header() {
             href="/generator"
             aria-current={isActive("/generator") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/generator") ? "text-foreground" : ""
+              isActive("/generator") ? "text-foreground font-semibold" : ""
             }`}
           >
             {t("linkGenerator")}
@@ -69,7 +93,7 @@ export function Header() {
             href="/notifications"
             aria-current={isActive("/notifications") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/notifications") ? "text-foreground" : ""
+              isActive("/notifications") ? "text-foreground font-semibold" : ""
             }`}
           >
             Notifications
@@ -78,14 +102,14 @@ export function Header() {
             href="/settings"
             aria-current={isActive("/settings") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/settings") ? "text-foreground" : ""
+              isActive("/settings") ? "text-foreground font-semibold" : ""
             }`}
           >
             {t("profileSettings")}
           </Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <ThemeToggle />
           <NotificationBell />
           <LocaleSwitcher />

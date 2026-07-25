@@ -33,6 +33,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
+import { SearchModule } from "./search/search.module";
 import { SentryModule } from "./sentry";
 import { FiatRampsModule } from "./fiat-ramps/fiat-ramps.module";
 import { RefundsModule } from "./refunds/refunds.module";
@@ -89,6 +90,7 @@ PaymentsModule,
 IngestionModule,
 ApiKeysModule,
 MarketplaceModule,
+SearchModule,
 FiatRampsModule,
 RefundsModule,
 ExportsModule,
