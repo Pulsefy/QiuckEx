@@ -31,6 +31,7 @@ export class ReportIssueRepository {
         context: report.context,
         attachments: report.attachments,
         redacted_payload: report.redactedPayload,
+        ip_address_hash: report.ipAddressHash,
       })
       .select('id')
       .single();
@@ -173,6 +174,7 @@ export class ReportIssueRepository {
       context: row.context,
       attachments: row.attachments,
       redactedPayload: row.redacted_payload,
+      ipAddressHash: row.ip_address_hash,
       createdAt: new Date(row.created_at),
     };
   }

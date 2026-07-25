@@ -1,4 +1,5 @@
 import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import { CreateReportIssueDto, EnvironmentInfoDto, AttachmentReferenceDto } from './';
 
 describe('CreateReportIssueDto', () => {
@@ -60,19 +61,20 @@ describe('CreateReportIssueDto', () => {
   });
 
   it('should accept valid attachments', async () => {
-    const dto = new CreateReportIssueDto();
-    dto.issueType = 'bug';
-    dto.title = 'Test issue';
-    dto.description = 'Test description';
-    dto.environment = new EnvironmentInfoDto();
-    dto.attachments = [
-      {
-        id: 'att_1',
-        name: 'screenshot.png',
-        type: 'image/png',
-        size: 1024,
-      },
-    ];
+    const dto = plainToInstance(CreateReportIssueDto, {
+      issueType: 'bug',
+      title: 'Test issue',
+      description: 'Test description',
+      environment: {},
+      attachments: [
+        {
+          id: 'att_1',
+          name: 'screenshot.png',
+          type: 'image/png',
+          size: 1024,
+        },
+      ],
+    });
 
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, IsObject } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { EnvironmentInfoDto } from './environment-info.dto';
 import { AttachmentReferenceDto } from './attachment-reference.dto';
 
@@ -103,5 +103,18 @@ export class CreateReportIssueDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => AttachmentReferenceDto)
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) {
+      return value;
+    }
+
+    return value.map(item => {
+      if (item instanceof AttachmentReferenceDto) {
+        return item;
+      }
+
+      return Object.assign(new AttachmentReferenceDto(), item);
+    });
+  })
   attachments?: AttachmentReferenceDto[];
 }

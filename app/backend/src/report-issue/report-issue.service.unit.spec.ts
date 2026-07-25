@@ -122,6 +122,21 @@ describe('ReportIssueService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('should persist the hashed IP address with the report', async () => {
+      mockReportIssueRepository.getRecentReportCount.mockResolvedValue(0);
+      mockRedactionService.redact.mockImplementation((text: string) => text);
+      mockRedactionService.redactObject.mockImplementation((obj: unknown) => obj);
+      mockReportIssueRepository.createReportIssue.mockResolvedValue('report_123');
+
+      await service.submitReport(validSubmission, '127.0.0.1');
+
+      expect(mockReportIssueRepository.createReportIssue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ipAddressHash: expect.any(String),
+        }),
+      );
+    });
+
     it('should handle attachments in submission', async () => {
       mockReportIssueRepository.getRecentReportCount.mockResolvedValue(0);
       mockRedactionService.redact.mockImplementation((text: string) => text);

@@ -72,6 +72,7 @@ export class ReportIssueService {
         context: redactedContext as Record<string, unknown> | undefined,
         attachments: submission.attachments,
         redactedPayload,
+        ipAddressHash: this.hashIpAddress(ipAddress),
       };
 
       const reportId = await this.repository.createReportIssue(report);

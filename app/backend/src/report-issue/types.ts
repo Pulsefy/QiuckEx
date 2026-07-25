@@ -12,6 +12,7 @@ export interface ReportIssue {
   context?: Record<string, unknown>;
   attachments?: AttachmentReference[];
   redactedPayload: Record<string, unknown>;
+  ipAddressHash?: string;
   createdAt: Date;
 }
 
