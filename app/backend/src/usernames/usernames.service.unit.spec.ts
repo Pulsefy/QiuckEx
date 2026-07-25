@@ -23,6 +23,7 @@ describe('UsernamesService', () => {
     getTrendingCreators: jest.fn(),
     getRecentlyActiveUsers: jest.fn(),
     getFeaturedUsernames: jest.fn(),
+    getPublicProfile: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -55,9 +56,13 @@ describe('UsernamesService', () => {
             setTrendingResults: jest.fn(),
             getRecentlyActiveResults: jest.fn(),
             setRecentlyActiveResults: jest.fn(),
+            getProfile: jest.fn(),
+            setProfile: jest.fn(),
             invalidateSearchCache: jest.fn(),
             invalidateTrendingCache: jest.fn(),
             invalidateRecentlyActiveCache: jest.fn(),
+            invalidateProfile: jest.fn(),
+            invalidateForUsername: jest.fn(),
             getStats: jest.fn(),
           },
         },
