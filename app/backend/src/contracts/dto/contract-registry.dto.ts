@@ -184,14 +184,6 @@ export class UpsertContractDeploymentDto {
   @IsObject()
   metadata?: Record<string, unknown>;
 
-  @ApiPropertyOptional({
-    example: 47000000,
-    description: 'Ledger sequence at deployment time for network binding validation'
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  ledgerSequence?: number;
 }
 
 export class RollbackContractRegistryDto {
@@ -276,12 +268,6 @@ export class ContractDeploymentItemDto {
 
   @ApiPropertyOptional({ example: 'deploy-2026-06-02T11:54:30Z' })
   deploymentId?: string;
-
-  @ApiPropertyOptional({
-    example: 47000000,
-    description: 'Ledger sequence at deployment time for network binding validation'
-  })
-  ledgerSequence?: number;
 }
 
 export class ContractDeploymentsResponseDto {
