@@ -114,7 +114,7 @@ describe('UsernamesService - Cache Invalidation', () => {
     };
 
     it('returns cached profile without hitting Supabase', async () => {
-      cacheMock.getProfile!.mockReturnValue(profile as any);
+      cacheMock.getProfile!.mockReturnValue(profile);
 
       const result = await service.getPublicProfile('alice');
 
@@ -124,7 +124,7 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('fetches from Supabase and caches on miss', async () => {
-      supabaseMock.getPublicProfile!.mockResolvedValue(profile as any);
+      supabaseMock.getPublicProfile!.mockResolvedValue(profile);
 
       const result = await service.getPublicProfile('alice');
 
@@ -143,7 +143,7 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('normalizes username before lookup', async () => {
-      supabaseMock.getPublicProfile!.mockResolvedValue(profile as any);
+      supabaseMock.getPublicProfile!.mockResolvedValue(profile);
 
       await service.getPublicProfile('Alice');
 
@@ -157,7 +157,7 @@ describe('UsernamesService - Cache Invalidation', () => {
       const cached = [
         { id: '1', username: 'alice', public_key: 'pk', created_at: '', last_active_at: null, is_public: true },
       ];
-      cacheMock.getSearchResults!.mockReturnValue(cached as any);
+      cacheMock.getSearchResults!.mockReturnValue(cached);
       supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       const result = await service.searchPublicUsernames('alice', 10);
@@ -170,7 +170,7 @@ describe('UsernamesService - Cache Invalidation', () => {
       const fresh = [
         { id: '1', username: 'alice', public_key: 'pk', created_at: '', last_active_at: null, is_public: true },
       ];
-      supabaseMock.searchPublicUsernames!.mockResolvedValue(fresh as any);
+      supabaseMock.searchPublicUsernames!.mockResolvedValue(fresh);
       supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
       supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
@@ -183,7 +183,7 @@ describe('UsernamesService - Cache Invalidation', () => {
 
   describe('trending caching', () => {
     it('returns cached trending results without hitting Supabase', async () => {
-      cacheMock.getTrendingResults!.mockReturnValue([] as any);
+      cacheMock.getTrendingResults!.mockReturnValue([]);
 
       const result = await service.getTrendingCreators(24, 10);
 
@@ -194,7 +194,7 @@ describe('UsernamesService - Cache Invalidation', () => {
 
   describe('recently active caching', () => {
     it('returns cached recently active results without hitting Supabase', async () => {
-      cacheMock.getRecentlyActiveResults!.mockReturnValue([] as any);
+      cacheMock.getRecentlyActiveResults!.mockReturnValue([]);
 
       const result = await service.getRecentlyActiveUsers(24, 10);
 
