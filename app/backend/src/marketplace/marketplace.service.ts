@@ -3,6 +3,12 @@ import { SupabaseService, MarketplaceListing, MarketplaceBid } from '../supabase
 import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 import { UsernamesService } from '../usernames/usernames.service';
 import { MarketplaceError, MarketplaceErrorCode } from './errors';
+import {
+  buildMarketplaceStateHints,
+  MarketplaceListingDetail,
+  resolveHighBidAmount,
+  truncateStellarPublicKey,
+} from './marketplace-listing-detail';
 
 @Injectable()
 export class MarketplaceService {
@@ -63,6 +69,36 @@ export class MarketplaceService {
       );
     }
     return listing;
+  }
+
+  async getListingDetail(
+    listingId: string,
+    viewerPublicKey?: string | null,
+  ): Promise<MarketplaceListingDetail> {
+    const listing = await this.getListing(listingId);
+    const bidPage = await this.supabase.getBidsByListingIdPaginated(
+      listingId,
+      50,
+      null,
+    );
+    const highBidAmount = resolveHighBidAmount(
+      Number(listing.asking_price),
+      bidPage.bids,
+    );
+
+    return {
+      listing,
+      bids: bidPage.bids,
+      seller: {
+        public_key: listing.seller_public_key,
+        display_key: truncateStellarPublicKey(listing.seller_public_key),
+      },
+      state_hints: buildMarketplaceStateHints(
+        listing,
+        highBidAmount,
+        viewerPublicKey,
+      ),
+    };
   }
 
   async cancelListing(listingId: string, sellerPublicKey: string): Promise<void> {

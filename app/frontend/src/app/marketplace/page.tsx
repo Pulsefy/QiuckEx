@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { UsernameCard } from "@/components/UsernameCard";
 import { ListingDetailModal } from "@/components/ListingDetailModal";
 import {
@@ -74,13 +75,14 @@ function StatsBar({ listings }: { listings: MarketplaceListing[] }) {
 }
 
 function MarketplacePageContent() {
+  const searchParams = useSearchParams();
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [sortKey, setSortKey] = useState("ending");
   const [activeListing, setActiveListing] = useState<MarketplaceListing | null>(null);
-  const [detailListing, setDetailListing] = useState<MarketplaceListing | null>(null);
+  const [detailListingId, setDetailListingId] = useState<string | null>(null);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
   const { watchlist, isInWatchlist, toggleWatchlist } = useWatchlist();
@@ -92,6 +94,13 @@ function MarketplacePageContent() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    const listingFromQuery = searchParams.get("listing");
+    if (listingFromQuery) {
+      setDetailListingId(listingFromQuery);
+    }
+  }, [searchParams]);
 
   // Subscribe to real-time updates for all listings
   useEffect(() => {
@@ -133,7 +142,7 @@ function MarketplacePageContent() {
   }
 
   function handleOpenBid(listing: MarketplaceListing) {
-    setDetailListing(null);
+    setDetailListingId(null);
     setActiveListing(listing);
   }
 
@@ -399,7 +408,7 @@ function MarketplacePageContent() {
                 key={listing.id}
                 listing={listing}
                 onBid={handleOpenBid}
-                onViewDetails={setDetailListing}
+                onViewDetails={(listing) => setDetailListingId(listing.id)}
               />
             ))}
           </div>
@@ -407,9 +416,9 @@ function MarketplacePageContent() {
       </div>
 
       <ListingDetailModal
-        listing={detailListing}
-        isWatched={detailListing ? isInWatchlist(detailListing.id) : false}
-        onClose={() => setDetailListing(null)}
+        listingId={detailListingId}
+        isWatched={detailListingId ? isInWatchlist(detailListingId) : false}
+        onClose={() => setDetailListingId(null)}
         onToggleWatchlist={(listing) => toggleWatchlist(listing.id, listing.username)}
         onPlaceBid={handleOpenBid}
       />
