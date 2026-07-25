@@ -18,6 +18,7 @@ describe('UsernamesService - Public Profile Discovery', () => {
       togglePublicProfile: jest.fn(),
       updateUsernameActivity: jest.fn(),
       listUsernamesByPublicKey: jest.fn(),
+      getUsername: jest.fn(),
     };
 
     configMock = { maxUsernamesPerWallet: 5 };
@@ -99,6 +100,22 @@ describe('UsernamesService - Public Profile Discovery', () => {
     it('throws if username not found', async () => {
       supabaseMock.listUsernamesByPublicKey!.mockResolvedValue([]);
       await expect(service.togglePublicProfile('alice', 'pk1', true)).rejects.toThrow(UsernameValidationError);
+    });
+  });
+
+  describe('getProfileByUsername', () => {
+    it('returns the profile if found', async () => {
+      const mockProfile = { id: '1', username: 'alice', public_key: 'pk1', created_at: '', last_active_at: '', is_public: true };
+      supabaseMock.getUsername!.mockResolvedValue(mockProfile);
+
+      const res = await service.getProfileByUsername('alice');
+      expect(res).toEqual(mockProfile);
+      expect(supabaseMock.getUsername).toHaveBeenCalledWith('alice');
+    });
+
+    it('throws UsernameValidationError if not found', async () => {
+      supabaseMock.getUsername!.mockResolvedValue(null);
+      await expect(service.getProfileByUsername('nonexistent')).rejects.toThrow(UsernameValidationError);
     });
   });
 });

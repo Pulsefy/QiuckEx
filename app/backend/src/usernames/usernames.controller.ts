@@ -4,6 +4,7 @@ import {
   Get,
   Post,
   Query,
+  Param,
   ConflictException,
   BadRequestException,
   ForbiddenException,
@@ -398,6 +399,56 @@ export class UsernamesController {
         body.isPublic,
       );
       return { ok: true };
+    } catch (err) {
+      if (err instanceof UsernameValidationError) {
+        if (err.code === UsernameErrorCode.NOT_FOUND) {
+          throw new NotFoundException({
+            code: UsernameErrorCode.NOT_FOUND,
+            message: err.message,
+          });
+        }
+        throw new BadRequestException({
+          code: err.code,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Get(":username")
+  @ApiOperation({
+    summary: "Get profile by username",
+    description: "Returns profile details for a given username. " +
+      "If the profile is private, returns a privacy-aware response.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Profile details",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Username not found",
+  })
+  async getProfile(
+    @Param("username") username: string,
+  ): Promise<any> {
+    try {
+      const profile = await this.usernamesService.getProfileByUsername(username);
+      if (!profile.is_public) {
+        return {
+          username: profile.username,
+          isPublic: false,
+        };
+      }
+      return {
+        id: profile.id,
+        username: profile.username,
+        publicKey: profile.public_key,
+        isPublic: true,
+        lastActiveAt: profile.last_active_at || profile.created_at,
+        createdAt: profile.created_at,
+      };
     } catch (err) {
       if (err instanceof UsernameValidationError) {
         if (err.code === UsernameErrorCode.NOT_FOUND) {

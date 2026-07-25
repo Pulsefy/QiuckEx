@@ -159,6 +159,18 @@ export class SupabaseService {
     return data ?? [];
   }
 
+  async getUsername(username: string): Promise<SearchProfileResult | null> {
+    const { data, error } = await this.client
+      .from("usernames")
+      .select("id, username, public_key, created_at, last_active_at, is_public")
+      .eq("username", username.toLowerCase())
+      .maybeSingle();
+
+    if (error) this.handleError(error);
+    return data as SearchProfileResult | null;
+  }
+
+
   // ---------------------------------------------------------------------------
   // Reconciliation helpers
   // ---------------------------------------------------------------------------

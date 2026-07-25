@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { QRPreview } from "@/components/QRPreview";
+import { getQuickexApiBase } from "@/lib/api";
 
 type Profile = {
   username: string;
@@ -15,6 +16,7 @@ type Profile = {
   twitterHandle?: string;
   discordHandle?: string;
   githubHandle?: string;
+  isPublic?: boolean;
 };
 
 const FOCUS_RING_CLASS =
@@ -26,7 +28,7 @@ export default function PublicProfile() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -35,37 +37,80 @@ export default function PublicProfile() {
   });
 
   useEffect(() => {
-    // TODO: Fetch profile from API
-    // Mock data for now
-    setTimeout(() => {
-      setProfile({
-        username,
-        publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-        primaryColor: "#6366f1",
-        avatarUrl: "",
-        bio: "Building the future of payments on Stellar",
-        twitterHandle: "stellarorg",
-        discordHandle: "",
-        githubHandle: "stellar",
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    fetch(`${getQuickexApiBase()}/username/${username}`)
+      .then((res) => {
+        if (res.status === 404) {
+          throw new Error("404");
+        }
+        if (!res.ok) {
+          throw new Error("Failed to load profile");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (active) {
+          setProfile(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err.message === "404" ? "Username not found" : "Failed to load profile");
+          setLoading(false);
+        }
       });
-      setLoading(false);
-    }, 500);
+
+    return () => {
+      active = false;
+    };
   }, [username]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-foreground">
-        <p>Loading profile...</p>
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <p className="text-subtle">Loading profile...</p>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-foreground">
-        <div className="text-center">
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4">
           <h1 className="text-4xl font-black mb-4">404</h1>
-          <p className="text-subtle">Username not found</p>
+          <p className="text-subtle text-lg mb-6">{error || "Username not found"}</p>
+          <a
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.isPublic === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4 max-w-md">
+          <div className="text-6xl mb-6 select-none">🔒</div>
+          <h1 className="text-3xl font-black mb-3">This Profile is Private</h1>
+          <p className="text-subtle text-lg mb-8">
+            The profile for <strong className="text-foreground">@{username}</strong> exists but has been set to private by the owner.
+          </p>
+          <a
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </a>
         </div>
       </div>
     );
