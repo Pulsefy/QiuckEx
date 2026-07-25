@@ -323,4 +323,25 @@ export class AppConfigService {
   get abuseSignalHashSalt(): string {
     return this.configService.get("ABUSE_SIGNAL_HASH_SALT", { infer: true });
   }
+
+  /**
+   * Max issue reports per hour per IP
+   */
+  get reportIssueMaxPerHour(): number {
+    return this.configService.get("REPORT_ISSUE_MAX_PER_HOUR", { infer: true });
+  }
+
+  /**
+   * Max issue reports per day per IP
+   */
+  get reportIssueMaxPerDay(): number {
+    return this.configService.get("REPORT_ISSUE_MAX_PER_DAY", { infer: true });
+  }
+
+  /**
+   * Salt for IP hashing in report issue abuse prevention
+   */
+  get reportIssueHashSalt(): string {
+    return this.configService.get("REPORT_ISSUE_HASH_SALT", { infer: true });
+  }
 }

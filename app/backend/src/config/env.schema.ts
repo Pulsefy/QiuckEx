@@ -418,6 +418,22 @@ export const envSchema = Joi.object({
     .min(0)
     .default(14 * 24 * 60 * 60 * 1000)
     .description("Maximum age before branch preview auto-expiry"),
+
+  // ── Report Issue Configuration ───────────────────────────────────────────
+  REPORT_ISSUE_MAX_PER_HOUR: Joi.number()
+    .integer()
+    .min(1)
+    .default(5)
+    .description("Max issue reports per hour per IP"),
+  REPORT_ISSUE_MAX_PER_DAY: Joi.number()
+    .integer()
+    .min(1)
+    .default(20)
+    .description("Max issue reports per day per IP"),
+  REPORT_ISSUE_HASH_SALT: Joi.string()
+    .empty("")
+    .default("default-report-issue-salt")
+    .description("Salt for IP hashing in report issue abuse prevention"),
 });
 
 /**
@@ -488,4 +504,7 @@ export interface EnvConfig {
   ABUSE_SIGNAL_HASH_SALT: string;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;
+  REPORT_ISSUE_MAX_PER_HOUR: number;
+  REPORT_ISSUE_MAX_PER_DAY: number;
+  REPORT_ISSUE_HASH_SALT: string;
 }
