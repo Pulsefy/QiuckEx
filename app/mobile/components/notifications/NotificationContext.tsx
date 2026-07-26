@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
+import { useSession } from "../../contexts/SessionContext";
 
 import { PaymentNotification } from "./types/notification";
 import {
@@ -83,7 +84,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isHydrated, setIsHydrated] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(true);
-  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
+  const { data: sessionData } = useSession();
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(sessionData?.unreadCount ?? 0);
+
+  useEffect(() => {
+    if (sessionData?.unreadCount !== undefined) {
+      setInboxUnreadCount(sessionData.unreadCount);
+    }
+  }, [sessionData?.unreadCount]);
 
   useEffect(() => {
     registerNotificationReadHandlers();
@@ -92,16 +100,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       AsyncStorage.getItem(STORAGE_KEY),
       getBackgroundSyncSettings(),
       getSyncSnapshot(),
-      getUnreadCount().catch(() => 0),
     ])
-      .then(([soundValue, settings, snapshot, inboxUnread]) => {
+      .then(([soundValue, settings, snapshot]) => {
         setSoundEnabledState(soundValue !== "0");
         setBackgroundSyncSettingsState(settings);
         setNotifications(snapshot.notifications);
         setRecentActivity(snapshot.recentActivity);
         setCurrentAccountId(snapshot.currentAccountId);
         setLastSyncedAt(snapshot.lastSuccessfulSyncAt);
-        setInboxUnreadCount(inboxUnread);
         setIsHydrated(true);
       })
       .catch(() => {
