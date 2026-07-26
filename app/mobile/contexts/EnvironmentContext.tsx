@@ -45,7 +45,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
   const [compatibility, setCompatibility] = useState<CompatibilityResult | null>(null);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
-  const current = ENVIRONMENTS[currentId];
+  const current = ENVIRONMENTS[currentId] || ENVIRONMENTS[DEFAULT_ENVIRONMENT];
 
   const available = useMemo(
     () => Object.values(ENVIRONMENTS),
@@ -84,7 +84,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
     } else {
       setCompatibility({ compatible: true });
     }
-  }, [current.stellarNetwork]);
+  }, [current?.stellarNetwork]);
 
   const switchEnvironment = useCallback(
     async (id: EnvironmentId) => {
