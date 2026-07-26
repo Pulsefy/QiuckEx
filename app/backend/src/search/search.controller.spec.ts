@@ -36,6 +36,11 @@ describe('SearchController & SearchService', () => {
     jest.clearAllMocks();
   });
 
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+    expect(service).toBeDefined();
+  });
+
   describe('unifiedSearch', () => {
     it('returns mixed profile and listing search results', async () => {
       mockUsernamesService.searchPublicUsernames.mockResolvedValueOnce({
