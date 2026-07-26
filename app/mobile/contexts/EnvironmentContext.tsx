@@ -31,7 +31,7 @@ export interface EnvironmentContextValue {
   metadata: BackendMetadata | null;
   compatibility: CompatibilityResult | null;
   isFetchingMetadata: boolean;
-  fetchMetadata: () => Promise<void>;
+  processMetadata: (data: BackendMetadata) => void;
 }
 
 const EnvironmentContext = createContext<EnvironmentContextValue | undefined>(
@@ -65,49 +65,26 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
-  const fetchMetadata = useCallback(async () => {
-    setIsFetchingMetadata(true);
-    setCompatibility(null);
-    try {
-      const response = await fetch(`${current.apiUrl}/health`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) {
-        setCompatibility({
-          compatible: false,
-          reason: `Backend returned status ${response.status}`,
-        });
-        return;
-      }
-      const data = (await response.json()) as BackendMetadata;
-      setMetadata(data);
+  const processMetadata = useCallback((data: BackendMetadata) => {
+    setMetadata(data);
 
-      const minVersion = data.minAppVersion ?? '0.0.0';
-      const appVersion = '1.0.0'; // In production, read from build config
+    const minVersion = data.minAppVersion ?? '0.0.0';
+    const appVersion = '1.0.0'; // In production, read from build config
 
-      if (compareVersions(appVersion, minVersion) < 0) {
-        setCompatibility({
-          compatible: false,
-          reason: `App version ${appVersion} is below minimum required ${minVersion}. Please update the app.`,
-        });
-      } else if (data.stellarNetwork && data.stellarNetwork !== current.stellarNetwork) {
-        setCompatibility({
-          compatible: false,
-          reason: `Stellar network mismatch: backend runs on ${data.stellarNetwork} but environment expects ${current.stellarNetwork}.`,
-        });
-      } else {
-        setCompatibility({ compatible: true });
-      }
-    } catch (error) {
+    if (compareVersions(appVersion, minVersion) < 0) {
       setCompatibility({
         compatible: false,
-        reason: error instanceof Error ? error.message : 'Failed to reach backend',
+        reason: `App version ${appVersion} is below minimum required ${minVersion}. Please update the app.`,
       });
-    } finally {
-      setIsFetchingMetadata(false);
+    } else if (data.stellarNetwork && data.stellarNetwork !== current.stellarNetwork) {
+      setCompatibility({
+        compatible: false,
+        reason: `Stellar network mismatch: backend runs on ${data.stellarNetwork} but environment expects ${current.stellarNetwork}.`,
+      });
+    } else {
+      setCompatibility({ compatible: true });
     }
-  }, [current.apiUrl, current.stellarNetwork]);
+  }, [current.stellarNetwork]);
 
   const switchEnvironment = useCallback(
     async (id: EnvironmentId) => {
@@ -137,7 +114,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
       metadata,
       compatibility,
       isFetchingMetadata,
-      fetchMetadata,
+      processMetadata,
     }),
     [
       currentId,
@@ -149,7 +126,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
       metadata,
       compatibility,
       isFetchingMetadata,
-      fetchMetadata,
+      processMetadata,
     ],
   );
 
