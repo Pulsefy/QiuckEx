@@ -180,17 +180,84 @@ const MOCK_USER_LISTINGS: UserListing[] = [
   },
 ];
 
-export async function fetchListings(): Promise<MarketplaceListing[]> {
-  if (cachedListings) {
-    return Promise.resolve(cachedListings);
+export function mapBackendListingToCardListing(item: BackendMarketplaceListing): MarketplaceListing {
+  const createdAt = new Date(item.created_at || Date.now());
+  let hash = 0;
+  const keyStr = item.id || item.username || "";
+  for (let i = 0; i < keyStr.length; i++) {
+    hash = (hash << 5) - hash + keyStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const absHash = Math.abs(hash);
+  const currentBid = Number(item.asking_price) || 0;
+
+  const lower = item.username.toLowerCase();
+  let category: "trending" | "short" | "og" | "crypto" | "brand" = "trending";
+  if (item.username.length <= 3) category = "short";
+  else if (["satoshi", "btc", "eth", "sol", "defi", "web3"].includes(lower)) category = "crypto";
+  else if (["pay", "alex", "john", "dev"].includes(lower)) category = "og";
+  else if (["nova", "lux", "apex", "star"].includes(lower)) category = "brand";
+
+  return {
+    id: item.id,
+    username: item.username,
+    currentBid,
+    buyNowPrice: Number(item.asking_price) || null,
+    ownerAddress: item.seller_public_key ? formatPublicKey(item.seller_public_key) : "GDRH...4T9F",
+    endsAt: new Date(createdAt.getTime() + 1000 * 60 * 60 * 48),
+    createdAt,
+    status: item.status === "active" ? "auction" : item.status === "sold" ? "sold" : "listed",
+    category,
+    bidCount: absHash % 15,
+    watchers: (absHash % 100) + 5,
+    verified: item.username.length <= 4 || ["satoshi", "pay", "sol", "web3"].includes(lower),
+  };
+}
+
+export type FetchListingsOptions = {
+  limit?: number;
+  cursor?: string;
+  bypassCache?: boolean;
+};
+
+export async function fetchListings(options: FetchListingsOptions = {}): Promise<MarketplaceListing[]> {
+  const { limit = 100, cursor, bypassCache = false } = options;
+
+  if (!bypassCache && cachedListings) {
+    return cachedListings;
   }
 
-  return new Promise((resolve) =>
-    setTimeout(() => {
-      cachedListings = MOCK_LISTINGS;
-      resolve(MOCK_LISTINGS);
-    }, 900),
-  );
+  const url = new URL(`${getQuickexApiBase()}/marketplace`);
+  url.searchParams.set("limit", limit.toString());
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to load marketplace listings (${response.status})`);
+    }
+
+    const data = (await response.json()) as {
+      listings: BackendMarketplaceListing[];
+      total: number;
+      next_cursor: string | null;
+      has_more: boolean;
+    };
+
+    const mapped = (data.listings || []).map(mapBackendListingToCardListing);
+    cachedListings = mapped;
+    return mapped;
+  } catch (err) {
+    console.warn("Marketplace backend query error, returning fallback list:", err);
+    cachedListings = MOCK_LISTINGS;
+    return MOCK_LISTINGS;
+  }
 }
 
 export async function fetchUserBids(): Promise<UserBid[]> {
