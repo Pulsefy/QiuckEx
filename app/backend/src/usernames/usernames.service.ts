@@ -427,4 +427,20 @@ export class UsernamesService {
     // changes are reflected immediately on subsequent reads.
     this.cache.invalidateForUsername(normalized);
   }
+
+  async getProfileByUsername(username: string): Promise<SearchProfileResult> {
+    const normalized = this.normalizeUsername(username);
+    this.validateFormat(normalized);
+
+    const result = await this.supabase.getUsername(normalized);
+    if (!result) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.NOT_FOUND,
+        "Username not found",
+        "username",
+      );
+    }
+
+    return result;
+  }
 }
