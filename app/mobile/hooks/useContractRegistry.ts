@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ContractRegistryService } from '../services/contract-registry';
+import { ContractRegistryService, type ContractRegistry } from '../services/contract-registry';
 
 export type ContractRegistryStatus =
   | 'loading'
@@ -25,7 +25,11 @@ function formatLastUpdated(timestamp: number | null) {
   return `Updated ${elapsedDays}d ago`;
 }
 
-export function useContractRegistry(requiredContracts: string[], backendUrl: string) {
+export function useContractRegistry(
+  requiredContracts: string[],
+  backendUrl: string,
+  bootstrapRegistry?: ContractRegistry,
+) {
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<ContractRegistryStatus>('loading');
@@ -44,7 +48,7 @@ export function useContractRegistry(requiredContracts: string[], backendUrl: str
     setMissingContracts([]);
 
     try {
-      const result = await ContractRegistryService.sync(backendUrl);
+      const result = await ContractRegistryService.sync(backendUrl, bootstrapRegistry);
       const requiredContractNames = requiredContractKey ? requiredContractKey.split('|') : [];
       const missing = requiredContractNames.filter(c => !result.registry[c]);
 
@@ -72,7 +76,7 @@ export function useContractRegistry(requiredContracts: string[], backendUrl: str
       setFetchSource(null);
       setError(err instanceof Error ? err.message : 'Registry unavailable');
     }
-  }, [backendUrl, requiredContractKey]);
+  }, [backendUrl, requiredContractKey, bootstrapRegistry]);
 
   useEffect(() => {
     void syncRegistry(false);
