@@ -24,6 +24,12 @@ import {
   syncAppBadgeCount,
   updateStoredSyncSnapshot,
 } from "../../services/background-sync";
+import {
+  flushNotificationReadQueue,
+  registerNotificationReadHandlers,
+  syncMarkAllNotificationsRead,
+} from "../../services/notification-read-sync";
+import { getUnreadCount, markAllAsRead as markInboxAllAsRead } from "../../services/notifications";
 import type { TransactionItem } from "../../types/transaction";
 
 type NotificationContextShape = {
@@ -37,7 +43,8 @@ type NotificationContextShape = {
   isSyncing: boolean;
   lastSyncedAt: number | null;
   addNotification: (n: PaymentNotification) => void;
-  markAllRead: () => void;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
   syncNow: () => Promise<void>;
   setBackgroundSyncSettings: (
     updater:
@@ -76,20 +83,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isHydrated, setIsHydrated] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(true);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
 
   useEffect(() => {
+    registerNotificationReadHandlers();
+
     Promise.all([
       AsyncStorage.getItem(STORAGE_KEY),
       getBackgroundSyncSettings(),
       getSyncSnapshot(),
+      getUnreadCount().catch(() => 0),
     ])
-      .then(([soundValue, settings, snapshot]) => {
+      .then(([soundValue, settings, snapshot, inboxUnread]) => {
         setSoundEnabledState(soundValue !== "0");
         setBackgroundSyncSettingsState(settings);
         setNotifications(snapshot.notifications);
         setRecentActivity(snapshot.recentActivity);
         setCurrentAccountId(snapshot.currentAccountId);
         setLastSyncedAt(snapshot.lastSuccessfulSyncAt);
+        setInboxUnreadCount(inboxUnread);
         setIsHydrated(true);
       })
       .catch(() => {
@@ -101,6 +113,33 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     setSoundEnabledState(v);
     AsyncStorage.setItem(STORAGE_KEY, v ? "1" : "0").catch(() => {});
   }, []);
+
+  const refreshInboxUnreadCount = useCallback(async () => {
+    try {
+      const count = await getUnreadCount();
+      setInboxUnreadCount(count);
+      return count;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  const persistAndBadge = useCallback(
+    async (next: PaymentNotification[]) => {
+      const snapshot = await updateStoredSyncSnapshot((current) => ({
+        ...current,
+        notifications: next,
+      }));
+
+      const paymentUnread = getUnreadNotificationCount(snapshot);
+      const inboxUnread = await refreshInboxUnreadCount();
+      await syncAppBadgeCount(
+        Math.max(paymentUnread, inboxUnread),
+        backgroundSyncSettings.badgeEnabled,
+      );
+    },
+    [backgroundSyncSettings.badgeEnabled, refreshInboxUnreadCount],
+  );
 
   const addNotification = useCallback((n: PaymentNotification) => {
     setNotifications((prev) => {
@@ -117,41 +156,58 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
-  const markAllRead = useCallback(() => {
+  const markRead = useCallback(
+    async (id: string) => {
+      let nextNotifications: PaymentNotification[] = [];
+      setNotifications((prev) => {
+        nextNotifications = prev.map((notification) =>
+          notification.id === id
+            ? { ...notification, read: true }
+            : notification,
+        );
+        return nextNotifications;
+      });
+
+      await persistAndBadge(nextNotifications);
+    },
+    [persistAndBadge],
+  );
+
+  const markAllRead = useCallback(async () => {
+    let nextNotifications: PaymentNotification[] = [];
     setNotifications((prev) => {
-      const next = prev.map((notification) => ({
+      nextNotifications = prev.map((notification) => ({
         ...notification,
         read: true,
       }));
-
-      updateStoredSyncSnapshot((snapshot) => ({
-        ...snapshot,
-        notifications: next,
-      }))
-        .then((snapshot) =>
-          syncAppBadgeCount(
-            getUnreadNotificationCount(snapshot),
-            backgroundSyncSettings.badgeEnabled,
-          ),
-        )
-        .catch(() => {});
-
-      return next;
+      return nextNotifications;
     });
-  }, [backgroundSyncSettings.badgeEnabled]);
+
+    await persistAndBadge(nextNotifications);
+
+    // Keep in-app inbox + backend aligned for cross-device badge accuracy.
+    await markInboxAllAsRead().catch(async () => {
+      await syncMarkAllNotificationsRead(currentAccountId);
+    });
+    setInboxUnreadCount(0);
+  }, [currentAccountId, persistAndBadge]);
 
   const syncNow = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const result = await performBackgroundSync(isHydrated ? "manual" : "app-launch");
+      await flushNotificationReadQueue();
+      const result = await performBackgroundSync(
+        isHydrated ? "manual" : "app-launch",
+      );
       setNotifications(result.snapshot.notifications);
       setRecentActivity(result.snapshot.recentActivity);
       setCurrentAccountId(result.snapshot.currentAccountId);
       setLastSyncedAt(result.snapshot.lastSuccessfulSyncAt);
+      await refreshInboxUnreadCount();
     } finally {
       setIsSyncing(false);
     }
-  }, [isHydrated]);
+  }, [isHydrated, refreshInboxUnreadCount]);
 
   const setBackgroundSyncSettings = useCallback(
     async (
@@ -170,13 +226,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       const taskState = await configureBackgroundSyncTask(nextSettings);
       setBackgroundTaskAvailable(taskState.available);
 
+      const paymentUnread = notifications.filter(
+        (notification) => !notification.read,
+      ).length;
       await syncAppBadgeCount(
-        notifications.filter((notification) => !notification.read).length,
+        Math.max(paymentUnread, inboxUnreadCount),
         nextSettings.badgeEnabled,
         true,
       );
     },
-    [backgroundSyncSettings, notifications],
+    [backgroundSyncSettings, inboxUnreadCount, notifications],
   );
 
   useEffect(() => {
@@ -190,29 +249,44 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!isHydrated) return;
 
+    const paymentUnread = notifications.filter(
+      (notification) => !notification.read,
+    ).length;
     void syncAppBadgeCount(
-      notifications.filter((notification) => !notification.read).length,
+      Math.max(paymentUnread, inboxUnreadCount),
       backgroundSyncSettings.badgeEnabled,
     );
-  }, [backgroundSyncSettings.badgeEnabled, isHydrated, notifications]);
+  }, [
+    backgroundSyncSettings.badgeEnabled,
+    inboxUnreadCount,
+    isHydrated,
+    notifications,
+  ]);
 
   useEffect(() => {
     if (!isHydrated) return;
 
-    if (shouldSyncOnAppForeground({
-      ...DEFAULT_SYNC_SNAPSHOT,
-      notifications,
-      recentActivity,
-      currentAccountId,
-      lastSyncedAt,
-      lastSuccessfulSyncAt: lastSyncedAt,
-      initialSyncCompleted: true,
-    })) {
+    if (
+      shouldSyncOnAppForeground({
+        ...DEFAULT_SYNC_SNAPSHOT,
+        notifications,
+        recentActivity,
+        currentAccountId,
+        lastSyncedAt,
+        lastSuccessfulSyncAt: lastSyncedAt,
+        initialSyncCompleted: true,
+      })
+    ) {
       void syncNow();
     }
 
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+
+      void flushNotificationReadQueue()
+        .then(() => refreshInboxUnreadCount())
+        .catch(() => {});
+
       if (
         shouldSyncOnAppForeground({
           ...DEFAULT_SYNC_SNAPSHOT,
@@ -229,7 +303,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return () => subscription.remove();
-  }, [currentAccountId, isHydrated, lastSyncedAt, notifications, recentActivity, syncNow]);
+  }, [
+    currentAccountId,
+    isHydrated,
+    lastSyncedAt,
+    notifications,
+    recentActivity,
+    refreshInboxUnreadCount,
+    syncNow,
+  ]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -249,7 +331,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => clearInterval(intervalId);
   }, [backgroundSyncSettings, isHydrated]);
 
-  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const paymentUnread = notifications.filter(
+    (notification) => !notification.read,
+  ).length;
+  const unreadCount = Math.max(paymentUnread, inboxUnreadCount);
 
   return (
     <NotificationContext.Provider
@@ -264,6 +349,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         isSyncing,
         lastSyncedAt,
         addNotification,
+        markRead,
         markAllRead,
         syncNow,
         setBackgroundSyncSettings,
