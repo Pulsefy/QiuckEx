@@ -384,19 +384,66 @@ export class UsernamesService {
   }
 
   /**
-   * Fetch a single public profile by username, with caching.
+   * Fetch a single public profile by username, with caching and privacy checks.
    */
-  async getPublicProfile(username: string): Promise<SearchProfileResult | null> {
-    const normalized = this.normalizeUsername(username);
+  async getPublicProfile(
+    username: string,
+  ): Promise<SearchProfileResult & { paymentSettings?: { acceptedAssets: string[]; defaultAsset: string } }> {
+    const rawUsername = username ? username.trim().replace(/^@/, "") : "";
+    const normalized = this.normalizeUsername(rawUsername);
+
+    if (!normalized) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.INVALID_FORMAT,
+        "Username parameter is required",
+        "username",
+      );
+    }
 
     const cached = this.cache.getProfile(normalized);
-    if (cached) return cached;
+    if (cached) {
+      if (!cached.is_public) {
+        throw new UsernameValidationError(
+          UsernameErrorCode.PRIVACY_DISABLED,
+          "Public profile is disabled for this user",
+          "username",
+        );
+      }
+      return {
+        ...cached,
+        paymentSettings: {
+          acceptedAssets: ["USDC", "XLM", "AQUA", "yXLM"],
+          defaultAsset: "USDC",
+        },
+      };
+    }
 
     const profile = await this.supabase.getPublicProfile(normalized);
-    if (profile) {
-      this.cache.setProfile(normalized, profile);
+    if (!profile) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.NOT_FOUND,
+        "Username not found",
+        "username",
+      );
     }
-    return profile;
+
+    if (!profile.is_public) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.PRIVACY_DISABLED,
+        "Public profile is disabled for this user",
+        "username",
+      );
+    }
+
+    this.cache.setProfile(normalized, profile);
+
+    return {
+      ...profile,
+      paymentSettings: {
+        acceptedAssets: ["USDC", "XLM", "AQUA", "yXLM"],
+        defaultAsset: "USDC",
+      },
+    };
   }
 
   /**

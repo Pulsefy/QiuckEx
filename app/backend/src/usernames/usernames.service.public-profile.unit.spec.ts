@@ -106,4 +106,80 @@ describe('UsernamesService - Public Profile Discovery', () => {
       await expect(service.togglePublicProfile('alice', 'pk1', true)).rejects.toThrow(UsernameValidationError);
     });
   });
+
+  describe('getPublicProfile', () => {
+    it('returns public profile metadata and payment settings when is_public is true', async () => {
+      const mockProfile = {
+        id: 'uuid-1',
+        username: 'alice',
+        public_key: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        created_at: '2025-02-19T08:00:00Z',
+        last_active_at: '2025-03-27T10:00:00Z',
+        is_public: true,
+      };
+
+      supabaseMock.getPublicProfile!.mockResolvedValue(mockProfile);
+
+      const result = await service.getPublicProfile('alice');
+
+      expect(result.username).toBe('alice');
+      expect(result.public_key).toBe('GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
+      expect(result.is_public).toBe(true);
+      expect(result.paymentSettings).toEqual({
+        acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'],
+        defaultAsset: 'USDC',
+      });
+      expect(discoveryCacheMock.setProfile).toHaveBeenCalledWith('alice', mockProfile);
+    });
+
+    it('strips leading @ sign from username parameter', async () => {
+      const mockProfile = {
+        id: 'uuid-1',
+        username: 'alice',
+        public_key: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        created_at: '2025-02-19T08:00:00Z',
+        last_active_at: '2025-03-27T10:00:00Z',
+        is_public: true,
+      };
+
+      supabaseMock.getPublicProfile!.mockResolvedValue(mockProfile);
+
+      const result = await service.getPublicProfile('@alice');
+      expect(result.username).toBe('alice');
+      expect(supabaseMock.getPublicProfile).toHaveBeenCalledWith('alice');
+    });
+
+    it('throws PRIVACY_DISABLED when is_public is false', async () => {
+      const mockPrivateProfile = {
+        id: 'uuid-2',
+        username: 'bob',
+        public_key: 'GCXHJ66KNR5M3C7F8T9A0B1C2D3E4F5G6H7I8J9K0LAS',
+        created_at: '2025-02-20T08:00:00Z',
+        last_active_at: null,
+        is_public: false,
+      };
+
+      supabaseMock.getPublicProfile!.mockResolvedValue(mockPrivateProfile);
+
+      try {
+        await service.getPublicProfile('bob');
+        fail('Should have thrown UsernameValidationError');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(UsernameValidationError);
+        expect(err.code).toBe('USERNAME_PRIVACY_DISABLED');
+      }
+    });
+
+    it('throws NOT_FOUND when username does not exist', async () => {
+      supabaseMock.getPublicProfile!.mockResolvedValue(null);
+
+      try {
+        await service.getPublicProfile('nonexistent');
+        fail('Should have thrown UsernameValidationError');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(UsernameValidationError);
+        expect(err.code).toBe('USERNAME_NOT_FOUND');
+      }
+    });
+  });
 });

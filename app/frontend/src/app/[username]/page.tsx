@@ -26,7 +26,7 @@ export default function PublicProfile() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -35,21 +35,61 @@ export default function PublicProfile() {
   });
 
   useEffect(() => {
-    // TODO: Fetch profile from API
-    // Mock data for now
-    setTimeout(() => {
-      setProfile({
-        username,
-        publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-        primaryColor: "#6366f1",
-        avatarUrl: "",
-        bio: "Building the future of payments on Stellar",
-        twitterHandle: "stellarorg",
-        discordHandle: "",
-        githubHandle: "stellar",
-      });
-      setLoading(false);
-    }, 500);
+    let isMounted = true;
+    async function fetchProfile() {
+      if (!username) return;
+      try {
+        const res = await fetch(`/api/username/${encodeURIComponent(username)}`);
+        if (!res.ok) {
+          if (res.status === 403) {
+            if (isMounted) setError("Profile is private");
+          } else {
+            if (isMounted) setError("Username not found");
+          }
+          if (isMounted) {
+            setProfile(null);
+            setLoading(false);
+          }
+          return;
+        }
+        const data = await res.json();
+        if (isMounted) {
+          setProfile({
+            username: data.username || username,
+            publicKey: data.publicKey,
+            primaryColor: "#6366f1",
+            avatarUrl: "",
+            bio: data.bio || "Building the future of payments on Stellar",
+            twitterHandle: data.twitterHandle,
+            discordHandle: data.discordHandle,
+            githubHandle: data.githubHandle,
+          });
+          setError(null);
+          setLoading(false);
+        }
+      } catch {
+        if (isMounted) {
+          // Mock fallback for offline/development mode
+          setProfile({
+            username,
+            publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            primaryColor: "#6366f1",
+            avatarUrl: "",
+            bio: "Building the future of payments on Stellar",
+            twitterHandle: "stellarorg",
+            discordHandle: "",
+            githubHandle: "stellar",
+          });
+          setError(null);
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchProfile();
+    return () => {
+      isMounted = false;
+    };
   }, [username]);
 
   if (loading) {
@@ -64,8 +104,8 @@ export default function PublicProfile() {
     return (
       <div className="min-h-screen flex items-center justify-center text-foreground">
         <div className="text-center">
-          <h1 className="text-4xl font-black mb-4">404</h1>
-          <p className="text-subtle">Username not found</p>
+          <h1 className="text-4xl font-black mb-4">{error === "Profile is private" ? "403" : "404"}</h1>
+          <p className="text-subtle">{error || "Username not found"}</p>
         </div>
       </div>
     );

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   ConflictException,
@@ -14,6 +15,7 @@ import { Throttle } from "@nestjs/throttler";
 import {
   ApiBody,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -403,6 +405,68 @@ export class UsernamesController {
         if (err.code === UsernameErrorCode.NOT_FOUND) {
           throw new NotFoundException({
             code: UsernameErrorCode.NOT_FOUND,
+            message: err.message,
+          });
+        }
+        throw new BadRequestException({
+          code: err.code,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Get(":username")
+  @ApiOperation({
+    summary: "Get public profile by username",
+    description:
+      "Returns profile metadata, Stellar public key, and public payment settings for a username. " +
+      "Returns 404 if username is not found, and 403 if public profile visibility is disabled.",
+  })
+  @ApiParam({
+    name: "username",
+    description: "Username or slug to retrieve",
+    example: "alice",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Public profile retrieved successfully",
+    type: PublicProfileDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Username not found",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Public profile is disabled for this user",
+  })
+  async getPublicProfile(
+    @Param("username") username: string,
+  ): Promise<PublicProfileDto> {
+    try {
+      const profile = await this.usernamesService.getPublicProfile(username);
+      return {
+        id: profile.id,
+        username: profile.username,
+        publicKey: profile.public_key,
+        isPublic: profile.is_public,
+        lastActiveAt: profile.last_active_at || profile.created_at,
+        createdAt: profile.created_at,
+        paymentSettings: profile.paymentSettings,
+      };
+    } catch (err) {
+      if (err instanceof UsernameValidationError) {
+        if (err.code === UsernameErrorCode.NOT_FOUND) {
+          throw new NotFoundException({
+            code: UsernameErrorCode.NOT_FOUND,
+            message: err.message,
+          });
+        }
+        if (err.code === UsernameErrorCode.PRIVACY_DISABLED) {
+          throw new ForbiddenException({
+            code: UsernameErrorCode.PRIVACY_DISABLED,
             message: err.message,
           });
         }

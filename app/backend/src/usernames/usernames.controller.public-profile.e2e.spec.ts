@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { UsernamesController } from './usernames.controller';
 import { UsernamesService } from './usernames.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -13,6 +13,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
     togglePublicProfile: jest.Mock;
     listByPublicKey: jest.Mock;
     create: jest.Mock;
+    getPublicProfile: jest.Mock;
   };
   let eventEmitterMock: Partial<EventEmitter2>;
 
@@ -23,6 +24,7 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
       togglePublicProfile: jest.fn(),
       listByPublicKey: jest.fn(),
       create: jest.fn(),
+      getPublicProfile: jest.fn(),
     };
 
     eventEmitterMock = {
@@ -64,7 +66,11 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.searchPublicUsernames.mockResolvedValue(mockResults);
+      serviceMock.searchPublicUsernames.mockResolvedValue({
+        data: mockResults,
+        next_cursor: null,
+        has_more: false,
+      });
 
       const result = await controller.searchUsernames({
         query: 'alice',
@@ -90,7 +96,11 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.searchPublicUsernames.mockResolvedValue(mockResults);
+      serviceMock.searchPublicUsernames.mockResolvedValue({
+        data: mockResults,
+        next_cursor: null,
+        has_more: false,
+      });
 
       const result = await controller.searchUsernames({
         query: 'bob',
@@ -133,7 +143,11 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.getTrendingCreators.mockResolvedValue(mockCreators);
+      serviceMock.getTrendingCreators.mockResolvedValue({
+        data: mockCreators,
+        next_cursor: null,
+        has_more: false,
+      });
 
       const result = await controller.getTrendingCreators({
         timeWindowHours: 24,
@@ -162,7 +176,11 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
         },
       ];
 
-      serviceMock.getTrendingCreators.mockResolvedValue(mockCreators);
+      serviceMock.getTrendingCreators.mockResolvedValue({
+        data: mockCreators,
+        next_cursor: null,
+        has_more: false,
+      });
 
       const result = await controller.getTrendingCreators({
         timeWindowHours: 48,
@@ -227,6 +245,69 @@ describe('UsernamesController - Public Profile Discovery (Integration)', () => {
           isPublic: true,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('GET /username/:username', () => {
+    it('should return public profile for active public username', async () => {
+      const mockServiceResult = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        username: 'alice',
+        public_key: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        created_at: '2025-02-19T08:00:00Z',
+        last_active_at: '2025-03-27T10:00:00Z',
+        is_public: true,
+        paymentSettings: {
+          acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'],
+          defaultAsset: 'USDC',
+        },
+      };
+
+      serviceMock.getPublicProfile.mockResolvedValue(mockServiceResult);
+
+      const result = await controller.getPublicProfile('alice');
+
+      expect(result).toEqual({
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        username: 'alice',
+        publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        isPublic: true,
+        lastActiveAt: '2025-03-27T10:00:00Z',
+        createdAt: '2025-02-19T08:00:00Z',
+        paymentSettings: {
+          acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'],
+          defaultAsset: 'USDC',
+        },
+      });
+      expect(serviceMock.getPublicProfile).toHaveBeenCalledWith('alice');
+    });
+
+    it('should throw 403 Forbidden for privacy-disabled profile', async () => {
+      const error = new UsernameValidationError(
+        UsernameErrorCode.PRIVACY_DISABLED,
+        'Public profile is disabled for this user',
+        'username',
+      );
+
+      serviceMock.getPublicProfile.mockRejectedValue(error);
+
+      await expect(controller.getPublicProfile('bob')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw 404 Not Found for missing username', async () => {
+      const error = new UsernameValidationError(
+        UsernameErrorCode.NOT_FOUND,
+        'Username not found',
+        'username',
+      );
+
+      serviceMock.getPublicProfile.mockRejectedValue(error);
+
+      await expect(controller.getPublicProfile('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

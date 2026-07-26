@@ -62,4 +62,21 @@ export class PublicProfileDto {
     example: '2025-02-19T08:00:00Z',
   })
   createdAt: string;
+
+  @ApiProperty({
+    description: 'Whether profile visibility is public',
+    example: true,
+    required: false,
+  })
+  isPublic?: boolean;
+
+  @ApiProperty({
+    description: 'Public payment settings for frontend payment link generation',
+    example: { acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'], defaultAsset: 'USDC' },
+    required: false,
+  })
+  paymentSettings?: {
+    acceptedAssets: string[];
+    defaultAsset: string;
+  };
 }

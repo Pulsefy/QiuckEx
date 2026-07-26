@@ -118,7 +118,13 @@ describe('UsernamesService - Cache Invalidation', () => {
 
       const result = await service.getPublicProfile('alice');
 
-      expect(result).toEqual(profile);
+      expect(result).toEqual({
+        ...profile,
+        paymentSettings: {
+          acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'],
+          defaultAsset: 'USDC',
+        },
+      });
       expect(supabaseMock.getPublicProfile).not.toHaveBeenCalled();
       expect(cacheMock.setProfile).not.toHaveBeenCalled();
     });
@@ -128,7 +134,13 @@ describe('UsernamesService - Cache Invalidation', () => {
 
       const result = await service.getPublicProfile('alice');
 
-      expect(result).toEqual(profile);
+      expect(result).toEqual({
+        ...profile,
+        paymentSettings: {
+          acceptedAssets: ['USDC', 'XLM', 'AQUA', 'yXLM'],
+          defaultAsset: 'USDC',
+        },
+      });
       expect(supabaseMock.getPublicProfile).toHaveBeenCalledWith('alice');
       expect(cacheMock.setProfile).toHaveBeenCalledWith('alice', profile);
     });
@@ -136,9 +148,9 @@ describe('UsernamesService - Cache Invalidation', () => {
     it('does not cache null profiles', async () => {
       supabaseMock.getPublicProfile!.mockResolvedValue(null);
 
-      const result = await service.getPublicProfile('ghost');
-
-      expect(result).toBeNull();
+      await expect(service.getPublicProfile('ghost')).rejects.toThrow(
+        UsernameValidationError,
+      );
       expect(cacheMock.setProfile).not.toHaveBeenCalled();
     });
 

@@ -11,6 +11,8 @@ export enum UsernameErrorCode {
   INVALID_FORMAT = 'USERNAME_INVALID_FORMAT',
   /** Username not found. */
   NOT_FOUND = 'USERNAME_NOT_FOUND',
+  /** Public profile visibility is disabled. */
+  PRIVACY_DISABLED = 'USERNAME_PRIVACY_DISABLED',
 }
 
 export class UsernameConflictError extends Error {

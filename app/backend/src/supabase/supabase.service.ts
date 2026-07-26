@@ -597,7 +597,7 @@ export class SupabaseService {
   }
 
   /**
-   * Fetch a single public profile by username
+   * Fetch a profile by username (including is_public flag)
    */
   async getPublicProfile(
     username: string,
@@ -608,8 +608,7 @@ export class SupabaseService {
         "id, username, public_key, created_at, last_active_at, is_public",
       )
       .eq("username", username)
-      .eq("is_public", true)
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (error.code === "PGRST116") return null; // not found
