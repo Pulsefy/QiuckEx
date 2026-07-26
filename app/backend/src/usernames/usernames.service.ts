@@ -4,6 +4,7 @@ import {
   SearchProfileResult,
   TrendingCreatorResult,
   FeaturedProfileResult,
+  MarketplaceListing,
 } from "../supabase/supabase.service";
 import { decodeCursor } from "../common/pagination/cursor.util";
 import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
@@ -105,6 +106,85 @@ export class UsernamesService {
     return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<
       UsernameRow[]
     >;
+  }
+
+  async searchDiscovery(
+    query: string,
+    limit: number = 10,
+    cursor?: string,
+  ): Promise<{ results: Array<{ kind: 'profile' | 'listing'; id: string; username: string; publicKey?: string; sellerPublicKey?: string; similarityScore?: number; askingPrice?: number; status?: string; lastActiveAt?: string; createdAt: string; }>; total: number; next_cursor: string | null; has_more: boolean; empty: boolean }> {
+    const normalizedQuery = this.normalizeUsername(query);
+
+    if (!normalizedQuery || normalizedQuery.length < 2) {
+      return {
+        results: [],
+        total: 0,
+        next_cursor: null,
+        has_more: false,
+        empty: true,
+      };
+    }
+
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
+    const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
+
+    const [profilesResult, listingsResult] = await Promise.all([
+      this.supabase.searchPublicUsernames(normalizedQuery, fetchWindow),
+      this.supabase.searchActiveListings(normalizedQuery, fetchWindow),
+    ]);
+
+    const profileResults = profilesResult.map((profile) => ({
+      kind: 'profile' as const,
+      id: profile.id,
+      username: profile.username,
+      publicKey: profile.public_key,
+      similarityScore: profile.similarity_score,
+      lastActiveAt: profile.last_active_at || profile.created_at,
+      createdAt: profile.created_at,
+    }));
+
+    const listingResults = listingsResult.listings.map((listing: MarketplaceListing) => ({
+      kind: 'listing' as const,
+      id: listing.id,
+      username: listing.username,
+      sellerPublicKey: listing.seller_public_key,
+      askingPrice: listing.asking_price,
+      status: listing.status,
+      createdAt: listing.created_at,
+    }));
+
+    const combined = [...profileResults, ...listingResults].sort((a, b) => {
+      const scoreA = a.kind === 'profile' ? (a.similarityScore ?? 0) : 0;
+      const scoreB = b.kind === 'profile' ? (b.similarityScore ?? 0) : 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
+
+    const hasMore = combined.length > effectiveLimit;
+    const data = hasMore ? combined.slice(0, effectiveLimit) : combined;
+
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.createdAt, id: last.id }),
+        'utf-8',
+      ).toString('base64url');
+    }
+
+    return {
+      results: data,
+      total: combined.length,
+      next_cursor: nextCursor,
+      has_more: hasMore,
+      empty: data.length === 0,
+    };
   }
 
   /**
@@ -473,5 +553,21 @@ export class UsernamesService {
     // Invalidate all caches that may contain this username so visibility
     // changes are reflected immediately on subsequent reads.
     this.cache.invalidateForUsername(normalized);
+  }
+
+  async getProfileByUsername(username: string): Promise<SearchProfileResult> {
+    const normalized = this.normalizeUsername(username);
+    this.validateFormat(normalized);
+
+    const result = await this.supabase.getUsername(normalized);
+    if (!result) {
+      throw new UsernameValidationError(
+        UsernameErrorCode.NOT_FOUND,
+        "Username not found",
+        "username",
+      );
+    }
+
+    return result;
   }
 }

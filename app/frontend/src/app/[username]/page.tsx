@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { QRPreview } from "@/components/QRPreview";
+import { getQuickexApiBase } from "@/lib/api";
 
 type Profile = {
   username: string;
@@ -15,6 +17,7 @@ type Profile = {
   twitterHandle?: string;
   discordHandle?: string;
   githubHandle?: string;
+  isPublic?: boolean;
 };
 
 const FOCUS_RING_CLASS =
@@ -36,15 +39,23 @@ export default function PublicProfile() {
 
   useEffect(() => {
     let isMounted = true;
+    
     async function fetchProfile() {
       if (!username) return;
+      
+      setLoading(true);
+      setError(null);
+      
       try {
-        const res = await fetch(`/api/username/${encodeURIComponent(username)}`);
+        const res = await fetch(`${getQuickexApiBase()}/username/${encodeURIComponent(username)}`);
+        
         if (!res.ok) {
-          if (res.status === 403) {
+          if (res.status === 404) {
+            if (isMounted) setError("Username not found");
+          } else if (res.status === 403) {
             if (isMounted) setError("Profile is private");
           } else {
-            if (isMounted) setError("Username not found");
+            if (isMounted) setError("Failed to load profile");
           }
           if (isMounted) {
             setProfile(null);
@@ -52,27 +63,43 @@ export default function PublicProfile() {
           }
           return;
         }
+        
         const data = await res.json();
+        
         if (isMounted) {
-          setProfile({
-            username: data.username || username,
-            publicKey: data.publicKey,
-            primaryColor: "#6366f1",
-            avatarUrl: "",
-            bio: data.bio || "Building the future of payments on Stellar",
-            twitterHandle: data.twitterHandle,
-            discordHandle: data.discordHandle,
-            githubHandle: data.githubHandle,
-          });
+          // Handle privacy-aware response
+          if (data.isPublic === false) {
+            setProfile({
+              username: data.username || username,
+              isPublic: false,
+            });
+          } else {
+            setProfile({
+              id: data.id,
+              username: data.username || username,
+              publicKey: data.publicKey,
+              isPublic: true,
+              lastActiveAt: data.lastActiveAt,
+              createdAt: data.createdAt,
+              paymentSettings: data.paymentSettings,
+              primaryColor: "#6366f1",
+              avatarUrl: "",
+              bio: data.bio || "Building the future of payments on Stellar",
+              twitterHandle: data.twitterHandle,
+              discordHandle: data.discordHandle,
+              githubHandle: data.githubHandle,
+            });
+          }
           setError(null);
           setLoading(false);
         }
-      } catch {
+      } catch (err) {
         if (isMounted) {
           // Mock fallback for offline/development mode
           setProfile({
             username,
             publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            isPublic: true,
             primaryColor: "#6366f1",
             avatarUrl: "",
             bio: "Building the future of payments on Stellar",
@@ -87,6 +114,7 @@ export default function PublicProfile() {
     }
 
     fetchProfile();
+    
     return () => {
       isMounted = false;
     };
@@ -94,18 +122,48 @@ export default function PublicProfile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-foreground">
-        <p>Loading profile...</p>
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <p className="text-subtle">Loading profile...</p>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-foreground">
-        <div className="text-center">
-          <h1 className="text-4xl font-black mb-4">{error === "Profile is private" ? "403" : "404"}</h1>
-          <p className="text-subtle">{error || "Username not found"}</p>
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4">
+          <h1 className="text-4xl font-black mb-4">
+            {error === "Profile is private" ? "403" : "404"}
+          </h1>
+          <p className="text-subtle text-lg mb-6">{error || "Username not found"}</p>
+          <Link
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.isPublic === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4 max-w-md">
+          <div className="text-6xl mb-6 select-none">🔒</div>
+          <h1 className="text-3xl font-black mb-3">This Profile is Private</h1>
+          <p className="text-subtle text-lg mb-8">
+            The profile for <strong className="text-foreground">@{username}</strong> exists but has been set to private by the owner.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </Link>
         </div>
       </div>
     );

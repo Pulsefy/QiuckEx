@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Param,
   ConflictException,
   BadRequestException,
   ForbiddenException,
@@ -180,22 +181,28 @@ export class UsernamesController {
   async searchUsernames(
     @Query() query: SearchUsernamesQueryDto,
   ): Promise<SearchUsernamesResponseDto> {
-    const results = await this.usernamesService.searchPublicUsernames(
+    const results = await this.usernamesService.searchDiscovery(
       query.query,
       query.limit,
       query.cursor,
     );
 
+    const profileResults = results.results.filter((r) => r.kind === "profile") as Array<{
+      kind: "profile"; id: string; username: string; publicKey?: string; similarityScore?: number; lastActiveAt?: string; createdAt: string;
+    }>;
+
     return {
-      profiles: results.data.map((r) => ({
+      results: results.results,
+      profiles: profileResults.map((r) => ({
         id: r.id,
         username: r.username,
-        publicKey: r.public_key,
-        lastActiveAt: r.last_active_at || r.created_at,
-        createdAt: r.created_at,
-        similarityScore: r.similarity_score,
+        publicKey: r.publicKey ?? "",
+        lastActiveAt: r.lastActiveAt || r.createdAt,
+        createdAt: r.createdAt,
+        similarityScore: r.similarityScore,
       })) as PublicProfileDto[],
-      total: results.data.length,
+      empty: results.empty,
+      total: results.total,
       next_cursor: results.next_cursor,
       has_more: results.has_more,
     };
@@ -419,6 +426,61 @@ export class UsernamesController {
 
   @Get(":username")
   @ApiOperation({
+    summary: "Get profile by username",
+    description: "Returns profile details for a given username. " +
+      "If the profile is private, returns a privacy-aware response.",
+  })
+  @ApiParam({
+    name: "username",
+    description: "Username to retrieve",
+    example: "alice",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Profile details",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Username not found",
+  })
+  async getProfile(
+    @Param("username") username: string,
+  ) {
+    try {
+      const profile = await this.usernamesService.getProfileByUsername(username);
+      if (!profile.is_public) {
+        return {
+          username: profile.username,
+          isPublic: false,
+        };
+      }
+      return {
+        id: profile.id,
+        username: profile.username,
+        publicKey: profile.public_key,
+        isPublic: true,
+        lastActiveAt: profile.last_active_at || profile.created_at,
+        createdAt: profile.created_at,
+      };
+    } catch (err) {
+      if (err instanceof UsernameValidationError) {
+        if (err.code === UsernameErrorCode.NOT_FOUND) {
+          throw new NotFoundException({
+            code: UsernameErrorCode.NOT_FOUND,
+            message: err.message,
+          });
+        }
+        throw new BadRequestException({
+          code: err.code,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Get(":username/public")
+  @ApiOperation({
     summary: "Get public profile by username",
     description:
       "Returns profile metadata, Stellar public key, and public payment settings for a username. " +
@@ -478,4 +540,4 @@ export class UsernamesController {
       throw err;
     }
   }
-}
+  
