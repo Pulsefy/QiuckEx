@@ -667,6 +667,41 @@ export class SupabaseService {
     return data as MarketplaceListing;
   }
 
+  async searchActiveListings(
+    query: string,
+    limit: number = 10,
+  ): Promise<{ listings: MarketplaceListing[]; next_cursor: string | null; has_more: boolean; total: number }> {
+    const normalizedQuery = query.trim().toLowerCase();
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+
+    let dbQuery = this.client
+      .from("username_marketplace")
+      .select("*", { count: "exact" })
+      .eq("status", "active");
+
+    if (normalizedQuery) {
+      dbQuery = dbQuery.or(`username.ilike.%${normalizedQuery}%,seller_public_key.ilike.%${normalizedQuery}%`);
+    }
+
+    const { data, error, count } = await dbQuery
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    if (error) this.handleError(error);
+
+    const rows = (data ?? []) as MarketplaceListing[];
+    const hasMore = rows.length > effectiveLimit;
+    const listings = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    return {
+      listings,
+      next_cursor: null,
+      has_more: hasMore,
+      total: count ?? rows.length,
+    };
+  }
+
   async getActiveListings(
     limit: number,
     cursor: string | null,

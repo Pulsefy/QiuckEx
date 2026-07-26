@@ -179,22 +179,28 @@ export class UsernamesController {
   async searchUsernames(
     @Query() query: SearchUsernamesQueryDto,
   ): Promise<SearchUsernamesResponseDto> {
-    const results = await this.usernamesService.searchPublicUsernames(
+    const results = await this.usernamesService.searchDiscovery(
       query.query,
       query.limit,
       query.cursor,
     );
 
+    const profileResults = results.results.filter((r) => r.kind === "profile") as Array<{
+      kind: "profile"; id: string; username: string; publicKey?: string; similarityScore?: number; lastActiveAt?: string; createdAt: string;
+    }>;
+
     return {
-      profiles: results.data.map((r) => ({
+      results: results.results,
+      profiles: profileResults.map((r) => ({
         id: r.id,
         username: r.username,
-        publicKey: r.public_key,
-        lastActiveAt: r.last_active_at || r.created_at,
-        createdAt: r.created_at,
-        similarityScore: r.similarity_score,
+        publicKey: r.publicKey ?? "",
+        lastActiveAt: r.lastActiveAt || r.createdAt,
+        createdAt: r.createdAt,
+        similarityScore: r.similarityScore,
       })) as PublicProfileDto[],
-      total: results.data.length,
+      empty: results.empty,
+      total: results.total,
       next_cursor: results.next_cursor,
       has_more: results.has_more,
     };
