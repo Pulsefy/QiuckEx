@@ -30,6 +30,11 @@ export interface AnalyticsData {
     totalTx: number;
     avgTxSize: number;
     changeVolumePercent: number;
+    successfulTx: number;
+    failedTx: number;
+    conversionRate: number;
+    refundCount: number;
+    refundVolume: number;
   };
 }
 
@@ -179,6 +184,11 @@ function toUiModel(report: ApiReport): AnalyticsData {
       totalTx: report.summary.totalTransactions,
       avgTxSize: report.summary.averageTransactionUsd,
       changeVolumePercent: 0,
+      successfulTx: report.summary.successfulTransactions,
+      failedTx: report.summary.failedTransactions,
+      conversionRate: report.summary.conversionRate ?? (report.summary.totalTransactions > 0 ? (report.summary.successfulTransactions / report.summary.totalTransactions) * 100 : 100),
+      refundCount: report.summary.failedTransactions,
+      refundVolume: 0,
     },
   };
 }
@@ -193,6 +203,11 @@ function fallbackEmpty(): AnalyticsData {
       totalTx: 0,
       avgTxSize: 0,
       changeVolumePercent: 0,
+      successfulTx: 0,
+      failedTx: 0,
+      conversionRate: 100,
+      refundCount: 0,
+      refundVolume: 0,
     },
   };
 }

@@ -129,14 +129,19 @@ export class UsernamesService {
     }
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
-    // When a cursor is present we need a wider window so we can advance
-    // from the previous page marker even though the underlying query
-    // does not yet support server-side cursor filtering.
     const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
-    const results = await this.supabase.searchPublicUsernames(
-      normalizedQuery,
-      fetchWindow,
-    );
+
+    const cachedResults = this.cache.getSearchResults(normalizedQuery, fetchWindow);
+    let results: SearchProfileResult[];
+    if (cachedResults) {
+      results = cachedResults;
+    } else {
+      results = await this.supabase.searchPublicUsernames(
+        normalizedQuery,
+        fetchWindow,
+      );
+      this.cache.setSearchResults(normalizedQuery, fetchWindow, results);
+    }
 
     let windowed = results;
     if (decodedCursor) {
@@ -198,14 +203,19 @@ export class UsernamesService {
     }
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
-    // Trending is ranked in-memory (volume DESC, id ASC tiebreak); the
-    // underlying query does not support server-side cursor filtering, so we
-    // widen the fetch window when a cursor is present and slice locally.
     const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
-    const results = await this.supabase.getTrendingCreators(
-      timeWindowHours,
-      fetchWindow,
-    );
+
+    const cachedResults = this.cache.getTrendingResults(timeWindowHours, fetchWindow);
+    let results: TrendingCreatorResult[];
+    if (cachedResults) {
+      results = cachedResults;
+    } else {
+      results = await this.supabase.getTrendingCreators(
+        timeWindowHours,
+        fetchWindow,
+      );
+      this.cache.setTrendingResults(timeWindowHours, fetchWindow, results);
+    }
 
     let windowed = results;
     if (decodedCursor) {
@@ -264,10 +274,18 @@ export class UsernamesService {
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
     const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
-    const results = await this.supabase.getRecentlyActiveUsers(
-      timeWindowHours,
-      fetchWindow,
-    );
+
+    const cachedResults = this.cache.getRecentlyActiveResults(timeWindowHours, fetchWindow);
+    let results: SearchProfileResult[];
+    if (cachedResults) {
+      results = cachedResults;
+    } else {
+      results = await this.supabase.getRecentlyActiveUsers(
+        timeWindowHours,
+        fetchWindow,
+      );
+      this.cache.setRecentlyActiveResults(timeWindowHours, fetchWindow, results);
+    }
 
     let windowed = results;
     if (decodedCursor) {
@@ -366,6 +384,22 @@ export class UsernamesService {
   }
 
   /**
+   * Fetch a single public profile by username, with caching.
+   */
+  async getPublicProfile(username: string): Promise<SearchProfileResult | null> {
+    const normalized = this.normalizeUsername(username);
+
+    const cached = this.cache.getProfile(normalized);
+    if (cached) return cached;
+
+    const profile = await this.supabase.getPublicProfile(normalized);
+    if (profile) {
+      this.cache.setProfile(normalized, profile);
+    }
+    return profile;
+  }
+
+  /**
    * Toggle public profile visibility for a username.
    */
   async togglePublicProfile(
@@ -388,5 +422,9 @@ export class UsernamesService {
     }
 
     await this.supabase.togglePublicProfile(normalized, isPublic);
+
+    // Invalidate all caches that may contain this username so visibility
+    // changes are reflected immediately on subsequent reads.
+    this.cache.invalidateForUsername(normalized);
   }
 }
