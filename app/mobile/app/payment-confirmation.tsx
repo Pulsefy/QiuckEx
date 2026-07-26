@@ -17,6 +17,8 @@ import { v4 as uuidv4 } from "uuid";
 import { ActivityIndicator } from "react-native";
 import { useContractRegistry } from "../hooks/useContractRegistry";
 import { ErrorState } from "@/components/resilience/error-state";
+import { useEnvironment } from "../contexts/EnvironmentContext";
+import { useSession } from "../contexts/SessionContext";
 
 // List of assets to attempt swaps from (hardcoded whitelist matching backend)
 const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
@@ -26,7 +28,9 @@ export default function PaymentConfirmationScreen() {
   const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
-  const backendUrl = process.env.EXPO_PUBLIC_API_URL || "https://api.quickex.com";
+  const { current } = useEnvironment();
+  const { data: sessionData } = useSession();
+  const backendUrl = current.apiUrl;
   const {
     isReady,
     error: registryError,
@@ -36,7 +40,7 @@ export default function PaymentConfirmationScreen() {
     fetchSource: registryFetchSource,
     isRefreshing: registryRefreshing,
     refresh: refreshRegistry,
-  } = useContractRegistry(["Escrow"], backendUrl);
+  } = useContractRegistry(["Escrow"], backendUrl, sessionData?.metadata.contracts);
   const params = useLocalSearchParams<{
     username: string;
     amount: string;

@@ -20,7 +20,21 @@ interface ContractRegistryCache {
 }
 
 export const ContractRegistryService = {
-  async sync(backendUrl: string): Promise<ContractRegistrySyncResult> {
+  async sync(backendUrl: string, bootstrapRegistry?: ContractRegistry): Promise<ContractRegistrySyncResult> {
+    if (bootstrapRegistry && Object.keys(bootstrapRegistry).length > 0) {
+      const timestamp = Date.now();
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
+        timestamp,
+        data: bootstrapRegistry,
+      }));
+      return {
+        registry: bootstrapRegistry,
+        fetchedAt: timestamp,
+        isStale: false,
+        source: 'network',
+      };
+    }
+
     try {
       const response = await fetch(`${backendUrl}/api/contracts/registry`);
       if (!response.ok) throw new Error('Failed to fetch registry');

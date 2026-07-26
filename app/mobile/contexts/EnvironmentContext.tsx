@@ -14,6 +14,7 @@ import {
   type CompatibilityResult,
   ENVIRONMENTS,
   DEFAULT_ENVIRONMENT,
+  normalizeBackendMetadata,
 } from '../src/config/environment';
 import {
   loadEnvironment,
@@ -31,7 +32,7 @@ export interface EnvironmentContextValue {
   metadata: BackendMetadata | null;
   compatibility: CompatibilityResult | null;
   isFetchingMetadata: boolean;
-  processMetadata: (data: BackendMetadata) => void;
+  processMetadata: (data: Partial<BackendMetadata>) => void;
 }
 
 const EnvironmentContext = createContext<EnvironmentContextValue | undefined>(
@@ -65,10 +66,11 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
-  const processMetadata = useCallback((data: BackendMetadata) => {
-    setMetadata(data);
+  const processMetadata = useCallback((data: Partial<BackendMetadata>) => {
+    const normalized = normalizeBackendMetadata(data, current);
+    setMetadata(normalized);
 
-    const minVersion = data.minAppVersion ?? '0.0.0';
+    const minVersion = normalized.minAppVersion;
     const appVersion = '1.0.0'; // In production, read from build config
 
     if (compareVersions(appVersion, minVersion) < 0) {
@@ -76,10 +78,10 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
         compatible: false,
         reason: `App version ${appVersion} is below minimum required ${minVersion}. Please update the app.`,
       });
-    } else if (data.stellarNetwork && data.stellarNetwork !== current.stellarNetwork) {
+    } else if (data.stellarNetwork && normalized.stellarNetwork !== current.stellarNetwork) {
       setCompatibility({
         compatible: false,
-        reason: `Stellar network mismatch: backend runs on ${data.stellarNetwork} but environment expects ${current.stellarNetwork}.`,
+        reason: `Stellar network mismatch: backend runs on ${normalized.stellarNetwork} but environment expects ${current.stellarNetwork}.`,
       });
     } else {
       setCompatibility({ compatible: true });

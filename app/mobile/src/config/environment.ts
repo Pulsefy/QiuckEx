@@ -40,14 +40,47 @@ export const ENVIRONMENTS: Record<EnvironmentId, EnvironmentConfig> = {
 
 export const DEFAULT_ENVIRONMENT: EnvironmentId = 'production';
 
+export interface RuntimeContractConfig {
+  id: string;
+  version: string;
+}
+
+export type RuntimeContracts = Record<string, RuntimeContractConfig>;
+
+export interface RuntimePreviewConfig {
+  branch?: string;
+  previewUrl?: string;
+  expiresAt?: string;
+}
+
 export interface BackendMetadata {
   appVersion: string;
   minAppVersion: string;
   environment: string;
   stellarNetwork: string;
+  contracts?: RuntimeContracts;
+  preview?: RuntimePreviewConfig;
 }
 
 export interface CompatibilityResult {
   compatible: boolean;
   reason?: string;
+}
+
+/**
+ * Fills in safe defaults for a bootstrap payload that omits fields —
+ * preview/testnet backends may not populate every field yet.
+ */
+export function normalizeBackendMetadata(
+  data: Partial<BackendMetadata> | null | undefined,
+  fallback: EnvironmentConfig,
+): BackendMetadata {
+  return {
+    appVersion: data?.appVersion ?? 'unknown',
+    minAppVersion: data?.minAppVersion ?? '0.0.0',
+    environment: data?.environment ?? fallback.id,
+    stellarNetwork: data?.stellarNetwork ?? fallback.stellarNetwork,
+    contracts: data?.contracts ?? {},
+    preview: data?.preview,
+  };
 }
