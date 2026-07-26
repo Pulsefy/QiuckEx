@@ -17,6 +17,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '../hooks/useTheme';
 import { themeTokens } from '../theme/tokens';
+import { redactSupportBundleReference } from '../../utils/feedback-redaction';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -74,6 +75,7 @@ interface ReceiptData {
   contract: ContractMetadata;
   network: NetworkMetadata;
   timeline: TimelineEvent[];
+  supportBundleReference?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -497,13 +499,17 @@ const statusTimelineStyles = StyleSheet.create({
 });
 
 function MetadataSection({
+  receiptId,
   receiptMetadata,
   contract,
   network,
+  supportBundleReference,
 }: {
+  receiptId: string;
   receiptMetadata: ReceiptMetadata;
   contract: ContractMetadata;
   network: NetworkMetadata;
+  supportBundleReference?: string;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const { color, tokens } = useTheme();
@@ -517,6 +523,19 @@ function MetadataSection({
     Clipboard.setString(text);
     if (Platform.OS === 'android') {
       ToastAndroid.show(`${label} copied`, ToastAndroid.SHORT);
+    }
+  };
+
+  const shareItem = async (text: string, title: string) => {
+    try {
+      await Share.share({
+        message: text,
+        title,
+      }, {
+        dialogTitle: title,
+      });
+    } catch (error) {
+      // User cancelled
     }
   };
 
@@ -539,6 +558,36 @@ function MetadataSection({
       <View style={metaStyles.summary}>
         <View style={metaStyles.hashRow}>
           <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
+            Receipt ID
+          </Text>
+          <View style={metaStyles.hashValueRow}>
+            <Text
+              style={[
+                metaStyles.hashValue,
+                { color: color(tokens.textPrimary) },
+              ]}
+            >
+              {receiptId}
+            </Text>
+            <View style={metaStyles.actionsRow}>
+              <TouchableOpacity
+                style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                onPress={() => copyToClipboard(receiptId, 'Receipt ID')}
+              >
+                <Text>📋</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                onPress={() => shareItem(receiptId, 'Share Receipt ID')}
+              >
+                <Text>⬆️</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={metaStyles.hashRow}>
+          <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
             Receipt Hash
           </Text>
           <View style={metaStyles.hashValueRow}>
@@ -550,14 +599,54 @@ function MetadataSection({
             >
               {truncateHash(receiptMetadata.receiptHash, 8, 8)}
             </Text>
-            <TouchableOpacity
-              style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
-              onPress={() => copyToClipboard(receiptMetadata.receiptHash, 'Receipt hash')}
-            >
-              <Text>📋</Text>
-            </TouchableOpacity>
+            <View style={metaStyles.actionsRow}>
+              <TouchableOpacity
+                style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                onPress={() => copyToClipboard(receiptMetadata.receiptHash, 'Receipt hash')}
+              >
+                <Text>📋</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                onPress={() => shareItem(receiptMetadata.receiptHash, 'Share Receipt Hash')}
+              >
+                <Text>⬆️</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
+
+        {supportBundleReference && (
+          <View style={metaStyles.hashRow}>
+            <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
+              Support Bundle Ref
+            </Text>
+            <View style={metaStyles.hashValueRow}>
+              <Text
+                style={[
+                  metaStyles.hashValue,
+                  { color: color(tokens.textPrimary) },
+                ]}
+              >
+                {redactSupportBundleReference(supportBundleReference)}
+              </Text>
+              <View style={metaStyles.actionsRow}>
+                <TouchableOpacity
+                  style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                  onPress={() => copyToClipboard(redactSupportBundleReference(supportBundleReference), 'Support bundle ref')}
+                >
+                  <Text>📋</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
+                  onPress={() => shareItem(redactSupportBundleReference(supportBundleReference), 'Share Support Bundle Ref')}
+                >
+                  <Text>⬆️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
 
         <NetworkBadge network={network.network} ledger={network.ledger} />
 
@@ -766,6 +855,10 @@ const metaStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   hashValue: {
     fontSize: 15,
     fontWeight: '700',
@@ -963,9 +1056,11 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
 
         {/* Metadata Section */}
         <MetadataSection
+          receiptId={receipt.id}
           receiptMetadata={receipt.metadata}
           contract={receipt.contract}
           network={receipt.network}
+          supportBundleReference={receipt.supportBundleReference}
         />
 
         {/* QR Code */}
