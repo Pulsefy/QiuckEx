@@ -35,7 +35,7 @@ import {
 })
 @RateLimitGroupTag('public')
 @UseGuards(ApiKeyGuard)
-@Controller(['contracts', 'api/contracts'])
+@Controller(['contracts', 'api/contracts', 'mobile/contracts', 'api/mobile/contracts'])
 export class ContractRegistryController {
   constructor(private readonly contractRegistryService: ContractRegistryService) {}
 

@@ -54,4 +54,17 @@ describe('ContractRegistryController (e2e)', () => {
     });
     expect(response.headers['etag']).toBe('test-etag');
   });
+
+  it('GET /api/mobile/contracts/registry should return the registry via mobile alias', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/mobile/contracts/registry')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      etag: 'test-etag',
+      contracts: {},
+    });
+    expect(response.headers['etag']).toBe('test-etag');
+  });
 });
+
