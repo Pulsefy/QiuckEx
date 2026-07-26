@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { QRPreview } from "@/components/QRPreview";
@@ -84,12 +85,12 @@ export default function PublicProfile() {
         <div className="text-center px-4">
           <h1 className="text-4xl font-black mb-4">404</h1>
           <p className="text-subtle text-lg mb-6">{error || "Username not found"}</p>
-          <a
+          <Link
             href="/"
             className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
           >
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -105,12 +106,12 @@ export default function PublicProfile() {
           <p className="text-subtle text-lg mb-8">
             The profile for <strong className="text-foreground">@{username}</strong> exists but has been set to private by the owner.
           </p>
-          <a
+          <Link
             href="/"
             className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
           >
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     );

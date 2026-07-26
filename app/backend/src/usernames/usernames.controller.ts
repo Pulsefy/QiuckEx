@@ -432,7 +432,7 @@ export class UsernamesController {
   })
   async getProfile(
     @Param("username") username: string,
-  ): Promise<any> {
+  ) {
     try {
       const profile = await this.usernamesService.getProfileByUsername(username);
       if (!profile.is_public) {
