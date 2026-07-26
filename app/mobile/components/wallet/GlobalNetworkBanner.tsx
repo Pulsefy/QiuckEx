@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useNetworkGuardContext } from '../../contexts/NetworkGuardContext';
 import { useWalletContext } from '../../hooks/useWalletContext';
 import { APP_ENVIRONMENT, STELLAR_NETWORK } from '../../src/config/build';
+import { WalletSwitchHelpModal } from './WalletSwitchHelpModal';
+import React, { useState } from 'react';
 import type { WalletErrorCode } from '../../types/wallet';
 
 /**
@@ -97,6 +99,7 @@ export const GlobalNetworkBanner = () => {
   // Wallet connected — show status
   const isMismatch = guard.isMismatched;
 
+  const [modalVisible, setModalVisible] = useState(false);
   return (
     <SafeAreaView style={[styles.safeArea, isMismatch ? styles.bgError : styles.bgWarning]}>
       <View style={styles.container}>
@@ -108,6 +111,12 @@ export const GlobalNetworkBanner = () => {
             ? `Wallet on ${guard.currentNetwork.toUpperCase()} • App expects ${guard.expectedNetwork.toUpperCase()}`
             : `Connected to ${guard.currentNetwork.toUpperCase()}`}
         </Text>
+        {isMismatch && (
+          <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginTop: 8 }}>
+            <Text style={{ color: isMismatch ? styles.textError.color : styles.textWarning.color, fontWeight: 'bold' }}>Fix Network</Text>
+          </TouchableOpacity>
+        )}
+        <WalletSwitchHelpModal visible={modalVisible} onClose={() => setModalVisible(false)} />
       </View>
     </SafeAreaView>
   );
