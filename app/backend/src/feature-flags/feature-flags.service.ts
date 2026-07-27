@@ -8,11 +8,15 @@ import { createHash } from 'crypto';
 
 import { AppConfigService } from '../config';
 import { AuditService } from '../audit/audit.service';
+import { PreviewScopeService } from '../preview-scope/preview-scope.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   FeatureFlagEvaluationContext,
   FeatureFlagEvaluationResult,
   FeatureFlagRecord,
+  FeatureFlagSnapshotEntryDto,
+  FeatureFlagSnapshotMetadataDto,
+  FeatureFlagSnapshotResponseDto,
   FeatureFlagsListResponse,
   UpdateFeatureFlagDto,
 } from './feature-flags.dto';
@@ -117,6 +121,7 @@ export class FeatureFlagsService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: AppConfigService,
     private readonly auditService: AuditService,
+    private readonly previewScopeService: PreviewScopeService,
   ) {}
 
   async listFlags(): Promise<FeatureFlagsListResponse> {
@@ -318,6 +323,65 @@ export class FeatureFlagsService {
       storeAvailable: snapshot.storeAvailable,
       cacheExpiresAt: this.cache?.expiresAt ?? null,
     };
+  }
+
+  async getSnapshot(
+    environment?: string,
+    previewScope?: string,
+  ): Promise<FeatureFlagSnapshotResponseDto> {
+    const snapshot = await this.loadFlags();
+
+    const normalizedEnv = environment?.toLowerCase();
+    const filtered = normalizedEnv
+      ? snapshot.flags.filter((flag) => {
+          const allowed = flag.environments.map((e) => e.toLowerCase());
+          return allowed.length === 0 || allowed.includes(normalizedEnv);
+        })
+      : snapshot.flags;
+
+    let previewScopeValid: boolean | undefined;
+    if (previewScope) {
+      try {
+        previewScopeValid = await this.previewScopeService.isValidScope(previewScope);
+      } catch {
+        previewScopeValid = undefined;
+      }
+    }
+
+    const sensitiveCount = filtered.filter((flag) => this.isSensitiveFlag(flag)).length;
+    const visibleFlags = filtered.filter((flag) => !this.isSensitiveFlag(flag));
+
+    const flags: FeatureFlagSnapshotEntryDto[] = visibleFlags.map((flag) => ({
+      key: flag.key,
+      name: flag.name,
+      description: flag.description,
+      enabled: flag.enabled,
+      killSwitch: flag.killSwitch,
+      rolloutPercentage: flag.rolloutPercentage,
+      environments: flag.environments,
+      updatedAt: flag.updatedAt,
+      updatedBy: flag.updatedBy,
+      previewOverrideActive: previewScope ? (previewScopeValid ?? undefined) : undefined,
+    }));
+
+    const metadata: FeatureFlagSnapshotMetadataDto = {
+      source: snapshot.source,
+      storeAvailable: snapshot.storeAvailable,
+      environment: normalizedEnv,
+      flagCount: flags.length,
+      sensitiveFlagCount: sensitiveCount,
+      timestamp: new Date().toISOString(),
+      previewScope: previewScope ?? undefined,
+      previewScopeValid: previewScope ? previewScopeValid : undefined,
+    };
+
+    return { metadata, flags };
+  }
+
+  private isSensitiveFlag(flag: FeatureFlagRecord): boolean {
+    const meta = flag.metadata;
+    if (!meta || typeof meta !== 'object') return false;
+    return meta.internal === true || meta.sensitive === true;
   }
 
   private async loadFlags(forceRefresh = false): Promise<CacheState> {
