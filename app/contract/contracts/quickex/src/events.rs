@@ -1090,11 +1090,7 @@ pub struct HookApprovedEvent {
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_hook_approved(
-    env: &Env,
-    hook_contract: Address,
-    approved: bool,
-) {
+pub(crate) fn publish_hook_approved(env: &Env, hook_contract: Address, approved: bool) {
     HookApprovedEvent {
         hook_contract,
         approved,

@@ -20,7 +20,7 @@ fn test_hook_allowlist() {
     // Unapproved hook should fail registration
     let res = client.try_register_hook(&hook_contract);
     assert!(res.is_err());
-    
+
     // Admin approves hook
     client.set_hook_approved(&admin, &hook_contract, &true);
     assert_eq!(client.is_hook_approved(&hook_contract), true);
@@ -32,7 +32,7 @@ fn test_hook_allowlist() {
 
     // Unregister
     client.unregister_hook(&hook_contract);
-    
+
     // Disapprove
     client.set_hook_approved(&admin, &hook_contract, &false);
     assert_eq!(client.is_hook_approved(&hook_contract), false);
