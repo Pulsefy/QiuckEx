@@ -1,6 +1,8 @@
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import React from "react";
+import { EnvironmentSwitcher } from "../components/EnvironmentSwitcher";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -15,11 +17,20 @@ import { LocaleSwitcher } from "../components/LocaleSwitcher";
 import { useNotifications } from "../components/notifications/NotificationContext";
 import OnboardingResetButton from "../components/onboarding/OnboardingResetButton";
 import { ThemeSelector } from "../components/ThemeSelector";
+import { useWallet } from "../hooks/useWallet";
+import { clearLocalData } from "../services/local-data";
 import {
   SYNC_INTERVALS_MINUTES,
   type SyncFrequency,
 } from "../services/background-sync";
 import { useTheme } from "../src/theme/ThemeContext";
+import {
+  APP_ENVIRONMENT,
+  APP_VERSION,
+  BUILD_METADATA,
+  BUILD_TAG,
+  STELLAR_NETWORK,
+} from "../src/config/build";
 
 const FREQUENCY_OPTIONS: Array<{
   value: SyncFrequency;
@@ -44,7 +55,9 @@ const FREQUENCY_OPTIONS: Array<{
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { theme } = useTheme();
+  const { disconnect } = useWallet();
   const {
     backgroundSyncSettings,
     backgroundTaskAvailable,
@@ -55,6 +68,36 @@ export default function SettingsScreen() {
     setSoundEnabled,
     syncNow,
   } = useNotifications();
+
+  const handleClearLocalData = () => {
+    Alert.alert(
+      "Clear Local Data",
+      "This action will remove cached app data, sign you out, and clear secure storage. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear Data",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await disconnect();
+              await clearLocalData();
+              Alert.alert(
+                "Local Data Cleared",
+                "All local app data has been removed. Please reconnect your wallet.",
+              );
+              router.replace("/");
+            } catch (error) {
+              Alert.alert(
+                "Unable to Clear Data",
+                "Something went wrong while clearing local data. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView
@@ -286,12 +329,110 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Build Info</Text>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Version</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {APP_VERSION}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Build</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {BUILD_METADATA}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Environment</Text>
+            <View style={styles.envBadgeRow}>
+              {APP_ENVIRONMENT === 'staging' ? (
+                <View style={[styles.envBadge, { backgroundColor: '#F3E8FF', borderColor: '#A855F7' }]}>
+                  <Text style={[styles.envBadgeText, { color: '#6B21A8' }]}>STAGING</Text>
+                </View>
+              ) : null}
+              <Text style={[styles.helper, { color: theme.textMuted }]}> 
+                {APP_ENVIRONMENT}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>Network</Text>
+            <Text style={[styles.helper, { color: theme.textMuted }]}> 
+              {STELLAR_NETWORK}
+            </Text>
+          </View>
+
+          {BUILD_TAG ? (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Tag</Text>
+              <Text style={[styles.helper, { color: theme.textMuted }]}> 
+                {BUILD_TAG}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Feedback
+          </Text>
+
+          <Link href="/feedback" asChild>
+            <Pressable style={styles.row}>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  Send Feedback
+                </Text>
+                <Text style={[styles.helper, { color: theme.textMuted }]}>
+                  Report an issue or idea. Build and environment details are
+                  attached automatically.
+                </Text>
+              </View>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>→</Text>
+            </Pressable>
+          </Link>
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             Onboarding
           </Text>
           <OnboardingResetButton />
         </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Privacy & Data</Text>
+          <Pressable
+            style={[
+              styles.clearDataButton,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.status.error,
+              },
+            ]}
+            onPress={handleClearLocalData}
+          >
+            <Text style={[styles.clearDataText, { color: theme.status.error }]}>Clear Local Data</Text>
+          </Pressable>
+          <Text style={[styles.helper, { color: theme.textMuted }]}>Remove all cached and secure data, sign out, and reset the app state.</Text>
+        </View>
+
+        <EnvironmentSwitcher />
 
         {Platform.OS !== "web" ? (
           <View style={styles.section}>
@@ -312,6 +453,36 @@ export default function SettingsScreen() {
                 </Text>
               </Pressable>
             </Link>
+            <Link href="/qa-smoke-checklist" asChild>
+              <Pressable
+                style={[
+                  styles.debugButton,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text
+                  style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                >
+                  QA Smoke Checklist
+                </Text>
+              </Pressable>
+            </Link>
+            {APP_ENVIRONMENT !== "production" && (
+              <Link href="/offline-queue-inspector" asChild>
+                <Pressable
+                  style={[
+                    styles.debugButton,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                  >
+                    Offline Queue Inspector
+                  </Text>
+                </Pressable>
+              </Link>
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -397,6 +568,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  clearDataButton: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  clearDataText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
   section: {
     gap: 12,
   },
@@ -413,5 +595,21 @@ const styles = StyleSheet.create({
   debugButtonText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  envBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  envBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  envBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
 });

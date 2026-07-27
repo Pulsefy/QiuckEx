@@ -82,6 +82,16 @@ export class TransactionItemDto {
 
   @ApiProperty({ example: "1234567890" })
   pagingToken: string;
+
+  @ApiPropertyOptional({
+    description: "Fee breakdown for this transaction",
+    example: { networkFee: "0.0000100", platformFee: "0.1000000", totalFee: "0.1000100" },
+  })
+  feeBreakdown?: {
+    networkFee: string;
+    platformFee: string;
+    totalFee: string;
+  };
 }
 
 export class TransactionResponseDto {

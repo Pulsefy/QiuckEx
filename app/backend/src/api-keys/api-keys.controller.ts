@@ -7,11 +7,14 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { CursorPaginationQueryDto } from '../dto/pagination/pagination.dto';
+import { RequireOrgRole } from '../auth/decorators/require-org-role.decorator';
 
 @ApiTags('api-keys')
 @Controller('api-keys')
@@ -23,8 +26,12 @@ export class ApiKeysController {
    * Creates a new API key. The raw key is returned ONCE in the response.
    */
   @Post()
-  create(@Body() dto: CreateApiKeyDto) {
-    return this.service.create(dto);
+  @RequireOrgRole('admin')
+  create(@Body() dto: CreateApiKeyDto, @Req() req: Request) {
+    return this.service.create({
+      ...dto,
+      organization_id: dto.organization_id ?? req.organizationContext?.organizationId,
+    });
   }
 
   /**
@@ -38,10 +45,16 @@ export class ApiKeysController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({ status: 200, description: 'Paginated list of API keys' })
   list(
+    @Req() req: Request,
     @Query('owner_id') ownerId?: string,
     @Query() pagination?: CursorPaginationQueryDto,
   ) {
-    return this.service.listPaginated(ownerId, pagination?.cursor, pagination?.limit);
+    return this.service.listPaginated(
+      ownerId,
+      req.organizationContext?.organizationId,
+      pagination?.cursor,
+      pagination?.limit,
+    );
   }
 
   /**
@@ -49,8 +62,8 @@ export class ApiKeysController {
    * Returns aggregated usage/quota stats.
    */
   @Get('usage')
-  usage(@Query('owner_id') ownerId?: string) {
-    return this.service.getUsage(ownerId);
+  usage(@Req() req: Request, @Query('owner_id') ownerId?: string) {
+    return this.service.getUsage(ownerId, req.organizationContext?.organizationId);
   }
 
   /**
@@ -58,6 +71,7 @@ export class ApiKeysController {
    * Revokes (soft-deletes) a key.
    */
   @Delete(':id')
+  @RequireOrgRole('admin')
   revoke(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.revoke(id);
   }
@@ -67,6 +81,7 @@ export class ApiKeysController {
    * Invalidates the current key and issues a new one.
    */
   @Post(':id/rotate')
+  @RequireOrgRole('admin')
   rotate(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.rotate(id);
   }

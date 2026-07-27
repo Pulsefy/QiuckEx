@@ -2,7 +2,7 @@
 //!
 //! See [`crate::storage`] for the storage schema and key layout.
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 /// Escrow entry status.
 ///
@@ -49,8 +49,14 @@ pub struct EscrowEntry {
     /// Ledger timestamp after which withdrawal is blocked and refund is enabled.
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
-    /// Optional arbiter address for dispute resolution.
+    /// Optional single arbiter address for dispute resolution (legacy).
     pub arbiter: Option<Address>,
+    /// Array of arbiter addresses for multi-sig dispute resolution.
+    pub arbiters: Vec<Address>,
+    /// Threshold: number of arbiter votes required to resolve a dispute (M-of-N).
+    /// A value of 0 means single-arbiter mode (uses `arbiter` field).
+    /// A value > 0 means multi-sig mode (uses `arbiters` array).
+    pub arbiter_threshold: u32,
 }
 
 /// Privacy-aware view of an escrow entry.
@@ -89,6 +95,21 @@ pub struct PrivacyAwareEscrowView {
     pub expires_at: u64,
     /// Arbiter address for dispute resolution. `None` if not set.
     pub arbiter: Option<Address>,
+}
+
+/// Arbiter vote on a disputed escrow.
+///
+/// Stored under [`DataKey::DisputeVote`](crate::storage::DataKey::DisputeVote)(commitment, arbiter).
+/// Tracks each arbiter's vote for a specific dispute.
+#[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DisputeVote {
+    /// The arbiter who cast this vote.
+    pub arbiter: Address,
+    /// True if voting to refund to owner, false if voting to pay recipient.
+    pub resolve_for_owner: bool,
+    /// Ledger timestamp when the vote was cast.
+    pub voted_at: u64,
 }
 
 /// Parameters for registering an ephemeral key (stealth deposit).
@@ -156,6 +177,80 @@ pub struct FeeConfig {
     pub fee_bps: u32,
 }
 
+/// Per-asset fee configuration (Fee Router v2 — Issue #305).
+///
+/// Stored under [`DataKey::PerAssetFee`](crate::storage::DataKey::PerAssetFee)`(token)` in
+/// persistent storage. When present for a token, overrides the global [`FeeConfig`] for
+/// that token only. A value of `fee_bps = 0` explicitly disables fees for that token even
+/// if the global config is non-zero.
+#[contracttype]
+#[derive(Clone, Copy, Debug)]
+pub struct PerAssetFeeConfig {
+    /// Fee in basis points for this specific token. Overrides the global `FeeConfig`.
+    /// Range: 0 (no fee) to 10000 (100%).
+    pub fee_bps: u32,
+    /// Arbiter's share of the collected fee, expressed in basis points of the fee itself.
+    /// 0 = no arbiter split — entire fee goes to the collector.
+    /// Example: fee_bps=200 (2%), arbiter_bps=2000 (20%) → arbiter gets 0.4%, collector 1.6%.
+    pub arbiter_bps: u32,
+}
+
+/// Oracle fee configuration for dynamic USD-based fee collection.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeeConfig {
+    /// External oracle contract address.
+    pub oracle: Address,
+    /// Target fee in microdollars (1 USD = 1_000_000 microdollars).
+    pub usd_fee_micros: i128,
+    /// Maximum age of oracle price data before falling back.
+    pub stale_threshold_secs: u64,
+}
+
+/// Deployment metadata returned by [`crate::QuickexContract::get_deployment_metadata`].
+///
+/// Clients and indexers can call this view to validate compatibility without
+/// any off-chain coordination.
+///
+/// ## Domain separation
+///
+/// `contract_id` is the on-chain address of this contract instance, which
+/// uniquely binds the metadata to a specific deployment and network.  Two
+/// contracts on different networks will always have different `contract_id`
+/// values, so callers can detect cross-network mismatches by comparing
+/// `contract_id` against the address they invoked.
+///
+/// ## Schema stability
+///
+/// The field set of this struct is part of the public API.  Fields must not be
+/// removed or reordered across releases; new optional fields may be appended.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeploymentMetadata {
+    /// Stored contract schema version (see [`crate::storage::CURRENT_CONTRACT_VERSION`]).
+    /// Returns `0` for legacy deployments that pre-date version tracking.
+    pub contract_version: u32,
+    /// Event schema version (see [`crate::events::EVENT_SCHEMA_VERSION`]).
+    /// Indexers must check this before decoding event payloads.
+    pub event_schema_version: u32,
+    /// 32-byte WASM hash recorded at the last `upgrade()` call.
+    /// `None` when the contract has never been upgraded (initial deployment).
+    pub wasm_hash: Option<BytesN<32>>,
+    /// On-chain address of this contract instance.
+    /// Binds the metadata to a specific deployment and network.
+    pub contract_id: Address,
+}
+
+/// Hook event kinds used for external callbacks.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum HookEventKind {
+    Create = 1,
+    Settle = 2,
+    Refund = 3,
+}
+
 /// Privileged roles for contract governance and operations.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -167,4 +262,17 @@ pub enum Role {
     Operator = 2,
     /// Authorized to resolve disputes across escrows.
     Arbiter = 3,
+}
+
+/// Canonical pause reason codes.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum PauseReason {
+    Unknown = 0,
+    SystemMaintenance = 1,
+    SecurityEmergency = 2,
+    FeatureUpgrade = 3,
+    RegulatoryCompliance = 4,
+    OperatorIntervention = 5,
 }

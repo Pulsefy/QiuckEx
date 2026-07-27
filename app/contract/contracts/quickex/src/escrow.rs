@@ -60,17 +60,19 @@
 //! - `dispute` requires an assigned arbiter and `Pending` status.
 //! - `resolve_dispute` can only be called by the assigned arbiter.
 
-use soroban_sdk::{token, Address, Bytes, BytesN, Env};
+use soroban_sdk::{token, Address, Bytes, BytesN, Env, Vec};
 
 use crate::{
     admin, commitment,
     errors::QuickexError,
-    escrow_id, events, fee,
+    escrow_id, events, fee_router, hook,
+    nonce::{self, ActionType},
     storage::{
-        get_escrow, get_escrow_id_mapping, get_platform_wallet, has_escrow, put_escrow,
-        put_escrow_id_mapping, remove_escrow, LEDGER_THRESHOLD, SIX_MONTHS_IN_LEDGERS,
+        count_dispute_votes, extend_escrow_storage_ttl, get_dispute_vote, get_escrow,
+        get_escrow_id_mapping, has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
+        put_escrow_id_mapping, remove_escrow,
     },
-    types::{EscrowEntry, EscrowStatus, Role},
+    types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
 
 // ---------------------------------------------------------------------------
@@ -141,6 +143,7 @@ fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError>
 /// # Errors
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`InvalidSalt`] – salt > 1024 bytes.
+#[allow(clippy::too_many_arguments)]
 pub fn deposit(
     env: &Env,
     token: Address,
@@ -149,12 +152,16 @@ pub fn deposit(
     salt: Bytes,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     owner.require_auth();
+
+    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, ActionType::Deposit)?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -194,20 +201,33 @@ pub fn deposit(
         created_at: now,
         expires_at,
         arbiter,
+        arbiters: Vec::new(env),
+        arbiter_threshold: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
     put_escrow_id_mapping(env, &escrow_id, &commitment);
     token_client.transfer(&owner, env.current_contract_address(), &amount);
 
+    let token_address = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
-        owner,
-        token_client.address,
+        owner.clone(),
+        token_address.clone(),
         amount,
         amount,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        owner,
+        token_address,
+        amount,
+        0,
     );
 
     Ok(commitment)
@@ -227,6 +247,7 @@ pub fn deposit(
 /// - [`InvalidAmount`] – amount ≤ 0.
 /// - [`CommitmentAlreadyExists`] – commitment already in storage.
 /// - [`InvalidTimeout`] – timeout_secs would overflow u64 when added to now.
+#[allow(clippy::too_many_arguments)]
 pub fn deposit_with_commitment(
     env: &Env,
     from: Address,
@@ -235,12 +256,22 @@ pub fn deposit_with_commitment(
     commitment: BytesN<32>,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     from.require_auth();
+
+    nonce::verify_and_consume(
+        env,
+        &from,
+        nonce_val,
+        valid_until,
+        ActionType::DepositWithCommitment,
+    )?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -266,17 +297,30 @@ pub fn deposit_with_commitment(
         created_at: now,
         expires_at,
         arbiter,
+        arbiters: Vec::new(env),
+        arbiter_threshold: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
+    let token_addr = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
-        commitment,
-        from_ref,
-        token_client.address,
+        commitment.clone(),
+        from_ref.clone(),
+        token_addr.clone(),
         amount,
         amount,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        from_ref,
+        token_addr,
+        amount,
+        0,
     );
 
     Ok(())
@@ -308,6 +352,8 @@ pub fn deposit_partial(
     salt: Bytes,
     timeout_secs: u64,
     arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
     if initial_payment <= 0 {
         return Err(QuickexError::InvalidAmount);
@@ -317,6 +363,14 @@ pub fn deposit_partial(
     }
 
     owner.require_auth();
+
+    nonce::verify_and_consume(
+        env,
+        &owner,
+        nonce_val,
+        valid_until,
+        ActionType::DepositPartial,
+    )?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;
@@ -335,19 +389,32 @@ pub fn deposit_partial(
         created_at: now,
         expires_at,
         arbiter,
+        arbiters: Vec::new(env),
+        arbiter_threshold: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
     token_client.transfer(&owner, env.current_contract_address(), &initial_payment);
 
+    let token_addr = token_client.address.clone();
     events::publish_escrow_deposited(
         env,
         commitment.clone(),
-        owner,
-        token_client.address,
+        owner.clone(),
+        token_addr.clone(),
         amount_due,
         initial_payment,
         expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        owner,
+        token_addr,
+        initial_payment,
+        0,
     );
 
     Ok(commitment)
@@ -375,12 +442,22 @@ pub fn partial_payment(
     commitment: BytesN<32>,
     payer: Address,
     payment_amount: i128,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     if payment_amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     payer.require_auth();
+
+    nonce::verify_and_consume(
+        env,
+        &payer,
+        nonce_val,
+        valid_until,
+        ActionType::PartialPayment,
+    )?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let mut entry: EscrowEntry =
@@ -437,7 +514,7 @@ pub fn partial_payment(
 }
 
 // ---------------------------------------------------------------------------
-// withdraw
+// withdraw – authorization matrix enforced (SC‑W6‑03)
 // ---------------------------------------------------------------------------
 
 /// Withdraw escrowed funds by proving commitment ownership.
@@ -457,12 +534,21 @@ pub fn partial_payment(
 /// - [`AlreadySpent`] – escrow already spent or refunded.
 /// - [`InvalidCommitment`] – stored amount_due ≠ requested amount_due.
 /// - [`Overpayment`] – escrow is not fully paid yet.
-pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<bool, QuickexError> {
+pub fn withdraw(
+    env: &Env,
+    amount: i128,
+    to: Address,
+    salt: Bytes,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<bool, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
     to.require_auth();
+
+    nonce::verify_and_consume(env, &to, nonce_val, valid_until, ActionType::Withdraw)?;
 
     let (commitment, legacy_commitment) =
         commitment::amount_commitment_hashes(env, &to, amount, &salt)?;
@@ -504,28 +590,33 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     // optimized: destructure what we need, move entry instead of cloning
     let token_ref = entry.token.clone();
     let amount_paid = entry.amount_paid;
+    let owner = entry.owner.clone();
 
     let mut updated = entry;
     updated.status = EscrowStatus::Spent;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let fee_amount = fee::calculate_fee(env, amount_paid);
-    let payout_amount = amount_paid.saturating_sub(fee_amount);
+    let (_payout_amount, fee_amount) =
+        fee_router::route_payout(env, &token_ref, &to, amount_paid, None);
 
-    let token_client = token::Client::new(env, &token_ref);
-    token_client.transfer(&env.current_contract_address(), &to, &payout_amount);
+    events::publish_escrow_withdrawn(
+        env,
+        commitment.clone(),
+        to.clone(),
+        token_ref.clone(),
+        amount_paid,
+        fee_amount,
+    );
 
-    if fee_amount > 0 {
-        if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(
-                &env.current_contract_address(),
-                &platform_wallet,
-                &fee_amount,
-            );
-        }
-    }
-
-    events::publish_escrow_withdrawn(env, commitment, to, token_ref, amount_paid, fee_amount);
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Settle,
+        &commitment,
+        owner,
+        token_ref,
+        amount_paid,
+        fee_amount,
+    );
 
     Ok(true)
 }
@@ -551,8 +642,16 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
 /// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
 /// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
 /// - [`InvalidOwner`] – caller is not the original owner.
-pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), QuickexError> {
+pub fn refund(
+    env: &Env,
+    commitment: BytesN<32>,
+    caller: Address,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<(), QuickexError> {
     caller.require_auth();
+
+    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, ActionType::Refund)?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -587,7 +686,23 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
     let token_client = token::Client::new(env, &token_ref);
     token_client.transfer(&env.current_contract_address(), &owner_ref, &amount_paid);
 
-    events::publish_escrow_refunded(env, owner_ref, commitment, token_ref, amount_paid);
+    events::publish_escrow_refunded(
+        env,
+        owner_ref.clone(),
+        commitment.clone(),
+        token_ref.clone(),
+        amount_paid,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Refund,
+        &commitment,
+        owner_ref,
+        token_ref,
+        amount_paid,
+        0,
+    );
 
     Ok(())
 }
@@ -601,15 +716,9 @@ pub fn refund(env: &Env, commitment: BytesN<32>, caller: Address) -> Result<(), 
 /// Any user can call this to keep an escrow from being archived.
 pub fn extend_escrow_ttl(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.into();
-    if !has_escrow(env, &commitment_bytes) {
+    if !extend_escrow_storage_ttl(env, &commitment_bytes) {
         return Err(QuickexError::CommitmentNotFound);
     }
-
-    env.storage().persistent().extend_ttl(
-        &crate::storage::DataKey::Escrow(commitment_bytes),
-        LEDGER_THRESHOLD,
-        SIX_MONTHS_IN_LEDGERS,
-    );
     Ok(())
 }
 
@@ -673,7 +782,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 
 /// Resolve a disputed escrow by determining the recipient of funds.
 ///
-/// - Only callable by the assigned arbiter.
+/// - Only callable by the assigned arbiter (or a globally authorized Arbiter role).
 /// - Escrow must be in `Disputed` status (INV4).
 /// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
 ///
@@ -692,6 +801,8 @@ pub fn resolve_dispute(
     commitment: BytesN<32>,
     resolve_for_owner: bool,
     recipient: Address,
+    nonce_val: u64,
+    valid_until: u64,
 ) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -699,6 +810,14 @@ pub fn resolve_dispute(
 
     // Guard: caller must be either the assigned arbiter OR have the global Arbiter role.
     caller.require_auth();
+
+    nonce::verify_and_consume(
+        env,
+        &caller,
+        nonce_val,
+        valid_until,
+        ActionType::ResolveDispute,
+    )?;
     let mut is_authorized = admin::has_role(env, &caller, Role::Arbiter);
 
     if !is_authorized {
@@ -721,7 +840,6 @@ pub fn resolve_dispute(
     let (final_status, recipient_address) = if resolve_for_owner {
         (EscrowStatus::Refunded, entry.owner.clone())
     } else {
-        recipient.require_auth();
         (EscrowStatus::Spent, recipient)
     };
 
@@ -729,43 +847,299 @@ pub fn resolve_dispute(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        let fee = fee::calculate_fee(env, entry.amount_paid);
-        (entry.amount_paid.saturating_sub(fee), fee)
+    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+        fee_router::route_payout(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            Some(&caller),
+        )
     } else {
+        // Refund path — no fee, direct transfer to owner.
+        let token_client = token::Client::new(env, &entry.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient_address,
+            &entry.amount_paid,
+        );
         (entry.amount_paid, 0)
     };
-
-    let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(
-        &env.current_contract_address(),
-        &recipient_address,
-        &payout_amount,
-    );
-
-    if fee_amount > 0 {
-        if let Some(platform_wallet) = get_platform_wallet(env) {
-            token_client.transfer(
-                &env.current_contract_address(),
-                &platform_wallet,
-                &fee_amount,
-            );
-        }
-    }
 
     if resolve_for_owner {
         events::publish_escrow_refunded(
             env,
-            entry.owner,
-            commitment,
-            entry.token,
+            entry.owner.clone(),
+            commitment.clone(),
+            entry.token.clone(),
             entry.amount_paid,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Refund,
+            &commitment,
+            entry.owner.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            0,
         );
     } else {
         events::publish_escrow_withdrawn(
             env,
-            commitment,
-            recipient_address,
+            commitment.clone(),
+            recipient_address.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            fee_amount,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Settle,
+            &commitment,
+            entry.owner.clone(),
+            entry.token,
+            entry.amount_paid,
+            fee_amount,
+        );
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// vote_for_dispute (multi-sig)
+// ---------------------------------------------------------------------------
+
+/// Cast a vote on a disputed escrow (multi-sig mode).
+///
+/// - Only callable by one of the assigned arbiters.
+/// - Escrow must be in `Disputed` status.
+/// - Each arbiter can only vote once per dispute.
+/// - Does not resolve the dispute immediately; only records the vote.
+/// - When the threshold is reached, the dispute can be resolved via `resolve_dispute_multi_sig`.
+///
+/// # Arguments
+/// - `caller`: The arbiter casting the vote
+/// - `commitment`: The escrow commitment hash
+/// - `resolve_for_owner`: If `true`, voting to refund to owner; if `false`, voting to pay recipient
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`NotAnArbiter`] – caller is not one of the assigned arbiters.
+/// - [`ArbiterAlreadyVoted`] – caller has already voted on this dispute.
+pub fn vote_for_dispute(
+    env: &Env,
+    caller: Address,
+    commitment: BytesN<32>,
+    resolve_for_owner: bool,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<(), QuickexError> {
+    caller.require_auth();
+
+    nonce::verify_and_consume(
+        env,
+        &caller,
+        nonce_val,
+        valid_until,
+        ActionType::VoteForDispute,
+    )?;
+
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: escrow must be in Disputed state
+    if entry.status != EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
+    // Guard: must be in multi-sig mode (threshold > 0)
+    if entry.arbiter_threshold == 0 {
+        return Err(QuickexError::NoArbiter);
+    }
+
+    // Guard: caller must be one of the assigned arbiters
+    let mut is_arbiter = false;
+    for arbiter in entry.arbiters.iter() {
+        if arbiter == caller {
+            is_arbiter = true;
+            break;
+        }
+    }
+
+    // Also check global Arbiter role
+    if !is_arbiter {
+        is_arbiter = admin::has_role(env, &caller, Role::Arbiter);
+    }
+
+    if !is_arbiter {
+        return Err(QuickexError::NotAnArbiter);
+    }
+
+    // Guard: arbiter must not have already voted
+    if has_dispute_vote(env, &commitment_bytes, &caller) {
+        return Err(QuickexError::ArbiterAlreadyVoted);
+    }
+
+    // Record the vote
+    let vote = DisputeVote {
+        arbiter: caller.clone(),
+        resolve_for_owner,
+        voted_at: env.ledger().timestamp(),
+    };
+
+    put_dispute_vote(env, &commitment_bytes, &caller, &vote);
+
+    // Count current votes
+    let vote_count = count_dispute_votes(env, &commitment_bytes, &entry.arbiters);
+
+    // Emit vote cast event
+    events::publish_arbiter_vote_cast(
+        env,
+        commitment,
+        caller,
+        resolve_for_owner,
+        vote_count,
+        entry.arbiter_threshold,
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// resolve_dispute_multi_sig
+// ---------------------------------------------------------------------------
+
+/// Resolve a disputed escrow using multi-sig arbitration.
+///
+/// - Can be called by anyone once the threshold is met.
+/// - Escrow must be in `Disputed` status.
+/// - Requires that the number of votes >= threshold.
+/// - Determines the outcome based on majority vote among the votes cast.
+///
+/// # Arguments
+/// - `commitment`: The escrow commitment hash
+/// - `recipient`: Address to receive funds when resolving for recipient
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`InsufficientVotes`] – threshold has not been reached yet.
+pub fn resolve_dispute_multi_sig(
+    env: &Env,
+    commitment: BytesN<32>,
+    recipient: Address,
+) -> Result<(), QuickexError> {
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: escrow must be in Disputed state
+    if entry.status != EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
+    // Guard: must be in multi-sig mode
+    if entry.arbiter_threshold == 0 {
+        return Err(QuickexError::NoArbiter);
+    }
+
+    // Count votes
+    let vote_count = count_dispute_votes(env, &commitment_bytes, &entry.arbiters);
+
+    // Guard: threshold must be met
+    if vote_count < entry.arbiter_threshold {
+        return Err(QuickexError::InsufficientVotes);
+    }
+
+    // Count votes for each side
+    let mut votes_for_owner: u32 = 0;
+    let mut votes_for_recipient: u32 = 0;
+
+    for arbiter in entry.arbiters.iter() {
+        if let Some(vote) = get_dispute_vote(env, &commitment_bytes, &arbiter) {
+            if vote.resolve_for_owner {
+                votes_for_owner += 1;
+            } else {
+                votes_for_recipient += 1;
+            }
+        }
+    }
+
+    // Determine outcome by majority
+    let resolve_for_owner = votes_for_owner >= votes_for_recipient;
+
+    let (final_status, recipient_address) = if resolve_for_owner {
+        (EscrowStatus::Refunded, entry.owner.clone())
+    } else {
+        (EscrowStatus::Spent, recipient)
+    };
+
+    let mut updated = entry.clone();
+    updated.status = final_status;
+    put_escrow(env, &commitment_bytes, &updated);
+
+    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+        fee_router::route_payout(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            None,
+        )
+    } else {
+        let token_client = token::Client::new(env, &entry.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient_address,
+            &entry.amount_paid,
+        );
+        (entry.amount_paid, 0)
+    };
+
+    // Emit dispute resolved event
+    events::publish_dispute_resolved(
+        env,
+        commitment.clone(),
+        resolve_for_owner,
+        vote_count,
+        entry.arbiter_threshold,
+        entry.amount_paid,
+    );
+
+    if resolve_for_owner {
+        events::publish_escrow_refunded(
+            env,
+            entry.owner.clone(),
+            commitment.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Refund,
+            &commitment,
+            entry.owner.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            0,
+        );
+    } else {
+        events::publish_escrow_withdrawn(
+            env,
+            commitment.clone(),
+            recipient_address.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            fee_amount,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Settle,
+            &commitment,
+            entry.owner.clone(),
             entry.token,
             entry.amount_paid,
             fee_amount,

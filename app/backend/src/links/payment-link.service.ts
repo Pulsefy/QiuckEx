@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { LinkState } from "../links/link-state-machine";
 import { PaymentLinkStatusDto } from "../dto/link/payment-link-status.dto";
 import { HorizonService } from "../transactions/horizon.service";
@@ -17,7 +17,7 @@ export class PaymentLinkService {
     private readonly horizonService: HorizonService,
     private readonly supabaseService: SupabaseService,
     private readonly linksService: LinksService,
-    private readonly pathPreviewService?: PathPreviewService,
+    @Optional() private readonly pathPreviewService?: PathPreviewService,
   ) {}
 
   /**

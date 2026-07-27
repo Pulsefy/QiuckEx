@@ -51,7 +51,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Blurred backdrop */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        className="absolute inset-0 bg-background/70 backdrop-blur-md"
         onClick={bidState === "loading" ? undefined : handleClose}
       />
 
@@ -59,19 +59,19 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
         {/* Glow aura */}
         <div className="absolute -inset-1 bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-transparent rounded-3xl blur-xl pointer-events-none" />
 
-        <div className="relative bg-neutral-900/90 border border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-2xl">
+        <div className="relative bg-card/90 border border-border-strong rounded-3xl p-8 shadow-2xl backdrop-blur-2xl">
 
           {/* ── SUCCESS STATE ─────────────────────────────── */}
           {bidState === "success" && (
             <div className="text-center py-4 space-y-5">
               <div className="text-6xl animate-bounce">🎉</div>
               <h2 className="text-2xl font-black">Bid Placed!</h2>
-              <p className="text-neutral-400">
+              <p className="text-subtle">
                 You&apos;re leading with{" "}
                 <span className="text-indigo-400 font-bold">{parsedAmount} USDC</span> on{" "}
-                <span className="text-white font-bold">@{listing.username}</span>.
+                <span className="text-foreground font-bold">@{listing.username}</span>.
               </p>
-              <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-left text-xs text-neutral-400 font-mono">
+              <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-left text-xs text-subtle font-mono">
                 <p className="font-bold text-indigo-400 mb-1">tx signed & broadcast ✓</p>
                 <p>Network: Stellar Testnet</p>
                 <p>Asset: USDC</p>
@@ -93,7 +93,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               {/* Header */}
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold mb-1">
+                  <p className="text-xs text-subtle uppercase tracking-widest font-bold mb-1">
                     Place a Bid
                   </p>
                   <h2 className="text-2xl font-black tracking-tight">
@@ -103,7 +103,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                 <button
                   onClick={handleClose}
                   disabled={bidState === "loading"}
-                  className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition"
+                  className="w-9 h-9 rounded-full bg-surface border border-border-strong flex items-center justify-center text-subtle hover:text-foreground hover:bg-surface-strong transition"
                 >
                   ✕
                 </button>
@@ -118,9 +118,9 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                 ].map((s) => (
                   <div
                     key={s.label}
-                    className="p-3 bg-white/5 rounded-2xl border border-white/5 text-center"
+                    className="p-3 bg-surface rounded-2xl border border-border text-center"
                   >
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-neutral-500 mb-1">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-subtle mb-1">
                       {s.label}
                     </p>
                     <p className="font-black text-sm">{s.value}</p>
@@ -129,7 +129,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               </div>
 
               {/* Input */}
-              <label className="block mb-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
+              <label className="block mb-2 text-xs font-bold uppercase tracking-widest text-subtle">
                 Your Bid (USDC)
               </label>
               <div className="relative mb-4">
@@ -141,7 +141,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   disabled={bidState === "loading"}
-                  className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/60 rounded-xl px-4 py-4 pr-20 font-bold text-white placeholder-neutral-600 outline-none transition text-lg"
+                  className="w-full bg-surface border border-border-strong focus:border-indigo-500/60 rounded-xl px-4 py-4 pr-20 font-bold text-foreground placeholder-neutral-600 outline-none transition text-lg"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-400 tracking-widest">
                   USDC
@@ -163,7 +163,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               )}
 
               {/* Wallet warning */}
-              <div className="flex items-start gap-3 p-3 mb-5 bg-amber-500/5 border border-amber-500/15 rounded-2xl">
+              <div className="flex items-start gap-3 p-3 mb-5 bg-warning-soft border border-amber-500/15 rounded-2xl">
                 <span className="text-amber-400 mt-0.5">🔑</span>
                 <div className="text-[11px] text-amber-400/80 leading-relaxed">
                   <p className="font-bold mb-1">Wallet Connection Required</p>
@@ -210,7 +210,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                   className={`w-full py-4 rounded-xl font-black text-base tracking-wide transition-all ${
                     isValid
                       ? "bg-indigo-500 text-white hover:bg-indigo-400 shadow-[0_12px_40px_-15px_rgba(99,102,241,0.6)]"
-                      : "bg-white/5 text-neutral-600 cursor-not-allowed"
+                      : "bg-surface text-faint cursor-not-allowed"
                   }`}
                 >
                   Review Bid →
@@ -220,7 +220,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                   <button
                     onClick={() => setShowPreview(false)}
                     disabled={bidState === "loading"}
-                    className="flex-1 py-4 bg-white/5 text-neutral-400 font-bold rounded-xl hover:bg-white/10 transition"
+                    className="flex-1 py-4 bg-surface text-subtle font-bold rounded-xl hover:bg-surface-strong transition"
                   >
                     Back
                   </button>

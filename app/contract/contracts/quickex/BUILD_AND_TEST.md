@@ -186,3 +186,61 @@ If build/test issues persist after network is resolved:
 ## Summary
 
 The implementation is **complete and ready**. The only blocker is temporary network connectivity preventing dependency downloads. Once connectivity is restored, running `cargo build` and `cargo test` should succeed and demonstrate that the contract correctly handles both Native XLM and SAC assets across all flows.
+
+## Issue #309 Auth Optimization Benchmark
+
+Benchmark command used:
+
+```bash
+cargo test bench_resolve_dispute_recipient --release -- --nocapture --test-threads=1
+```
+
+Measured results on the same workspace:
+
+- Before auth optimization: `cpu=401958`, `mem=65755`
+- After auth optimization: `cpu=376461`, `mem=58337`
+
+Improvement:
+
+- CPU instructions reduced by `25497` (`6.34%`)
+- Memory bytes reduced by `7418` (`11.28%`)
+
+This benchmark targets the disputed escrow resolution recipient path and confirms measurable efficiency gains after removing redundant signature requirements while preserving authorization checks for the arbiter caller.
+
+## Issue #310 Upgrade Simulation Test Harness
+
+A repeatable golden-state migration harness has been added in `src/upgrade_test.rs`.
+
+### Running the harness
+
+```bash
+cargo test upgrade_harness_ -- --nocapture
+```
+
+### What is tested (17 tests)
+
+| Category | Tests |
+|---|---|
+| Version tracking | `upgrade_harness_version_is_legacy_before_migrate`, `upgrade_harness_migrate_bumps_version_to_current` |
+| Escrow data integrity | `upgrade_harness_pending_escrow_fields_match_golden_state`, `upgrade_harness_pending_escrow_is_withdrawable_post_upgrade`, `upgrade_harness_disputed_escrow_status_preserved`, `upgrade_harness_disputed_escrow_arbitration_works_post_upgrade`, `upgrade_harness_terminal_escrow_statuses_preserved`, `upgrade_harness_already_spent_escrow_rejects_re_withdrawal` |
+| Config / roles / privacy | `upgrade_harness_fee_config_survives_migration`, `upgrade_harness_admin_role_is_seeded_post_migration`, `upgrade_harness_privacy_setting_survives_migration` |
+| Regression pitfalls | `upgrade_harness_double_migrate_is_idempotent`, `upgrade_harness_non_admin_migrate_fails`, `upgrade_harness_migrate_without_admin_fails_gracefully`, `upgrade_harness_legacy_symbol_privacy_key_readable_after_upgrade`, `upgrade_harness_escrow_counter_survives_migration`, `upgrade_harness_all_lifecycle_statuses_are_distinct_post_migration` |
+
+### Golden state fixture
+
+`build_golden_state()` seeds a `LegacyV0Contract` (schema version 0, no `ContractVersion` stored) with:
+
+- 4 escrows covering all lifecycle states: **Pending**, **Disputed**, **Spent** (withdrawn), **Refunded**
+- `FeeConfig { fee_bps: 200 }` (2 % platform fee)
+- Privacy enabled for `alice`
+- Non-zero escrow counter
+
+### Upgrade flow
+
+1. `env.register_at(contract_id, QuickexContract, ())` — swaps the WASM in-place on the same address
+2. `client.migrate(admin)` — runs the v0→v1 schema migration
+3. All 17 assertions then verify no data was lost or corrupted
+
+### Results
+
+206 tests passed; 0 failed.

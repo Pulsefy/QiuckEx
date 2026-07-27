@@ -48,12 +48,19 @@ use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 use crate::errors::QuickexError;
 
-/// Domain separation tag for escrow-id derivation.
+/// Domain separation tag for escrow-id derivation (v2).
 ///
-/// Bump the version suffix (`v1` → `v2`) if the canonical encoding ever
-/// changes; this guarantees that clients and storage from different
-/// versions cannot collide.
-pub const ESCROW_ID_DOMAIN_TAG: &[u8] = b"QUICKEX::ESCROW_ID::v1";
+/// Bump the version suffix if the canonical encoding ever changes; this
+/// guarantees that clients and storage from different versions cannot
+/// collide.
+///
+/// # Migration from v1
+///
+/// The tag changed from `QUICKEX::ESCROW_ID::v1` to `QUICKEX::ESCROW_ID::v2`
+/// so that escrow IDs computed by the new code are guaranteed distinct from
+/// any IDs produced by the old code.  Existing storage entries keyed by a v1
+/// escrow ID remain readable but will not collide with newly created v2 IDs.
+pub const ESCROW_ID_DOMAIN_TAG: &[u8] = b"QUICKEX::ESCROW_ID::v2";
 
 /// Arbiter presence tag for canonical serialization.
 const ARBITER_TAG_NONE: u8 = 0;

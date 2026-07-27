@@ -2,8 +2,12 @@
 // Channels
 // ---------------------------------------------------------------------------
 
-export type NotificationChannel = "email" | "push" | "webhook" | "telegram";
-
+export type NotificationChannel =
+  | "email"
+  | "push"
+  | "webhook"
+  | "telegram"
+  | "in_app";
 // ---------------------------------------------------------------------------
 // Notification domain events
 // These extend the Stellar ingestion events with classic payment/username events.
@@ -23,7 +27,17 @@ export type NotificationEventType =
   | "recurring.link.updated"
   | "recurring.link.paused"
   | "recurring.link.resumed"
-  | "recurring.link.completed";
+  | "recurring.link.completed"
+  | "auto_reconciliation.succeeded"
+  | "payment.link.expired";
+
+export type PaymentLinkExpiredEvent = "payment.link.expired";
+
+export interface PaymentLinkExpiredPayload extends BaseNotificationPayload {
+  eventType: PaymentLinkExpiredEvent;
+  linkId: string;
+  expiredAt: string | null;
+}
 
 export interface BaseNotificationPayload {
   /** The event kind — used to match against user preference filters. */
@@ -42,6 +56,10 @@ export interface BaseNotificationPayload {
   amountStroops?: bigint;
   /** Arbitrary extra context for provider templates. */
   metadata?: Record<string, unknown>;
+  /** Preview scope identifier when the event originated from a preview environment. */
+  previewScope?: string;
+  /** Correlation id of the originating request, propagated for end-to-end tracing. */
+  correlationId?: string;
 }
 
 export interface EscrowDepositedPayload extends BaseNotificationPayload {
@@ -127,6 +145,15 @@ export interface UsernameClaimedPayload extends BaseNotificationPayload {
   username: string;
 }
 
+export interface AutoReconciliationSucceededNotificationPayload extends BaseNotificationPayload {
+  eventType: "auto_reconciliation.succeeded";
+  linkId: string;
+  txHash: string;
+  assetCode: string;
+  /** 0–100 confidence score that triggered the auto-match. */
+  confidence: number;
+}
+
 export type NotificationPayload =
   | EscrowDepositedPayload
   | EscrowWithdrawnPayload
@@ -136,7 +163,9 @@ export type NotificationPayload =
   | RecurringPaymentDuePayload
   | RecurringPaymentExecutedPayload
   | RecurringPaymentFailedPayload
-  | RecurringLinkStatusPayload;
+  | RecurringLinkStatusPayload
+  | AutoReconciliationSucceededNotificationPayload
+  | PaymentLinkExpiredPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences

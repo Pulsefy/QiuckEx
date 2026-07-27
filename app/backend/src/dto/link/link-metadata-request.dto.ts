@@ -157,4 +157,13 @@ export class LinkMetadataRequestDto {
   @IsString({ each: true })
   @Validate(IsStellarAsset, { each: true })
   acceptedAssets?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Recipient view public key (PEM) used to encrypt recipient metadata for stealth privacy flows.',
+    example: '-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----',
+  })
+  @IsOptional()
+  @IsString()
+  recipientViewPublicKeyPem?: string;
 }

@@ -34,6 +34,14 @@ export class ApiKeyGuard implements CanActivate {
     }
 
     const { record, hasScope } = result;
+    const headerOrg = request.organizationContext?.organizationId;
+
+    if (headerOrg && record.organization_id && headerOrg !== record.organization_id) {
+      throw new ForbiddenException({
+        error: "ORGANIZATION_MISMATCH",
+        message: "API key is not scoped to the requested organization",
+      });
+    }
 
     if (this.apiKeysService.isOverQuota(record)) {
       throw new ForbiddenException({
@@ -63,6 +71,12 @@ export class ApiKeyGuard implements CanActivate {
       name: record.name,
       scopes: record.scopes,
       rateLimit: throttlerConfig.groups.authenticated.sustained.limit,
+      organization_id: record.organization_id,
+    };
+
+    request.organizationContext = {
+      organizationId: headerOrg ?? record.organization_id ?? undefined,
+      role: record.scopes.includes("admin") ? "admin" : "member",
     };
 
     return true;

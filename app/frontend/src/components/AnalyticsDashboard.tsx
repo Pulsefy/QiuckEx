@@ -30,6 +30,7 @@ import type {
 } from "recharts/types/component/DefaultTooltipContent";
 import {
   fetchAnalytics,
+  exportAnalyticsReport,
   type DateRange,
   type AnalyticsData,
 } from "@/hooks/analyticsApi";
@@ -51,7 +52,7 @@ function DateRangeFilter({
   onChange: (r: DateRange) => void;
 }) {
   return (
-    <div className="inline-flex gap-1 p-1 rounded-xl bg-white/5 border border-white/5">
+    <div className="inline-flex gap-1 p-1 rounded-xl bg-surface border border-border">
       {RANGES.map((r) => (
         <button
           key={r.value}
@@ -60,7 +61,7 @@ function DateRangeFilter({
           className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
             active === r.value
               ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
-              : "text-neutral-500 hover:text-white hover:bg-white/5"
+              : "text-subtle hover:text-foreground hover:bg-surface"
           }`}
         >
           {r.label}
@@ -74,14 +75,14 @@ function DateRangeFilter({
 
 const tooltipStyle = {
   contentStyle: {
-    background: "rgba(10,10,20,0.9)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--chart-tooltip-bg)",
+    border: "1px solid var(--chart-tooltip-border)",
     borderRadius: "12px",
-    color: "#fff",
+    color: "var(--chart-tooltip-text)",
     fontSize: "12px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
   },
-  labelStyle: { color: "#6366f1", fontWeight: 800 },
+  labelStyle: { color: "var(--brand)", fontWeight: 800 },
   cursor: { stroke: "rgba(99,102,241,0.3)", strokeWidth: 2 },
 };
 
@@ -90,8 +91,8 @@ const tooltipStyle = {
 function ChartSkeleton() {
   return (
     <div className="animate-pulse flex flex-col gap-3 h-full">
-      <div className="h-4 bg-white/5 rounded w-1/3" />
-      <div className="flex-1 bg-white/[0.03] rounded-2xl" />
+      <div className="h-4 bg-surface rounded w-1/3" />
+      <div className="flex-1 bg-surface rounded-2xl" />
     </div>
   );
 }
@@ -109,8 +110,8 @@ function StatCard({
 }) {
   const positive = (change ?? 0) >= 0;
   return (
-    <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col gap-1">
-      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
+    <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col gap-1">
+      <p className="text-[10px] font-black uppercase tracking-widest text-subtle">
         {label}
       </p>
       <p className="text-2xl font-black">{value}</p>
@@ -147,7 +148,7 @@ function DonutLabel({
         x={cx}
         y={cy - 8}
         textAnchor="middle"
-        fill="#6366f1"
+        fill="var(--brand)"
         style={{ fontSize: 11, fontWeight: 900, letterSpacing: 2 }}
       >
         TOTAL
@@ -156,7 +157,7 @@ function DonutLabel({
         x={cx}
         y={cy + 12}
         textAnchor="middle"
-        fill="#fff"
+        fill="var(--chart-tooltip-text)"
         style={{ fontSize: 18, fontWeight: 900 }}
       >
         {total}%
@@ -171,6 +172,9 @@ export default function AnalyticsDashboard() {
   const [range, setRange] = useState<DateRange>("30d");
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportType, setReportType] = useState<"accounting" | "tax">("accounting");
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   const load = useCallback((r: DateRange) => {
     setLoading(true);
@@ -183,6 +187,26 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     load(range);
   }, [range, load]);
+
+  useEffect(() => {
+    if (!exportMessage) return;
+    const timer = window.setTimeout(() => setExportMessage(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [exportMessage]);
+
+  const handleExport = useCallback(async (format: "csv" | "pdf") => {
+    setExporting(format);
+    setExportMessage(null);
+    try {
+      await exportAnalyticsReport(range, format, reportType);
+      setExportMessage(`${format.toUpperCase()} report generated.`);
+    } catch (error) {
+      console.error(error);
+      setExportMessage(`Failed to export ${format.toUpperCase()} report.`);
+    } finally {
+      setExporting(null);
+    }
+  }, [range, reportType]);
 
   const { summary, volume, txCount, assetDist } = data ?? {
     summary: null,
@@ -197,19 +221,53 @@ export default function AnalyticsDashboard() {
   return (
     <section
       id="analytics-dashboard"
-      className="rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl shadow-2xl overflow-hidden"
+      className="rounded-3xl bg-card border border-border backdrop-blur-2xl shadow-2xl overflow-hidden"
     >
       {/* ── Header ── */}
-      <div className="p-6 sm:p-10 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-6 sm:p-10 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-black mb-1">
             Analytics Overview
           </h2>
-          <p className="text-xs sm:text-sm text-neutral-500">
+          <p className="text-xs sm:text-sm text-subtle">
             Payment volume, transaction counts &amp; asset distribution
           </p>
         </div>
-        <DateRangeFilter active={range} onChange={setRange} />
+        <div className="flex flex-col gap-3 sm:items-end">
+          <DateRangeFilter active={range} onChange={setRange} />
+          <div className="flex items-center gap-2">
+            <select
+              value={reportType}
+              onChange={(event) =>
+                setReportType(event.target.value as "accounting" | "tax")
+              }
+              className="rounded-lg border border-border-strong bg-surface px-2 py-1.5 text-xs font-black text-muted"
+              aria-label="Select report type"
+            >
+              <option value="accounting">Accounting</option>
+              <option value="tax">Tax</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleExport("csv")}
+              disabled={exporting !== null}
+              className="rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-xs font-black text-muted transition hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {exporting === "csv" ? "Exporting..." : "Export CSV"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("pdf")}
+              disabled={exporting !== null}
+              className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-black text-brand transition hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {exporting === "pdf" ? "Exporting..." : "Export PDF"}
+            </button>
+          </div>
+          {exportMessage ? (
+            <p className="text-[11px] font-bold text-muted">{exportMessage}</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="p-6 sm:p-10 space-y-10">
@@ -219,7 +277,7 @@ export default function AnalyticsDashboard() {
             Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="animate-pulse h-24 rounded-2xl bg-white/[0.03]"
+                className="animate-pulse h-24 rounded-2xl bg-surface"
               />
             ))
           ) : (
@@ -251,7 +309,7 @@ export default function AnalyticsDashboard() {
 
         {/* ── Area Chart: Payment Volume ── */}
         <div>
-          <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+          <h3 className="text-sm font-black uppercase tracking-widest text-subtle mb-5">
             Payment Volume
           </h3>
           <div className="h-64">
@@ -275,18 +333,18 @@ export default function AnalyticsDashboard() {
                   </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="rgba(255,255,255,0.04)"
+                    stroke="var(--chart-grid)"
                     vertical={false}
                   />
                   <XAxis
                     dataKey="date"
-                    tick={{ fill: "#525252", fontSize: 10, fontWeight: 700 }}
+                    tick={{ fill: "var(--chart-axis)", fontSize: 10, fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tick={{ fill: "#525252", fontSize: 10, fontWeight: 700 }}
+                    tick={{ fill: "var(--chart-axis)", fontSize: 10, fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v: number) => `$${v}`}
@@ -336,7 +394,7 @@ export default function AnalyticsDashboard() {
         <div className="grid md:grid-cols-2 gap-10">
           {/* Line Chart: Transaction Count */}
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+            <h3 className="text-sm font-black uppercase tracking-widest text-subtle mb-5">
               Transaction Count
             </h3>
             <div className="h-56">
@@ -350,18 +408,18 @@ export default function AnalyticsDashboard() {
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.04)"
+                      stroke="var(--chart-grid)"
                       vertical={false}
                     />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: "#525252", fontSize: 10, fontWeight: 700 }}
+                      tick={{ fill: "var(--chart-axis)", fontSize: 10, fontWeight: 700 }}
                       axisLine={false}
                       tickLine={false}
                       interval="preserveStartEnd"
                     />
                     <YAxis
-                      tick={{ fill: "#525252", fontSize: 10, fontWeight: 700 }}
+                      tick={{ fill: "var(--chart-axis)", fontSize: 10, fontWeight: 700 }}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -390,7 +448,7 @@ export default function AnalyticsDashboard() {
 
           {/* Donut Chart: Asset Distribution */}
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-5">
+            <h3 className="text-sm font-black uppercase tracking-widest text-subtle mb-5">
               Asset Distribution
             </h3>
             <div className="h-56 flex items-center justify-center">

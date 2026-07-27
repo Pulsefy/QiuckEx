@@ -41,6 +41,7 @@ export class ApiKeysService {
       key_prefix: prefix,
       scopes: dto.scopes,
       owner_id: dto.owner_id ?? null,
+      organization_id: dto.organization_id ?? null,
       monthly_quota: DEFAULT_QUOTA,
     });
 
@@ -49,19 +50,25 @@ export class ApiKeysService {
     return { ...this.toPublic(record), key: rawKey };
   }
 
-  async list(owner_id?: string): Promise<ApiKeyPublic[]> {
-    const records = await this.repo.findAll(owner_id);
+  async list(owner_id?: string, organization_id?: string): Promise<ApiKeyPublic[]> {
+    const records = await this.repo.findAll(owner_id, organization_id);
     return records.map((r) => this.toPublic(r));
   }
 
   async listPaginated(
     owner_id: string | undefined,
+    organization_id: string | undefined,
     cursor?: string,
     limit?: number,
   ): Promise<{ data: ApiKeyPublic[]; pagination: PaginationMetaDto }> {
     const decodedCursor = cursor ? decodeCursor(cursor) : null;
     const effectiveLimit = clampLimit(limit);
-    const result = await this.repo.findAllPaginated(owner_id, decodedCursor, effectiveLimit);
+    const result = await this.repo.findAllPaginated(
+      owner_id,
+      organization_id,
+      decodedCursor,
+      effectiveLimit,
+    );
     return {
       data: result.data.map((r) => this.toPublic(r)),
       pagination: {
@@ -98,8 +105,26 @@ export class ApiKeysService {
     return { ...this.toPublic(updated), key: rawKey };
   }
 
-  async getUsage(owner_id?: string) {
-    return this.repo.getUsageSummary(owner_id);
+  async emergencyRotate(id: string): Promise<ApiKeyCreated> {
+    const record = await this.repo.findById(id);
+    if (!record) throw new NotFoundException('API key not found');
+
+    const rawKey = this.generateRawKey();
+    const prefix = rawKey.slice(0, KEY_PREFIX_LENGTH + 3);
+    const hash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
+
+    const updated = await this.repo.emergencyUpdateKey(id, {
+      key_hash: hash,
+      key_prefix: prefix,
+    });
+
+    this.logger.log(`API key emergency-rotated: id=${id}`);
+
+    return { ...this.toPublic(updated), key: rawKey };
+  }
+
+  async getUsage(owner_id?: string, organization_id?: string) {
+    return this.repo.getUsageSummary(owner_id, organization_id);
   }
 
   // ---------------------------------------------------------------------------

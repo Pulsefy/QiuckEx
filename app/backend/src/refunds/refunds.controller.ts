@@ -20,8 +20,11 @@ import {
 import { Request } from 'express';
 import { RefundsService } from './refunds.service';
 import { InitiateRefundDto } from './dto/initiate-refund.dto';
+import { CheckEligibilityDto } from './dto/check-eligibility.dto';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
+import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
+import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
 
 interface ApiKeyRequest extends Request {
   apiKey: { id: string };
@@ -39,11 +42,50 @@ interface ApiKeyRequest extends Request {
 export class RefundsController {
   constructor(private readonly refundsService: RefundsService) {}
 
+  @Post('check-eligibility')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check refund eligibility',
+    description: 'Audit endpoint that explains refund eligibility decisions without attempting a refund. Returns reason codes and detailed explanations for support/admin users.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Eligibility check completed',
+    schema: {
+      type: 'object',
+      properties: {
+        eligible: { type: 'boolean', description: 'Whether the entity is eligible for refund' },
+        reasonCode: {
+          type: 'string',
+          enum: ['ELIGIBLE', 'INVALID_STATE', 'ENTITY_NOT_FOUND', 'ALREADY_REFUNDED', 'TOO_OLD', 'CONTRACT_NOT_READY', 'INDEXER_NOT_SYNCED'],
+          description: 'Stable reason code for the eligibility decision',
+        },
+        message: { type: 'string', description: 'Human-readable explanation of the decision' },
+        details: {
+          type: 'object',
+          description: 'Additional context about the eligibility check',
+          properties: {
+            currentState: { type: 'string' },
+            ageInDays: { type: 'number' },
+            maxAgeInDays: { type: 'number' },
+            existingRefundId: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  async checkEligibility(@Body() dto: CheckEligibilityDto) {
+    return this.refundsService.checkEligibility(dto.entityType, dto.entityId);
+  }
+
   @Post()
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag('mainnet.refunds')
   @ApiOperation({ summary: 'Initiate a refund (idempotent)' })
   @ApiResponse({ status: 200, description: 'Refund attempt created or existing attempt returned' })
   @ApiResponse({ status: 409, description: 'Entity is not in a refundable state' })
+  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
   async initiate(
     @Body() dto: InitiateRefundDto,
     @Req() req: ApiKeyRequest,
@@ -54,9 +96,12 @@ export class RefundsController {
 
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag('mainnet.refunds')
   @ApiOperation({ summary: 'Approve a pending refund' })
   @ApiResponse({ status: 200, description: 'Refund approved' })
   @ApiResponse({ status: 409, description: 'Refund is not in pending state' })
+  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
   async approve(
     @Param('id') id: string,
     @Req() req: ApiKeyRequest,
@@ -67,9 +112,12 @@ export class RefundsController {
 
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag('mainnet.refunds')
   @ApiOperation({ summary: 'Reject a pending refund' })
   @ApiResponse({ status: 200, description: 'Refund rejected' })
   @ApiResponse({ status: 409, description: 'Refund is not in pending state' })
+  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
   async reject(
     @Param('id') id: string,
     @Body() body: { notes?: string },

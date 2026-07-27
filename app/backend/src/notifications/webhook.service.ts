@@ -3,7 +3,7 @@ import * as crypto from "crypto";
 
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
-import { WebhookRetryScheduler } from "./webhook-retry.scheduler";
+import { WebhookReplayService } from "./webhook-replay.service";
 import type { NotificationPreference } from "./types/notification.types";
 import type {
   CreateWebhookDto,
@@ -11,6 +11,9 @@ import type {
   WebhookResponseDto,
   WebhookDeliveryLogDto,
   WebhookStatsDto,
+  WebhookDeliveryStatusDto,
+  WebhookReplayLogDto,
+  WebhookRedeliverResponseDto,
 } from "./dto/webhook.dto";
 
 @Injectable()
@@ -20,7 +23,7 @@ export class WebhookService {
   constructor(
     private readonly prefsRepo: NotificationPreferencesRepository,
     private readonly logRepo: NotificationLogRepository,
-    private readonly retryScheduler: WebhookRetryScheduler,
+    private readonly replayService: WebhookReplayService,
   ) {}
 
   async createWebhook(
@@ -154,15 +157,35 @@ export class WebhookService {
   }
 
   /**
-   * Trigger immediate redelivery of a specific event via the retry scheduler.
-   * Returns true if at least one webhook delivery succeeded.
+   * Trigger immediate redelivery of a specific event via the replay service.
    */
   async redeliverEvent(
     publicKey: string,
+    webhookId: string,
     eventId: string,
     eventType: string,
-  ): Promise<boolean> {
-    return this.retryScheduler.redeliver(publicKey, eventId, eventType);
+  ): Promise<WebhookRedeliverResponseDto> {
+    return this.replayService.replayDelivery(
+      publicKey,
+      webhookId,
+      eventId,
+      eventType,
+    );
+  }
+
+  async getDeliveryStatus(
+    publicKey: string,
+    eventId: string,
+    eventType: string,
+  ): Promise<WebhookDeliveryStatusDto> {
+    return this.replayService.getDeliveryStatus(publicKey, eventId, eventType);
+  }
+
+  async getReplayHistory(
+    webhookId: string,
+    limit?: number,
+  ): Promise<WebhookReplayLogDto[]> {
+    return this.replayService.listReplayHistory(webhookId, limit);
   }
 
   private generateSecret(): string {

@@ -87,6 +87,61 @@ describe('FeatureFlagsService', () => {
     expect(missingUser.reason).toBe('missing-user-context');
   });
 
+  it('fresh evaluation bypasses stale cache state', async () => {
+    mockSupabaseService.getClient.mockReturnValueOnce({
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({
+          data: [
+            {
+              key: 'testnet.contract_writes',
+              enabled: true,
+              kill_switch: false,
+              rollout_percentage: 100,
+              allowed_users: [],
+              environments: ['test'],
+              metadata: {},
+              updated_at: new Date().toISOString(),
+              updated_by: 'ops',
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    await service.listFlags();
+
+    mockSupabaseService.getClient.mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        order: jest.fn().mockResolvedValue({
+          data: [
+            {
+              key: 'testnet.contract_writes',
+              enabled: false,
+              kill_switch: true,
+              rollout_percentage: 0,
+              allowed_users: [],
+              environments: ['test'],
+              metadata: {},
+              updated_at: new Date().toISOString(),
+              updated_by: 'ops',
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    const fresh = await service.evaluateFlagFresh('testnet.contract_writes', {
+      environment: 'test',
+    });
+
+    expect(fresh.enabled).toBe(false);
+    expect(fresh.reason).toBe('kill-switch');
+  });
+
   it('updates a flag and writes an audit entry', async () => {
     const selectBuilder = {
       select: jest.fn().mockReturnThis(),

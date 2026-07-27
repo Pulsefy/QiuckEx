@@ -1,25 +1,30 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
-  Post,
   HttpCode,
   HttpStatus,
-  ConflictException,
-  Body,
-  Query,
-  Res,
   NotFoundException,
+  ConflictException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ReconciliationWorkerService } from './reconciliation-worker.service';
 import { BackfillService, BackfillConfig, BackfillProgress, BackfillResult } from './backfill.service';
+import { AutoMatchService } from './auto-match.service';
+import { UnmatchedQueueRepository } from './unmatched-queue.repository';
 import { ReconciliationReport } from './types/reconciliation.types';
-import { AppConfigService } from '../config/app-config.service';
+import type { IncomingTransaction, MatchResult } from './types/auto-match.types';
+import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
+import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
 
 /**
- * Admin endpoints for the reconciliation worker.
+ * Admin endpoints for the reconciliation worker and auto-match engine.
  * These should be protected by an API-key guard in production.
  */
 @ApiTags('reconciliation')
@@ -28,8 +33,11 @@ export class ReconciliationController {
   constructor(
     private readonly worker: ReconciliationWorkerService,
     private readonly backfill: BackfillService,
-    private readonly config: AppConfigService,
+    private readonly autoMatch: AutoMatchService,
+    private readonly unmatchedQueue: UnmatchedQueueRepository,
   ) {}
+
+  // ─── Existing reconciliation endpoints ──────────────────────────────────────
 
   @Get('status')
   @ApiOperation({ summary: 'Return the status and last report of the reconciliation worker' })
@@ -59,9 +67,12 @@ export class ReconciliationController {
 
   @Post('backfill')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag('mainnet.contract_writes')
   @ApiOperation({ summary: 'Trigger a backfill job for a ledger range (admin only)' })
   @ApiResponse({ status: 200, description: 'Backfill job completed' })
   @ApiResponse({ status: 409, description: 'A backfill job is already running' })
+  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
   async startBackfill(@Body() config: BackfillConfig): Promise<BackfillResult> {
     try {
       return await this.backfill.startBackfill(config);
@@ -80,83 +91,111 @@ export class ReconciliationController {
     return this.backfill.getBackfillProgress();
   }
 
-  @Get('export')
-  @ApiOperation({ summary: 'Export the last RC validation report' })
-  @ApiResponse({ status: 200, description: 'Exported report in JSON or Markdown' })
-  exportReport(
-    @Query('format') format: 'json' | 'markdown',
-    @Res() res: Response
+  // ─── Auto-match endpoints ────────────────────────────────────────────────────
+
+  @Get('auto-match/status')
+  @ApiOperation({ summary: 'Return the current status of the auto-match engine' })
+  @ApiResponse({ status: 200, description: 'Auto-match engine status' })
+  getAutoMatchStatus() {
+    return { running: this.autoMatch.running };
+  }
+
+  @Post('auto-match/trigger')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Manually trigger an auto-match cycle (admin only)' })
+  @ApiResponse({ status: 200, description: 'Cycle summary counters' })
+  @ApiResponse({ status: 409, description: 'A cycle is already running' })
+  async triggerAutoMatch(): Promise<{
+    processed: number;
+    matched: number;
+    queued: number;
+    unmatched: number;
+  }> {
+    if (this.autoMatch.running) {
+      throw new ConflictException('An auto-match cycle is already in progress');
+    }
+    return this.autoMatch.runAutoMatchCycle();
+  }
+
+  /**
+   * Process a single transaction through the matching algorithm on demand.
+   * Useful for replaying a specific transaction or testing the scoring logic.
+   */
+  @Post('auto-match/process')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Score and process a single transaction on demand (admin only)' })
+  @ApiResponse({ status: 200, description: 'Match result for the supplied transaction' })
+  async processTransaction(@Body() tx: IncomingTransaction): Promise<MatchResult> {
+    return this.autoMatch.processTransaction(tx);
+  }
+
+  // ─── Unmatched transactions queue ────────────────────────────────────────────
+
+  @Get('unmatched')
+  @ApiOperation({ summary: 'List pending unmatched transactions awaiting manual review' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max rows (1–100, default 20)' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Zero-based row offset (default 0)' })
+  @ApiResponse({ status: 200, description: 'Paginated list of unmatched transactions' })
+  async listUnmatched(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    const report = this.worker.getLastReport();
-    if (!report) {
-      throw new ConflictException('No RC validation report available yet. Please trigger a run first.');
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
+    const parsedOffset = Math.max(0, parseInt(offset ?? '0', 10) || 0);
+    return this.unmatchedQueue.listPending(parsedLimit, parsedOffset);
+  }
+
+  @Get('unmatched/:id')
+  @ApiOperation({ summary: 'Get a single unmatched transaction by ID' })
+  @ApiResponse({ status: 200, description: 'Unmatched transaction details' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  async getUnmatched(@Param('id') id: string) {
+    const record = await this.unmatchedQueue.findById(id);
+    if (!record) {
+      throw new NotFoundException(`Unmatched transaction ${id} not found`);
     }
+    return record;
+  }
 
-    const requestedFormat = format === 'markdown' ? 'markdown' : 'json';
-    const timestamp = new Date().toISOString();
-    
-    const escrowsIrreconcilable = report.escrows.results.filter((r) => r.irreconcilable);
-    const paymentsIrreconcilable = report.payments.results.filter((r) => r.irreconcilable);
-    const blockers = [
-      ...escrowsIrreconcilable.map(r => `Escrow ${r.id}: ${r.irreconcilableReason}`),
-      ...paymentsIrreconcilable.map(r => `Payment ${r.id}: ${r.irreconcilableReason}`)
-    ];
-
-    const exportData = {
-      runId: report.runId,
-      timestamps: {
-        startedAt: report.startedAt,
-        completedAt: report.completedAt,
-        exportedAt: timestamp
-      },
-      environment: {
-        network: this.config.network || 'unknown',
-      },
-      blockers,
-      summary: {
-        escrows: {
-          processed: report.escrows.processed,
-          irreconcilable: report.escrows.irreconcilable
-        },
-        payments: {
-          processed: report.payments.processed,
-          irreconcilable: report.payments.irreconcilable
-        },
-        discrepancyAlert: report.alert || null
-      }
-    };
-
-    if (requestedFormat === 'markdown') {
-      const markdown = `
-# Release Candidate Validation Report
-
-**Run ID**: \`${exportData.runId}\`
-**Network**: \`${exportData.environment.network}\`
-**Exported At**: ${exportData.timestamps.exportedAt}
-**Validation Started**: ${exportData.timestamps.startedAt}
-**Validation Completed**: ${exportData.timestamps.completedAt}
-
-## Summary
-- **Escrows**: ${exportData.summary.escrows.processed} processed, ${exportData.summary.escrows.irreconcilable} irreconcilable
-- **Payments**: ${exportData.summary.payments.processed} processed, ${exportData.summary.payments.irreconcilable} irreconcilable
-
-${exportData.summary.discrepancyAlert ? \`## 🚨 Discrepancy Alert
-**Severity**: ${exportData.summary.discrepancyAlert.severity}
-**Message**: ${exportData.summary.discrepancyAlert.message}
-**Details**: ${exportData.summary.discrepancyAlert.details}
-\` : '✅ No discrepancy alerts.'}
-
-## Blockers (${exportData.blockers.length})
-${exportData.blockers.length === 0 ? '- None' : exportData.blockers.map(b => \`- ${b}\`).join('\\n')}
-      `.trim();
-
-      res.setHeader('Content-Type', 'text/markdown');
-      res.setHeader('Content-Disposition', \`attachment; filename="rc-report-${report.runId}.md"\`);
-      return res.send(markdown);
+  /**
+   * Resolve an unmatched transaction after manual operator review.
+   * The body should include the `resolvedBy` public key and an optional note.
+   */
+  @Post('unmatched/:id/resolve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Manually resolve an unmatched transaction (operator only)' })
+  @ApiResponse({ status: 200, description: 'Transaction marked as resolved' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  async resolveUnmatched(
+    @Param('id') id: string,
+    @Body() body: { resolvedBy: string; note?: string },
+  ) {
+    const record = await this.unmatchedQueue.findById(id);
+    if (!record) {
+      throw new NotFoundException(`Unmatched transaction ${id} not found`);
     }
+    await this.unmatchedQueue.resolve(id, body.resolvedBy, body.note);
+    return { id, status: 'resolved' };
+  }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', \`attachment; filename="rc-report-${report.runId}.json"\`);
-    return res.json(exportData);
+  /**
+   * Dismiss an unmatched transaction — the operator has determined it is not
+   * related to any QuickEx payment link and requires no further action.
+   */
+  @Delete('unmatched/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dismiss an unmatched transaction (operator only)' })
+  @ApiResponse({ status: 200, description: 'Transaction dismissed' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  async dismissUnmatched(
+    @Param('id') id: string,
+    @Body() body: { resolvedBy: string; note?: string },
+  ) {
+    const record = await this.unmatchedQueue.findById(id);
+    if (!record) {
+      throw new NotFoundException(`Unmatched transaction ${id} not found`);
+    }
+    await this.unmatchedQueue.dismiss(id, body.resolvedBy, body.note);
+    return { id, status: 'dismissed' };
   }
 }

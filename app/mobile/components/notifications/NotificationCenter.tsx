@@ -14,14 +14,18 @@ import { useTheme } from "../../src/theme/ThemeContext";
 import { useNotifications } from "./NotificationContext";
 
 export const NotificationCenter: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const { notifications, unreadCount, markAllRead } = useNotifications();
+  const { t } = useTranslation();
+  const { notifications, unreadCount, markAllRead, markRead } =
+    useNotifications();
   const { theme } = useTheme();
   const [open, setOpen] = React.useState(false);
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
-    markAllRead();
+  }, []);
+
+  const handleMarkAllRead = React.useCallback(() => {
+    void markAllRead();
   }, [markAllRead]);
 
   return (
@@ -57,12 +61,32 @@ export const NotificationCenter: React.FC = () => {
           ]}
         >
           <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-            Notifications
+            {t("notificationsTitle")}
           </Text>
-        <View style={[styles.modalHeader, { borderColor: theme.border, backgroundColor: theme.background }]}>
-          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('notificationsTitle')}</Text>
+          {unreadCount > 0 ? (
+            <Pressable onPress={handleMarkAllRead}>
+              <Text style={[styles.close, { color: theme.link }]}>
+                {t("markAllRead", { defaultValue: "Mark all read" })}
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setOpen(false)}>
+              <Text style={[styles.close, { color: theme.link }]}>
+                {t("close")}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+        <View
+          style={[
+            styles.modalHeader,
+            { borderColor: theme.border, backgroundColor: theme.background },
+          ]}
+        >
           <Pressable onPress={() => setOpen(false)}>
-            <Text style={[styles.close, { color: theme.link }]}>{t('close')}</Text>
+            <Text style={[styles.close, { color: theme.link }]}>
+              {t("close")}
+            </Text>
           </Pressable>
         </View>
 
@@ -72,7 +96,12 @@ export const NotificationCenter: React.FC = () => {
           contentContainerStyle={styles.list}
           style={{ backgroundColor: theme.background }}
           renderItem={({ item }) => (
-            <View
+            <Pressable
+              onPress={() => {
+                if (!item.read) {
+                  void markRead(item.id);
+                }
+              }}
               style={[
                 styles.item,
                 { borderColor: theme.borderLight },
@@ -89,16 +118,13 @@ export const NotificationCenter: React.FC = () => {
                 {item.direction === "outgoing" ? "To" : "From"}{" "}
                 {item.sender ? shorten(item.sender) : "Unknown"} •{" "}
                 {new Date(item.receivedAt).toLocaleString()}
-              <Text style={[styles.itemSubtitle, { color: theme.textSecondary }]}>
-                {item.sender ? `${shorten(item.sender)}` : ""} •{" "}
-                {new Date(item.receivedAt).toLocaleString(i18n.language || 'en')}
               </Text>
               {item.memo ? (
                 <Text style={[styles.itemMeta, { color: theme.textMuted }]}>
                   Memo: {item.memo}
                 </Text>
               ) : null}
-            </View>
+            </Pressable>
           )}
           ListEmptyComponent={() => (
             <View style={styles.empty}>
@@ -107,7 +133,11 @@ export const NotificationCenter: React.FC = () => {
               >
                 No notifications
               </Text>
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>{t('noNotifications')}</Text>
+              <Text
+                style={[styles.emptyText, { color: theme.textSecondary }]}
+              >
+                {t("noNotifications")}
+              </Text>
             </View>
           )}
         />
