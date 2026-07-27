@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
+import { fetchAnalytics, type AnalyticsData } from "@/hooks/analyticsApi";
 import {
   fetchUserBids,
   fetchUserListings,
@@ -81,12 +82,43 @@ function getStatusClasses(status: ActivityItem["status"]) {
 const FOCUS_RING_CLASS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+function formatCurrency(val: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val);
+}
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const { data, error, loading, callApi } = useApi<DashboardResponse>();
   const [userBids, setUserBids] = useState<UserBid[]>([]);
   const [userListings, setUserListings] = useState<UserListing[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const [metricsData, setMetricsData] = useState<AnalyticsData | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  const loadMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    setMetricsError(null);
+    try {
+      const data = await fetchAnalytics("30d");
+      setMetricsData(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load backend metrics";
+      setMetricsError(message);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMetrics();
+  }, [loadMetrics]);
 
   useEffect(() => {
     void callApi(() =>
@@ -288,42 +320,84 @@ function DashboardContent() {
         </div>
 
         <section className="mb-10 grid grid-cols-1 gap-6 sm:grid-cols-2 md:mb-16 lg:grid-cols-3">
-          <div className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 transition hover:border-indigo-500/30">
-            <div className="absolute right-0 top-0 p-4 opacity-10 transition group-hover:opacity-20">
-              <span className="text-6xl font-semibold text-brand">$</span>
+          {metricsLoading ? (
+            <>
+              <div className="h-36 animate-pulse rounded-3xl border border-border bg-card p-6" />
+              <div className="h-36 animate-pulse rounded-3xl border border-border bg-card p-6" />
+              <div className="h-36 animate-pulse rounded-3xl border border-indigo-300/50 bg-indigo-500/50 p-6" />
+            </>
+          ) : metricsError ? (
+            <div className="col-span-full rounded-3xl border border-red-500/20 bg-surface p-6 text-center">
+              <p className="text-sm font-semibold text-danger">Failed to load backend metrics: {metricsError}</p>
+              <button
+                onClick={() => void loadMetrics()}
+                className="mt-3 rounded-xl bg-indigo-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-400"
+              >
+                Retry loading metrics
+              </button>
             </div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-              Total Revenue
-            </p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-4xl font-semibold text-foreground">$1,240.50</p>
-              <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-success">
-                +12.5%
-              </span>
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Card 1: Total Revenue / Volume */}
+              <div className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 transition hover:border-indigo-500/30">
+                <div className="absolute right-0 top-0 p-4 opacity-10 transition group-hover:opacity-20">
+                  <span className="text-6xl font-semibold text-brand">$</span>
+                </div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                  Total Volume
+                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-4xl font-semibold text-foreground">
+                    {formatCurrency(metricsData?.summary.totalVolume ?? 0)}
+                  </p>
+                  <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-success">
+                    Live Backend Data
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-subtle">
+                  Avg tx size: {formatCurrency(metricsData?.summary.avgTxSize ?? 0)}
+                </p>
+              </div>
 
-          <div className="rounded-3xl border border-border bg-card p-6">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-              Success Rate
-            </p>
-            <p className="text-4xl font-semibold text-foreground">98.2%</p>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-strong">
-              <div className="h-full w-[98%] bg-indigo-400" />
-            </div>
-          </div>
+              {/* Card 2: Payment Count & Success Rate */}
+              <div className="rounded-3xl border border-border bg-card p-6">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                  Payments & Success Rate
+                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-4xl font-semibold text-foreground">
+                    {(metricsData?.summary.conversionRate ?? 100).toFixed(1)}%
+                  </p>
+                  <span className="text-sm font-medium text-muted">
+                    ({metricsData?.summary.totalTx ?? 0} txs)
+                  </span>
+                </div>
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-strong">
+                  <div
+                    className="h-full bg-indigo-400 transition-all duration-500"
+                    style={{ width: `${Math.min(Math.max(metricsData?.summary.conversionRate ?? 100, 0), 100)}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-subtle">
+                  {metricsData?.summary.successfulTx ?? 0} settled, {metricsData?.summary.failedTx ?? 0} failed
+                </p>
+              </div>
 
-          <div className="rounded-3xl border border-indigo-300/50 bg-indigo-500 p-6 text-white shadow-[0_20px_40px_-15px_rgba(99,102,241,0.3)]">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/90">
-              Available Payout
-            </p>
-            <p className="text-4xl font-semibold text-white">
-              850.00 <span className="text-xl opacity-80">USDC</span>
-            </p>
-            <p className="mt-3 text-xs text-white/90">
-              Estimated settlement: 3 seconds
-            </p>
-          </div>
+              {/* Card 3: Available Payout & Refunds */}
+              <div className="rounded-3xl border border-indigo-300/50 bg-indigo-500 p-6 text-white shadow-[0_20px_40px_-15px_rgba(99,102,241,0.3)]">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/90">
+                  Available Payout
+                </p>
+                <p className="text-4xl font-semibold text-white">
+                  {formatCurrency((metricsData?.summary.totalVolume ?? 0) * 0.85).replace("$", "")}{" "}
+                  <span className="text-xl opacity-80">USDC</span>
+                </p>
+                <p className="mt-3 text-xs text-white/90">
+                  {metricsData?.summary.refundCount ?? 0} refunds • Estimated settlement: 3 seconds
+                </p>
+              </div>
+            </>
+          )}
         </section>
 
         <div className="mb-10 md:mb-16">

@@ -8,6 +8,7 @@ import { ContractChangeWebhookService } from './contract-change-webhook.service'
 import {
   ContractChangeWebhookDispatcher,
 } from './contract-change-webhook.dispatcher';
+import { DeploymentValidationService } from './deployment-validation.service';
 
 describe('ContractRegistryService', () => {
   let service: ContractRegistryService;
@@ -17,6 +18,7 @@ describe('ContractRegistryService', () => {
   let mockEventEmitter: jest.Mocked<EventEmitter2>;
   let mockContractChangeWebhookService: jest.Mocked<Partial<ContractChangeWebhookService>>;
   let mockWebhookDispatcher: jest.Mocked<Partial<ContractChangeWebhookDispatcher>>;
+  let mockDeploymentValidationService: jest.Mocked<Partial<DeploymentValidationService>>;
 
   beforeEach(() => {
     const mockClient = {
@@ -56,6 +58,14 @@ describe('ContractRegistryService', () => {
       dispatch: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<Partial<ContractChangeWebhookDispatcher>>;
 
+    mockDeploymentValidationService = {
+      validateLedgerSequence: jest.fn(),
+      validateNetworkBinding: jest.fn(),
+      validateDeploymentManifest: jest.fn(),
+      checkNetworkCompatibility: jest.fn(),
+      getExpectedPassphrase: jest.fn(),
+    } as unknown as jest.Mocked<Partial<DeploymentValidationService>>;
+
     service = new ContractRegistryService(
       mockSupabaseService as unknown as SupabaseService,
       mockAuditService as unknown as AuditService,
@@ -63,6 +73,7 @@ describe('ContractRegistryService', () => {
       mockEventEmitter,
       mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
       mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+      mockDeploymentValidationService as unknown as DeploymentValidationService,
     );
   });
 
@@ -248,6 +259,7 @@ describe('ContractRegistryService', () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockDeploymentValidationService as unknown as DeploymentValidationService,
       );
 
       const result = await service.finalizeDualRead('quickex');
@@ -286,6 +298,7 @@ describe('ContractRegistryService', () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockDeploymentValidationService as unknown as DeploymentValidationService,
       );
 
       await expect(service.finalizeDualRead('missing')).rejects.toThrow(NotFoundException);
@@ -335,6 +348,7 @@ describe('ContractRegistryService', () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockDeploymentValidationService as unknown as DeploymentValidationService,
       );
 
       await expect(service.finalizeDualRead('quickex')).rejects.toThrow(BadRequestException);

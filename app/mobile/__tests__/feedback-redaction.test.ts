@@ -2,6 +2,7 @@ import {
   maskStellarPublicKey,
   redactContext,
   redactFeedbackText,
+  redactSupportBundleReference,
 } from '../utils/feedback-redaction';
 
 // Valid-shaped Stellar keys (56 chars, base32 alphabet A-Z2-7).
@@ -63,6 +64,24 @@ describe('feedback redaction', () => {
       expect(result.nested.addresses[1]).toBe('plain text');
       // Non-string values are preserved as-is.
       expect(result.count).toBe(3);
+    });
+  });
+
+  describe('redactSupportBundleReference', () => {
+    it('returns empty string if undefined', () => {
+      expect(redactSupportBundleReference(undefined)).toBe('');
+    });
+
+    it('extracts support ID from pipelined format', () => {
+      const ref = 'support-12345-bundle|session-token:9876xyz|env:prod';
+      expect(redactSupportBundleReference(ref)).toBe('support-12345-bundle');
+    });
+
+    it('redacts unpiped fallback references using redactFeedbackText', () => {
+      const ref = `my ref is ${SECRET_KEY} with email x@y.com`;
+      const result = redactSupportBundleReference(ref);
+      expect(result).toBe('my ref is [REDACTED_SECRET_KEY] with email [EMAIL]');
+      expect(result).not.toContain(SECRET_KEY);
     });
   });
 });

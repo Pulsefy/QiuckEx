@@ -717,3 +717,4 @@ export function getStatusColors(theme: ThemeTokens, status: 'success' | 'warning
     bg: theme.status[`${status}Bg` as keyof StatusColors],
   };
 }
+export const themeTokens = LightTheme;

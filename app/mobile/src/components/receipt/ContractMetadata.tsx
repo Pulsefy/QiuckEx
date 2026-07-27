@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { useClipboard } from '../../hooks/useClipboard';
-import type { ContractMetadata as ContractMetadataType } from '../../types/receipt';
+import { useClipboard } from '../../../hooks/useClipboard';
+import type { ContractMetadata as ContractMetadataType } from '../../../types/receipt';
 
 interface ContractMetadataProps {
   contract: ContractMetadataType;

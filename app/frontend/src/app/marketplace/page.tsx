@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { UsernameCard } from "@/components/UsernameCard";
 import { ListingDetailModal } from "@/components/ListingDetailModal";
 import {
@@ -74,24 +75,45 @@ function StatsBar({ listings }: { listings: MarketplaceListing[] }) {
 }
 
 function MarketplacePageContent() {
+  const searchParams = useSearchParams();
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
   const [sortKey, setSortKey] = useState("ending");
   const [activeListing, setActiveListing] = useState<MarketplaceListing | null>(null);
-  const [detailListing, setDetailListing] = useState<MarketplaceListing | null>(null);
+  const [detailListingId, setDetailListingId] = useState<string | null>(null);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
 
   const { watchlist, isInWatchlist, toggleWatchlist } = useWatchlist();
   const { isConnected, lastUpdate, subscribeToListing, unsubscribeFromListing, onBidUpdate } = useRealtimeUpdates();
 
-  useEffect(() => {
-    fetchListings().then((data) => {
+  const loadListings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchListings({ bypassCache: true });
       setListings(data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load marketplace listings";
+      setError(message);
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
+
+  useEffect(() => {
+    void loadListings();
+  }, [loadListings]);
+
+  useEffect(() => {
+    const listingFromQuery = searchParams.get("listing");
+    if (listingFromQuery) {
+      setDetailListingId(listingFromQuery);
+    }
+  }, [searchParams]);
 
   // Subscribe to real-time updates for all listings
   useEffect(() => {
@@ -133,7 +155,7 @@ function MarketplacePageContent() {
   }
 
   function handleOpenBid(listing: MarketplaceListing) {
-    setDetailListing(null);
+    setDetailListingId(null);
     setActiveListing(listing);
   }
 
@@ -324,7 +346,19 @@ function MarketplacePageContent() {
         )}
 
         {/* ── GRID ─────────────────────────────────── */}
-        {loading ? (
+        {error ? (
+          <div className="py-20 text-center bg-surface border border-red-500/20 rounded-3xl p-8 max-w-xl mx-auto space-y-4">
+            <div className="text-4xl">⚠️</div>
+            <h3 className="text-xl font-bold text-foreground">Failed to load marketplace listings</h3>
+            <p className="text-subtle text-sm">{error}</p>
+            <button
+              onClick={() => void loadListings()}
+              className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs rounded-xl transition shadow-lg"
+            >
+              Retry loading listings
+            </button>
+          </div>
+        ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -399,7 +433,7 @@ function MarketplacePageContent() {
                 key={listing.id}
                 listing={listing}
                 onBid={handleOpenBid}
-                onViewDetails={setDetailListing}
+                onViewDetails={(listing) => setDetailListingId(listing.id)}
               />
             ))}
           </div>
@@ -407,9 +441,9 @@ function MarketplacePageContent() {
       </div>
 
       <ListingDetailModal
-        listing={detailListing}
-        isWatched={detailListing ? isInWatchlist(detailListing.id) : false}
-        onClose={() => setDetailListing(null)}
+        listingId={detailListingId}
+        isWatched={detailListingId ? isInWatchlist(detailListingId) : false}
+        onClose={() => setDetailListingId(null)}
         onToggleWatchlist={(listing) => toggleWatchlist(listing.id, listing.username)}
         onPlaceBid={handleOpenBid}
       />
