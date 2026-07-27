@@ -8,7 +8,7 @@ describe('Bootstrap Service - fetchBootstrapConfig', () => {
   beforeEach(() => {
     global.fetch = vi.fn();
     
-    vi.stubEnv('VITE_API_BASE_URL', 'http://mock-api.local');
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:mock');
   });
 
   afterEach(() => {
@@ -32,7 +32,7 @@ describe('Bootstrap Service - fetchBootstrapConfig', () => {
     const config = await fetchBootstrapConfig();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://mock-api.local/v1/network/bootstrap',
+      'http://localhost:mock/v1/network/bootstrap',
       expect.any(Object)
     );
 

@@ -1,7 +1,7 @@
 import { BootstrapConfig, FALLBACK_BOOTSTRAP_CONFIG } from '../config/bootstrap.config';
 
 export const fetchBootstrapConfig = async (): Promise<BootstrapConfig> => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  const baseUrl = process.env.VITE_API_BASE_URL || '';
   
   try {
     const response = await fetch(`${baseUrl}/v1/network/bootstrap`, {

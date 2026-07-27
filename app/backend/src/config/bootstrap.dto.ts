@@ -1,8 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { 
   IsString, 
-  IsUrl, 
-  IsBoolean, 
+  IsUrl,
   IsArray, 
   ValidateNested, 
   IsObject 

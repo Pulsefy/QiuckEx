@@ -31,7 +31,7 @@ export const FALLBACK_BOOTSTRAP_CONFIG: BootstrapConfig = {
   },
   backendMetadata: {
     version: 'fallback',
-    apiUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000',
+    apiUrl: process.env.VITE_API_BASE_URL || 'http://localhost:4000',
     featureFlags: {
       contractWriteKillSwitch: false,
       enableShadowTraffic: false,
