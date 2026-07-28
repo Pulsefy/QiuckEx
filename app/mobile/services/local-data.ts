@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { clearSecurityData } from "./security";
+import { resetEnvironment } from "./environment-storage";
 import { clearWalletSession } from "./wallet-session";
 
 export async function clearLocalData(): Promise<void> {
@@ -22,5 +23,11 @@ export async function clearLocalData(): Promise<void> {
     await clearWalletSession();
   } catch (error) {
     console.error("Failed to clear wallet session during local data wipe", error);
+  }
+
+  try {
+    await resetEnvironment();
+  } catch (error) {
+    console.error("Failed to reset environment during local data wipe", error);
   }
 }

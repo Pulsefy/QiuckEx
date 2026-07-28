@@ -1,0 +1,86 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  formatPublicKey,
+  mapListingDetailToCardListing,
+  mapBackendListingToCardListing,
+  type MarketplaceListingDetail,
+} from "@/hooks/marketplaceApi";
+
+const sampleDetail: MarketplaceListingDetail = {
+  listing: {
+    id: "listing-1",
+    username: "nova",
+    seller_public_key: "GSELLER1234567890SELLER1234567890SELLER12",
+    asking_price: 100,
+    status: "active",
+    created_at: "2026-07-01T12:00:00.000Z",
+    updated_at: "2026-07-01T12:00:00.000Z",
+    sold_at: null,
+    buyer_public_key: null,
+    final_price: null,
+  },
+  bids: [
+    {
+      id: "bid-1",
+      listing_id: "listing-1",
+      bidder_public_key: "GBIDDER1234567890BIDDER1234567890BID12",
+      bid_amount: 150,
+      status: "pending",
+      created_at: "2026-07-02T12:00:00.000Z",
+      updated_at: "2026-07-02T12:00:00.000Z",
+    },
+  ],
+  seller: {
+    public_key: "GSELLER1234567890SELLER1234567890SELLER12",
+    display_key: "GSEL...ER12",
+  },
+  state_hints: {
+    can_place_bid: true,
+    can_watchlist: true,
+    can_buy_now: false,
+    is_available: true,
+    unavailable_reason: null,
+    minimum_bid_amount: 151,
+  },
+};
+
+describe("marketplace listing detail helpers", () => {
+  it("formats stellar public keys for bid history rows", () => {
+    expect(formatPublicKey("GBIDDER1234567890BIDDER1234567890BID12")).toBe("GBID...ID12");
+  });
+
+  it("maps backend detail into card listing bids and pricing", () => {
+    const cardListing = mapListingDetailToCardListing(sampleDetail);
+
+    expect(cardListing.id).toBe("listing-1");
+    expect(cardListing.username).toBe("nova");
+    expect(cardListing.currentBid).toBe(150);
+    expect(cardListing.bidCount).toBe(1);
+    expect(cardListing.ownerAddress).toBe("GSEL...ER12");
+  });
+
+  it("maps backend listing into card listing correctly", () => {
+    const backendListing = {
+      id: "list-100",
+      username: "sol",
+      seller_public_key: "GCXY12345678901234567890123456789012348K3J",
+      asking_price: 3200,
+      status: "active" as const,
+      created_at: "2026-07-20T10:00:00.000Z",
+      updated_at: "2026-07-20T10:00:00.000Z",
+      sold_at: null,
+      buyer_public_key: null,
+      final_price: null,
+    };
+
+    const card = mapBackendListingToCardListing(backendListing);
+    expect(card.id).toBe("list-100");
+    expect(card.username).toBe("sol");
+    expect(card.currentBid).toBe(3200);
+    expect(card.status).toBe("auction");
+    expect(card.category).toBe("short");
+    expect(card.ownerAddress).toBe("GCXY...8K3J");
+  });
+});
+

@@ -11,5 +11,6 @@ import { HealthService } from "./health.service";
   imports: [SupabaseModule, StellarModule, JobQueueModule, IngestionModule, TransactionsModule],
   controllers: [HealthController],
   providers: [HealthService],
+  exports: [HealthService],
 })
 export class HealthModule {}

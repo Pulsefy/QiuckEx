@@ -5,6 +5,10 @@ import { NetworkSafetyGuard } from './network-safety.guard';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AuditService } from '../audit/audit.service';
 import { AppConfigService } from '../config';
+import {
+  CONTRACT_WRITES_DISABLED_CODE,
+  TESTNET_CONTRACT_WRITES_FLAG,
+} from './contract-write-kill-switch.constants';
 
 function makeCtx(userId?: string): ExecutionContext {
   return {
@@ -25,8 +29,11 @@ function buildGuard(
   flagEnabled: boolean,
   flagKey: string | undefined = 'mainnet.refunds',
 ) {
+  // Use a special sentinel to allow passing undefined explicitly if desired
+  const effectiveFlagKey = flagKey === 'SENTINEL_UNDEFINED' ? undefined : flagKey;
+
   const reflector = {
-    getAllAndOverride: jest.fn().mockReturnValue(flagKey),
+    getAllAndOverride: jest.fn().mockReturnValue(effectiveFlagKey),
   } as unknown as Reflector;
 
   const config = {
@@ -41,6 +48,12 @@ function buildGuard(
       reason: flagEnabled ? 'enabled' : 'disabled',
       source: 'bootstrap',
     }),
+    evaluateFlagFresh: jest.fn().mockResolvedValue({
+      key: flagKey,
+      enabled: flagEnabled,
+      reason: flagEnabled ? 'enabled' : 'disabled',
+      source: 'store',
+    }),
   } as unknown as FeatureFlagsService;
 
   const audit = { log: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
@@ -50,13 +63,35 @@ function buildGuard(
 
 describe('NetworkSafetyGuard', () => {
   it('passes through when no @RequiresFlag decorator is present', async () => {
-    const { guard } = buildGuard('mainnet', false, undefined);
+    const { guard } = buildGuard('mainnet', false, 'SENTINEL_UNDEFINED');
     await expect(guard.canActivate(makeCtx())).resolves.toBe(true);
   });
 
-  it('passes through on testnet regardless of flag state', async () => {
+  it('passes through on testnet for non-contract-write flags', async () => {
     const { guard } = buildGuard('testnet', false);
     await expect(guard.canActivate(makeCtx())).resolves.toBe(true);
+  });
+
+  it('blocks testnet contract writes when the kill switch is enabled', async () => {
+    const { guard, flags, audit } = buildGuard(
+      'testnet',
+      false,
+      TESTNET_CONTRACT_WRITES_FLAG,
+    );
+
+    await expect(guard.canActivate(makeCtx('user-1'))).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+
+    expect(flags.evaluateFlagFresh).toHaveBeenCalledWith(TESTNET_CONTRACT_WRITES_FLAG, {
+      userId: 'user-1',
+    });
+    expect(audit.log).toHaveBeenCalledWith(
+      'user-1',
+      'network_safety_gate.blocked',
+      TESTNET_CONTRACT_WRITES_FLAG,
+      expect.objectContaining({ network: 'testnet' }),
+    );
   });
 
   it('allows on mainnet when flag is enabled', async () => {
@@ -96,6 +131,18 @@ describe('NetworkSafetyGuard', () => {
       const body = (err as ServiceUnavailableException).getResponse() as Record<string, unknown>;
       expect(body.error).toBe('MAINNET_GATE_BLOCKED');
       expect(body.flag).toBe('mainnet.refunds');
+    }
+  });
+
+  it('error body contains CONTRACT_WRITES_DISABLED code for the testnet kill switch', async () => {
+    const { guard } = buildGuard('testnet', false, TESTNET_CONTRACT_WRITES_FLAG);
+    try {
+      await guard.canActivate(makeCtx());
+    } catch (err) {
+      const body = (err as ServiceUnavailableException).getResponse() as Record<string, unknown>;
+      expect(body.code).toBe(CONTRACT_WRITES_DISABLED_CODE);
+      expect(body.error).toBe(CONTRACT_WRITES_DISABLED_CODE);
+      expect(body.flag).toBe(TESTNET_CONTRACT_WRITES_FLAG);
     }
   });
 });

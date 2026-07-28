@@ -8,11 +8,15 @@ import { createHash } from 'crypto';
 
 import { AppConfigService } from '../config';
 import { AuditService } from '../audit/audit.service';
+import { PreviewScopeService } from '../preview-scope/preview-scope.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   FeatureFlagEvaluationContext,
   FeatureFlagEvaluationResult,
   FeatureFlagRecord,
+  FeatureFlagSnapshotEntryDto,
+  FeatureFlagSnapshotMetadataDto,
+  FeatureFlagSnapshotResponseDto,
   FeatureFlagsListResponse,
   UpdateFeatureFlagDto,
 } from './feature-flags.dto';
@@ -68,6 +72,19 @@ const DEFAULT_FLAGS: FeatureFlagRecord[] = [
   },
   // ── Existing flags ────────────────────────────────────────────────────────
   {
+    key: 'testnet.contract_writes',
+    name: 'Testnet Contract Writes',
+    description: 'Allows Soroban contract write operations on testnet.',
+    enabled: true,
+    killSwitch: false,
+    rolloutPercentage: 100,
+    allowedUsers: [],
+    environments: ['development', 'test', 'production'],
+    metadata: { highRisk: true, flow: 'contract_writes', network: 'testnet' },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
+  {
     key: 'bulk_invoicing_v2',
     name: 'Bulk Invoicing v2',
     description: 'Enables templates, saved customers, and preview flow in bulk invoicing.',
@@ -104,6 +121,7 @@ export class FeatureFlagsService {
     private readonly supabaseService: SupabaseService,
     private readonly configService: AppConfigService,
     private readonly auditService: AuditService,
+    private readonly previewScopeService: PreviewScopeService,
   ) {}
 
   async listFlags(): Promise<FeatureFlagsListResponse> {
@@ -129,6 +147,22 @@ export class FeatureFlagsService {
     context: FeatureFlagEvaluationContext = {},
   ): Promise<FeatureFlagEvaluationResult> {
     const snapshot = await this.loadFlags();
+    return this.evaluateFlagFromSnapshot(key, context, snapshot);
+  }
+
+  async evaluateFlagFresh(
+    key: string,
+    context: FeatureFlagEvaluationContext = {},
+  ): Promise<FeatureFlagEvaluationResult> {
+    const snapshot = await this.loadFlags(true);
+    return this.evaluateFlagFromSnapshot(key, context, snapshot);
+  }
+
+  private evaluateFlagFromSnapshot(
+    key: string,
+    context: FeatureFlagEvaluationContext,
+    snapshot: CacheState,
+  ): FeatureFlagEvaluationResult {
     const flag = snapshot.flags.find((entry) => entry.key === key);
 
     if (!flag) {
@@ -291,8 +325,67 @@ export class FeatureFlagsService {
     };
   }
 
-  private async loadFlags(): Promise<CacheState> {
-    if (this.cache && this.cache.expiresAt > Date.now()) {
+  async getSnapshot(
+    environment?: string,
+    previewScope?: string,
+  ): Promise<FeatureFlagSnapshotResponseDto> {
+    const snapshot = await this.loadFlags();
+
+    const normalizedEnv = environment?.toLowerCase();
+    const filtered = normalizedEnv
+      ? snapshot.flags.filter((flag) => {
+          const allowed = flag.environments.map((e) => e.toLowerCase());
+          return allowed.length === 0 || allowed.includes(normalizedEnv);
+        })
+      : snapshot.flags;
+
+    let previewScopeValid: boolean | undefined;
+    if (previewScope) {
+      try {
+        previewScopeValid = await this.previewScopeService.isValidScope(previewScope);
+      } catch {
+        previewScopeValid = undefined;
+      }
+    }
+
+    const sensitiveCount = filtered.filter((flag) => this.isSensitiveFlag(flag)).length;
+    const visibleFlags = filtered.filter((flag) => !this.isSensitiveFlag(flag));
+
+    const flags: FeatureFlagSnapshotEntryDto[] = visibleFlags.map((flag) => ({
+      key: flag.key,
+      name: flag.name,
+      description: flag.description,
+      enabled: flag.enabled,
+      killSwitch: flag.killSwitch,
+      rolloutPercentage: flag.rolloutPercentage,
+      environments: flag.environments,
+      updatedAt: flag.updatedAt,
+      updatedBy: flag.updatedBy,
+      previewOverrideActive: previewScope ? (previewScopeValid ?? undefined) : undefined,
+    }));
+
+    const metadata: FeatureFlagSnapshotMetadataDto = {
+      source: snapshot.source,
+      storeAvailable: snapshot.storeAvailable,
+      environment: normalizedEnv,
+      flagCount: flags.length,
+      sensitiveFlagCount: sensitiveCount,
+      timestamp: new Date().toISOString(),
+      previewScope: previewScope ?? undefined,
+      previewScopeValid: previewScope ? previewScopeValid : undefined,
+    };
+
+    return { metadata, flags };
+  }
+
+  private isSensitiveFlag(flag: FeatureFlagRecord): boolean {
+    const meta = flag.metadata;
+    if (!meta || typeof meta !== 'object') return false;
+    return meta.internal === true || meta.sensitive === true;
+  }
+
+  private async loadFlags(forceRefresh = false): Promise<CacheState> {
+    if (!forceRefresh && this.cache && this.cache.expiresAt > Date.now()) {
       return { ...this.cache, source: this.cache.source === 'store' ? 'cache' : this.cache.source };
     }
 

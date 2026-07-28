@@ -22,11 +22,14 @@ import { usePaymentListener } from "../hooks/usePaymentListener";
 import { useOnboarding } from "../hooks/useOnboarding";
 import { WalletProvider } from "../hooks/useWalletContext";
 import { NetworkGuardProvider } from "../contexts/NetworkGuardContext";
+import { EnvironmentProvider } from "../contexts/EnvironmentContext";
+import { SessionProvider } from "../contexts/SessionContext";
 import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { resolveDeepLink, type DeepLinkRoute } from "@/utils/deep-link-routing";
 import {
+  routeFromNotificationResponse,
   parsePushNotificationPayload,
   routeFromPushPayload,
 } from "../services/notification-routing";
@@ -67,11 +70,7 @@ function useDeepLinkHandler(
 function useNotificationTapRouting(onRoute: (route: DeepLinkRoute) => void) {
   useEffect(() => {
     function routeResponse(response: Notifications.NotificationResponse | null | undefined) {
-      const payload = parsePushNotificationPayload(
-        response?.notification?.request?.content?.data,
-      );
-      if (!payload) return;
-      routeFromPushPayload({ push: (route: DeepLinkRoute) => onRoute(route) } as any, payload);
+      routeFromNotificationResponse({ push: (route: DeepLinkRoute) => onRoute(route) } as any, response);
     }
 
     Notifications.getLastNotificationResponseAsync()
@@ -136,10 +135,12 @@ function ThemeBridge() {
 
   return (
     <ThemeProvider value={navTheme}>
-      <SecurityProvider>
+      <EnvironmentProvider>
+        <SecurityProvider>
         <WalletProvider>
           <NetworkGuardProvider expectedNetwork="testnet">
-            <NotificationProvider>
+            <SessionProvider>
+              <NotificationProvider>
               <GlobalNetworkBanner />
               <WalletSyncBridge />
               {/* Dev-only global poller: ensures polling runs on web during development
@@ -151,10 +152,12 @@ function ThemeBridge() {
               ) : null}
               <AppShell />
               <ToastNotification />
-            </NotificationProvider>
+              </NotificationProvider>
+            </SessionProvider>
           </NetworkGuardProvider>
         </WalletProvider>
       </SecurityProvider>
+      </EnvironmentProvider>
       <StatusBar style={isDark ? "light" : "dark"} />
     </ThemeProvider>
   );
@@ -162,7 +165,7 @@ function ThemeBridge() {
 
 function AppShell() {
   const router = useRouter();
-  const { isAppLocked, isReady, settings, unlockApp } = useSecurity();
+  const { isAppLocked, isReady, settings, unlockApp, getSessionExplanation } = useSecurity();
   const { isLoading: onboardingLoading, hasCompletedOnboarding } = useOnboarding();
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkRoute | null>(null);
   const [pendingLinkError, setPendingLinkError] = useState<{ message: string; url: string } | null>(null);
@@ -242,16 +245,22 @@ function AppShell() {
         <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="escrow/[id]" />
         <Stack.Screen name="listing/[id]" />
+        <Stack.Screen name="inbox" />
         <Stack.Screen name="notification-debug" />
         <Stack.Screen name="deep-link-debug" />
         <Stack.Screen name="link-error" />
         <Stack.Screen name="qa-smoke-checklist" />
+        <Stack.Screen name="offline-queue-inspector" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
+        <Stack.Screen name="feedback" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
-        <AppLockOverlay visible={isAppLocked} onUnlock={unlockApp} />
+        <AppLockOverlay
+          visible={isAppLocked}
+          onUnlock={unlockApp}
+        />
       ) : null}
     </>
   );

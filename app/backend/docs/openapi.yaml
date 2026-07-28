@@ -1187,6 +1187,83 @@ paths:
                     type: string
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Delivery already in progress
+        "429":
+          description: Replay cooldown or quota exceeded
+
+  /webhooks/{publicKey}/{id}/deliveries/{eventType}/{eventId}:
+    get:
+      tags: [Webhooks]
+      operationId: getWebhookDeliveryStatus
+      summary: Get delivery status for an event
+      description: Retry schedule, last error, DLQ reason, and replay history for a specific event.
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: eventType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveryStatus"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /webhooks/{publicKey}/{id}/replays:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookReplays
+      summary: List manual replay history
+      description: Queryable audit trail of replay API calls for this webhook.
+      parameters:
+        - name: publicKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Replay audit log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WebhookReplayLog"
 
   # ---------------------------------------------------------------------------
   # Notifications
@@ -3237,6 +3314,67 @@ components:
           type: string
         eventType:
           type: string
+
+    WebhookDeliveryStatus:
+      type: object
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+        status:
+          type: string
+          description: pending | sent | failed | dlq
+        attempts:
+          type: integer
+        maxAttempts:
+          type: integer
+        lastError:
+          type: string
+        dlqReason:
+          type: string
+        nextRetryAt:
+          type: string
+          format: date-time
+        httpStatus:
+          type: integer
+        responseBody:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+        replayCount:
+          type: integer
+        lastReplayAt:
+          type: string
+          format: date-time
+
+    WebhookReplayLog:
+      type: object
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+        eventId:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+        triggeredBy:
+          type: string
+        deliverySuccess:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
 
     # --- Notifications ---
     NotificationPreference:

@@ -10,6 +10,7 @@ import { EscrowEventRepository } from "./escrow-event.repository";
 import { PrivacyEventRepository } from "./privacy-event.repository";
 import { AdminEventRepository } from "./admin-event.repository";
 import { StealthEventRepository } from "./stealth-event.repository";
+import { UnparsedSorobanEventRepository, UnparsedSorobanEventReason, UnparsedSorobanEventRecord } from "./unparsed-soroban-event.repository";
 import type {
   QuickExContractEvent,
   EscrowEvent,
@@ -26,6 +27,19 @@ export interface LedgerRangeResult {
   processed: number;
   persisted: number;
   skippedUnknownSchema: number;
+  parseFailures: number;
+}
+
+export interface ReplayUnparsedResult {
+  attempted: number;
+  replayed: number;
+  stillUnparsed: number;
+}
+
+export interface DualReadConfig {
+  previousContractId?: string;
+  effectiveLedger?: number;
+  effectiveTime?: Date;
 }
 
 /**
@@ -54,6 +68,7 @@ export class SorobanEventIndexerService {
     private readonly privacyRepo: PrivacyEventRepository,
     private readonly adminRepo: AdminEventRepository,
     private readonly stealthRepo: StealthEventRepository,
+    private readonly unparsedRepo: UnparsedSorobanEventRepository,
     private readonly metrics: MetricsService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -75,19 +90,21 @@ export class SorobanEventIndexerService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Index all contract events in [fromLedger, toLedger].
+   * Index all contract events in [fromLedger, toLedger] with dual-read support.
    *
-   * @param contractId  Soroban contract address.
-   * @param fromLedger  Inclusive start ledger.
-   * @param toLedger    Inclusive end ledger.
-   * @param force       When true, ignore the stored checkpoint and reindex the
-   *                    full range (reconciliation mode). Idempotency prevents
-   *                    duplicate records.
+   * @param contractId      Soroban contract address (current).
+   * @param fromLedger      Inclusive start ledger.
+   * @param toLedger        Inclusive end ledger.
+   * @param dualReadConfig  Optional dual-read configuration for transition windows.
+   * @param force           When true, ignore the stored checkpoint and reindex the
+   *                        full range (reconciliation mode). Idempotency prevents
+   *                        duplicate records.
    */
   async indexLedgerRange(
     contractId: string,
     fromLedger: number,
     toLedger: number,
+    dualReadConfig?: DualReadConfig,
     force = false,
   ): Promise<LedgerRangeResult> {
     const effectiveFrom = force
@@ -98,21 +115,74 @@ export class SorobanEventIndexerService {
       this.logger.log(
         `Contract ${contractId}: ledger range [${effectiveFrom}, ${toLedger}] already indexed; skipping.`,
       );
-      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0 };
+      return { fromLedger, toLedger, processed: 0, persisted: 0, skippedUnknownSchema: 0, parseFailures: 0 };
     }
 
+    const inDualReadWindow = this.isInDualReadWindow(effectiveFrom, dualReadConfig);
+    const logSuffix = inDualReadWindow ? " (dual-read mode)" : "";
+
     this.logger.log(
-      `Indexing contract ${contractId} ledgers [${effectiveFrom}, ${toLedger}]${force ? " (force reindex)" : ""}`,
+      `Indexing contract ${contractId} ledgers [${effectiveFrom}, ${toLedger}]${force ? " (force reindex)" : ""}${logSuffix}`,
     );
 
     let processed = 0;
     let persisted = 0;
     let skippedUnknownSchema = 0;
-    let cursor: string | undefined;
+    let parseFailures = 0;
 
-    // Paginate through Horizon until we've consumed the full range.
+    // In dual-read mode, index both current and previous contract IDs
+    if (inDualReadWindow && dualReadConfig?.previousContractId) {
+      const previousResult = await this.indexContractWithCursor(
+        dualReadConfig.previousContractId,
+        effectiveFrom,
+        dualReadConfig.effectiveLedger ?? toLedger,
+        undefined,
+      );
+      processed += previousResult.processed;
+      persisted += previousResult.persisted;
+      skippedUnknownSchema += previousResult.skippedUnknownSchema;
+      parseFailures += previousResult.parseFailures;
+    }
+
+    // Always index the current contract ID
+    const currentResult = await this.indexContractWithCursor(
+      contractId,
+      effectiveFrom,
+      toLedger,
+      undefined,
+    );
+    processed += currentResult.processed;
+    persisted += currentResult.persisted;
+    skippedUnknownSchema += currentResult.skippedUnknownSchema;
+    parseFailures += currentResult.parseFailures;
+
+    this.logger.log(
+      `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
+        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema} parseFailures=${parseFailures}`,
+    );
+
+    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema, parseFailures };
+  }
+
+  private async indexContractWithCursor(
+    contractId: string,
+    fromLedger: number,
+    toLedger: number,
+    cursor: string | undefined,
+  ): Promise<{ processed: number; persisted: number; skippedUnknownSchema: number; parseFailures: number }> {
+    let processed = 0;
+    let persisted = 0;
+    let skippedUnknownSchema = 0;
+    let parseFailures = 0;
+    let nextCursor = cursor;
+
     while (true) {
-      const { records, nextCursor } = await this.fetchPage(contractId, effectiveFrom, toLedger, cursor);
+      const { records, nextCursor: returnedCursor } = await this.fetchPage(
+        contractId,
+        fromLedger,
+        toLedger,
+        nextCursor,
+      );
 
       if (records.length === 0) break;
 
@@ -121,9 +191,12 @@ export class SorobanEventIndexerService {
         const event = this.parser.parse(raw);
 
         if (!event) {
-          // Count schema-version skips separately from parse errors.
-          // The parser already logged the reason.
-          skippedUnknownSchema++;
+          const outcome = await this.captureUnparsedEvent(raw);
+          if (outcome === "parse_failure") {
+            parseFailures++;
+          } else {
+            skippedUnknownSchema++;
+          }
           continue;
         }
 
@@ -132,25 +205,27 @@ export class SorobanEventIndexerService {
         this.eventEmitter.emit(`stellar.${event.eventType}`, event);
       }
 
-      // Advance checkpoint after each page so a crash mid-range is recoverable.
+      // Advance checkpoint after each page
       const lastRecord = records[records.length - 1];
       if (lastRecord) {
         await this.checkpointRepo.saveLastLedger(contractId, lastRecord.ledger);
       }
 
-      if (!nextCursor || records.length < PAGE_LIMIT) break;
-      cursor = nextCursor;
+      if (!returnedCursor || records.length < PAGE_LIMIT) break;
+      nextCursor = returnedCursor;
     }
 
-    // Final checkpoint at toLedger once the range is fully consumed.
+    // Final checkpoint
     await this.checkpointRepo.saveLastLedger(contractId, toLedger);
 
-    this.logger.log(
-      `Indexed contract ${contractId} [${effectiveFrom}, ${toLedger}]: ` +
-        `processed=${processed} persisted=${persisted} skippedUnknownSchema=${skippedUnknownSchema}`,
-    );
+    return { processed, persisted, skippedUnknownSchema, parseFailures };
+  }
 
-    return { fromLedger: effectiveFrom, toLedger, processed, persisted, skippedUnknownSchema };
+  private isInDualReadWindow(currentLedger: number, config?: DualReadConfig): boolean {
+    if (!config?.previousContractId || !config?.effectiveLedger) {
+      return false;
+    }
+    return currentLedger < config.effectiveLedger;
   }
 
   // ---------------------------------------------------------------------------
@@ -232,5 +307,113 @@ export class SorobanEventIndexerService {
       default:
         this.logger.debug(`Event ${(event as QuickExContractEvent).eventType} not persisted.`);
     }
+  }
+
+  async listUnparsedEvents(
+    limit = 100,
+    filters?: {
+      contractId?: string;
+      schemaVersion?: number;
+      errorType?: UnparsedSorobanEventReason;
+    },
+  ) {
+    return this.unparsedRepo.listPending(limit, filters);
+  }
+
+  async replayUnparsedEvents(limit = 100): Promise<ReplayUnparsedResult> {
+    const pending = await this.unparsedRepo.listPending(limit);
+    return this.replayBatch(pending);
+  }
+
+  async replaySingleEvent(pagingToken: string): Promise<{ success: boolean; message: string }> {
+    const record = await this.unparsedRepo.getByPagingToken(pagingToken);
+    if (!record) {
+      return { success: false, message: "Event not found" };
+    }
+    if (record.status === "replayed") {
+      return { success: false, message: "Event already replayed" };
+    }
+
+    const result = await this.replayBatch([record]);
+    if (result.replayed === 1) {
+      return { success: true, message: "Event successfully replayed" };
+    }
+    return { success: false, message: "Event failed to replay" };
+  }
+
+  async replaySpecificBatch(pagingTokens: string[]): Promise<ReplayUnparsedResult> {
+    const records: UnparsedSorobanEventRecord[] = [];
+    for (const token of pagingTokens) {
+      const record = await this.unparsedRepo.getByPagingToken(token);
+      if (record && record.status === "pending") {
+        records.push(record);
+      }
+    }
+    return this.replayBatch(records);
+  }
+
+  async replayBatch(records: UnparsedSorobanEventRecord[]): Promise<ReplayUnparsedResult> {
+    let replayed = 0;
+    let stillUnparsed = 0;
+
+    for (const record of records) {
+      const event = this.parser.parse(record.raw);
+      if (event) {
+        try {
+          await this.persistEvent(event);
+          await this.unparsedRepo.markReplayed(record.pagingToken);
+          this.eventEmitter.emit(`stellar.${event.eventType}`, event);
+          replayed++;
+        } catch (err) {
+          await this.unparsedRepo.markFailed(
+            record.pagingToken,
+            (err as Error).message,
+          );
+          stillUnparsed++;
+        }
+      } else {
+        await this.unparsedRepo.markFailed(
+          record.pagingToken,
+          "Parser still returned null after replay attempt",
+        );
+        stillUnparsed++;
+      }
+    }
+
+    return { attempted: records.length, replayed, stillUnparsed };
+  }
+
+  private async captureUnparsedEvent(
+    raw: RawHorizonContractEvent,
+  ): Promise<"unknown_schema_version" | "parse_failure" | "ignored"> {
+    const metadata = this.parser.inspect(raw);
+    if (!metadata) {
+      return "ignored";
+    }
+
+    if (
+      !this.parser.isSupportedSchemaVersion(
+        metadata.eventName,
+        metadata.schemaVersion,
+      )
+    ) {
+      await this.unparsedRepo.save({
+        raw,
+        reason: "unknown_schema_version",
+        eventName: metadata.eventName,
+        schemaVersion: metadata.schemaVersion,
+      });
+      return "unknown_schema_version";
+    }
+
+    this.metrics.recordError("soroban_indexer", "parse_failure");
+    await this.unparsedRepo.save({
+      raw,
+      reason: "parse_failure",
+      eventName: metadata.eventName,
+      schemaVersion: metadata.schemaVersion,
+      errorMessage: "Parser returned null for a supported schema version",
+    });
+    return "parse_failure";
   }
 }

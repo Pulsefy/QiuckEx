@@ -8,6 +8,7 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { JobQueueService } from "./job-queue.service";
 import { JobRepository } from "./job.repository";
+import { JobReplayRepository } from "./job-replay.repository";
 import { JobRegistry } from "./job-registry.service";
 import { JobExecutor } from "./job-executor.service";
 import { CancellationStore } from "./cancellation-token";
@@ -63,6 +64,7 @@ import {
   providers: [
     JobQueueService,
     JobRepository,
+    JobReplayRepository,
     JobRegistry,
     JobExecutor,
     CancellationStore,
@@ -78,6 +80,7 @@ import {
     JobQueueService,
     JobRegistry,
     JobRepository,
+    JobReplayRepository,
     JobQueueMetricsService,
     WebhookDeliveryHandler,
     RecurringPaymentHandler,

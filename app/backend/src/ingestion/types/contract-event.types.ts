@@ -16,6 +16,8 @@ export type SorobanEventType =
 
 export interface BaseContractEvent {
   eventType: SorobanEventType;
+  /** Deterministic SHA-256 hex id computed from the event's identity fields. */
+  eventId: string;
   /** Schema version read from the event payload (1 = legacy, 2+ = versioned). */
   schemaVersion: number;
   topicNamespace?: string;
