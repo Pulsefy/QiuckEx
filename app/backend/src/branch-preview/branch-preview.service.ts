@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
 import { BranchPreviewAutoExpiryService } from './branch-preview-auto-expiry.service';
 import { AuditService } from '../audit/audit.service';
 import {
+  BranchPreviewActorContext,
+  BranchPreviewActorRole,
   BranchPreviewEnvironment,
   CreateBranchPreviewDto,
   UpdateBranchPreviewDto,
@@ -65,7 +67,10 @@ export class BranchPreviewService {
     dto: CreateBranchPreviewDto,
     actorId: string,
     requestId?: string,
+    actorContext?: BranchPreviewActorContext,
   ): Promise<BranchPreviewEnvironment> {
+    await this.assertPermission('create', dto.branchName, actorContext, requestId, actorId);
+
     const preview = await this.repository.create(dto);
     
     // Update cache
@@ -94,7 +99,15 @@ export class BranchPreviewService {
     dto: UpdateBranchPreviewDto,
     actorId: string,
     requestId?: string,
+    actorContext?: BranchPreviewActorContext,
   ): Promise<BranchPreviewEnvironment> {
+    const existingPreview = await this.repository.findById(id);
+    if (!existingPreview) {
+      throw new Error(`Branch preview ${id} not found`);
+    }
+
+    await this.assertPermission('update', existingPreview.branchName, actorContext, requestId, actorId);
+
     const updated = await this.repository.update(id, dto);
     
     // Invalidate cache to force refresh
@@ -122,9 +135,15 @@ export class BranchPreviewService {
     id: string,
     actorId: string,
     requestId?: string,
+    actorContext?: BranchPreviewActorContext,
   ): Promise<void> {
-    // We could add a findById method to the repository for better accuracy,
-    // but for simplicity we'll just clear the entire cache if we can't get the branch name
+    const existingPreview = await this.repository.findById(id);
+    if (!existingPreview) {
+      throw new Error(`Branch preview ${id} not found`);
+    }
+
+    await this.assertPermission('delete', existingPreview.branchName, actorContext, requestId, actorId);
+
     await this.repository.delete(id);
     this.cache.clear(); // Clear cache to ensure old entries are purged
     
@@ -133,7 +152,10 @@ export class BranchPreviewService {
       actorId,
       'branch_preview.deleted',
       id,
-      {},
+      {
+        branchName: existingPreview.branchName,
+        destructive: true,
+      },
       requestId,
     );
   }
@@ -152,14 +174,17 @@ export class BranchPreviewService {
     branchName: string,
     actorId: string,
     requestId?: string,
+    actorContext?: BranchPreviewActorContext,
   ): Promise<boolean> {
+    await this.assertPermission('invalidate-cache', branchName, actorContext, requestId, actorId);
+
     const deleted = this.cache.delete(branchName);
     
     await this.auditService.log(
       actorId,
       'branch_preview.cache_invalidated',
       branchName,
-      { success: deleted },
+      { success: deleted, destructive: false },
       requestId,
     );
 
@@ -172,14 +197,17 @@ export class BranchPreviewService {
   async clearAllCache(
     actorId: string,
     requestId?: string,
+    actorContext?: BranchPreviewActorContext,
   ): Promise<void> {
+    await this.assertPermission('clear-cache', undefined, actorContext, requestId, actorId);
+
     this.cache.clear();
     
     await this.auditService.log(
       actorId,
       'branch_preview.cache_cleared',
       'all',
-      {},
+      { destructive: true },
       requestId,
     );
   }
@@ -187,8 +215,79 @@ export class BranchPreviewService {
   /**
    * Cleanup stale previews (delegates to scheduled auto-expiry sweep).
    */
-  async cleanupExpiredPreviews(): Promise<number> {
-    return this.autoExpiryService.runAutoExpirySweep(uuidv4());
+  async cleanupExpiredPreviews(
+    actorId = 'system',
+    requestId?: string,
+    actorContext?: BranchPreviewActorContext,
+  ): Promise<number> {
+    await this.assertPermission('cleanup', undefined, actorContext, requestId, actorId);
+
+    const sweepId = uuidv4();
+    const count = await this.autoExpiryService.runAutoExpirySweep(sweepId);
+
+    await this.auditService.log(
+      actorId,
+      'branch_preview.cleanup_expired',
+      sweepId,
+      { destructive: true, deactivated: count },
+      requestId,
+    );
+
+    return count;
+  }
+
+  private async assertPermission(
+    action: 'create' | 'update' | 'delete' | 'invalidate-cache' | 'clear-cache' | 'cleanup',
+    targetBranchName: string | undefined,
+    actorContext: BranchPreviewActorContext | undefined,
+    requestId: string | undefined,
+    actorId: string,
+  ): Promise<void> {
+    const role = actorContext?.role ?? 'admin';
+    const normalizedBranch = actorContext?.branchName?.toLowerCase().trim();
+    const normalizedTargetBranch = targetBranchName?.toLowerCase().trim();
+
+    if (role === 'admin') {
+      await this.auditService.log(
+        actorId,
+        'branch_preview.permission_granted',
+        targetBranchName ?? 'all',
+        { action, role, granted: true },
+        requestId,
+      );
+      return;
+    }
+
+    const isBranchMatch = normalizedBranch && normalizedTargetBranch
+      ? normalizedBranch === normalizedTargetBranch
+      : false;
+
+    const isReviewerAllowed = role === 'reviewer' && action === 'update' && isBranchMatch;
+    const isOwnerAllowed = role === 'owner' && isBranchMatch && ['create', 'update', 'delete'].includes(action);
+
+    if ((role === 'owner' && isOwnerAllowed) || isReviewerAllowed) {
+      await this.auditService.log(
+        actorId,
+        'branch_preview.permission_granted',
+        targetBranchName ?? 'all',
+        { action, role, branchName: normalizedBranch, granted: true },
+        requestId,
+      );
+      return;
+    }
+
+    await this.auditService.log(
+      actorId,
+      'branch_preview.permission_denied',
+      targetBranchName ?? 'all',
+      { action, role, branchName: normalizedBranch, granted: false },
+      requestId,
+    );
+
+    throw new ForbiddenException({
+      error: 'INSUFFICIENT_ENVIRONMENT_ACCESS',
+      message: `Role ${role} cannot perform ${action} for this branch preview`,
+    });
   }
 
   /**

@@ -62,6 +62,27 @@ export class BranchPreviewRepository {
   }
 
   /**
+   * Find a branch preview by id
+   */
+  async findById(id: string): Promise<BranchPreviewEnvironment | null> {
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
+      .from(this.TABLE_NAME)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        this.logger.error(`Error finding branch preview by id: ${error.message}`, error);
+      }
+      return null;
+    }
+
+    return this.mapDbToModel(data);
+  }
+
+  /**
    * Find a branch preview by branch name
    */
   async findByBranchName(branchName: string): Promise<BranchPreviewEnvironment | null> {

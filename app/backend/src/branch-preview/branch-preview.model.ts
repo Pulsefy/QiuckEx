@@ -65,3 +65,11 @@ export interface ListBranchPreviewsDto {
   limit?: number;
   includeInactive?: boolean;
 }
+
+export type BranchPreviewActorRole = 'owner' | 'reviewer' | 'admin';
+
+export interface BranchPreviewActorContext {
+  actorId?: string;
+  role?: BranchPreviewActorRole;
+  branchName?: string;
+}

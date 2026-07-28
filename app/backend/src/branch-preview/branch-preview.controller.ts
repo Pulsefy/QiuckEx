@@ -27,11 +27,24 @@ interface AuthenticatedRequest extends Request {
   correlationId?: string;
 }
 
+function normalizeRole(value: unknown): 'owner' | 'reviewer' | 'admin' | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.toLowerCase();
+  if (normalized === 'owner' || normalized === 'reviewer' || normalized === 'admin') {
+    return normalized;
+  }
+
+  return undefined;
+}
+
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { RateLimitGroupTag } from '../auth/decorators/rate-limit-group.decorator';
 import { BranchPreviewService } from './branch-preview.service';
-import { BranchPreviewResponseDto } from './branch-preview.model';
+import { BranchPreviewActorContext, BranchPreviewResponseDto } from './branch-preview.model';
 import {
   CreateBranchPreviewRequestDto,
   UpdateBranchPreviewRequestDto,
@@ -79,7 +92,7 @@ export class BranchPreviewController {
   ) {
     const actorId = req.user?.id || 'unknown';
     const requestId = req.correlationId;
-    return this.branchPreviewService.createPreview(dto, actorId, requestId);
+    return this.branchPreviewService.createPreview(dto, actorId, requestId, this.getActorContext(req));
   }
 
   @Put('admin/branch-previews/:id')
@@ -96,7 +109,7 @@ export class BranchPreviewController {
   ) {
     const actorId = req.user?.id || 'unknown';
     const requestId = req.correlationId;
-    return this.branchPreviewService.updatePreview(id, dto, actorId, requestId);
+    return this.branchPreviewService.updatePreview(id, dto, actorId, requestId, this.getActorContext(req));
   }
 
   @Delete('admin/branch-previews/:id')
@@ -113,7 +126,7 @@ export class BranchPreviewController {
   ) {
     const actorId = req.user?.id || 'unknown';
     const requestId = req.correlationId;
-    return this.branchPreviewService.deletePreview(id, actorId, requestId);
+    return this.branchPreviewService.deletePreview(id, actorId, requestId, this.getActorContext(req));
   }
 
   @Get('admin/branch-previews')
@@ -144,7 +157,7 @@ export class BranchPreviewController {
   ) {
     const actorId = req.user?.id || 'unknown';
     const requestId = req.correlationId;
-    const success = await this.branchPreviewService.invalidateCache(branchName, actorId, requestId);
+    const success = await this.branchPreviewService.invalidateCache(branchName, actorId, requestId, this.getActorContext(req));
     return { success };
   }
 
@@ -159,7 +172,7 @@ export class BranchPreviewController {
   async clearAllCache(@Req() req: AuthenticatedRequest) {
     const actorId = req.user?.id || 'unknown';
     const requestId = req.correlationId;
-    await this.branchPreviewService.clearAllCache(actorId, requestId);
+    await this.branchPreviewService.clearAllCache(actorId, requestId, this.getActorContext(req));
     return { success: true };
   }
 
@@ -171,8 +184,21 @@ export class BranchPreviewController {
     summary: 'Cleanup expired preview environments',
     description: 'Admin only: Deactivate all expired branch previews',
   })
-  async cleanupExpired() {
-    const count = await this.branchPreviewService.cleanupExpiredPreviews();
+  async cleanupExpired(@Req() req: AuthenticatedRequest) {
+    const actorId = req.user?.id || 'unknown';
+    const requestId = req.correlationId;
+    const count = await this.branchPreviewService.cleanupExpiredPreviews(actorId, requestId, this.getActorContext(req));
     return { deactivated: count };
+  }
+
+  private getActorContext(req: AuthenticatedRequest): BranchPreviewActorContext {
+    const roleHeader = req.headers['x-environment-role'];
+    const branchHeader = req.headers['x-branch-name'];
+
+    return {
+      actorId: req.user?.id,
+      role: normalizeRole(roleHeader),
+      branchName: typeof branchHeader === 'string' ? branchHeader : undefined,
+    };
   }
 }

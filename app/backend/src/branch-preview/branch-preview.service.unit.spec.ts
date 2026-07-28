@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BranchPreviewService } from './branch-preview.service';
 import { BranchPreviewCache } from './branch-preview.cache';
@@ -9,6 +10,7 @@ describe('BranchPreviewService', () => {
   let service: BranchPreviewService;
   let cache: jest.Mocked<BranchPreviewCache>;
   let repository: jest.Mocked<BranchPreviewRepository>;
+  let auditService: jest.Mocked<AuditService>;
 
   beforeEach(async () => {
     const mockCache = {
@@ -19,6 +21,7 @@ describe('BranchPreviewService', () => {
     };
 
     const mockRepository = {
+      findById: jest.fn(),
       findByBranchName: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -52,6 +55,7 @@ describe('BranchPreviewService', () => {
     service = module.get<BranchPreviewService>(BranchPreviewService);
     cache = module.get(BranchPreviewCache) as jest.Mocked<BranchPreviewCache>;
     repository = module.get(BranchPreviewRepository) as jest.Mocked<BranchPreviewRepository>;
+    auditService = module.get(AuditService) as jest.Mocked<AuditService>;
   });
 
   it('should be defined', () => {
@@ -89,7 +93,7 @@ describe('BranchPreviewService', () => {
 
     const result = await service.getPreviewForBranch(branchName);
     
-    expect(result.isFallback).toBeUndefined();
+    expect(result.isFallback).toBe(false);
     expect(result.apiUrl).toBe('https://api.test.com');
     expect(repository.findByBranchName).not.toHaveBeenCalled();
   });
@@ -116,7 +120,7 @@ describe('BranchPreviewService', () => {
     const result = await service.getPreviewForBranch(branchName);
     
     expect(result.apiUrl).toBe('https://api.db-test.com');
-    expect(cache.set).toHaveBeenCalledWith(branchName, mockPreview, undefined);
+    expect(cache.set).toHaveBeenCalledWith(branchName.toLowerCase(), mockPreview);
   });
 
   it('returns fallback for stale/expired preview', async () => {
@@ -142,5 +146,43 @@ describe('BranchPreviewService', () => {
     const result = await service.getPreviewForBranch(branchName);
     
     expect(result.isFallback).toBe(true);
+  });
+
+  it('rejects create operations when a reviewer targets a different branch', async () => {
+    await expect(
+      service.createPreview(
+        {
+          branchName: 'feature/other-branch',
+          apiUrl: 'https://api.example.com',
+          frontendUrl: 'https://app.example.com',
+          network: 'testnet',
+          contractRegistryVersion: 'v1',
+        },
+        'actor-1',
+        'req-1',
+        {
+          actorId: 'actor-1',
+          role: 'reviewer',
+          branchName: 'feature/owned-branch',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('logs destructive actions for admin cleanup operations', async () => {
+    await service.clearAllCache('admin-1', 'req-2', {
+      actorId: 'admin-1',
+      role: 'admin',
+    });
+
+    expect(auditService.log).toHaveBeenCalledWith(
+      'admin-1',
+      'branch_preview.cache_cleared',
+      'all',
+      expect.objectContaining({ destructive: true }),
+      'req-2',
+    );
   });
 });
