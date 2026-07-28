@@ -1,7 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { MarketplaceService } from "../src/marketplace/marketplace.service";
 import { SupabaseService } from "../src/supabase/supabase.service";
-import { MarketplaceListingDetailDto } from "../src/marketplace/dto/marketplace-listing-detail.dto";
 import {
   MarketplaceListing,
   MarketplaceBid,
@@ -63,8 +62,8 @@ describe("MarketplaceService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MarketplaceService,
-        { provide: SupabaseService, useValue: supabaseMock as any },
-        { provide: UsernamesService, useValue: usernamesMock as any },
+        { provide: SupabaseService, useValue: supabaseMock as jest.Mocked<SupabaseService> },
+        { provide: UsernamesService, useValue: usernamesMock as jest.Mocked<UsernamesService> },
       ],
     }).compile();
 

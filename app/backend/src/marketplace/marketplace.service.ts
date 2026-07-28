@@ -8,7 +8,6 @@ import {
   buildBidSummary,
   resolveHighBidAmount,
   truncateStellarPublicKey,
-  MarketplaceListingDetail,
 } from './marketplace-listing-detail';
 import { MarketplaceListingDetailDto } from './dto/marketplace-listing-detail.dto';
 
