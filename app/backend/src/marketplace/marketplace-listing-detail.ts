@@ -1,7 +1,10 @@
 import { MarketplaceBid, MarketplaceListing } from '../supabase/supabase.service';
+import { BidSummary } from './dto/marketplace-listing-detail.dto';
 
 export type MarketplaceStateHints = {
   can_place_bid: boolean;
+  can_cancel: boolean;
+  can_accept_bids: boolean;
   can_watchlist: boolean;
   can_buy_now: boolean;
   is_available: boolean;
@@ -17,6 +20,7 @@ export type MarketplaceSellerInfo = {
 export type MarketplaceListingDetail = {
   listing: MarketplaceListing;
   bids: MarketplaceBid[];
+  bid_summary: BidSummary;
   seller: MarketplaceSellerInfo;
   state_hints: MarketplaceStateHints;
 };
@@ -45,6 +49,18 @@ export function resolveHighBidAmount(
   return askingPrice;
 }
 
+export function buildBidSummary(bids: MarketplaceBid[]): BidSummary {
+  const pending = bids.filter((b) => b.status === 'pending');
+  const bidAmounts = pending.map((b) => Number(b.bid_amount));
+
+  return {
+    total_bids: bids.length,
+    pending_bids: pending.length,
+    highest_bid: bidAmounts.length > 0 ? Math.max(...bidAmounts) : null,
+    lowest_bid: bidAmounts.length > 0 ? Math.min(...bidAmounts) : null,
+  };
+}
+
 export function buildMarketplaceStateHints(
   listing: MarketplaceListing,
   highBidAmount: number,
@@ -65,6 +81,8 @@ export function buildMarketplaceStateHints(
 
   return {
     can_place_bid: isActive && !isSeller,
+    can_cancel: isActive && isSeller,
+    can_accept_bids: isActive && isSeller,
     can_watchlist: isActive,
     can_buy_now: false,
     is_available: isActive,
