@@ -71,11 +71,8 @@ pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
     }
 
     if let Some(oracle_config) = storage::get_oracle_fee_config(env) {
-        if let Some((price_micros, timestamp)) = oracle::fetch_price(env, &oracle_config.oracle) {
-            let now = env.ledger().timestamp();
-            if price_micros > 0
-                && now.saturating_sub(timestamp) <= oracle_config.stale_threshold_secs
-            {
+        if let Ok((price_micros, _timestamp)) = oracle::fetch_price(env, &oracle_config.oracle) {
+            if price_micros > 0 {
                 let fee = oracle_config
                     .usd_fee_micros
                     .saturating_mul(1_000_000)

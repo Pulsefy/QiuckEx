@@ -58,6 +58,7 @@ import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
 import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
 import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
+import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 
 type AppImport =
 | Type<unknown>
@@ -108,6 +109,7 @@ OperationsModule,
     AbuseSignalsModule,
     PreviewScopeModule,
     TransactionTimelineModule,
+    DashboardFeedModule,
     ];
 
     try {
