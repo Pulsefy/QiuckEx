@@ -44,6 +44,14 @@ export class PublicProfileDto {
   transactionCount?: number;
 
   @ApiProperty({
+    description:
+      'Manual featured ordering rank (lower = higher priority, for featured profiles)',
+    example: 1,
+    required: false,
+  })
+  featuredRank?: number | null;
+
+  @ApiProperty({
     description: 'Last activity timestamp',
     example: '2025-03-27T10:30:00Z',
   })

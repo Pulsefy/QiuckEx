@@ -109,20 +109,20 @@ export function FeatureFlags() {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
       <div className="flex flex-col gap-4 mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">Safety Controls</h2>
-            <p className="text-sm text-gray-500">
-              Source: <span className="font-medium text-gray-700">{source}</span>
+            <h2 className="text-lg font-semibold text-foreground">Safety Controls</h2>
+            <p className="text-sm text-subtle">
+              Source: <span className="font-medium text-muted">{source}</span>
             </p>
           </div>
           <div
             className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
               storeAvailable
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-amber-50 text-amber-700"
+                ? "bg-success-soft text-success"
+                : "bg-warning-soft text-warning"
             }`}
           >
             {storeAvailable ? <ShieldCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
@@ -130,11 +130,11 @@ export function FeatureFlags() {
           </div>
         </div>
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-subtle" />
           <input
             type="text"
             placeholder="Search flags..."
-            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+            className="pl-9 pr-4 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-brand w-full"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -142,7 +142,7 @@ export function FeatureFlags() {
       </div>
 
       {error && (
-        <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+        <p className="mb-4 rounded-md border border-warning-soft bg-warning-soft px-3 py-2 text-sm text-warning">
           {error}
         </p>
       )}
@@ -151,27 +151,27 @@ export function FeatureFlags() {
         {filteredFlags.map((flag) => (
           <div
             key={flag.key}
-            className="rounded-lg border border-gray-200 px-4 py-4"
+            className="rounded-lg border border-border px-4 py-4"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-gray-900">{flag.name}</p>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                  <p className="font-medium text-foreground">{flag.name}</p>
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
                     {flag.key}
                   </span>
                 </div>
-                <p className="text-sm text-gray-500">{flag.description}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-sm text-subtle">{flag.description}</p>
+                <p className="text-xs text-subtle">
                   Rollout {flag.rolloutPercentage}% • Environments {flag.environments.join(", ") || "all"} • Updated by {flag.updatedBy}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:w-auto">
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                <label className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Enabled</p>
-                    <p className="text-sm text-gray-700">{flag.enabled ? "On" : "Off"}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Enabled</p>
+                    <p className="text-sm text-muted">{flag.enabled ? "On" : "Off"}</p>
                   </div>
                   <input
                     type="checkbox"
@@ -182,10 +182,10 @@ export function FeatureFlags() {
                   />
                 </label>
 
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                <label className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Kill Switch</p>
-                    <p className="text-sm text-gray-700">{flag.killSwitch ? "Armed" : "Standby"}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Kill Switch</p>
+                    <p className="text-sm text-muted">{flag.killSwitch ? "Armed" : "Standby"}</p>
                   </div>
                   <input
                     type="checkbox"
@@ -200,7 +200,7 @@ export function FeatureFlags() {
           </div>
         ))}
         {filteredFlags.length === 0 && (
-          <p className="text-sm text-gray-500 text-center py-4">No flags found.</p>
+          <p className="text-sm text-subtle text-center py-4">No flags found.</p>
         )}
       </div>
     </div>

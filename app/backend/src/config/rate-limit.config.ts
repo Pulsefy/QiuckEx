@@ -19,6 +19,11 @@ type GroupConfig = {
 export type RateLimitConfig = {
   groups: Record<RateLimitGroup, GroupConfig>;
   keyOrder: RateLimitKeyType[];
+  allowlist: {
+    cidrs: string[];
+    apiKeys: string[];
+    userIds: string[];
+  };
 };
 
 const DEFAULT_KEY_ORDER: RateLimitKeyType[] = ["user_id", "api_key", "ip"];
@@ -39,15 +44,27 @@ function parseKeyOrder(raw?: string): RateLimitKeyType[] {
   return ordered.length > 0 ? ordered : DEFAULT_KEY_ORDER;
 }
 
+function parseAllowlist<T>(raw?: string): T[] {
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean) as T[];
+}
+
+// Testnet-specific defaults
+const isTestnet = process.env.NETWORK === "testnet";
+const TESTNET_PUBLIC_BURST_LIMIT = 20;
+const TESTNET_PUBLIC_SUSTAINED_LIMIT = 60;
+const TESTNET_AUTH_BURST_LIMIT = 80;
+const TESTNET_AUTH_SUSTAINED_LIMIT = 240;
+
 export const throttlerConfig: RateLimitConfig = {
   groups: {
     public: {
       burst: {
-        limit: Number(process.env["RATE_LIMIT_PUBLIC_BURST_LIMIT"] ?? 10),
+        limit: Number(process.env["RATE_LIMIT_PUBLIC_BURST_LIMIT"] ?? (isTestnet ? TESTNET_PUBLIC_BURST_LIMIT : 10)),
         ttlMs: Number(process.env["RATE_LIMIT_PUBLIC_BURST_TTL_MS"] ?? 10_000),
       },
       sustained: {
-        limit: Number(process.env["RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT"] ?? 20),
+        limit: Number(process.env["RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT"] ?? (isTestnet ? TESTNET_PUBLIC_SUSTAINED_LIMIT : 20)),
         ttlMs: Number(
           process.env["RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS"] ?? 60_000,
         ),
@@ -56,7 +73,7 @@ export const throttlerConfig: RateLimitConfig = {
     authenticated: {
       burst: {
         limit: Number(
-          process.env["RATE_LIMIT_AUTHENTICATED_BURST_LIMIT"] ?? 40,
+          process.env["RATE_LIMIT_AUTHENTICATED_BURST_LIMIT"] ?? (isTestnet ? TESTNET_AUTH_BURST_LIMIT : 40),
         ),
         ttlMs: Number(
           process.env["RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS"] ?? 10_000,
@@ -64,7 +81,7 @@ export const throttlerConfig: RateLimitConfig = {
       },
       sustained: {
         limit: Number(
-          process.env["RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT"] ?? 120,
+          process.env["RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT"] ?? (isTestnet ? TESTNET_AUTH_SUSTAINED_LIMIT : 120),
         ),
         ttlMs: Number(
           process.env["RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS"] ?? 60_000,
@@ -87,6 +104,11 @@ export const throttlerConfig: RateLimitConfig = {
     },
   },
   keyOrder: parseKeyOrder(process.env["RATE_LIMIT_KEY_ORDER"]),
+  allowlist: {
+    cidrs: parseAllowlist<string>(process.env["RATE_LIMIT_ALLOWLIST_CIDRS"]),
+    apiKeys: parseAllowlist<string>(process.env["RATE_LIMIT_ALLOWLIST_API_KEYS"]),
+    userIds: parseAllowlist<string>(process.env["RATE_LIMIT_ALLOWLIST_USER_IDS"]),
+  },
 };
 
 export const throttlerModuleProfiles = [

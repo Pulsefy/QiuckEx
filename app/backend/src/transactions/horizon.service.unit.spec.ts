@@ -1,5 +1,5 @@
-// Mock stellar-sdk BEFORE importing HorizonService
-jest.mock('stellar-sdk', () => {
+// Mock @stellar/stellar-sdk BEFORE importing HorizonService
+jest.mock('@stellar/stellar-sdk', () => {
     const mockServer = {
         operations: jest.fn().mockReturnThis(),
         forAccount: jest.fn().mockReturnThis(),

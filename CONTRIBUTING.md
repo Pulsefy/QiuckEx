@@ -47,6 +47,7 @@ See [docs/MVP-ROADMAP.md](docs/MVP-ROADMAP.md) for the full roadmap and prioriti
 ## Architecture Overview
 
 - Backend and Contract architecture diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- Check [docs/CAPABILITY-MAP.md](docs/CAPABILITY-MAP.md) to see which flows are Live, Partial, Mocked, or Experimental before building on them.
 - See [docs/](docs/) for API, events, and payment flow documentation.
 
 ## Getting Help

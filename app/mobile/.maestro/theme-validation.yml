@@ -1,0 +1,38 @@
+useClipboard.ts# Maestro E2E test for theme consistency validation
+appId: com.pulsefy.quickex
+
+---
+- launchApp
+
+# Test Light Mode
+- tapOn: "Settings"
+- tapOn: "Light" # Select light theme
+- assertVisible: "Appearance"
+- takeScreenshot: "settings-light"
+
+- tapOn: "Notifications"
+- takeScreenshot: "notification-light"
+
+- tapOn: "Create" # Payment tab
+- takeScreenshot: "payment-light"
+
+# Generate a receipt
+- tapOn: "Generate Link"
+- tapOn: "View Receipt"
+- takeScreenshot: "receipt-light"
+
+# Test Dark Mode
+- tapOn: "Settings"
+- tapOn: "Dark" # Select dark theme
+- takeScreenshot: "settings-dark"
+
+- tapOn: "Notifications"
+- takeScreenshot: "notification-dark"
+
+- tapOn: "Create"
+- takeScreenshot: "payment-dark"
+
+# Test System Mode
+- tapOn: "Settings"
+- tapOn: "System"
+- assertVisible: "System" # Verify selection persists

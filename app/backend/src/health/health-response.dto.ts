@@ -23,11 +23,23 @@ export class ReadyCheckDto {
 
   @ApiProperty({ example: ["All critical env variables loaded"], required: false, type: [String] })
   details?: string[];
+
+  @ApiProperty({ example: "2024-01-01T00:00:00.000Z", required: false })
+  lastSuccess?: string;
+
+  @ApiProperty({ example: "Connection timeout", required: false })
+  error?: string;
+
+  @ApiProperty({ example: 5, required: false, description: "Lag in seconds for ingestion checks" })
+  lagSeconds?: number;
 }
 
 export class ReadyResponseDto {
   @ApiProperty({ example: true })
   ready!: boolean;
+
+  @ApiProperty({ example: "2024-01-01T00:00:00.000Z", description: "Timestamp of the readiness check" })
+  timestamp!: string;
 
   @ApiProperty({ type: [ReadyCheckDto] })
   checks!: ReadyCheckDto[];

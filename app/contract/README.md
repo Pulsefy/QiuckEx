@@ -107,6 +107,22 @@ soroban contract deploy \
   --network mainnet
 ```
 
+## Contract Spec Export
+
+Export the contract's method/argument spec, along with the current
+contract and event schema versions, as a stable JSON artifact:
+
+```bash
+./scripts/export-contract-spec.sh
+```
+
+The artifact is written to `docs/contract-spec/contract-spec.json` and
+includes `contract_version`, `event_schema_version`, and the full function
+interface, so contributors and tooling can introspect available methods
+without reading the Rust source. `scripts/test-contract-spec-export.sh`
+verifies the export is stable across repeat builds and includes all
+required fields.
+
 ## Development Workflow
 
 1. Make changes to the contract code

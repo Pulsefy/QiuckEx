@@ -6,6 +6,7 @@ import {
   PathPreviewService,
   type PathPreviewRow,
 } from '../stellar/path-preview.service';
+import { PrivacyService } from '../privacy/privacy.service';
 
 @Injectable()
 export class LinksService {
@@ -13,6 +14,7 @@ export class LinksService {
 
   constructor(
     @Optional() private readonly pathPreviewService?: PathPreviewService,
+    @Optional() private readonly privacyService?: PrivacyService,
   ) {}
 
   async generateMetadata(request: LinkMetadataRequestDto): Promise<LinkMetadataResponseDto> {
@@ -68,6 +70,16 @@ export class LinksService {
 
     // Additional metadata fields for frontend
     const additionalMetadata = this.deriveAdditionalMetadata(request, normalizedAsset);
+    const stealthRecipientEnvelope =
+      request.privacy &&
+      request.recipientViewPublicKeyPem &&
+      destination &&
+      this.privacyService
+        ? this.privacyService.encryptRecipientForViewKey(
+            destination,
+            request.recipientViewPublicKeyPem,
+          )
+        : undefined;
 
     // Compute swap options for accepted assets that differ from the destination asset
     let swapOptions: PathPreviewRow[] | null = null;
@@ -91,6 +103,7 @@ export class LinksService {
       metadata: {
         normalized,
         warnings: warnings.length > 0 ? warnings : undefined,
+        stealthRecipientEnvelope,
         ...additionalMetadata,
       },
     };

@@ -14,8 +14,10 @@ import { winstonConfig } from "./common/logging/winston.config";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 // ----------------------------------------
 
-import { AppModule } from "./app.module";
+import { buildCorsOptions } from "./config/cors.config";
 import { AppConfigService } from "./config";
+import { AppModule } from "./app.module";
+import { resolveNetworkSnapshot } from "./config/network.config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 import { SentryExceptionFilter, SentryService } from "./sentry";
@@ -46,6 +48,12 @@ function validateCriticalConfig(
   // Network is required
   if (!config.network) {
     errors.push('NETWORK is required (must be "testnet" or "mainnet")');
+  }
+
+  try {
+    resolveNetworkSnapshot();
+  } catch (error) {
+    errors.push(`Network config invalid: ${(error as Error).message}`);
   }
 
   // If there are critical errors, fail fast
@@ -81,47 +89,27 @@ async function bootstrap() {
     SUPABASE_ANON_KEY: configService.supabaseAnonKey,
     NETWORK: configService.network,
     HORIZON_URL: configService.horizonUrl,
+    SOROBAN_RPC_URL: configService.sorobanRpcUrl,
+    STELLAR_EXPLORER_URL: configService.stellarExplorerUrl,
     STELLAR_SECRET_KEY: configService.stellarSecretKey,
     STELLAR_PUBLIC_KEY: configService.stellarPublicKey,
   });
   logger.log(envSummary);
+  const networkSnapshot = resolveNetworkSnapshot();
+  logger.log(
+    `Active network: ${networkSnapshot.network} (${networkSnapshot.passphrase}); horizon=${networkSnapshot.horizonUrl}; soroban=${networkSnapshot.sorobanRpcUrl}; explorer=${networkSnapshot.explorerUrl}`,
+  );
 
   // Use Helmet for security headers
   app.use(helmet());
 
-  // In development allow all origins to make it easy to test from Expo web or devices on LAN.
-  // In production keep the stricter origin whitelist to avoid accidental exposure.
-  if (process.env.NODE_ENV !== "production") {
-    app.enableCors();
-    logger.log("CORS enabled for all origins (dev mode)");
-  } else {
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "https://app.quickex.example.com",
-    ];
-
-    app.enableCors({
-      origin: (origin, callback) => {
-        if (!origin) {
-          return callback(null, true);
-        }
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          logger.warn(`CORS blocked request from origin: ${origin}`);
-          callback(new Error(`Origin not allowed by CORS: ${origin}`));
-        }
-      },
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "x-correlation-id",
-        "X-API-Key",
-      ],
-    });
-  }
+  app.enableCors(
+    buildCorsOptions({
+      nodeEnv: configService.nodeEnv,
+      allowedOrigins: configService.corsAllowedOrigins,
+      vercelProject: configService.corsVercelProject,
+    }),
+  );
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -167,6 +155,7 @@ async function bootstrap() {
     .addTag("analytics", "Dashboard analytics, time-series insights, and report exports")
     .addTag("metrics", "Application performance and health metrics")
     .addTag("stellar", "Verified assets, path preview, Soroban preflight")
+    .addTag("contracts", "Contract registry publication and discovery")
     .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
     .build();
 

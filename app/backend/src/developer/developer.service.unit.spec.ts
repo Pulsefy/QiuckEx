@@ -119,6 +119,7 @@ describe('DeveloperService', () => {
       expect(result.success).toBe(true);
       expect(result.http_status).toBe(200);
       expect(result.webhook_id).toBe('webhook-uuid-1234');
+      expect(result.event_type).toBe('payment.received');
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/hook',
         expect.objectContaining({ method: 'POST' }),
@@ -162,6 +163,55 @@ describe('DeveloperService', () => {
         'webhook-uuid-1234',
         expect.objectContaining({ success: true }),
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('sendSampleWebhookEvent', () => {
+    it('sends the requested canonical event type', async () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValue(makeWebhook());
+      const mockFetch = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('ok'),
+      } as unknown as Response);
+
+      const result = await service.sendSampleWebhookEvent('webhook-uuid-1234', {
+        event_type: 'payment.settled',
+        timestamp: '2026-04-29T12:00:00.000Z',
+      });
+
+      const [, request] = mockFetch.mock.calls[0];
+      const body = JSON.parse((request as RequestInit).body as string);
+
+      expect(result.event_type).toBe('payment.settled');
+      expect(result.signature_included).toBe(true);
+      expect(body.eventType).toBe('payment.settled');
+      expect(body.payload.settlement_id).toBe('set_sample_01');
+      expect((request as RequestInit).headers).toMatchObject({
+        'X-QX-Event': 'payment.settled',
+        'X-QX-Timestamp': String(new Date('2026-04-29T12:00:00.000Z').getTime()),
+      });
+    });
+
+    it('can omit signature headers for unsigned receiver tests', async () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValue(makeWebhook());
+      const mockFetch = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('ok'),
+      } as unknown as Response);
+
+      const result = await service.sendSampleWebhookEvent('webhook-uuid-1234', {
+        event_type: 'payment.failed',
+        include_signature: false,
+      });
+
+      const headers = (mockFetch.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+      expect(result.signature_included).toBe(false);
+      expect(headers['X-QX-Signature']).toBeUndefined();
+      expect(headers['X-QX-Timestamp']).toBeUndefined();
+      expect(headers['X-QX-Event']).toBe('payment.failed');
     });
   });
 
@@ -335,4 +385,3 @@ describe('DeveloperService', () => {
     });
   });
 });
-

@@ -73,6 +73,34 @@ export class MarketplaceController {
     };
   }
 
+  @Get(':listingId/detail')
+  @ApiOperation({ summary: 'Get listing detail with bids and action hints' })
+  @ApiParam({ name: 'listingId', description: 'Listing UUID' })
+  @ApiQuery({
+    name: 'viewerPublicKey',
+    required: false,
+    description: 'Optional viewer wallet for bid eligibility hints',
+  })
+  @ApiResponse({ status: 200, description: 'Listing detail payload' })
+  @ApiResponse({ status: 404, description: 'Listing not found' })
+  async getListingDetail(
+    @Param('listingId') listingId: string,
+    @Query('viewerPublicKey') viewerPublicKey?: string,
+  ) {
+    try {
+      const detail = await this.marketplaceService.getListingDetail(
+        listingId,
+        viewerPublicKey?.trim() || null,
+      );
+      return detail;
+    } catch (err) {
+      if (err instanceof MarketplaceError) {
+        this.throwHttp(err);
+      }
+      throw err;
+    }
+  }
+
   @Get(':listingId')
   @ApiOperation({ summary: 'Get a specific listing' })
   @ApiParam({ name: 'listingId', description: 'Listing UUID' })

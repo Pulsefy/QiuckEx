@@ -14,9 +14,13 @@ import {
 import { ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 import { AssetMetadataService } from "../asset-metadata/asset-metadata.service";
 import { AssetListResponseDto } from "../asset-metadata/dto/asset-metadata.dto";
 import { AppConfigService } from "../config/app-config.service";
+import { TESTNET_CONTRACT_WRITES_FLAG } from "../feature-flags/contract-write-kill-switch.constants";
+import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
+import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
 import { TransactionsService } from "../transactions/transaction.service";
 import {
   PathPreviewRequestDto,
@@ -34,6 +38,7 @@ import { QuoteService } from "./quote.service";
   required: false,
 })
 @UseGuards(ApiKeyGuard)
+@RateLimitGroupTag("public")
 @Controller("stellar")
 export class StellarController {
   constructor(
@@ -85,6 +90,8 @@ export class StellarController {
 
   @Post("soroban-preflight")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(NetworkSafetyGuard)
+  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
     summary: "Run Soroban tx composer preflight (health_check simulation)",

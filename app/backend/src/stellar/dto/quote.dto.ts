@@ -14,6 +14,17 @@ import {
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+export class FeeBreakdownDto {
+  @ApiProperty({ description: "Network fee estimate in XLM", example: "0.0000100" })
+  networkFee!: string;
+
+  @ApiProperty({ description: "Platform fee estimate in destination asset", example: "0.1000000" })
+  platformFee!: string;
+
+  @ApiProperty({ description: "Total effective fee (network + platform converted to a unified representation if needed, or just platform fee)", example: "0.1000000" })
+  totalFee!: string;
+}
+
 import { PathAssetRefDto } from "./path-preview.dto";
 
 export class CreateQuoteDto {
@@ -68,6 +79,14 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsBoolean()
   preflight?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Force bypass cache and retrieve fresh rates from Horizon/Soroban",
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  revalidate?: boolean;
 }
 
 export class QuotePathDto {
@@ -78,6 +97,7 @@ export class QuotePathDto {
   @ApiProperty() destinationAmount!: string;
   @ApiProperty({ type: [String] }) pathHops!: string[];
   @ApiProperty() rateDescription!: string;
+  @ApiProperty({ type: FeeBreakdownDto }) feeBreakdown!: FeeBreakdownDto;
 }
 
 export class QuoteResponseDto {
@@ -88,4 +108,10 @@ export class QuoteResponseDto {
   @ApiProperty({ description: "Horizon URL used for path search" }) horizonUrl!: string;
   @ApiPropertyOptional({ description: "Preflight simulation result, if requested" })
   preflight?: { feasible: boolean; error?: string };
+
+  @ApiProperty({ description: "Age of the quote data in seconds", example: 0 })
+  age!: number;
+
+  @ApiProperty({ description: "Source of the quote data (hit or miss)", example: "miss" })
+  cacheSource!: "hit" | "miss";
 }
