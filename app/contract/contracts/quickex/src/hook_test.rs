@@ -9,7 +9,7 @@ fn test_hook_allowlist() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let contract_id = env.register_contract(None, QuickexContract);
+    let contract_id = env.register(QuickexContract, ());
     let client = QuickexContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
@@ -23,7 +23,7 @@ fn test_hook_allowlist() {
 
     // Admin approves hook
     client.set_hook_approved(&admin, &hook_contract, &true);
-    assert_eq!(client.is_hook_approved(&hook_contract), true);
+    assert!(client.is_hook_approved(&hook_contract));
 
     // Now registration should succeed
     client.register_hook(&hook_contract);
@@ -35,7 +35,7 @@ fn test_hook_allowlist() {
 
     // Disapprove
     client.set_hook_approved(&admin, &hook_contract, &false);
-    assert_eq!(client.is_hook_approved(&hook_contract), false);
+    assert!(!client.is_hook_approved(&hook_contract));
 
     // Registration should fail again
     let res = client.try_register_hook(&hook_contract);
