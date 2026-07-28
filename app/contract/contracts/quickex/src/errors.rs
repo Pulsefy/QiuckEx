@@ -64,6 +64,13 @@ pub enum QuickexError {
     StealthAddressAlreadyUsed = 401,
     /// No stealth escrow found for the given stealth address.
     StealthEscrowNotFound = 402,
+    // Oracle errors (600-699)
+    /// Oracle price data exceeds the configured staleness threshold and was rejected.
+    OracleStalePrice = 600,
+    /// No oracle price has been cached yet; dynamic fee cannot be computed.
+    OraclePriceUnavailable = 601,
+    /// The cached oracle price is zero or negative, which is invalid.
+    OraclePriceInvalid = 602,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
     InvalidTimeout = 901,
