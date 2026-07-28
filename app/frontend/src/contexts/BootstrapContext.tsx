@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { BootstrapConfig, FALLBACK_BOOTSTRAP_CONFIG } from '../config/bootstrap.config';
 import { fetchBootstrapConfig } from '../services/bootstrap.service';
