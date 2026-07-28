@@ -42,6 +42,8 @@ mod stealth;
 mod stealth_test;
 mod storage;
 #[cfg(test)]
+mod smoke_test;
+#[cfg(test)]
 mod storage_test;
 #[cfg(test)]
 mod test;
