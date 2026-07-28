@@ -24,7 +24,7 @@ describe('ContractRegistryController (e2e)', () => {
     app = moduleRef.createNestApplication();
     await app.init();
 
-    contractRegistryService = moduleRef.get(ContractRegistryService) as any;
+    contractRegistryService = moduleRef.get(ContractRegistryService) as unknown as jest.Mocked<ContractRegistryService>;
   });
 
   afterAll(async () => {
@@ -41,6 +41,7 @@ describe('ContractRegistryController (e2e)', () => {
       contracts: {},
     });
     expect(response.headers['etag']).toBe('test-etag');
+    expect(contractRegistryService.getRegistry).toHaveBeenCalledTimes(1);
   });
 
   it('GET /api/contracts/registry should return the registry via alias', async () => {
