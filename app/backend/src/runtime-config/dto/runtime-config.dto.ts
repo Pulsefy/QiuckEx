@@ -82,8 +82,8 @@ export class RuntimeConfigResponseDto {
   minAppVersion: string;
 
   @ApiProperty({
-    type: Object,
-    additionalProperties: { type: ContractEntryDto },
+    type: 'object',
+    description: 'Map of contract name to deployment metadata',
     example: {
       quickex: {
         contractId: 'CD2J6K7T3YJ77QXZP3EXAMPLE',
