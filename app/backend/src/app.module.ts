@@ -57,6 +57,7 @@ import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
 import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
 import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
 import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
+import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
 
 type AppImport =
@@ -100,8 +101,9 @@ FeatureFlagsModule,
 PrivacyModule,
 SorobanToolingModule,
 EnvironmentParityModule,
-  BranchPreviewModule,
-  IndexerLagModule,
+    BranchPreviewModule,
+    RuntimeConfigModule,
+    IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
     RcValidationModule,
