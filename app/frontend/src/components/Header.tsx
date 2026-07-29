@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 
 const NAV_LINK_CLASS =
-  "rounded-md px-1 py-1 text-neutral-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950";
+  "rounded-md px-1 py-1 text-muted transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export function Header() {
   const { t } = useTranslation();
@@ -18,7 +19,7 @@ export function Header() {
     pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-neutral-950/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
@@ -36,11 +37,11 @@ export function Header() {
         >
           <div
             aria-hidden="true"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 font-bold italic"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 font-bold italic text-white"
           >
             Q
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">
+          <span className="text-xl font-bold tracking-tight text-foreground">
             QuickEx
           </span>
         </Link>
@@ -50,7 +51,7 @@ export function Header() {
             href="/dashboard"
             aria-current={isActive("/dashboard") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/dashboard") ? "text-white" : ""
+              isActive("/dashboard") ? "text-foreground" : ""
             }`}
           >
             {t("dashboard")}
@@ -59,7 +60,7 @@ export function Header() {
             href="/generator"
             aria-current={isActive("/generator") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/generator") ? "text-white" : ""
+              isActive("/generator") ? "text-foreground" : ""
             }`}
           >
             {t("linkGenerator")}
@@ -68,7 +69,7 @@ export function Header() {
             href="/notifications"
             aria-current={isActive("/notifications") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/notifications") ? "text-white" : ""
+              isActive("/notifications") ? "text-foreground" : ""
             }`}
           >
             Notifications
@@ -77,7 +78,7 @@ export function Header() {
             href="/settings"
             aria-current={isActive("/settings") ? "page" : undefined}
             className={`${NAV_LINK_CLASS} ${
-              isActive("/settings") ? "text-white" : ""
+              isActive("/settings") ? "text-foreground" : ""
             }`}
           >
             {t("profileSettings")}
@@ -85,6 +86,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <NotificationBell />
           <LocaleSwitcher />
         </div>

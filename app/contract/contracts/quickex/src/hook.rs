@@ -1,5 +1,5 @@
 use crate::{errors::QuickexError, storage, types::HookEventKind};
-use soroban_sdk::{Address, BytesN, Env, IntoVal, Vec};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
     let mut hooks = storage::get_registered_hooks(env);
@@ -56,19 +56,19 @@ pub fn invoke_hooks(
     storage::set_reentrancy_guard(env, &true);
     let hooks = storage::get_registered_hooks(env);
     for hook in hooks {
-        let args = (
-            event_kind as u32,
-            escrow_id.clone(),
-            owner.clone(),
-            token.clone(),
-            amount,
-            fee,
-        )
-            .into_val(env);
-
-        let res: Result<Result<(), ()>, _> = env.try_invoke_contract(
+        let args = soroban_sdk::vec![
+            env,
+            (event_kind as u32).into_val(env),
+            escrow_id.into_val(env),
+            owner.clone().into_val(env),
+            token.clone().into_val(env),
+            amount.into_val(env),
+            fee.into_val(env),
+        ];
+        // Swallow result — a failing hook must never abort the primary transaction.
+        let _ = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
             &hook,
-            &soroban_sdk::Symbol::new(env, "on_escrow_event"),
+            &Symbol::new(env, "on_escrow_event"),
             args,
         );
 

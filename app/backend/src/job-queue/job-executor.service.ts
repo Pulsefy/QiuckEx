@@ -280,10 +280,12 @@ export class JobExecutor implements OnModuleInit {
         const handler = this.registry.getHandler(job.type);
         await handler.onFailure(job, error);
       } catch (hookError) {
-        this.logger.error(
-          `Failed to execute onFailure hook for job ${job.id}: ${hookError.message}`,
-          hookError.stack,
-        );
+        this.logger.error({
+          message: `Failed to execute onFailure hook for job ${job.id}`,
+          jobId: job.id,
+          error: hookError.message,
+          stack: hookError.stack,
+        });
       }
 
       // Clean up cancellation token

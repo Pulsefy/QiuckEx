@@ -21,10 +21,9 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
 };
 
 export const CATEGORY_STYLES: Record<NotificationCategory, string> = {
-  payments:
-    "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
-  escrows: "border-indigo-400/20 bg-indigo-400/10 text-indigo-100",
-  system: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+  payments: "border-success-soft bg-success-soft text-success",
+  escrows: "border-brand-soft bg-brand-soft text-brand",
+  system: "border-warning-soft bg-warning-soft text-warning",
 };
 
 export const INITIAL_NOTIFICATIONS: StoredNotification[] = [

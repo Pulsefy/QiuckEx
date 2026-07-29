@@ -41,11 +41,17 @@ describe("WebhookService", () => {
       getWebhookStats: jest.fn(),
     };
 
-    const mockRetryScheduler = {
-      redeliver: jest.fn().mockResolvedValue(true),
+    const mockReplayService = {
+      replayDelivery: jest.fn().mockResolvedValue({
+        queued: true,
+        deliverySuccess: true,
+        message: "Event redelivery triggered successfully",
+      }),
+      getDeliveryStatus: jest.fn(),
+      listReplayHistory: jest.fn(),
     };
 
-    service = new WebhookService(mockPrefsRepo, mockLogRepo, mockRetryScheduler as never);
+    service = new WebhookService(mockPrefsRepo, mockLogRepo, mockReplayService as never);
   });
 
   describe("createWebhook", () => {

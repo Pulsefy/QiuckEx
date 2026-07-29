@@ -12,6 +12,7 @@ import {
   PaymentLink,
   PaymentLinkStatus,
 } from './types/auto-match.types';
+import { PreviewScopeService } from '../preview-scope/preview-scope.service';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ function makeLink(overrides: Partial<PaymentLink> = {}): PaymentLink {
     matched_tx_hash: null,
     matched_at: null,
     match_confidence: null,
+    preview_scope: null,
     created_at: '2026-04-28T08:00:00Z',
     updated_at: '2026-04-28T08:00:00Z',
     ...overrides,
@@ -68,9 +70,21 @@ const mockSupabase = {
     select: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    is: jest.fn().mockReturnThis(),
     or: jest.fn().mockResolvedValue({ data: [], error: null }),
   }),
 } as unknown as SupabaseService;
+
+const mockPreviewScopeService = {
+  getScope: jest.fn(),
+  isValidScope: jest.fn(),
+  createScope: jest.fn(),
+  deleteScope: jest.fn(),
+  extendScope: jest.fn(),
+  getExpiredScopes: jest.fn(),
+  cleanupExpiredScopes: jest.fn(),
+  cleanupExpiredScope: jest.fn(),
+} as unknown as PreviewScopeService;
 
 const mockMetrics = {
   recordExternalCall: jest.fn(),
@@ -101,6 +115,7 @@ describe('AutoMatchService', () => {
         { provide: MetricsService, useValue: mockMetrics },
         { provide: UnmatchedQueueRepository, useValue: mockUnmatchedQueue },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: PreviewScopeService, useValue: mockPreviewScopeService },
       ],
     }).compile();
 

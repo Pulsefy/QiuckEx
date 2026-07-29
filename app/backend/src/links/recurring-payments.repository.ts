@@ -27,6 +27,7 @@ export type DbRecurringPaymentLink = {
   memo_type: string | null;
   reference_id: string | null;
   privacy_enabled: boolean;
+  preview_scope: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -47,6 +48,7 @@ export type DbRecurringPaymentExecution = {
   last_retry_at: string | null;
   notification_sent: boolean;
   notification_sent_at: string | null;
+  preview_scope: string | null;
   created_at: string;
 };
 
@@ -77,25 +79,32 @@ export class RecurringPaymentsRepository {
     memoType?: string | null;
     referenceId?: string | null;
     privacyEnabled?: boolean;
+    previewScope?: string;
   }): Promise<DbRecurringPaymentLink> {
+    const insertData: Record<string, unknown> = {
+      username: link.username || null,
+      destination: link.destination || null,
+      amount: link.amount,
+      asset: link.asset,
+      asset_issuer: link.assetIssuer || null,
+      frequency: link.frequency,
+      start_date: link.startDate?.toISOString() || new Date().toISOString(),
+      end_date: link.endDate?.toISOString() || null,
+      total_periods: link.totalPeriods || null,
+      memo: link.memo || null,
+      memo_type: link.memoType || 'text',
+      reference_id: link.referenceId || null,
+      privacy_enabled: link.privacyEnabled || false,
+      next_execution_date: (link.startDate || new Date()).toISOString(),
+    };
+
+    if (link.previewScope) {
+      insertData.preview_scope = link.previewScope;
+    }
+
     const { data, error } = await this.supabase
       .from('recurring_payment_links')
-      .insert({
-        username: link.username || null,
-        destination: link.destination || null,
-        amount: link.amount,
-        asset: link.asset,
-        asset_issuer: link.assetIssuer || null,
-        frequency: link.frequency,
-        start_date: link.startDate?.toISOString() || new Date().toISOString(),
-        end_date: link.endDate?.toISOString() || null,
-        total_periods: link.totalPeriods || null,
-        memo: link.memo || null,
-        memo_type: link.memoType || 'text',
-        reference_id: link.referenceId || null,
-        privacy_enabled: link.privacyEnabled || false,
-        next_execution_date: (link.startDate || new Date()).toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -158,14 +167,21 @@ export class RecurringPaymentsRepository {
     destination?: string;
     cursor?: string;
     limit?: number;
+    previewScope?: string;
   }): Promise<{ data: DbRecurringPaymentLink[]; next_cursor: string | null; has_more: boolean; total: number }> {
-    const { status, username, destination, cursor: cursorStr, limit } = params;
+    const { status, username, destination, cursor: cursorStr, limit, previewScope } = params;
     const effectiveLimit = clampLimit(limit);
 
     // Decode cursor
     const decodedCursor: CursorPayload | null = cursorStr ? decodeCursor(cursorStr) : null;
 
     let query = this.supabase.from('recurring_payment_links').select('*', { count: 'exact' });
+
+    if (previewScope) {
+      query = query.eq('preview_scope', previewScope);
+    } else {
+      query = query.is('preview_scope', null);
+    }
 
     if (status) {
       query = query.eq('status', status);
@@ -323,18 +339,25 @@ export class RecurringPaymentsRepository {
     scheduledAt: Date;
     amount: number;
     asset: string;
+    previewScope?: string;
   }): Promise<DbRecurringPaymentExecution> {
+    const insertData: Record<string, unknown> = {
+      recurring_link_id: execution.recurringLinkId,
+      period_number: execution.periodNumber,
+      scheduled_at: execution.scheduledAt.toISOString(),
+      amount: execution.amount,
+      asset: execution.asset,
+      status: 'pending',
+      retry_count: 0,
+    };
+
+    if (execution.previewScope) {
+      insertData.preview_scope = execution.previewScope;
+    }
+
     const { data, error } = await this.supabase
       .from('recurring_payment_executions')
-      .insert({
-        recurring_link_id: execution.recurringLinkId,
-        period_number: execution.periodNumber,
-        scheduled_at: execution.scheduledAt.toISOString(),
-        amount: execution.amount,
-        asset: execution.asset,
-        status: 'pending',
-        retry_count: 0,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -346,12 +369,20 @@ export class RecurringPaymentsRepository {
     return data as DbRecurringPaymentExecution;
   }
 
-  async findPendingExecutions(limit = 100): Promise<DbRecurringPaymentExecution[]> {
-    const { data, error } = await this.supabase
+  async findPendingExecutions(limit = 100, previewScope?: string): Promise<DbRecurringPaymentExecution[]> {
+    let query = this.supabase
       .from('recurring_payment_executions')
       .select('*')
       .eq('status', 'pending')
-      .lte('scheduled_at', new Date().toISOString())
+      .lte('scheduled_at', new Date().toISOString());
+
+    if (previewScope) {
+      query = query.eq('preview_scope', previewScope);
+    } else {
+      query = query.is('preview_scope', null);
+    }
+
+    const { data, error } = await query
       .order('scheduled_at', { ascending: true })
       .limit(limit);
 
@@ -432,18 +463,26 @@ export class RecurringPaymentsRepository {
   // Helper methods
   // ---------------------------------------------------------------------------
 
-  async getDueForExecution(): Promise<DbRecurringPaymentLink[]> {
+  async getDueForExecution(previewScope?: string): Promise<DbRecurringPaymentLink[]> {
     const { data, error } = await this.supabase.rpc('should_execute_recurring_link');
 
     if (error) {
       // Fallback: manual query
-      const fallbackResult = await this.supabase
+      let query = this.supabase
         .from('recurring_payment_links')
         .select('*')
         .eq('status', 'active')
         .lte('next_execution_date', new Date().toISOString())
         .or(`total_periods.is.null,executed_count.lt.total_periods`)
         .or(`end_date.is.null,end_date.gt.${new Date().toISOString()}`);
+
+      if (previewScope) {
+        query = query.eq('preview_scope', previewScope);
+      } else {
+        query = query.is('preview_scope', null);
+      }
+
+      const fallbackResult = await query;
 
       if (fallbackResult.error) {
         this.logger.error(`Error getting due links: ${fallbackResult.error.message}`, fallbackResult.error.stack);
@@ -453,6 +492,15 @@ export class RecurringPaymentsRepository {
       return fallbackResult.data as DbRecurringPaymentLink[];
     }
 
-    return data as DbRecurringPaymentLink[];
+    // RPC results: filter by preview_scope in-memory
+    if (data) {
+      const rows = data as DbRecurringPaymentLink[];
+      if (previewScope) {
+        return rows.filter((r) => r.preview_scope === previewScope);
+      }
+      return rows.filter((r) => r.preview_scope === null);
+    }
+
+    return [];
   }
 }

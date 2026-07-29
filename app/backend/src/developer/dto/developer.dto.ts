@@ -4,7 +4,47 @@ import {
   IsUUID,
   ArrayMinSize,
   ArrayMaxSize,
+  IsBoolean,
+  IsEnum,
+  IsISO8601,
+  IsOptional,
 } from 'class-validator';
+
+export const WEBHOOK_SAMPLE_EVENT_TYPES = [
+  'link.created',
+  'payment.received',
+  'payment.settled',
+  'payment.failed',
+] as const;
+
+export type WebhookSampleEventType = (typeof WEBHOOK_SAMPLE_EVENT_TYPES)[number];
+
+export class WebhookSampleEventDto {
+  @ApiPropertyOptional({
+    enum: WEBHOOK_SAMPLE_EVENT_TYPES,
+    default: 'payment.received',
+    description: 'Canonical event type to send to the webhook receiver.',
+  })
+  @IsEnum(WEBHOOK_SAMPLE_EVENT_TYPES)
+  @IsOptional()
+  event_type?: WebhookSampleEventType;
+
+  @ApiPropertyOptional({
+    default: true,
+    description: 'When false, omits QuickEx signature headers for receivers that are testing unsigned payloads.',
+  })
+  @IsBoolean()
+  @IsOptional()
+  include_signature?: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-04-29T12:00:00.000Z',
+    description: 'Optional event timestamp. Defaults to the current server time.',
+  })
+  @IsISO8601()
+  @IsOptional()
+  timestamp?: string;
+}
 
 export class BulkRevokeDto {
   @ApiProperty({
@@ -65,6 +105,15 @@ export class WebhookTestResultDto {
 
   @ApiProperty({ example: '2026-04-29T12:00:00.000Z' })
   sent_at: string;
+
+  @ApiPropertyOptional({ enum: WEBHOOK_SAMPLE_EVENT_TYPES, example: 'payment.received' })
+  event_type?: WebhookSampleEventType;
+
+  @ApiPropertyOptional({ example: 'evt_sample_123' })
+  event_id?: string;
+
+  @ApiPropertyOptional({ example: true })
+  signature_included?: boolean;
 }
 
 export class HealthComponentsDto {

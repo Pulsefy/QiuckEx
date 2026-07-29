@@ -38,4 +38,15 @@ describe("SigningSummary", () => {
     expect(screen.getByText(/This transaction payload has expired/)).toBeInTheDocument();
     expect(screen.getByText("Expired")).toBeInTheDocument();
   });
+
+  it("shows high fee warning when fee percentage is above threshold", () => {
+    render(
+      <SigningSummary
+        {...defaultProps}
+        fee={{ value: 10, asset: "USDC", percentage: 10, isHigh: true }}
+      />
+    );
+    expect(screen.getByText(/The fee is above the safe threshold/)).toBeInTheDocument();
+    expect(screen.getByText(/10 USDC/)).toBeInTheDocument();
+  });
 });

@@ -82,6 +82,7 @@ export class AnalyticsService {
     startDate?: string,
     endDate?: string,
     interval: AnalyticsInterval = AnalyticsInterval.DAILY,
+    organizationId?: string,
   ): Promise<AnalyticsReport> {
     const { startIso, endIso } = this.resolveDateWindow(startDate, endDate);
 
@@ -90,12 +91,18 @@ export class AnalyticsService {
       startIso,
       endIso,
       interval,
+      organizationId,
     );
     if (rpcReport) {
       return rpcReport;
     }
 
-    const rows = await this.fetchPaymentRows(publicKey, startIso, endIso);
+    const rows = await this.fetchPaymentRows(
+      publicKey,
+      startIso,
+      endIso,
+      organizationId,
+    );
     const payments = this.normalizeAndFilterRows(rows, publicKey);
 
     return {
@@ -116,9 +123,15 @@ export class AnalyticsService {
     reportType: ReportType,
     interval: AnalyticsInterval,
     maxRows: number,
+    organizationId?: string,
   ): Promise<{ report: AnalyticsReport; payments: NormalizedPayment[] }> {
     const { startIso, endIso } = this.resolveDateWindow(startDate, endDate);
-    const rows = await this.fetchPaymentRows(publicKey, startIso, endIso);
+    const rows = await this.fetchPaymentRows(
+      publicKey,
+      startIso,
+      endIso,
+      organizationId,
+    );
     const payments = this.normalizeAndFilterRows(rows, publicKey).slice(
       0,
       Math.max(1, Math.min(maxRows || 500, 5000)),
@@ -129,6 +142,7 @@ export class AnalyticsService {
       startIso,
       endIso,
       interval,
+      organizationId,
     );
     const report: AnalyticsReport =
       rpcReport ??
@@ -241,16 +255,23 @@ export class AnalyticsService {
     publicKey: string,
     startIso: string,
     endIso: string,
+    organizationId?: string,
   ): Promise<PaymentRow[]> {
     const client = this.supabase.getClient();
 
-    const { data, error } = await client
+    let query = client
       .from('payment_records')
       .select('*')
       .or(`sender_public_key.eq.${publicKey},receiver_public_key.eq.${publicKey}`)
       .gte('created_at', startIso)
       .lte('created_at', endIso)
       .order('created_at', { ascending: true });
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new BadRequestException({
@@ -267,6 +288,7 @@ export class AnalyticsService {
     startIso: string,
     endIso: string,
     interval: AnalyticsInterval,
+    organizationId?: string,
   ): Promise<AnalyticsReport | null> {
     const client = this.supabase.getClient();
     const [summaryResult, assetsResult, timeSeriesResult] = await Promise.all([
@@ -274,17 +296,20 @@ export class AnalyticsService {
         p_public_key: publicKey,
         p_start_date: startIso,
         p_end_date: endIso,
+        p_organization_id: organizationId ?? null,
       }),
       client.rpc('quickex_analytics_asset_distribution', {
         p_public_key: publicKey,
         p_start_date: startIso,
         p_end_date: endIso,
+        p_organization_id: organizationId ?? null,
       }),
       client.rpc('quickex_analytics_time_series', {
         p_public_key: publicKey,
         p_start_date: startIso,
         p_end_date: endIso,
         p_interval: interval,
+        p_organization_id: organizationId ?? null,
       }),
     ]);
 

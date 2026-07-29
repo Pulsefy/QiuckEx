@@ -1,6 +1,6 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { AnalyticsService } from './analytics.service';
 import {
@@ -21,12 +21,13 @@ export class AnalyticsController {
     summary: 'Fetch dashboard analytics report (summary, asset distribution, and time-series)',
   })
   @ApiResponse({ status: 200, description: 'Analytics report generated' })
-  async getReport(@Query() query: TimeSeriesQueryDto) {
+  async getReport(@Req() req: Request, @Query() query: TimeSeriesQueryDto) {
     return this.analyticsService.getAnalyticsReport(
       query.publicKey,
       query.startDate,
       query.endDate,
       query.interval,
+      req.organizationContext?.organizationId,
     );
   }
 
@@ -35,12 +36,13 @@ export class AnalyticsController {
     summary: 'Fetch only time-series analytics for chart rendering (daily/weekly/monthly)',
   })
   @ApiResponse({ status: 200, description: 'Time-series analytics generated' })
-  async getTimeSeries(@Query() query: TimeSeriesQueryDto) {
+  async getTimeSeries(@Req() req: Request, @Query() query: TimeSeriesQueryDto) {
     const report = await this.analyticsService.getAnalyticsReport(
       query.publicKey,
       query.startDate,
       query.endDate,
       query.interval,
+      req.organizationContext?.organizationId,
     );
     return {
       interval: query.interval,
@@ -54,11 +56,13 @@ export class AnalyticsController {
     summary: 'Fetch asset distribution for payment history',
   })
   @ApiResponse({ status: 200, description: 'Asset distribution generated' })
-  async getAssetDistribution(@Query() query: AnalyticsQueryDto) {
+  async getAssetDistribution(@Req() req: Request, @Query() query: AnalyticsQueryDto) {
     const report = await this.analyticsService.getAnalyticsReport(
       query.publicKey,
       query.startDate,
       query.endDate,
+      undefined,
+      req.organizationContext?.organizationId,
     );
     return {
       window: report.window,
@@ -73,6 +77,7 @@ export class AnalyticsController {
   @ApiResponse({ status: 200, description: 'Report export generated' })
   async exportReport(
     @Query() query: ExportReportQueryDto,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const { report, payments } = await this.analyticsService.exportReport(
@@ -82,6 +87,7 @@ export class AnalyticsController {
       query.reportType,
       query.interval,
       query.maxRows,
+      req.organizationContext?.organizationId,
     );
 
     if (query.format === ReportFormat.PDF) {
@@ -107,4 +113,3 @@ export class AnalyticsController {
     return res.send(csv);
   }
 }
-

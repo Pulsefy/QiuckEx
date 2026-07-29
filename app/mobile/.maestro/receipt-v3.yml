@@ -1,0 +1,50 @@
+# Maestro E2E test for Receipt Screen v3
+appId: com.pulsefy.quickex
+
+---
+- launchApp
+
+# Navigate to a receipt (mock or real)
+- tapOn: "History"
+- tapOn: ".*50\\.00 USDC.*"
+
+# Verify metadata section
+- assertVisible: "Receipt"
+- assertVisible: "50.00"
+- assertVisible: "USDC"
+
+# Test copy receipt hash
+- tapOn: "📋"
+- assertVisible: "Copied"
+
+# Expand metadata
+- tapOn: "Transaction Details"
+- assertVisible: "Contract ID"
+- assertVisible: "WASM Hash"
+- assertVisible: "Testnet"
+
+# Test copy contract ID
+- tapOn:
+    id: "contract-copy-button"
+- assertVisible: "Copied"
+
+# Verify timeline
+- assertVisible: "Transaction Timeline"
+- assertVisible: "Payment Created"
+- assertVisible: "Transaction Submitted"
+
+# Test share action
+- tapOn: "🔗 Share Receipt"
+- assertVisible: "Share"
+- tapOn: "Cancel"
+
+# Test view explorer
+- tapOn: "🔍 View on Explorer"
+- assertVisible: "stellar.expert"
+
+# Test copy for support
+- tapOn: "📋 Copy for Support"
+- assertVisible: "Copied"
+
+# Navigate back
+- tapOn: "←"

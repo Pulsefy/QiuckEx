@@ -20,11 +20,17 @@ describe('UsernamesService', () => {
     listUsernamesByPublicKey: jest.fn(),
     searchPublicUsernames: jest.fn(),
     updateUsernameActivity: jest.fn(),
+    getTrendingCreators: jest.fn(),
+    getRecentlyActiveUsers: jest.fn(),
+    getFeaturedUsernames: jest.fn(),
+    getPublicProfile: jest.fn(),
   };
 
   beforeEach(async () => {
     configMaxPerWallet = undefined;
     jest.clearAllMocks();
+    // Ensure updateUsernameActivity returns a promise so callers can `.catch()` safely
+    mockSupabaseService.updateUsernameActivity.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,9 +56,13 @@ describe('UsernamesService', () => {
             setTrendingResults: jest.fn(),
             getRecentlyActiveResults: jest.fn(),
             setRecentlyActiveResults: jest.fn(),
+            getProfile: jest.fn(),
+            setProfile: jest.fn(),
             invalidateSearchCache: jest.fn(),
             invalidateTrendingCache: jest.fn(),
             invalidateRecentlyActiveCache: jest.fn(),
+            invalidateProfile: jest.fn(),
+            invalidateForUsername: jest.fn(),
             getStats: jest.fn(),
           },
         },
@@ -235,6 +245,129 @@ describe('UsernamesService', () => {
       expect(result.has_more).toBe(false);
       expect(result.next_cursor).toBeNull();
       expect(mockSupabaseService.searchPublicUsernames).toHaveBeenCalledWith('alice', 100);
+    });
+  });
+
+  describe('getTrendingCreators', () => {
+    // Fixture reflects the order SupabaseService now guarantees: volume DESC,
+    // with ties (id-2 / id-3, both 200) broken by ascending `id`.
+    const rows = [
+      { id: 'id-4', username: 'd', public_key: 'GAAA4', created_at: '2025-01-04T00:00:00.000Z', last_active_at: null, is_public: true, transaction_volume: 300, transaction_count: 3 },
+      { id: 'id-2', username: 'b', public_key: 'GAAA2', created_at: '2025-01-02T00:00:00.000Z', last_active_at: null, is_public: true, transaction_volume: 200, transaction_count: 2 },
+      { id: 'id-3', username: 'c', public_key: 'GAAA3', created_at: '2025-01-03T00:00:00.000Z', last_active_at: null, is_public: true, transaction_volume: 200, transaction_count: 2 },
+      { id: 'id-1', username: 'a', public_key: 'GAAA1', created_at: '2025-01-01T00:00:00.000Z', last_active_at: null, is_public: true, transaction_volume: 100, transaction_count: 1 },
+    ];
+
+    it('rejects an out-of-range time window', async () => {
+      await expect(service.getTrendingCreators(0, 10)).rejects.toThrow(UsernameValidationError);
+      await expect(service.getTrendingCreators(721, 10)).rejects.toThrow(UsernameValidationError);
+    });
+
+    it('breaks volume ties deterministically by ascending id', async () => {
+      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
+
+      const result = await service.getTrendingCreators(24, 3);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-4', 'id-2', 'id-3']);
+    });
+
+    it('returns first page with next_cursor and has_more=true', async () => {
+      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
+
+      const result = await service.getTrendingCreators(24, 2);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-4', 'id-2']);
+      expect(result.has_more).toBe(true);
+      expect(result.next_cursor).toBeTruthy();
+    });
+
+    it('advances to next page when cursor is provided, without re-returning prior rows', async () => {
+      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows);
+      const cursor = Buffer.from(
+        JSON.stringify({ pk: '200', id: 'id-2' }),
+        'utf-8',
+      ).toString('base64url');
+
+      const result = await service.getTrendingCreators(24, 2, cursor);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-3', 'id-1']);
+      expect(mockSupabaseService.getTrendingCreators).toHaveBeenCalledWith(24, 100);
+    });
+
+    it('is stable across repeated calls with identical input (ranking stability)', async () => {
+      mockSupabaseService.getTrendingCreators.mockResolvedValue(rows.slice(0, 3));
+
+      const first = await service.getTrendingCreators(24, 3);
+      const second = await service.getTrendingCreators(24, 3);
+
+      expect(second.data.map((r) => r.id)).toEqual(first.data.map((r) => r.id));
+    });
+  });
+
+  describe('getRecentlyActiveUsers', () => {
+    // Fixture reflects the order SupabaseService now guarantees:
+    // last_active_at DESC, with ties (id-2 / id-3) broken by ascending `id`.
+    const rows = [
+      { id: 'id-4', username: 'd', public_key: 'GAAA4', created_at: '2025-01-01T00:00:00.000Z', last_active_at: '2025-01-04T00:00:00.000Z', is_public: true },
+      { id: 'id-2', username: 'b', public_key: 'GAAA2', created_at: '2025-01-01T00:00:00.000Z', last_active_at: '2025-01-02T00:00:00.000Z', is_public: true },
+      { id: 'id-3', username: 'c', public_key: 'GAAA3', created_at: '2025-01-01T00:00:00.000Z', last_active_at: '2025-01-02T00:00:00.000Z', is_public: true },
+      { id: 'id-1', username: 'a', public_key: 'GAAA1', created_at: '2025-01-01T00:00:00.000Z', last_active_at: '2025-01-01T00:00:00.000Z', is_public: true },
+    ];
+
+    it('rejects an out-of-range time window', async () => {
+      await expect(service.getRecentlyActiveUsers(0, 10)).rejects.toThrow(UsernameValidationError);
+      await expect(service.getRecentlyActiveUsers(169, 10)).rejects.toThrow(UsernameValidationError);
+    });
+
+    it('breaks activity-timestamp ties deterministically by ascending id', async () => {
+      mockSupabaseService.getRecentlyActiveUsers.mockResolvedValueOnce(rows.slice(0, 3));
+
+      const result = await service.getRecentlyActiveUsers(24, 3);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-4', 'id-2', 'id-3']);
+    });
+
+    it('advances to next page when cursor is provided', async () => {
+      mockSupabaseService.getRecentlyActiveUsers.mockResolvedValueOnce(rows);
+      const cursor = Buffer.from(
+        JSON.stringify({ pk: '2025-01-02T00:00:00.000Z', id: 'id-2' }),
+        'utf-8',
+      ).toString('base64url');
+
+      const result = await service.getRecentlyActiveUsers(24, 2, cursor);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-3', 'id-1']);
+    });
+  });
+
+  describe('getFeaturedCreators', () => {
+    // featured_rank 5 ties between id-2/id-3; a null rank must sort last.
+    const rows = [
+      { id: 'id-1', username: 'a', public_key: 'GAAA1', created_at: '2025-01-01T00:00:00.000Z', last_active_at: null, is_public: true, featured_rank: 1 },
+      { id: 'id-2', username: 'b', public_key: 'GAAA2', created_at: '2025-01-02T00:00:00.000Z', last_active_at: null, is_public: true, featured_rank: 5 },
+      { id: 'id-3', username: 'c', public_key: 'GAAA3', created_at: '2025-01-03T00:00:00.000Z', last_active_at: null, is_public: true, featured_rank: 5 },
+      { id: 'id-4', username: 'd', public_key: 'GAAA4', created_at: '2025-01-04T00:00:00.000Z', last_active_at: null, is_public: true, featured_rank: null },
+    ];
+
+    it('orders by featured_rank ascending with null ranks last, ties broken by id', async () => {
+      mockSupabaseService.getFeaturedUsernames.mockResolvedValueOnce(rows);
+
+      const result = await service.getFeaturedCreators(4);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-1', 'id-2', 'id-3', 'id-4']);
+    });
+
+    it('advances to next page when cursor is provided, including null-rank rows', async () => {
+      mockSupabaseService.getFeaturedUsernames.mockResolvedValueOnce(rows);
+      const cursor = Buffer.from(
+        JSON.stringify({ pk: '5', id: 'id-2' }),
+        'utf-8',
+      ).toString('base64url');
+
+      const result = await service.getFeaturedCreators(2, cursor);
+
+      expect(result.data.map((r) => r.id)).toEqual(['id-3', 'id-4']);
+      expect(result.has_more).toBe(false);
     });
   });
 });

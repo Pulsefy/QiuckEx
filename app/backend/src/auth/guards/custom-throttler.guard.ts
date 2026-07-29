@@ -5,6 +5,7 @@ import {
   ThrottlerGuard,
   ThrottlerRequest,
 } from "@nestjs/throttler";
+import { parse } from "ipaddr.js";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   RateLimitGroup,
@@ -37,6 +38,51 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
   protected readonly reflector = new Reflector();
 
+  private isIpInAllowlist(ip: string): boolean {
+    if (!throttlerConfig.allowlist.cidrs.length) return false;
+    
+    try {
+      const clientIp = parse(ip);
+      
+      for (const cidr of throttlerConfig.allowlist.cidrs) {
+        if (cidr.includes('/')) {
+          const [range, prefix] = cidr.split('/');
+          if (parse(range).match(clientIp, parseInt(prefix))) {
+            return true;
+          }
+        } else if (ip === cidr) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // If IP parsing fails, assume not in allowlist
+      return false;
+    }
+    return false;
+  }
+
+  private isClientInAllowlist(req: RequestWithRateLimitContext): boolean {
+    // Check if user is allowlisted
+    const userId = this.getUserId(req);
+    if (userId && throttlerConfig.allowlist.userIds.includes(userId)) {
+      return true;
+    }
+    
+    // Check if API key is allowlisted
+    const apiKeyValue = this.getApiKeyValue(req);
+    if (apiKeyValue && throttlerConfig.allowlist.apiKeys.includes(apiKeyValue)) {
+      return true;
+    }
+    
+    // Check if IP is allowlisted
+    const ip = this.getIp(req);
+    if (ip && this.isIpInAllowlist(ip)) {
+      return true;
+    }
+    
+    return false;
+  }
+
   protected async handleRequest(
     requestProps: ThrottlerRequest,
   ): Promise<boolean> {
@@ -44,6 +90,11 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const req = context
       .switchToHttp()
       .getRequest<RequestWithRateLimitContext>();
+
+    // Skip rate limiting for allowlisted clients
+    if (this.isClientInAllowlist(req)) {
+      return true;
+    }
 
     const group = this.resolveGroup(context, req);
     const window =

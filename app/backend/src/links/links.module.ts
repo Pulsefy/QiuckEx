@@ -10,11 +10,15 @@ import { RecurringPaymentsRepository } from "./recurring-payments.repository";
 import { RecurringPaymentProcessor } from "../stellar/recurring-payment-processor";
 import { PaymentLinkController } from "./payment-link.controller";
 import { PaymentLinkService } from "./payment-link.service";
+import { PaymentLinkExpiryService } from './payment-link-expiry.service';
 import { SupabaseModule } from "../supabase/supabase.module";
 import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { JobQueueModule } from "../job-queue/job-queue.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
+import { PrivacyModule } from "../privacy/privacy.module";
+import { TransactionsModule } from "../transactions/transactions.module";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
   controllers: [
@@ -25,6 +29,7 @@ import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
   ],
   providers: [
     LinksService,
+    PaymentLinkExpiryService,
     BulkPaymentLinksService,
     RecurringPaymentsService,
     RecurringPaymentsScheduler,
@@ -34,6 +39,7 @@ import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
   ],
   exports: [
     LinksService,
+    PaymentLinkExpiryService,
     RecurringPaymentsService,
     BulkPaymentLinksService,
     RecurringPaymentsRepository,
@@ -45,6 +51,9 @@ import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
     StellarModule,
     ApiKeysModule,
     FeatureFlagsModule,
+    PrivacyModule,
+    TransactionsModule,
+    AuditModule,
     forwardRef(() => JobQueueModule),
   ],
 })

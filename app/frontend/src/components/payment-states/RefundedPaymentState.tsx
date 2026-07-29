@@ -41,36 +41,36 @@ export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
           </svg>
         </div>
         <h1 className="text-3xl font-bold mb-2">Payment Refunded</h1>
-        <p className="text-neutral-300">{status.userMessage}</p>
+        <p className="text-muted">{status.userMessage}</p>
       </div>
 
       {/* Payment Details Card */}
-      <div className="bg-neutral-900/50 border border-white/10 rounded-2xl p-8">
+      <div className="bg-card/50 border border-border-strong rounded-2xl p-8">
         <h2 className="text-xl font-bold mb-6">Refund Details</h2>
 
         <dl className="space-y-4">
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Original Recipient</dt>
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Original Recipient</dt>
             <dd className="font-semibold">@{status.username}</dd>
           </div>
 
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <dt className="text-neutral-300">Refunded Amount</dt>
-            <dd className="text-2xl font-bold text-purple-300">
+          <div className="flex justify-between items-center py-3 border-b border-border">
+            <dt className="text-muted">Refunded Amount</dt>
+            <dd className="text-2xl font-bold text-brand">
               {status.amount} {status.asset}
             </dd>
           </div>
 
           {status.memo && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Original Memo</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Original Memo</dt>
               <dd className="font-mono text-sm">{status.memo}</dd>
             </div>
           )}
 
           {status.paidAt && (
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <dt className="text-neutral-300">Original Payment Date</dt>
+            <div className="flex justify-between items-center py-3 border-b border-border">
+              <dt className="text-muted">Original Payment Date</dt>
               <dd className="text-sm">
                 {new Date(status.paidAt).toLocaleDateString()}
               </dd>
@@ -99,10 +99,10 @@ export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
             </svg>
           </div>
           <div>
-            <h3 className="font-semibold text-purple-300 mb-2">
+            <h3 className="font-semibold text-brand mb-2">
               About this refund
             </h3>
-            <p className="text-sm text-purple-200/90">
+            <p className="text-sm text-brand/90">
               This payment has been refunded by the recipient. The funds have
               been returned to the original sender&apos;s account. Refunds are
               processed on the Stellar network and may take a few moments to
@@ -116,7 +116,7 @@ export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
       <div className="space-y-4">
         <Link
           href="/"
-          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="block w-full py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-lg text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go to Homepage
         </Link>
@@ -124,7 +124,7 @@ export function RefundedPaymentState({ status }: RefundedPaymentStateProps) {
         <button
           type="button"
           onClick={() => window.history.back()}
-          className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="w-full py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go Back
         </button>

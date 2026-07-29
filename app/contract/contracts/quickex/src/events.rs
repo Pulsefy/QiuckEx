@@ -1,3 +1,307 @@
+use soroban_sdk::{contractevent, Address, BytesN, Env};
+
+/// Canonical event schema version.
+///
+/// Increment this constant whenever the event payload shape changes
+/// (fields added, removed, or renamed). Indexers MUST check this field
+/// before parsing any event payload so they can route to the correct
+/// decoder for the schema version they understand.
+///
+/// History:
+///   v1 – original schema (no version field)
+///   v2 – added `schema_version` to every event payload (this release)
+pub const EVENT_SCHEMA_VERSION: u32 = 2;
+
+/// Testnet event topic namespace used as topic[0] for every QuickEx event.
+#[allow(dead_code)]
+pub const EVENT_TOPIC_ADMIN: &str = "TOPIC_ADMIN";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_DISPUTE: &str = "TOPIC_DISPUTE";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_ESCROW: &str = "TOPIC_ESCROW";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_ORACLE: &str = "TOPIC_ORACLE";
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EventSchema {
+    pub name: &'static str,
+    pub topics: &'static [&'static str],
+    pub payload_keys: &'static [&'static str],
+    pub schema_version: u32,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EventCompatibility {
+    pub name: &'static str,
+    pub current_version: u32,
+    pub compatible_versions: &'static [u32],
+}
+
+#[allow(dead_code)]
+pub const EVENT_SCHEMAS: &[EventSchema] = &[
+    EventSchema {
+        name: "AdminChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "AdminChanged", "old_admin", "new_admin"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ArbiterVoteCast",
+        topics: &[
+            EVENT_TOPIC_DISPUTE,
+            "ArbiterVoteCast",
+            "escrow_id",
+            "arbiter",
+        ],
+        payload_keys: &[
+            "resolve_for_owner",
+            "schema_version",
+            "threshold",
+            "timestamp",
+            "vote_count",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractMigrated",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractMigrated", "admin"],
+        payload_keys: &["from_version", "schema_version", "timestamp", "to_version"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractInitialized",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractInitialized", "admin"],
+        payload_keys: &[
+            "contract_version",
+            "event_schema_version",
+            "paused",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractPaused",
+        topics: &[EVENT_TOPIC_ADMIN, "ContractPaused", "admin"],
+        payload_keys: &["paused", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseDisabled",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseDisabled", "admin"],
+        payload_keys: &["flag", "is_global", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PauseEnforced",
+        topics: &[EVENT_TOPIC_ADMIN, "PauseEnforced", "caller"],
+        payload_keys: &["action", "reason", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "ContractUpgraded",
+        topics: &[
+            EVENT_TOPIC_ADMIN,
+            "ContractUpgraded",
+            "new_wasm_hash",
+            "admin",
+        ],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "DisputeResolved",
+        topics: &[
+            EVENT_TOPIC_DISPUTE,
+            "DisputeResolved",
+            "escrow_id",
+            "resolved_for_owner",
+        ],
+        payload_keys: &[
+            "amount",
+            "schema_version",
+            "threshold",
+            "timestamp",
+            "total_votes",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EmergencyModeActivated",
+        topics: &[EVENT_TOPIC_ADMIN, "EmergencyModeActivated", "admin"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EphemeralKeyRegistered",
+        topics: &[
+            EVENT_TOPIC_STEALTH,
+            "EphemeralKeyRegistered",
+            "stealth_address",
+            "eph_pub",
+        ],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "expires_at",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowDeposited",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowDeposited", "escrow_id", "owner"],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "expires_at",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowDisputed",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowDisputed", "escrow_id", "arbiter"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowFinalized",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowFinalized", "escrow_id", "owner"],
+        payload_keys: &["schema_version", "timestamp", "token", "total_amount"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowRefunded",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowRefunded", "escrow_id", "owner"],
+        payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "EscrowWithdrawn",
+        topics: &[EVENT_TOPIC_ESCROW, "EscrowWithdrawn", "escrow_id", "owner"],
+        payload_keys: &["amount", "fee", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "FeeCollectorRotated",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeCollectorRotated", "new_collector"],
+        payload_keys: &["rotation_index", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "FeeConfigChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeConfigChanged"],
+        payload_keys: &["fee_bps", "old_fee_bps", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PartialPayment",
+        topics: &[EVENT_TOPIC_ESCROW, "PartialPayment", "escrow_id", "payer"],
+        payload_keys: &[
+            "amount_due",
+            "amount_paid",
+            "payment_amount",
+            "schema_version",
+            "timestamp",
+            "token",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PerAssetFeeSet",
+        topics: &[EVENT_TOPIC_ADMIN, "PerAssetFeeSet", "token"],
+        payload_keys: &[
+            "arbiter_bps",
+            "fee_bps",
+            "old_arbiter_bps",
+            "old_fee_bps",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PlatformWalletChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "PlatformWalletChanged", "wallet"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "PrivacyToggled",
+        topics: &[EVENT_TOPIC_PRIVACY, "PrivacyToggled", "owner"],
+        payload_keys: &["enabled", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "StealthWithdrawn",
+        topics: &[
+            EVENT_TOPIC_STEALTH,
+            "StealthWithdrawn",
+            "stealth_address",
+            "recipient",
+        ],
+        payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "OraclePriceUpdated",
+        topics: &[EVENT_TOPIC_ORACLE, "OraclePriceUpdated"],
+        payload_keys: &["price_micros", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+];
+
+#[allow(dead_code)]
+pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
+    EventCompatibility {
+        name: "AdminChanged",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowDeposited",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowRefunded",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowWithdrawn",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "PrivacyToggled",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "PauseFlagsChanged",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[EVENT_SCHEMA_VERSION],
+    },
+];
+
 #[contractevent(topics = ["TOPIC_ADMIN", "EmergencyModeActivated"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmergencyModeActivatedEvent {
@@ -15,19 +319,6 @@ pub(crate) fn publish_emergency_mode_activated(env: &Env, admin: Address) {
     }
     .publish(env);
 }
-use soroban_sdk::{contractevent, Address, BytesN, Env};
-
-/// Canonical event schema version.
-///
-/// Increment this constant whenever the event payload shape changes
-/// (fields added, removed, or renamed). Indexers MUST check this field
-/// before parsing any event payload so they can route to the correct
-/// decoder for the schema version they understand.
-///
-/// History:
-///   v1 – original schema (no version field)
-///   v2 – added `schema_version` to every event payload (this release)
-pub const EVENT_SCHEMA_VERSION: u32 = 2;
 
 #[contractevent(topics = ["TOPIC_PRIVACY", "PrivacyToggled"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,6 +375,39 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) 
 }
 
 #[allow(dead_code)]
+#[contractevent(topics = ["TOPIC_ADMIN", "ContractInitialized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractInitializedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub contract_version: u32,
+    pub event_schema_version: u32,
+    pub paused: bool,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_contract_initialized(
+    env: &Env,
+    admin: Address,
+    contract_version: u32,
+    event_schema_version: u32,
+    paused: bool,
+) {
+    ContractInitializedEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        contract_version,
+        event_schema_version,
+        paused,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
 #[contractevent(topics = ["TOPIC_ADMIN", "ContractPaused"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractPausedEvent {
@@ -92,15 +416,107 @@ pub struct ContractPausedEvent {
 
     pub schema_version: u32,
     pub paused: bool,
+    pub reason: u32,
     pub timestamp: u64,
 }
 
 #[allow(dead_code)]
-pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool) {
+pub(crate) fn publish_contract_paused(env: &Env, admin: Address, paused: bool, reason: u32) {
     ContractPausedEvent {
         admin,
         schema_version: EVENT_SCHEMA_VERSION,
         paused,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flags: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseFlagsChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseDisabledEvent {
+    #[topic]
+    pub admin: Address,
+    pub schema_version: u32,
+    pub is_global: bool,
+    pub flags: u64,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "PauseEnforced"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseEnforcedEvent {
+    #[topic]
+    pub caller: Option<Address>,
+    pub schema_version: u32,
+    pub action: soroban_sdk::Symbol,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseEnabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flags: flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_disabled(
+    env: &Env,
+    admin: Address,
+    is_global: bool,
+    flag: u64,
+    reason: u32,
+) {
+    PauseDisabledEvent {
+        admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        is_global,
+        flags: flag,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[allow(dead_code)]
+pub(crate) fn publish_pause_enforced(
+    env: &Env,
+    caller: Option<Address>,
+    action: soroban_sdk::Symbol,
+    reason: u32,
+) {
+    PauseEnforcedEvent {
+        caller,
+        schema_version: EVENT_SCHEMA_VERSION,
+        action,
+        reason,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -144,11 +560,73 @@ pub struct ContractUpgradedEvent {
     pub timestamp: u64,
 }
 
+#[contractevent(topics = ["TOPIC_ADMIN", "UpgradeStarted"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpgradeStartedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub old_version: u32,
+    pub new_version: u32,
+    pub window_start: u64,
+    pub window_end: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "UpgradeCompleted"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpgradeCompletedEvent {
+    #[topic]
+    pub admin: Address,
+
+    pub schema_version: u32,
+    pub old_version: u32,
+    pub new_version: u32,
+    pub timestamp: u64,
+}
+
 pub(crate) fn publish_contract_upgraded(env: &Env, new_wasm_hash: BytesN<32>, admin: &Address) {
     ContractUpgradedEvent {
         new_wasm_hash,
         admin: admin.clone(),
         schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_upgrade_started(
+    env: &Env,
+    admin: &Address,
+    old_version: u32,
+    new_version: u32,
+    window_start: u64,
+    window_end: u64,
+) {
+    UpgradeStartedEvent {
+        admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        old_version,
+        new_version,
+        window_start,
+        window_end,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+pub(crate) fn publish_upgrade_completed(
+    env: &Env,
+    admin: &Address,
+    old_version: u32,
+    new_version: u32,
+) {
+    UpgradeCompletedEvent {
+        admin: admin.clone(),
+        schema_version: EVENT_SCHEMA_VERSION,
+        old_version,
+        new_version,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -248,6 +726,7 @@ pub struct PartialPaymentEvent {
     #[topic]
     pub payer: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub payment_amount: i128,
     pub amount_paid: i128,
@@ -264,6 +743,7 @@ pub struct EscrowFinalizedEvent {
     #[topic]
     pub owner: Address,
 
+    pub schema_version: u32,
     pub token: Address,
     pub total_amount: i128,
     pub timestamp: u64,
@@ -322,6 +802,7 @@ pub(crate) fn publish_partial_payment(
     PartialPaymentEvent {
         escrow_id: commitment,
         payer,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         payment_amount,
         amount_paid,
@@ -341,6 +822,7 @@ pub(crate) fn publish_escrow_finalized(
     EscrowFinalizedEvent {
         escrow_id: commitment,
         owner,
+        schema_version: EVENT_SCHEMA_VERSION,
         token,
         total_amount,
         timestamp: env.ledger().timestamp(),
@@ -431,15 +913,17 @@ pub(crate) fn publish_stealth_withdrawn(
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeConfigChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigChangedEvent {
-    pub schema_version: u32,
+    pub old_fee_bps: u32,
     pub fee_bps: u32,
+    pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_fee_config_changed(env: &Env, fee_bps: u32) {
+pub(crate) fn publish_fee_config_changed(env: &Env, old_fee_bps: u32, fee_bps: u32) {
     FeeConfigChangedEvent {
-        schema_version: EVENT_SCHEMA_VERSION,
+        old_fee_bps,
         fee_bps,
+        schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
@@ -570,15 +1054,26 @@ pub(crate) fn publish_fee_collector_rotated(
 pub struct PerAssetFeeSetEvent {
     #[topic]
     pub token: Address,
+    pub old_fee_bps: u32,
+    pub old_arbiter_bps: u32,
     pub fee_bps: u32,
     pub arbiter_bps: u32,
     pub schema_version: u32,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32, arbiter_bps: u32) {
+pub(crate) fn publish_per_asset_fee_set(
+    env: &Env,
+    token: Address,
+    old_fee_bps: u32,
+    old_arbiter_bps: u32,
+    fee_bps: u32,
+    arbiter_bps: u32,
+) {
     PerAssetFeeSetEvent {
         token,
+        old_fee_bps,
+        old_arbiter_bps,
         fee_bps,
         arbiter_bps,
         schema_version: EVENT_SCHEMA_VERSION,
@@ -587,36 +1082,21 @@ pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32,
     .publish(env);
 }
 
-// ---------------------------------------------------------------------------
-// Hook Events
-// ---------------------------------------------------------------------------
+// ---- Oracle price events (Issue #666) ----
 
-#[contractevent(topics = ["TOPIC_HOOK", "HookFailed"])]
+#[contractevent(topics = ["TOPIC_ORACLE", "OraclePriceUpdated"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct HookFailedEvent {
-    #[topic]
-    pub escrow_id: BytesN<32>,
-
-    #[topic]
-    pub hook: Address,
-
+pub struct OraclePriceUpdatedEvent {
     pub schema_version: u32,
-    pub reason: u32,
+    pub price_micros: i128,
     pub timestamp: u64,
 }
 
-pub(crate) fn publish_hook_failed(
-    env: &Env,
-    escrow_id: BytesN<32>,
-    hook: Address,
-    reason: u32,
-) {
-    HookFailedEvent {
-        escrow_id,
-        hook,
+pub(crate) fn publish_oracle_price_updated(env: &Env, price_micros: i128, recorded_at: u64) {
+    OraclePriceUpdatedEvent {
         schema_version: EVENT_SCHEMA_VERSION,
-        reason,
-        timestamp: env.ledger().timestamp(),
+        price_micros,
+        timestamp: recorded_at,
     }
     .publish(env);
 }

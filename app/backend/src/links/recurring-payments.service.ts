@@ -30,6 +30,7 @@ export class RecurringPaymentsService {
    */
   async createRecurringLink(
     dto: CreateRecurringPaymentLinkDto,
+    previewScope?: string,
   ): Promise<RecurringPaymentLinkResponseDto> {
     // Validate input
     this.validateCreateDto(dto);
@@ -54,6 +55,7 @@ export class RecurringPaymentsService {
         memoType: dto.memoType || 'text',
         referenceId: dto.referenceId || null,
         privacyEnabled: dto.privacyEnabled || false,
+        previewScope,
       });
 
       // Create first execution record
@@ -63,6 +65,7 @@ export class RecurringPaymentsService {
         scheduledAt: startDate,
         amount: dto.amount,
         asset: dto.asset,
+        previewScope,
       });
 
       this.logger.log(`Created recurring payment link: ${link.id}`);
@@ -276,10 +279,10 @@ export class RecurringPaymentsService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Get all links due for execution
+   * Get all links due for execution, optionally scoped to a preview scope
    */
-  async getLinksDueForExecution(): Promise<DbRecurringPaymentLink[]> {
-    return await this.repository.getDueForExecution();
+  async getLinksDueForExecution(previewScope?: string): Promise<DbRecurringPaymentLink[]> {
+    return await this.repository.getDueForExecution(previewScope);
   }
 
   /**
