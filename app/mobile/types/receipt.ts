@@ -61,4 +61,5 @@ export interface ReceiptData {
   contract: ContractMetadata;
   network: NetworkMetadata;
   timeline: TimelineEvent[];
+  supportBundleReference?: string;
 }

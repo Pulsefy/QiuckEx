@@ -68,3 +68,21 @@ export function redactContext<T>(value: T): T {
   }
   return value;
 }
+
+/**
+ * Redact a support bundle reference string to ensure it's safe for client display and sharing.
+ * Expects formats like 'support-12345-bundle|session-token:9876xyz|env:prod' and returns just 'support-12345-bundle'.
+ * If the string doesn't match a pipelined format, it safely redacts it using `redactFeedbackText`
+ * and obscures the rest if there's no clear safe part.
+ */
+export function redactSupportBundleReference(ref: string | undefined): string {
+  if (!ref) return '';
+  const parts = ref.split('|');
+  const supportId = parts[0];
+  // If it's just a raw unpiped string, we'll run it through standard redaction.
+  if (parts.length === 1) {
+    return redactFeedbackText(supportId);
+  }
+  // Otherwise just return the first part assuming it's the safe ID
+  return supportId;
+}

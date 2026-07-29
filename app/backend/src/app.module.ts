@@ -58,7 +58,9 @@ import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
 import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
 import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
 import { ReportIssueModule } from "./report-issue/report-issue.module";
+import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
+import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 
 type AppImport =
 | Type<unknown>
@@ -101,8 +103,9 @@ FeatureFlagsModule,
 PrivacyModule,
 SorobanToolingModule,
 EnvironmentParityModule,
-  BranchPreviewModule,
-  IndexerLagModule,
+    BranchPreviewModule,
+    RuntimeConfigModule,
+    IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
     RcValidationModule,
@@ -110,6 +113,7 @@ OperationsModule,
     PreviewScopeModule,
     ReportIssueModule,
     TransactionTimelineModule,
+    DashboardFeedModule,
     ];
 
     try {

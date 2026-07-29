@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
 import type { ReceiptData, ShareableReceipt } from '../types/receipt';
+import { redactSupportBundleReference } from '../utils/feedback-redaction';
 
 interface UseShareReceiptReturn {
   share: (receipt: ReceiptData) => Promise<void>;
@@ -32,6 +33,9 @@ function generateSupportText(receipt: ReceiptData): string {
     ),
     '',
     `Explorer: ${getExplorerUrl(receipt)}`,
+    ...(receipt.supportBundleReference
+      ? [`Support Bundle: ${redactSupportBundleReference(receipt.supportBundleReference)}`]
+      : []),
     '',
     'For support, include this entire message.',
     '===============================',

@@ -30,7 +30,7 @@ export class TransactionTimelineService {
         const paymentItems = await this.collectPaymentItems(txHash, address);
         allItems.push(...paymentItems);
       } catch (err) {
-        this.logger.warn(`Timeline: payment source failed for ${txHash}: ${err}`);
+        this.logger.warn(`Timeline: payment source failed for ${txHash.slice(0, 8)}...: ${err}`);
         failedSources.push('payment');
       }
     }
@@ -41,7 +41,7 @@ export class TransactionTimelineService {
         const refundItems = await this.collectRefundItems(txHash);
         allItems.push(...refundItems);
       } catch (err) {
-        this.logger.warn(`Timeline: refund source failed for ${txHash}: ${err}`);
+        this.logger.warn(`Timeline: refund source failed for ${txHash.slice(0, 8)}...: ${err}`);
         failedSources.push('refund');
       }
     }
@@ -52,7 +52,7 @@ export class TransactionTimelineService {
         const webhookItems = await this.collectWebhookItems(txHash, address);
         allItems.push(...webhookItems);
       } catch (err) {
-        this.logger.warn(`Timeline: webhook source failed for ${txHash}: ${err}`);
+        this.logger.warn(`Timeline: webhook source failed for ${txHash.slice(0, 8)}...: ${err}`);
         failedSources.push('webhook_delivery');
       }
     }
@@ -63,7 +63,7 @@ export class TransactionTimelineService {
         const contractItems = await this.collectContractItems(txHash);
         allItems.push(...contractItems);
       } catch (err) {
-        this.logger.warn(`Timeline: contract source failed for ${txHash}: ${err}`);
+        this.logger.warn(`Timeline: contract source failed for ${txHash.slice(0, 8)}...: ${err}`);
         failedSources.push('contract_event');
       }
     }

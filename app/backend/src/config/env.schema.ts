@@ -12,6 +12,32 @@ export const envSchema = Joi.object({
     .default(4000)
     .description("Port number for the server"),
 
+  API_BASE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Base API URL exposed to frontend via bootstrap endpoint"),
+
+  APP_VERSION: Joi.string()
+    .empty("")
+    .optional()
+    .description("Application release version string"),
+
+  ROUTER_CONTRACT_ID: Joi.string()
+    .empty("")
+    .optional()
+    .description("Router Soroban contract address"),
+
+  ALLOWED_TOKENS: Joi.string()
+    .empty("")
+    .optional()
+    .description("Comma-separated list of pre-allowed token addresses"),
+
+  STELLAR_NETWORK_PASSPHRASE: Joi.string()
+    .empty("")
+    .optional()
+    .description("Explicit Stellar network passphrase override"),
+
   // Network configuration (required)
   NETWORK: Joi.string()
     .valid("testnet", "mainnet")
@@ -91,6 +117,12 @@ export const envSchema = Joi.object({
     .description("Node environment"),
 
   // CORS configuration
+  PUBLIC_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Public API base URL exposed by the runtime config endpoint for client bootstrapping"),
+
   CORS_ALLOWED_ORIGINS: Joi.string()
     .empty("")
     .optional()
@@ -441,6 +473,11 @@ export const envSchema = Joi.object({
  */
 export interface EnvConfig {
   PORT: number;
+  API_BASE_URL?: string;
+  APP_VERSION?: string;
+  ROUTER_CONTRACT_ID?: string;
+  ALLOWED_TOKENS?: string;
+  STELLAR_NETWORK_PASSPHRASE?: string;
   NETWORK: "testnet" | "mainnet";
   STELLAR_NETWORK?: "testnet" | "mainnet";
   SUPABASE_URL: string;
@@ -455,6 +492,8 @@ export interface EnvConfig {
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
+  PUBLIC_API_URL?: string;
+
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;

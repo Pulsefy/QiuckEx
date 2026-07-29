@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { getQuickexApiBase } from "@/lib/api";
+import { resolvePublicKey } from "@/lib/publicKey";
 
 export type DateRange = "24h" | "7d" | "30d" | "all";
 
@@ -65,15 +66,6 @@ type ApiReport = {
 };
 
 const analyticsCache: Partial<Record<DateRange, AnalyticsData>> = {};
-const DEFAULT_PUBLIC_KEY =
-  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
-const PUBLIC_KEY_STORAGE_CANDIDATES = [
-  "quickex.publicKey",
-  "quickex.walletPublicKey",
-  "walletPublicKey",
-  "publicKey",
-];
 const ASSET_COLORS: Record<string, string> = {
   USDC: "#6366f1",
   XLM: "#8b5cf6",
@@ -107,24 +99,6 @@ function rangeToWindow(range: DateRange): {
     endDate: end.toISOString(),
     interval,
   };
-}
-
-function resolveAnalyticsPublicKey(): string {
-  if (typeof window !== "undefined") {
-    for (const key of PUBLIC_KEY_STORAGE_CANDIDATES) {
-      const value = window.localStorage.getItem(key)?.trim();
-      if (value && PUBLIC_KEY_REGEX.test(value)) {
-        return value;
-      }
-    }
-  }
-
-  const fromEnv = process.env.NEXT_PUBLIC_QUICKEX_ANALYTICS_PUBLIC_KEY?.trim();
-  if (fromEnv && PUBLIC_KEY_REGEX.test(fromEnv)) {
-    return fromEnv;
-  }
-
-  return DEFAULT_PUBLIC_KEY;
 }
 
 function labelForPeriod(period: string): string {
@@ -217,7 +191,7 @@ export async function fetchAnalytics(range: DateRange): Promise<AnalyticsData> {
     return Promise.resolve(analyticsCache[range] as AnalyticsData);
   }
 
-  const publicKey = resolveAnalyticsPublicKey();
+  const publicKey = resolvePublicKey();
   const { startDate, endDate, interval } = rangeToWindow(range);
   const url = new URL(`${getQuickexApiBase()}/analytics/report`);
   url.searchParams.set("publicKey", publicKey);
@@ -247,7 +221,7 @@ export async function exportAnalyticsReport(
   format: "csv" | "pdf",
   reportType: "tax" | "accounting" = "accounting",
 ): Promise<void> {
-  const publicKey = resolveAnalyticsPublicKey();
+  const publicKey = resolvePublicKey();
   const { startDate, endDate, interval } = rangeToWindow(range);
   const url = new URL(`${getQuickexApiBase()}/analytics/export`);
   url.searchParams.set("publicKey", publicKey);

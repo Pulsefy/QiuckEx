@@ -7,12 +7,16 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Share,
+  Clipboard,
+  ToastAndroid,
 } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { useClipboard } from '../../hooks/useClipboard';
+
+import { redactSupportBundleReference } from '../../../utils/feedback-redaction';
 import { ContractMetadata } from './ContractMetadata';
 import { NetworkBadge } from './NetworkBadge';
-import type { ReceiptMetadata, ContractMetadata as ContractType, NetworkMetadata } from '../../types/receipt';
+import type { ReceiptMetadata, ContractMetadata as ContractType, NetworkMetadata } from '../../../types/receipt';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -20,9 +24,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 interface MetadataSectionProps {
+  receiptId: string;
   receiptMetadata: ReceiptMetadata;
   contract: ContractType;
   network: NetworkMetadata;
+  supportBundleReference?: string;
 }
 
 function truncateHash(hash: string): string {
@@ -30,14 +36,34 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}...${hash.slice(-8)}`;
 }
 
-export function MetadataSection({ receiptMetadata, contract, network }: MetadataSectionProps) {
+export function MetadataSection({ receiptId, receiptMetadata, contract, network, supportBundleReference }: MetadataSectionProps) {
   const [expanded, setExpanded] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { color, tokens } = useTheme();
-  const { copied, copy } = useClipboard();
+  
+  const copyToClipboard = (text: string, label: string) => { 
+    Clipboard.setString(text);
+    setCopiedKey(label);
+    setTimeout(() => setCopiedKey(null), 2000);
+    if (Platform.OS === 'android') { 
+      ToastAndroid.show(`${label} copied`, ToastAndroid.SHORT); 
+    } 
+  };
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
+  };
+
+  const shareItem = async (text: string, title: string) => {
+    try {
+      await Share.share({
+        message: text,
+        title,
+      }, {
+        dialogTitle: title,
+      });
+    } catch (error) {}
   };
 
   const styles = themedStyles({ color, tokens, expanded });
@@ -57,17 +83,69 @@ export function MetadataSection({ receiptMetadata, contract, network }: Metadata
       {/* Always-visible summary */}
       <View style={styles.summary}>
         <View style={styles.hashRow}>
+          <Text style={styles.hashLabel}>Receipt ID</Text>
+          <View style={styles.hashValueRow}>
+            <Text style={styles.hashValue}>{receiptId}</Text>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                onPress={() => copyToClipboard(receiptId, 'Receipt ID')}
+                style={styles.copyButton}
+              >
+                <Text>{copiedKey === 'Receipt ID' ? '✓' : '📋'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => shareItem(receiptId, 'Share Receipt ID')}
+                style={styles.copyButton}
+              >
+                <Text>⬆️</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.hashRow}>
           <Text style={styles.hashLabel}>Receipt Hash</Text>
           <View style={styles.hashValueRow}>
             <Text style={styles.hashValue}>{truncateHash(receiptMetadata.receiptHash)}</Text>
-            <TouchableOpacity
-              onPress={() => copy(receiptMetadata.receiptHash, 'Receipt hash')}
-              style={styles.copyButton}
-            >
-              <Text>{copied ? '✓' : '📋'}</Text>
-            </TouchableOpacity>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                onPress={() => copyToClipboard(receiptMetadata.receiptHash, 'Receipt hash')}
+                style={styles.copyButton}
+              >
+                <Text>{copiedKey === 'Receipt hash' ? '✓' : '📋'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => shareItem(receiptMetadata.receiptHash, 'Share Receipt Hash')}
+                style={styles.copyButton}
+              >
+                <Text>⬆️</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
+
+        {supportBundleReference && (
+          <View style={styles.hashRow}>
+            <Text style={styles.hashLabel}>Support Bundle Ref</Text>
+            <View style={styles.hashValueRow}>
+              <Text style={styles.hashValue}>{redactSupportBundleReference(supportBundleReference)}</Text>
+              <View style={styles.actionsRow}>
+                <TouchableOpacity
+                  onPress={() => copyToClipboard(redactSupportBundleReference(supportBundleReference), 'Support bundle ref')}
+                  style={styles.copyButton}
+                >
+                  <Text>{copiedKey === 'Support bundle ref' ? '✓' : '📋'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => shareItem(redactSupportBundleReference(supportBundleReference), 'Share Support Bundle Ref')}
+                  style={styles.copyButton}
+                >
+                  <Text>⬆️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
 
         <NetworkBadge network={network.network} ledger={network.ledger} />
 
@@ -187,6 +265,10 @@ function themedStyles({ color, tokens, expanded }: any) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 8,
     },
     hashValue: {
       fontSize: 15,

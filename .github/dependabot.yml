@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "cargo"
+    directory: "/app/contract"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-deps:
+        patterns:
+          - "*"

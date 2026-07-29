@@ -68,6 +68,7 @@ export const mockReceiptPending: ReceiptData = {
       status: 'upcoming',
     },
   ],
+  supportBundleReference: 'support-12345-bundle|session-token:9876xyz|env:prod',
 };
 
 export const mockReceiptSuccess: ReceiptData = {
