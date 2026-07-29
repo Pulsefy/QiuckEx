@@ -117,6 +117,12 @@ export const envSchema = Joi.object({
     .description("Node environment"),
 
   // CORS configuration
+  PUBLIC_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Public API base URL exposed by the runtime config endpoint for client bootstrapping"),
+
   CORS_ALLOWED_ORIGINS: Joi.string()
     .empty("")
     .optional()
@@ -470,6 +476,8 @@ export interface EnvConfig {
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
+  PUBLIC_API_URL?: string;
+
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
