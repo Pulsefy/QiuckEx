@@ -6,9 +6,10 @@ import {
   Param,
   HttpCode,
   HttpStatus,
-  Request,
+  Req,
   NotFoundException,
 } from '@nestjs/common';
+import type { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportIssueService } from './report-issue.service';
 import { CreateReportIssueDto, ReportIssueDto } from './dto';
@@ -37,7 +38,7 @@ export class ReportIssueController {
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async submitReport(
     @Body() dto: CreateReportIssueDto,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ): Promise<ReportIssueResponseDto> {
     // Extract IP address from request
     const ipAddress = this.extractIpAddress(req);
@@ -94,8 +95,9 @@ export class ReportIssueController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - admin access required' })
   async getAllReports(
-    @Request() req: Request,
+    @Req() _req: ExpressRequest,
   ): Promise<ReportIssueDto[]> {
+    void _req;
     // TODO: Add admin role check when auth is properly integrated
     // For now, this endpoint is available but should be protected
     
@@ -130,23 +132,22 @@ export class ReportIssueController {
   /**
    * Extract IP address from request
    */
-  private extractIpAddress(req: Request): string {
-    const request = req as any;
-    
-    // Check for forwarded IP (behind proxy/load balancer)
-    const forwardedFor = request.headers?.['x-forwarded-for'];
+  private extractIpAddress(req: ExpressRequest): string {
+    // x-forwarded-for can be string | string[] | undefined
+    const forwardedFor = req.headers['x-forwarded-for'];
     if (typeof forwardedFor === 'string' && forwardedFor.length > 0) {
       return forwardedFor.split(',')[0].trim();
     }
-    
-    // Fall back to direct IP
-    return request.ip || 'unknown';
+    if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+      return forwardedFor[0].split(',')[0].trim();
+    }
+    return req.ip ?? 'unknown';
   }
 
   /**
    * Map ReportIssue entity to ReportIssueDto
    */
-  private mapToDto(report: any): ReportIssueDto {
+  private mapToDto(report: Partial<ReportIssueDto>): ReportIssueDto {
     return {
       id: report.id,
       userId: report.userId,

@@ -328,6 +328,9 @@ describe('JobAdminController', () => {
 
       const result = await controller.getDeadLetterQueue(
         JobType.WEBHOOK_DELIVERY,
+        undefined,
+        undefined,
+        undefined,
         50,
         0,
       );
@@ -379,6 +382,9 @@ describe('JobAdminController', () => {
 
       const result = await controller.getDeadLetterQueue(
         JobType.WEBHOOK_DELIVERY,
+        undefined,
+        undefined,
+        undefined,
         50,
         0,
       );

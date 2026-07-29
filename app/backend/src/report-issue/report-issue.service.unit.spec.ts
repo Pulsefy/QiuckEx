@@ -8,9 +8,9 @@ import { ReportIssueSubmission } from './types';
 
 describe('ReportIssueService', () => {
   let service: ReportIssueService;
-  let repository: ReportIssueRepository;
-  let redactionService: RedactionService;
-  let configService: AppConfigService;
+  let _repository: ReportIssueRepository;
+  let _redactionService: RedactionService;
+  let _configService: AppConfigService;
 
   const mockReportIssueRepository = {
     createReportIssue: jest.fn(),
@@ -52,9 +52,13 @@ describe('ReportIssueService', () => {
     }).compile();
 
     service = module.get<ReportIssueService>(ReportIssueService);
-    repository = module.get<ReportIssueRepository>(ReportIssueRepository);
-    redactionService = module.get<RedactionService>(RedactionService);
-    configService = module.get<AppConfigService>(AppConfigService);
+    _repository = module.get<ReportIssueRepository>(ReportIssueRepository);
+    _redactionService = module.get<RedactionService>(RedactionService);
+    _configService = module.get<AppConfigService>(AppConfigService);
+
+    void _repository;
+    void _redactionService;
+    void _configService;
 
     jest.clearAllMocks();
   });

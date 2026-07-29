@@ -1,6 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { ReportIssue } from './types';
+import { AttachmentReference, ReportIssue } from './types';
+
+interface ReportIssueRow {
+  id: string;
+  user_id?: string;
+  issue_type?: string;
+  title?: string;
+  description?: string;
+  environment?: unknown;
+  reproduction?: string;
+  context?: Record<string, unknown>;
+  attachments?: AttachmentReference[];
+  redacted_payload?: Record<string, unknown>;
+  ip_address_hash?: string;
+  created_at?: string;
+}
 
 /**
  * Repository for report issue data persistence
@@ -162,7 +177,7 @@ export class ReportIssueRepository {
   /**
    * Map database row to ReportIssue interface
    */
-  private mapRowToReportIssue(row: any): ReportIssue {
+  private mapRowToReportIssue(row: ReportIssueRow): ReportIssue {
     return {
       id: row.id,
       userId: row.user_id,

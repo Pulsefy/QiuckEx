@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ReportIssueService } from './report-issue.service';
 import { ReportIssueController } from './report-issue.controller';
 import { ReportIssueRepository } from './report-issue.repository';
-import { RedactionService } from '../crash-reporting/redaction.service';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { CrashReportingModule } from '../crash-reporting/crash-reporting.module';
 
