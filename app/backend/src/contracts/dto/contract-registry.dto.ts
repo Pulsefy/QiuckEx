@@ -183,6 +183,7 @@ export class UpsertContractDeploymentDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
+
 }
 
 export class RollbackContractRegistryDto {

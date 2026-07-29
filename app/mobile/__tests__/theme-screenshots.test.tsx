@@ -1,5 +1,7 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, waitFor } from '@testing-library/react-native';
+import { Appearance } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import { PaymentScreen } from '../src/screens/PaymentScreen';
 import { ReceiptScreen } from '../src/screens/ReceiptScreen';
@@ -16,56 +18,114 @@ const mockReceipt = {
   memo: 'Test payment',
 };
 
-function renderWithTheme(component: React.ReactElement, mode: 'light' | 'dark' | 'system' = 'light') {
-  // Mock Appearance for testing
-  jest.mock('react-native/Libraries/Utilities/Appearance', () => ({
-    getColorScheme: () => (mode === 'dark' ? 'dark' : 'light'),
-    addChangeListener: () => ({ remove: () => {} }),
-  }));
+async function renderWithTheme(component: React.ReactElement, mode: 'light' | 'dark' | 'system', systemAppearance: 'light' | 'dark' = 'light') {
+  jest.spyOn(Appearance, 'getColorScheme').mockReturnValue(systemAppearance);
+  
+  if (mode === 'system') {
+    await AsyncStorage.removeItem('@quickex_theme_mode');
+  } else {
+    await AsyncStorage.setItem('@quickex_theme_mode', mode);
+  }
 
-  return render(
+  const utils = render(
     <ThemeProvider>{component}</ThemeProvider>
   );
+
+  // ThemeProvider renders null until it reads from AsyncStorage. 
+  // We wait for it to render actual content.
+  await waitFor(() => {
+    expect(utils.toJSON()).not.toBeNull();
+  });
+
+  return utils;
 }
 
 describe('Theme Consistency Screenshots', () => {
-  it('PaymentScreen renders correctly in light theme', () => {
-    const { toJSON } = renderWithTheme(<PaymentScreen />, 'light');
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // PaymentScreen
+  it('PaymentScreen renders correctly in light theme', async () => {
+    const { toJSON } = await renderWithTheme(<PaymentScreen />, 'light');
     expect(toJSON()).toMatchSnapshot('payment-light');
   });
 
-  it('PaymentScreen renders correctly in dark theme', () => {
-    const { toJSON } = renderWithTheme(<PaymentScreen />, 'dark');
+  it('PaymentScreen renders correctly in dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<PaymentScreen />, 'dark');
     expect(toJSON()).toMatchSnapshot('payment-dark');
   });
 
-  it('ReceiptScreen renders correctly in light theme', () => {
-    const { toJSON } = renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'light');
+  it('PaymentScreen renders correctly in system-light theme', async () => {
+    const { toJSON } = await renderWithTheme(<PaymentScreen />, 'system', 'light');
+    expect(toJSON()).toMatchSnapshot('payment-system-light');
+  });
+
+  it('PaymentScreen renders correctly in system-dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<PaymentScreen />, 'system', 'dark');
+    expect(toJSON()).toMatchSnapshot('payment-system-dark');
+  });
+
+  // ReceiptScreen
+  it('ReceiptScreen renders correctly in light theme', async () => {
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'light');
     expect(toJSON()).toMatchSnapshot('receipt-light');
   });
 
-  it('ReceiptScreen renders correctly in dark theme', () => {
-    const { toJSON } = renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'dark');
+  it('ReceiptScreen renders correctly in dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'dark');
     expect(toJSON()).toMatchSnapshot('receipt-dark');
   });
 
-  it('SettingsScreen renders correctly in light theme', () => {
-    const { toJSON } = renderWithTheme(<SettingsScreen />, 'light');
+  it('ReceiptScreen renders correctly in system-light theme', async () => {
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'system', 'light');
+    expect(toJSON()).toMatchSnapshot('receipt-system-light');
+  });
+
+  it('ReceiptScreen renders correctly in system-dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'system', 'dark');
+    expect(toJSON()).toMatchSnapshot('receipt-system-dark');
+  });
+
+  // SettingsScreen
+  it('SettingsScreen renders correctly in light theme', async () => {
+    const { toJSON } = await renderWithTheme(<SettingsScreen />, 'light');
     expect(toJSON()).toMatchSnapshot('settings-light');
   });
 
-  it('SettingsScreen renders correctly in dark theme', () => {
-    const { toJSON } = renderWithTheme(<SettingsScreen />, 'dark');
+  it('SettingsScreen renders correctly in dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<SettingsScreen />, 'dark');
     expect(toJSON()).toMatchSnapshot('settings-dark');
   });
 
-  it('NotificationScreen renders correctly in light theme', () => {
-    const { toJSON } = renderWithTheme(<NotificationScreen />, 'light');
+  it('SettingsScreen renders correctly in system-light theme', async () => {
+    const { toJSON } = await renderWithTheme(<SettingsScreen />, 'system', 'light');
+    expect(toJSON()).toMatchSnapshot('settings-system-light');
+  });
+
+  it('SettingsScreen renders correctly in system-dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<SettingsScreen />, 'system', 'dark');
+    expect(toJSON()).toMatchSnapshot('settings-system-dark');
+  });
+
+  // NotificationScreen
+  it('NotificationScreen renders correctly in light theme', async () => {
+    const { toJSON } = await renderWithTheme(<NotificationScreen />, 'light');
     expect(toJSON()).toMatchSnapshot('notification-light');
   });
 
-  it('NotificationScreen renders correctly in dark theme', () => {
-    const { toJSON } = renderWithTheme(<NotificationScreen />, 'dark');
+  it('NotificationScreen renders correctly in dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<NotificationScreen />, 'dark');
     expect(toJSON()).toMatchSnapshot('notification-dark');
+  });
+
+  it('NotificationScreen renders correctly in system-light theme', async () => {
+    const { toJSON } = await renderWithTheme(<NotificationScreen />, 'system', 'light');
+    expect(toJSON()).toMatchSnapshot('notification-system-light');
+  });
+
+  it('NotificationScreen renders correctly in system-dark theme', async () => {
+    const { toJSON } = await renderWithTheme(<NotificationScreen />, 'system', 'dark');
+    expect(toJSON()).toMatchSnapshot('notification-system-dark');
   });
 });

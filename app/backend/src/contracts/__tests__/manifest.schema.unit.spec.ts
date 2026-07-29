@@ -50,6 +50,7 @@ interface DeploymentManifest {
   network: string;
   network_passphrase: string;
   rpc_url: string;
+  ledger_sequence: number;
   operator?: string;
   contracts: ManifestContract[];
 }
@@ -87,6 +88,7 @@ describe('Deployment Manifest Schema (SC-W6-01)', () => {
         },
       ],
       generated_at: '2026-06-27T12:00:00Z',
+      ledger_sequence: 47000000,
       manifest_version: 1,
       network: 'testnet',
       network_passphrase: 'Test SDF Network ; September 2015',
@@ -113,6 +115,7 @@ describe('Deployment Manifest Schema (SC-W6-01)', () => {
         'network',
         'network_passphrase',
         'rpc_url',
+        'ledger_sequence',
         'contracts',
       ]),
     );
@@ -134,6 +137,8 @@ describe('Deployment Manifest Schema (SC-W6-01)', () => {
     expect(manifest.network).toMatch(/^(testnet|mainnet)$/);
     expect(manifest.network_passphrase).toBeTruthy();
     expect(manifest.rpc_url).toMatch(/^https?:\/\//);
+    expect(typeof manifest.ledger_sequence).toBe('number');
+    expect(manifest.ledger_sequence).toBeGreaterThan(0);
   });
 
   it('backend can parse manifest: contract entries have all required fields', () => {
@@ -174,6 +179,7 @@ describe('Deployment Manifest Schema (SC-W6-01)', () => {
       'application',
       'contracts',
       'generated_at',
+      'ledger_sequence',
       'manifest_version',
       'network',
       'network_passphrase',

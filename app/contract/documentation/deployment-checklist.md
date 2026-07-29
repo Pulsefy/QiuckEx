@@ -2,6 +2,8 @@
 
 This checklist is the release gate for any QuickEx deployment change. Use it for testnet validation first, then repeat the exact validated steps for mainnet.
 
+For the repo-wide (backend/frontend/mobile/contracts) release gate, see the root [RELEASE_READINESS_CHECKLIST.md](../../../RELEASE_READINESS_CHECKLIST.md).
+
 ## 1. Required checks before deployment
 
 - [ ] `cargo fmt --all -- --check`

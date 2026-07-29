@@ -11,6 +11,26 @@ import { EnvConfig } from "./env.schema";
 export class AppConfigService {
   constructor(private readonly configService: ConfigService<EnvConfig, true>) {}
 
+  getBootstrapBase() {
+    return {
+      network: {
+        environment: this.network,
+        rpcUrl: this.sorobanRpcUrl || "",
+        horizonUrl: this.horizonUrl || "",
+        networkPassphrase: this.stellarNetworkPassphrase,
+      },
+      contracts: {
+        registryId: this.quickexContractId || "",
+        routerId: this.routerContractId || "",
+        allowedTokens: this.allowedTokens,
+      },
+      backendMetadata: {
+        version: this.appVersion,
+        apiUrl: this.apiBaseUrl,
+      },
+    };
+  }
+
   /**
    * Get the server port
    */
@@ -322,5 +342,50 @@ export class AppConfigService {
    */
   get abuseSignalHashSalt(): string {
     return this.configService.get("ABUSE_SIGNAL_HASH_SALT", { infer: true });
+  }
+
+  // ====================================================================
+  // NEW ACCESSORS FOR BOOTSTRAP PAYLOAD
+  // ====================================================================
+
+  /**
+   * Get the API base URL for frontend routing
+   */
+  get apiBaseUrl(): string {
+    return this.configService.get("API_BASE_URL", { infer: true }) || "http://localhost:3000";
+  }
+
+  /**
+   * Get the current application version
+   */
+  get appVersion(): string {
+    return this.configService.get("APP_VERSION", { infer: true }) || process.env.npm_package_version || "1.0.0";
+  }
+
+  /**
+   * Get the Router Contract ID
+   */
+  get routerContractId(): string | undefined {
+    return this.configService.get("ROUTER_CONTRACT_ID", { infer: true });
+  }
+
+  /**
+   * Get predefined allowed tokens
+   */
+  get allowedTokens(): string[] {
+    const raw = this.configService.get("ALLOWED_TOKENS", { infer: true });
+    return raw ? raw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+  }
+
+  /**
+   * Get Stellar Network Passphrase
+   */
+  get stellarNetworkPassphrase(): string {
+    return (
+      this.configService.get("STELLAR_NETWORK_PASSPHRASE", { infer: true }) ||
+      (this.isTestnet
+        ? "Test SDF Network ; September 2015"
+        : "Public Global Stellar Network ; September 2015")
+    );
   }
 }

@@ -31,6 +31,8 @@ pub mod nonce;
 #[cfg(test)]
 mod nonce_test;
 mod oracle;
+#[cfg(test)]
+mod oracle_test;
 mod pause_policy;
 #[cfg(test)]
 mod pause_policy_test;
@@ -1021,6 +1023,23 @@ impl QuickexContract {
     /// Get the current oracle fee configuration.
     pub fn get_oracle_fee_config(env: Env) -> Option<OracleFeeConfig> {
         oracle::get_oracle_fee_config(&env)
+    }
+
+    /// Record a new oracle price in the contract cache (**Admin or Operator only**).
+    ///
+    /// Updates the cached price and timestamp, enabling dynamic fee calculation
+    /// when the price is within the configured staleness threshold.
+    ///
+    /// # Errors
+    /// * `OraclePriceInvalid` - Price is zero or negative
+    pub fn record_oracle_price(
+        env: Env,
+        caller: Address,
+        price_micros: i128,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        oracle::record_price(&env, price_micros)
     }
 
     /// Get the platform wallet address (read-only).

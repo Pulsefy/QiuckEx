@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
+import { BranchPreviewAutoExpiryService } from './branch-preview-auto-expiry.service';
 import { AuditService } from '../audit/audit.service';
 import {
   BranchPreviewEnvironment,
@@ -21,6 +23,7 @@ export class BranchPreviewService {
     private readonly cache: BranchPreviewCache,
     private readonly repository: BranchPreviewRepository,
     private readonly auditService: AuditService,
+    private readonly autoExpiryService: BranchPreviewAutoExpiryService,
   ) {
     this.logger.log('Branch preview service initialized');
   }
@@ -36,6 +39,7 @@ export class BranchPreviewService {
     const cached = this.cache.get(normalizedBranch);
     if (cached && cached.isActive && this.isPreviewValid(cached)) {
       this.logger.debug(`Returning cached preview for ${normalizedBranch}`);
+      void this.repository.touchLastActivity(normalizedBranch);
       return this.mapToResponse(cached);
     }
 
@@ -44,6 +48,7 @@ export class BranchPreviewService {
     if (preview && preview.isActive && this.isPreviewValid(preview)) {
       // Update cache
       this.cache.set(normalizedBranch, preview);
+      void this.repository.touchLastActivity(normalizedBranch);
       this.logger.debug(`Returning fresh preview for ${normalizedBranch}`);
       return this.mapToResponse(preview);
     }
@@ -180,21 +185,10 @@ export class BranchPreviewService {
   }
 
   /**
-   * Cleanup expired previews (run periodically)
+   * Cleanup stale previews (delegates to scheduled auto-expiry sweep).
    */
   async cleanupExpiredPreviews(): Promise<number> {
-    const expired = await this.repository.findExpired();
-    let deactivatedCount = 0;
-
-    for (const preview of expired) {
-      await this.repository.update(preview.id, { isActive: false });
-      this.cache.delete(preview.branchName);
-      deactivatedCount++;
-      this.logger.log(`Deactivated expired preview for branch: ${preview.branchName}`);
-    }
-
-    this.logger.log(`Cleaned up ${deactivatedCount} expired branch previews`);
-    return deactivatedCount;
+    return this.autoExpiryService.runAutoExpirySweep(uuidv4());
   }
 
   /**

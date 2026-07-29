@@ -357,6 +357,7 @@ export default function WebhooksPage() {
   const [newWebhookUrl, setNewWebhookUrl] = useState('');
   const [newWebhookEvents, setNewWebhookEvents] = useState<string[]>(['payment.received']);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
   useEffect(() => {
     setPublicKey(resolveInitialPublicKey());
@@ -806,11 +807,12 @@ export default function WebhooksPage() {
                     <th className="px-3 py-3 font-semibold">HTTP</th>
                     <th className="px-3 py-3 font-semibold">Attempts</th>
                     <th className="px-3 py-3 font-semibold">Created</th>
+                    <th className="px-3 py-3 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredDeliveries.length === 0 && (
-                    <tr><td colSpan={6} className="px-3 py-8 text-center text-subtle">No deliveries match these filters.</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-8 text-center text-subtle">No deliveries match these filters.</td></tr>
                   )}
                   {filteredDeliveries.map((delivery) => (
                     <tr
@@ -818,6 +820,7 @@ export default function WebhooksPage() {
                       onClick={() => {
                         setSelectedDeliveryId(delivery.id);
                         setSelectedWebhookId(delivery.webhookId);
+                        setIsDetailDrawerOpen(true);
                       }}
                       className={`cursor-pointer hover:bg-surface ${selectedDeliveryId === delivery.id ? 'bg-brand-soft' : ''}`}
                     >
@@ -830,6 +833,19 @@ export default function WebhooksPage() {
                       <td className="px-3 py-3 font-mono text-muted">{delivery.httpStatus ?? '—'}</td>
                       <td className="px-3 py-3 text-muted">{delivery.attempts}</td>
                       <td className="px-3 py-3 text-subtle">{formatDate(delivery.createdAt)}</td>
+                      <td className="px-3 py-3 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDeliveryId(delivery.id);
+                            setSelectedWebhookId(delivery.webhookId);
+                            setIsDetailDrawerOpen(true);
+                          }}
+                          className="rounded-lg border border-border px-2.5 py-1 text-xs font-bold text-brand hover:bg-surface-strong"
+                        >
+                          Inspect →
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1035,6 +1051,146 @@ export default function WebhooksPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isDetailDrawerOpen && selectedDelivery && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-md transition-opacity">
+          <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-card shadow-2xl overflow-y-auto">
+            {/* Drawer Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card/95 px-6 py-5 backdrop-blur">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusClasses(selectedDelivery.status)}`}>
+                    {selectedDelivery.status.toUpperCase()}
+                  </span>
+                  <span className="font-mono text-xs text-subtle">{selectedDelivery.eventId}</span>
+                </div>
+                <h2 className="mt-1.5 text-xl font-bold text-foreground">{selectedDelivery.eventType}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleReplayDelivery(selectedDelivery)}
+                  disabled={actionLoading === `replay:${selectedDelivery.id}` || selectedDelivery.id.startsWith('dlv_sample')}
+                  className="rounded-xl border border-border-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-surface disabled:opacity-50"
+                >
+                  {actionLoading === `replay:${selectedDelivery.id}` ? 'Replaying...' : 'Replay Delivery'}
+                </button>
+                <button
+                  onClick={() => setIsDetailDrawerOpen(false)}
+                  className="rounded-xl border border-border p-2 text-subtle hover:bg-surface hover:text-foreground"
+                  aria-label="Close detail drawer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-6 p-6">
+              {/* Section 1: Outcome Reason & Summary */}
+              <div className={`rounded-2xl border p-5 ${selectedDelivery.status === 'sent' || selectedDelivery.status === 'success' ? 'border-success-soft bg-success-soft/30 text-foreground' : selectedDelivery.status === 'failed' || selectedDelivery.status === 'dlq' ? 'border-danger-soft bg-danger-soft/30 text-foreground' : 'border-warning-soft bg-warning-soft/30 text-foreground'}`}>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-subtle mb-2">Delivery Outcome Reason</h3>
+                <p className="text-base font-semibold">
+                  {selectedDelivery.status === 'sent' || selectedDelivery.status === 'success'
+                    ? `HTTP ${selectedDelivery.httpStatus ?? 200} OK — Payload delivered and acknowledged successfully.`
+                    : selectedDelivery.status === 'dlq'
+                    ? `Dead Letter Queue (DLQ) — Exceeded maximum retry attempts (${selectedDelivery.attempts}/${selectedDelivery.attempts}). Reason: ${redactSensitiveText(selectedDelivery.lastError || selectedDeliveryDetail?.dlqReason || 'Endpoint unreachable')}`
+                    : `HTTP ${selectedDelivery.httpStatus ?? 503} Failure — ${redactSensitiveText(selectedDelivery.lastError || 'Service unavailable')}`}
+                </p>
+                {selectedDeliveryDetail?.nextRetryAt && (
+                  <p className="mt-2 text-xs font-mono text-warning">
+                    Next automatic retry scheduled for: {formatDate(selectedDeliveryDetail.nextRetryAt)}
+                  </p>
+                )}
+              </div>
+
+              {/* Section 2: Redacted Request Metadata & Headers */}
+              <div className="rounded-2xl border border-border bg-surface p-5 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-subtle">Request Metadata & Signature</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
+                  <div>
+                    <span className="text-xs text-subtle">HTTP Method</span>
+                    <p className="font-mono font-bold text-foreground">POST</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-subtle">Content-Type</span>
+                    <p className="font-mono font-bold text-foreground">application/json</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-xs text-subtle">Target Endpoint URL</span>
+                    <p className="font-mono text-xs font-bold text-foreground break-all">{selectedDelivery.endpointUrl}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-subtle">Signature Algorithm</span>
+                    <p className="font-mono text-xs text-foreground">HMAC-SHA256</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-subtle">Redacted Secret Fingerprint</span>
+                    <p className="font-mono text-xs text-foreground">{selectedWebhook ? redactSecret(selectedWebhook.signingSecret) : 'whsec_••••••••'}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-xs text-subtle">Header Signature Context</span>
+                    <p className="font-mono text-xs text-muted">X-QX-Signature: t={Date.parse(selectedDelivery.createdAt)},v1=••••••••••••••••</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Redacted Payload Preview */}
+              <div className="rounded-2xl border border-border bg-surface p-5 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-subtle">Request Payload Metadata</h3>
+                <pre className="max-h-48 overflow-auto rounded-xl bg-background p-4 font-mono text-xs text-muted">
+{JSON.stringify({
+  id: selectedDelivery.eventId,
+  event: selectedDelivery.eventType,
+  created_at: selectedDelivery.createdAt,
+  data: {
+    account_id: selectedWebhook?.publicKey || DEFAULT_PUBLIC_KEY,
+    amount_stroops: selectedWebhook?.minAmountStroops || "10000000",
+    asset_code: "USDC",
+    status: selectedDelivery.status,
+    secret_key: "••••••••",
+    authorization_token: "••••••••"
+  }
+}, null, 2)}
+                </pre>
+              </div>
+
+              {/* Section 4: Retry History Timeline */}
+              <div className="rounded-2xl border border-border bg-surface p-5 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-subtle">Retry History & Attempts Timeline</h3>
+                <ol className="relative border-l border-border pl-6 space-y-4">
+                  {attemptHistory.map((attempt) => (
+                    <li key={attempt.attemptNumber} className="relative">
+                      <span className={`absolute -left-[31px] top-1 flex h-4 w-4 items-center justify-center rounded-full border bg-background text-[10px] font-bold ${statusClasses(attempt.status)}`}>
+                        {attempt.attemptNumber}
+                      </span>
+                      <div className="rounded-xl border border-border bg-background p-3.5 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-foreground">Attempt #{attempt.attemptNumber}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClasses(attempt.status)}`}>
+                            {attempt.status}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtle">
+                          <div><span className="font-medium">Timestamp:</span> {formatDate(attempt.timestamp)}</div>
+                          <div><span className="font-medium">HTTP Code:</span> <span className="font-mono font-bold text-foreground">{attempt.httpStatus ?? '—'}</span></div>
+                          {attempt.error && <div className="col-span-2 text-danger"><span className="font-medium">Error:</span> {redactSensitiveText(attempt.error)}</div>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              {/* Section 5: Receiver Response */}
+              <div className="rounded-2xl border border-border bg-surface p-5 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-subtle">Receiver HTTP Response Body</h3>
+                <pre className="max-h-40 overflow-auto rounded-xl bg-background p-4 font-mono text-xs text-muted">
+                  {redactSensitiveText(selectedDeliveryDetail?.responseBody ?? selectedDelivery.responseBody ?? selectedDelivery.lastError ?? 'No response body returned')}
+                </pre>
+              </div>
+            </div>
           </div>
         </div>
       )}

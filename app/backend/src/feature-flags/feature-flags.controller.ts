@@ -6,12 +6,15 @@ import {
   Param,
   Patch,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import {
-  EvaluateFeatureFlagResponseDto,
   FeatureFlagQueryDto,
+  FeatureFlagSnapshotQueryDto,
+  FeatureFlagSnapshotResponseDto,
   UpdateFeatureFlagDto,
 } from './feature-flags.dto';
 import { FeatureFlagsService } from './feature-flags.service';
@@ -47,11 +50,28 @@ export class FeatureFlagsController {
 
   @Get('feature-flags/:key/evaluate')
   @ApiOperation({ summary: 'Evaluate a feature flag for user/environment context' })
-  @ApiResponse({ type: EvaluateFeatureFlagResponseDto })
   async evaluateFlag(
     @Param('key') key: string,
     @Query() query: FeatureFlagQueryDto,
   ) {
     return this.featureFlagsService.evaluateFlag(key, query);
+  }
+
+  @Get('feature-flags/snapshot')
+  @ApiOperation({
+    summary: 'Feature flag snapshot',
+    description:
+      'Returns a read-only snapshot of effective feature flags for clients and admin tooling. ' +
+      'Sensitive/internal flags are excluded. When X-Preview-Scope header is present, ' +
+      'preview override status is included.',
+  })
+  async getSnapshot(
+    @Query() query: FeatureFlagSnapshotQueryDto,
+    @Req() req: Request,
+  ): Promise<FeatureFlagSnapshotResponseDto> {
+    return this.featureFlagsService.getSnapshot(
+      query.environment,
+      req.previewScope,
+    );
   }
 }

@@ -207,6 +207,16 @@ pub struct OracleFeeConfig {
     pub stale_threshold_secs: u64,
 }
 
+/// A cached oracle price record with its timestamp for staleness checking.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedOraclePrice {
+    /// Price in microdollars per token unit (1_000_000 = 1 USD).
+    pub price_micros: i128,
+    /// Ledger timestamp when this price was recorded.
+    pub recorded_at: u64,
+}
+
 /// Deployment metadata returned by [`crate::QuickexContract::get_deployment_metadata`].
 ///
 /// Clients and indexers can call this view to validate compatibility without
