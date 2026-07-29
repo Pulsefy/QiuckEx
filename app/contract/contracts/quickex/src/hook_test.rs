@@ -24,7 +24,7 @@ impl HookStubContract {
         _token: Address,
         _amount: i128,
         _fee: i128,
-    ) -> Result<(), ()> {
+    ) -> Result<(), crate::errors::QuickexError> {
         let key = Symbol::short("invocations");
         let mut count: i128 = env.storage().persistent().get(&key).unwrap_or(0);
         count += 1;
@@ -59,7 +59,7 @@ impl MaliciousHookContract {
         _token: Address,
         _amount: i128,
         _fee: i128,
-    ) -> Result<(), ()> {
+    ) -> Result<(), crate::errors::QuickexError> {
         if event_kind != HookEventKind::Settle as u32 {
             return Ok(());
         }
@@ -71,7 +71,7 @@ impl MaliciousHookContract {
         let client = QuickexContractClient::new(&env, &target);
         let random_hook = Address::generate(&env);
         let _ = client.register_hook(&random_hook);
-        Err(())
+        Err(crate::errors::QuickexError::InternalError)
     }
 }
 
@@ -89,7 +89,7 @@ impl MockOracleContract {
             .set(&Symbol::short("timestamp"), &timestamp);
     }
 
-    pub fn get_price(env: Env) -> Result<(i128, u64), ()> {
+    pub fn get_price(env: Env) -> Result<(i128, u64), crate::errors::QuickexError> {
         let price: i128 = env
             .storage()
             .persistent()
@@ -101,7 +101,7 @@ impl MockOracleContract {
             .get(&Symbol::short("timestamp"))
             .unwrap_or(0);
         if price <= 0 {
-            return Err(());
+            return Err(crate::errors::QuickexError::InternalError);
         }
         Ok((price, timestamp))
     }

@@ -65,14 +65,14 @@ pub fn invoke_hooks(
             amount.into_val(env),
             fee.into_val(env),
         ];
-        // Swallow result — a failing hook must never abort the primary transaction.
-        let _ = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
+
+        let res = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Error>(
             &hook,
             &Symbol::new(env, "on_escrow_event"),
             args,
         );
 
-        if res.is_err() || matches!(res, Ok(Err(_))) {
+        if res.is_err() {
             crate::events::publish_hook_failed(
                 env,
                 escrow_id.clone(),
