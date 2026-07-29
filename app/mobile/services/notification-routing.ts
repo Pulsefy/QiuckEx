@@ -62,11 +62,9 @@ function trackNotificationDeepLinkFailure(
   message: string,
   payload: unknown,
 ) {
-  const payloadDetails = typeof payload === 'object' && payload !== null
-    ? JSON.stringify(payload)
-    : String(payload);
-
-  console.warn('Notification deep link recovery:', message, payloadDetails);
+  // SECURITY: Only log the message, never the payload contents to avoid
+  // leaking transaction IDs, escrow IDs, or other sensitive data via logs.
+  console.warn('Notification deep link recovery:', message);
 }
 
 function pushInboxFallback(router: Router, reason: string) {

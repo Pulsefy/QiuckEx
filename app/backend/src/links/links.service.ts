@@ -7,6 +7,7 @@ import {
   type PathPreviewRow,
 } from '../stellar/path-preview.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { PaymentTokenService } from './payment-token.service';
 
 @Injectable()
 export class LinksService {
@@ -15,6 +16,7 @@ export class LinksService {
   constructor(
     @Optional() private readonly pathPreviewService?: PathPreviewService,
     @Optional() private readonly privacyService?: PrivacyService,
+    @Optional() private readonly paymentTokenService?: PaymentTokenService,
   ) {}
 
   async generateMetadata(request: LinkMetadataRequestDto): Promise<LinkMetadataResponseDto> {
@@ -87,6 +89,29 @@ export class LinksService {
       swapOptions = await this.buildSwapOptions(amt, normalizedAsset, acceptedAssets);
     }
 
+    let token: string | undefined;
+    let tokenExpiresAt: string | undefined;
+    if (this.paymentTokenService) {
+      try {
+        const tokenResult = await this.paymentTokenService.generateToken({
+          amount: amt,
+          assetCode: normalizedAsset,
+          username: username ?? undefined,
+          destinationPublicKey: destination ?? undefined,
+          memo: memo ?? undefined,
+          memoType,
+          acceptedAssets,
+          ttlSeconds: expiresAt
+            ? Math.max(3600, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+            : undefined,
+        });
+        token = tokenResult.token;
+        tokenExpiresAt = tokenResult.expiresAt;
+      } catch {
+        this.logger.warn('Payment token generation failed; falling back to canonical params');
+      }
+    }
+
     return {
       amount: amt,
       memo,
@@ -95,6 +120,8 @@ export class LinksService {
       privacy,
       expiresAt,
       canonical,
+      token,
+      tokenExpiresAt,
       username,
       destination,
       referenceId,

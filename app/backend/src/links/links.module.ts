@@ -11,6 +11,8 @@ import { RecurringPaymentProcessor } from "../stellar/recurring-payment-processo
 import { PaymentLinkController } from "./payment-link.controller";
 import { PaymentLinkService } from "./payment-link.service";
 import { PaymentLinkExpiryService } from './payment-link-expiry.service';
+import { PaymentTokenController } from './payment-token.controller';
+import { PaymentTokenService } from './payment-token.service';
 import { SupabaseModule } from "../supabase/supabase.module";
 import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
@@ -26,6 +28,7 @@ import { AuditModule } from "../audit/audit.module";
     BulkPaymentLinksController,
     RecurringPaymentsController,
     PaymentLinkController,
+    PaymentTokenController,
   ],
   providers: [
     LinksService,
@@ -36,6 +39,7 @@ import { AuditModule } from "../audit/audit.module";
     RecurringPaymentsRepository,
     RecurringPaymentProcessor,
     PaymentLinkService,
+    PaymentTokenService,
   ],
   exports: [
     LinksService,
@@ -45,6 +49,7 @@ import { AuditModule } from "../audit/audit.module";
     RecurringPaymentsRepository,
     RecurringPaymentProcessor,
     PaymentLinkService,
+    PaymentTokenService,
   ],
   imports: [
     SupabaseModule,

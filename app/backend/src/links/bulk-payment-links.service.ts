@@ -8,6 +8,7 @@ import {
 } from './dto/bulk-payment-link.dto';
 import { LinkMetadataRequestDto } from '../dto';
 import { v4 as uuidv4 } from 'uuid';
+import { PaymentTokenService } from './payment-token.service';
 
 @Injectable()
 export class BulkPaymentLinksService {
@@ -17,6 +18,7 @@ export class BulkPaymentLinksService {
   constructor(
     private readonly linksService: LinksService,
     private readonly featureFlagsService: FeatureFlagsService,
+    private readonly paymentTokenService: PaymentTokenService,
   ) {}
 
   /**
@@ -149,13 +151,21 @@ export class BulkPaymentLinksService {
     // Generate unique ID
     const id = `link_${uuidv4().substring(0, 12)}`;
 
-    // Build shareable URL
-    const url = `https://app.quickex.to/pay?${metadata.canonical}`;
+    // Use short-lived token when available, fall back to canonical params
+    let shareableUrl: string;
+    let canonicalForm = metadata.canonical;
+
+    if (metadata.token) {
+      shareableUrl = `https://app.quickex.to/pay?token=${metadata.token}`;
+      canonicalForm = `token=${metadata.token}`;
+    } else {
+      shareableUrl = `https://app.quickex.to/pay?${metadata.canonical}`;
+    }
 
     return {
       id,
-      canonical: metadata.canonical,
-      url,
+      canonical: canonicalForm,
+      url: shareableUrl,
       amount: metadata.amount,
       asset: metadata.asset,
       username: metadata.username || undefined,

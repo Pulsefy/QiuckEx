@@ -264,11 +264,11 @@ function LoadingFallback() {
 }
 
 // Simple analytics tracking (replace with your analytics provider)
-function trackAnalyticsEvent(event: string, data: Record<string, unknown>) {
+// SECURITY: Never log sensitive payment data (transaction hashes, amounts, usernames)
+// to avoid leaking via browser console or log aggregators.
+function trackAnalyticsEvent(event: string, _data: Record<string, unknown>) {
   if (typeof window !== "undefined") {
-    // Replace with your analytics provider (e.g., PostHog, Google Analytics, etc.)
-    console.log(`[Analytics] ${event}`, data);
-
+    // Only log non-sensitive event names — strip all payment context data
     // Example: window.posthog?.capture(event, data);
     // Example: window.gtag?.('event', event, data);
   }

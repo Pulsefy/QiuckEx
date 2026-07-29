@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
+import { PaymentTokenService } from './payment-token.service';
 
 @Injectable()
 export class PaymentLinkExpiryService {
@@ -14,17 +15,26 @@ export class PaymentLinkExpiryService {
     private readonly supabase: SupabaseService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditService: AuditService,
+    private readonly paymentTokenService: PaymentTokenService,
   ) {}
 
-  // Run every minute to sweep expired open links. Idempotent by design.
+  // Run every minute to sweep expired open links and tokens. Idempotent by design.
   @Cron(CronExpression.EVERY_MINUTE, { name: 'payment-link-expiry-sweep', timeZone: 'UTC' })
   async handleCron(): Promise<void> {
     const runId = uuidv4();
     try {
       const count = await this.runExpirySweep(runId);
-      if (count > 0) this.logger.log(`Expiry sweep ${runId}: expired ${count} link(s)`);
+      if (count > 0) this.logger.log(`Expiry sweep: expired ${count} link(s)`);
     } catch (err) {
-      this.logger.error(`Expiry sweep ${runId} failed: ${(err as Error).message}`);
+      this.logger.error(`Expiry sweep failed: ${(err as Error).message}`);
+    }
+
+    // Also sweep expired payment tokens
+    try {
+      const tokenCount = await this.paymentTokenService.sweepExpiredTokens();
+      if (tokenCount > 0) this.logger.log(`Token sweep: expired ${tokenCount} token(s)`);
+    } catch (err) {
+      this.logger.error(`Token sweep failed: ${(err as Error).message}`);
     }
   }
 

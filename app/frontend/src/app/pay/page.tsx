@@ -90,6 +90,9 @@ export async function generateMetadata({
       images: [dynamicOgImage],
     },
     robots: { index: false, follow: false },
+    other: {
+      'referrer': 'no-referrer',
+    },
   };
 }
 
@@ -115,6 +118,9 @@ function buildFallbackMetadata(siteUrl: string, canonicalUrl: string): Metadata 
       images: [ogImage],
     },
     robots: { index: false, follow: false },
+    other: {
+      'referrer': 'no-referrer',
+    },
   };
 }
 

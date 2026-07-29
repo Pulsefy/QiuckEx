@@ -149,7 +149,7 @@ export class PaymentLinkService {
 
       return null;
     } catch (error) {
-      this.logger.error(`Failed to check payment status: ${error}`);
+      this.logger.error('Failed to check payment status');
       // If we can't check Horizon, assume payment not made
       return null;
     }

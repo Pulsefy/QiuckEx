@@ -103,6 +103,18 @@ export class LinkMetadataResponseDto {
   })
   swapOptions?: PathPreviewRow[] | null;
 
+  @ApiPropertyOptional({
+    description: 'Short-lived payment token (replaces canonical params for secure links)',
+    example: 'qt_2xK9mP4rT8wZ7vN1qL5bR3cJ6',
+  })
+  token?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Token expiry timestamp',
+    example: '2026-08-28T12:00:00.000Z',
+  })
+  tokenExpiresAt?: string | null;
+
   @ApiProperty({
     description: 'Metadata information',
     example: {

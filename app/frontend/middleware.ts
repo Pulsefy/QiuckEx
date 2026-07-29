@@ -10,6 +10,14 @@ const CSP_HEADER_VALUE = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+function applySecurityHeaders(headers: Headers): void {
+  headers.set("Content-Security-Policy", CSP_HEADER_VALUE);
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
@@ -23,7 +31,7 @@ export async function middleware(request: NextRequest) {
   const correlationId = request.headers.get("x-correlation-id") ?? undefined;
 
   const baseResponse = NextResponse.next();
-  baseResponse.headers.set("Content-Security-Policy", CSP_HEADER_VALUE);
+  applySecurityHeaders(baseResponse.headers);
   baseResponse.headers.set("x-request-id", requestId);
   if (correlationId) {
     baseResponse.headers.set("x-correlation-id", correlationId);
@@ -54,7 +62,7 @@ export async function middleware(request: NextRequest) {
     : `${injection}${html}`;
 
   const headers = new Headers(response.headers);
-  headers.set("Content-Security-Policy", CSP_HEADER_VALUE);
+  applySecurityHeaders(headers);
   headers.set("x-request-id", requestId);
   if (correlationId) {
     headers.set("x-correlation-id", correlationId);
