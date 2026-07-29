@@ -21,7 +21,14 @@ import {
 } from '@nestjs/swagger';
 
 import { MarketplaceService } from './marketplace.service';
-import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto, MarketplaceListingDetailDto } from './dto';
+import {
+  ListUsernameDto,
+  PlaceBidDto,
+  AcceptBidDto,
+  CancelListingDto,
+  MarketplaceListingDetailDto,
+  ListMarketplaceListingsQueryDto,
+} from './dto';
 import { MarketplaceError, MarketplaceErrorCode } from './errors';
 
 @ApiTags('marketplace')
@@ -53,21 +60,20 @@ export class MarketplaceController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all active listings' })
-  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page (1-100)' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
-  @ApiResponse({ status: 200, description: 'List of active listings' })
+  @ApiOperation({ summary: 'Query marketplace listings with filters, sorting, search, and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of marketplace listings' })
   async getActiveListings(
-    @Query('limit') limit = 20,
-    @Query('cursor') cursor?: string,
+    @Query() query: ListMarketplaceListingsQueryDto,
   ) {
-    const result = await this.marketplaceService.getActiveListings(
-      Number(limit),
-      cursor ?? null,
-    );
+    const result = await this.marketplaceService.listListings(query);
     return {
       listings: result.listings,
       total: result.total,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+      pageSize: result.pageSize,
+      hasNextPage: result.has_more,
+      hasPreviousPage: result.currentPage > 1,
       next_cursor: result.next_cursor,
       has_more: result.has_more,
     };

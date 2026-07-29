@@ -10,6 +10,7 @@ import {
   truncateStellarPublicKey,
 } from './marketplace-listing-detail';
 import { MarketplaceListingDetailDto } from './dto/marketplace-listing-detail.dto';
+import { ListMarketplaceListingsQueryDto } from './dto/list-marketplace-listings-query.dto';
 
 @Injectable()
 export class MarketplaceService {
@@ -17,6 +18,29 @@ export class MarketplaceService {
     private readonly supabase: SupabaseService,
     private readonly usernames: UsernamesService,
   ) {}
+
+  async listListings(
+    query: ListMarketplaceListingsQueryDto,
+  ): Promise<{
+    listings: MarketplaceListing[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+    next_cursor: string | null;
+    has_more: boolean;
+  }> {
+    return this.supabase.queryListings({
+      page: query.page!,
+      limit: query.limit!,
+      cursor: query.cursor ?? null,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      username: query.username,
+      status: query.status ?? 'active',
+      sort: query.sort!,
+    });
+  }
 
   async listUsername(
     username: string,

@@ -41,6 +41,7 @@ export interface MarketplaceListing {
   status: "active" | "sold" | "cancelled";
   created_at: string;
   updated_at: string;
+  expires_at: string;
   sold_at: string | null;
   buyer_public_key: string | null;
   final_price: number | null;
@@ -700,6 +701,239 @@ export class SupabaseService {
       has_more: hasMore,
       total: count ?? rows.length,
     };
+  }
+
+  async queryListings(params: {
+    page: number;
+    limit: number;
+    cursor?: string | null;
+    minPrice?: number;
+    maxPrice?: number;
+    username?: string;
+    status?: string;
+    sort: string;
+  }): Promise<{
+    listings: MarketplaceListing[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+    next_cursor: string | null;
+    has_more: boolean;
+  }> {
+    const {
+      page,
+      limit,
+      cursor,
+      minPrice,
+      maxPrice,
+      username,
+      status,
+      sort,
+    } = params;
+
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+    const { orderColumn, ascending } = this.resolveSortConfig(sort);
+
+    if (cursor) {
+      return this.queryListingsWithCursor({
+        cursor, effectiveLimit, orderColumn, ascending,
+        minPrice, maxPrice, username, status, page,
+      });
+    }
+
+    return this.queryListingsWithOffset({
+      page, effectiveLimit, orderColumn, ascending,
+      minPrice, maxPrice, username, status,
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private buildFilterQuery(query: any, params: {
+    status?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    username?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }): any {
+    let q = query;
+    if (params.status && params.status !== 'all') {
+      q = q.eq('status', params.status);
+    }
+    if (params.minPrice !== undefined) {
+      q = q.gte('asking_price', params.minPrice);
+    }
+    if (params.maxPrice !== undefined) {
+      q = q.lte('asking_price', params.maxPrice);
+    }
+    if (params.username?.trim()) {
+      q = q.ilike('username', `%${params.username.trim().toLowerCase()}%`);
+    }
+    return q;
+  }
+
+  private async queryListingsWithOffset(params: {
+    page: number;
+    effectiveLimit: number;
+    orderColumn: string;
+    ascending: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    username?: string;
+    status?: string;
+  }): Promise<{
+    listings: MarketplaceListing[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+    next_cursor: null;
+    has_more: boolean;
+  }> {
+    const { page, effectiveLimit, orderColumn, ascending } = params;
+    const offset = (page - 1) * effectiveLimit;
+
+    // Count query
+    let countQuery = this.client
+      .from('username_marketplace')
+      .select('*', { count: 'exact', head: true });
+    countQuery = this.buildFilterQuery(countQuery, params);
+    const { count, error: countError } = await countQuery;
+    if (countError) this.handleError(countError);
+
+    const totalCount = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / effectiveLimit));
+
+    if (page > totalPages || totalCount === 0) {
+      return {
+        listings: [],
+        total: totalCount,
+        totalPages,
+        currentPage: page,
+        pageSize: effectiveLimit,
+        next_cursor: null,
+        has_more: false,
+      };
+    }
+
+    // Data query with offset
+    let dataQuery = this.client
+      .from('username_marketplace')
+      .select('*');
+    dataQuery = this.buildFilterQuery(dataQuery, params);
+    dataQuery = dataQuery
+      .order(orderColumn, { ascending })
+      .order('id', { ascending })
+      .range(offset, offset + effectiveLimit - 1) as any;
+
+    const { data, error } = await dataQuery;
+    if (error) this.handleError(error);
+
+    return {
+      listings: (data ?? []) as MarketplaceListing[],
+      total: totalCount,
+      totalPages,
+      currentPage: page,
+      pageSize: effectiveLimit,
+      next_cursor: null,
+      has_more: page < totalPages,
+    };
+  }
+
+  private async queryListingsWithCursor(params: {
+    cursor: string;
+    effectiveLimit: number;
+    orderColumn: string;
+    ascending: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    username?: string;
+    status?: string;
+    page: number;
+  }): Promise<{
+    listings: MarketplaceListing[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+    next_cursor: string | null;
+    has_more: boolean;
+  }> {
+    const { cursor, effectiveLimit, orderColumn, ascending, page } = params;
+
+    let query = this.client
+      .from('username_marketplace')
+      .select('*', { count: 'exact' });
+    query = this.buildFilterQuery(query, params);
+
+    // Apply cursor filter
+    try {
+      const json = Buffer.from(cursor, 'base64url').toString('utf-8');
+      const parsed = JSON.parse(json);
+      if (typeof parsed.pk === 'string' && typeof parsed.id === 'string') {
+        if (ascending) {
+          query = (query as any)
+            .gt(orderColumn, parsed.pk)
+            .or(`${orderColumn}.eq.${parsed.pk},id.gt.${parsed.id}`);
+        } else {
+          query = (query as any)
+            .lt(orderColumn, parsed.pk)
+            .or(`${orderColumn}.eq.${parsed.pk},id.lt.${parsed.id}`);
+        }
+      }
+    } catch {
+      // invalid cursor – start from beginning
+    }
+
+    query = (query as any)
+      .order(orderColumn, { ascending })
+      .order('id', { ascending })
+      .limit(effectiveLimit + 1);
+
+    const { data, error, count } = await query;
+    if (error) this.handleError(error);
+
+    const rows = (data ?? []) as MarketplaceListing[];
+    const hasMore = rows.length > effectiveLimit;
+    const listings = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore && listings.length > 0) {
+      const last = listings[listings.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: String(last[orderColumn as keyof MarketplaceListing]), id: last.id }),
+        'utf-8',
+      ).toString('base64url');
+    }
+
+    const totalCount = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / effectiveLimit));
+
+    return {
+      listings,
+      total: totalCount,
+      totalPages,
+      currentPage: page,
+      pageSize: effectiveLimit,
+      next_cursor: nextCursor,
+      has_more: hasMore || page < totalPages,
+    };
+  }
+
+  private resolveSortConfig(sort: string): { orderColumn: string; ascending: boolean } {
+    switch (sort) {
+      case 'oldest':
+        return { orderColumn: 'created_at', ascending: true };
+      case 'price_asc':
+        return { orderColumn: 'asking_price', ascending: true };
+      case 'price_desc':
+        return { orderColumn: 'asking_price', ascending: false };
+      case 'ending_soon':
+        return { orderColumn: 'expires_at', ascending: true };
+      case 'newest':
+      default:
+        return { orderColumn: 'created_at', ascending: false };
+    }
   }
 
   async getActiveListings(
