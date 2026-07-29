@@ -229,3 +229,12 @@ pub enum Role {
     /// Authorized to resolve disputes across escrows.
     Arbiter = 3,
 }
+
+/// Reason codes for hook failures.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum HookFailureReason {
+    /// The hook contract invocation trapped, reverted, or returned an error.
+    CallFailed = 1,
+}

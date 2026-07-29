@@ -20,6 +20,8 @@ mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
 mod hook;
+#[cfg(test)]
+mod hook_test;
 pub mod nonce;
 #[cfg(test)]
 mod nonce_test;

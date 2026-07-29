@@ -586,3 +586,37 @@ pub(crate) fn publish_per_asset_fee_set(env: &Env, token: Address, fee_bps: u32,
     }
     .publish(env);
 }
+
+// ---------------------------------------------------------------------------
+// Hook Events
+// ---------------------------------------------------------------------------
+
+#[contractevent(topics = ["TOPIC_HOOK", "HookFailed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookFailedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub hook: Address,
+
+    pub schema_version: u32,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_failed(
+    env: &Env,
+    escrow_id: BytesN<32>,
+    hook: Address,
+    reason: u32,
+) {
+    HookFailedEvent {
+        escrow_id,
+        hook,
+        schema_version: EVENT_SCHEMA_VERSION,
+        reason,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
