@@ -58,6 +58,14 @@ If you prefer to set up the environment manually on your host machine:
 - Docs branches: `docs/<short-description>`
 - Chores: `chore/<short-description>`
 
+## Accessibility Guidelines
+
+Accessibility is a core requirement for all user-facing features, especially payment flows and QR code interactions. Before submitting a PR:
+- Ensure all interactive elements have appropriate ARIA attributes.
+- Use `eslint-plugin-jsx-a11y` during development to catch issues early.
+- Run `npm test` locally to ensure no `axe-core` violations are introduced.
+- Verify color contrast for all text and interactive elements.
+
 ## Pull Request Guidelines
 
 - Reference the issue number in your PR description.
