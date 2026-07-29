@@ -64,16 +64,34 @@ Before getting started, ensure you have the following installed:
 - Rust toolchain (for contracts; install via [rustup.rs](https://rustup.rs)).
 - React Native CLI (for mobile; see [reactnative.dev](https://reactnative.dev/docs/environment-setup)).
 
-### Installation
+### Installation & Local Development Setup
 1. Clone the repository:
-   ```
+   ```bash
    git clone https://github.com/pulsefy/QuickEx.git
    cd QuickEx
    ```
 
-2. Install dependencies across the monorepo:
-   ```
+2. **TypeScript/Node Setup**:
+   Install dependencies across the monorepo using `pnpm`:
+   ```bash
    pnpm install
+   ```
+   Start the local development server (Frontend + Backend):
+   ```bash
+   pnpm turbo run dev
+   ```
+
+3. **Rust/Soroban Setup** (for Contracts):
+   Ensure you have the Rust toolchain installed:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   rustup default stable
+   rustup target add wasm32-unknown-unknown
+   ```
+   Build the contracts locally:
+   ```bash
+   cd app/contract
+   cargo build --target wasm32-unknown-unknown --release
    ```
 
 ### Environment Setup
