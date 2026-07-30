@@ -4,7 +4,8 @@ import { ReconciliationWorkerService } from './reconciliation-worker.service';
 import { BackfillService } from './backfill.service';
 import { AppConfigService } from '../config/app-config.service';
 import { ConflictException } from '@nestjs/common';
-import { ReconciliationReport, ReconciliationAction, EscrowDbStatus, OnChainState, PaymentDbStatus } from './types/reconciliation.types';
+import { Response } from 'express';
+import { ReconciliationReport, ReconciliationAction, EscrowDbStatus, OnChainState } from './types/reconciliation.types';
 
 describe('ReconciliationController', () => {
   let controller: ReconciliationController;
@@ -16,16 +17,16 @@ describe('ReconciliationController', () => {
       getLastReport: jest.fn(),
       triggerManually: jest.fn(),
       running: false,
-    } as any;
+    } as unknown as jest.Mocked<ReconciliationWorkerService>;
 
     const backfillService = {
       startBackfill: jest.fn(),
       getBackfillProgress: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<BackfillService>;
 
     configService = {
       network: 'testnet',
-    } as any;
+    } as unknown as jest.Mocked<AppConfigService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReconciliationController],
@@ -80,14 +81,14 @@ describe('ReconciliationController', () => {
 
     it('should throw ConflictException if no report exists', () => {
       workerService.getLastReport.mockReturnValue(null);
-      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as any;
+      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as unknown as jest.Mocked<Response>;
 
       expect(() => controller.exportReport('json', res)).toThrow(ConflictException);
     });
 
     it('should export in JSON format by default', () => {
       workerService.getLastReport.mockReturnValue(mockReport);
-      const res = { setHeader: jest.fn(), json: jest.fn(), send: jest.fn() } as any;
+      const res = { setHeader: jest.fn(), json: jest.fn(), send: jest.fn() } as unknown as jest.Mocked<Response>;
 
       controller.exportReport('json', res);
 
@@ -106,7 +107,7 @@ describe('ReconciliationController', () => {
 
     it('should export in markdown format', () => {
       workerService.getLastReport.mockReturnValue(mockReport);
-      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as any;
+      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as unknown as jest.Mocked<Response>;
 
       controller.exportReport('markdown', res);
 
