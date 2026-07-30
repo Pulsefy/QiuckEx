@@ -36,7 +36,7 @@ export default function PaymentConfirmationScreen() {
     fetchSource: registryFetchSource,
     isRefreshing: registryRefreshing,
     refresh: refreshRegistry,
-  } = useContractRegistry(["Escrow"], backendUrl);
+  } = useContractRegistry(["quickex"], backendUrl);
   const params = useLocalSearchParams<{
     username: string;
     amount: string;
