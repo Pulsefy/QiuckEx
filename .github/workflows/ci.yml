@@ -2,7 +2,7 @@ name: CI Pipeline
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   validate:
@@ -17,8 +17,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       # Forces pnpm to link all internal binaries across packages properly
       - name: Install Dependencies
@@ -30,3 +30,51 @@ jobs:
           cd app/backend
           npx tsc --noEmit || echo "::warning::Bypassing existing codebase compilation warning cleanly."
 
+  # ── Secret scanning (lightweight check in main CI) ──────────────────────
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      - name: Scan for new secrets
+        run: |
+          if [ -f .secrets.baseline ]; then
+            detect-secrets scan \
+              --baseline .secrets.baseline \
+              --exclude-files '(pnpm-lock\.yaml|package-lock\.json|.*\.lock|node_modules/.*|dist/.*|coverage/.*)' \
+              .
+          else
+            echo "::warning::No .secrets.baseline found. Run './scripts/secret-scan.sh' locally to generate one."
+            # Fresh scan – fail if any secrets detected
+            detect-secrets scan \
+              --exclude-files '(pnpm-lock\.yaml|package-lock\.json|.*\.lock|node_modules/.*|dist/.*|coverage/.*)' \
+              . > /tmp/secrets-check.json
+            python3 -c "
+          import json, sys
+          d = json.load(open('/tmp/secrets-check.json'))
+          findings = sum(len(v) for v in d.get('results', {}).values())
+          if findings > 0:
+              print(f'::error::{findings} potential secret(s) found!')
+              sys.exit(1)
+          print('No secrets detected.')
+          "
+          fi
+
+      - name: Check for .env files
+        run: |
+          VIOLATIONS=$(git diff --name-only --diff-filter=ACMR HEAD~1 HEAD 2>/dev/null | grep -E '(^|/)\.env($|\.local$|\.development$|\.production$)' || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::.env files must not be committed: $VIOLATIONS"
+            exit 1
+          fi
+          echo "No .env files in changes. ✓"
