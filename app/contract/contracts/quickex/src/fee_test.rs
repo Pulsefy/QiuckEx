@@ -2,7 +2,7 @@ use crate::{
     errors::QuickexError,
     events::{EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN},
     fee::{fee_from_bps_ceil, fee_from_bps_floor, MAX_FEE_BPS},
-    types::{FeeConfig, PerAssetFeeConfig},
+    types::{FeeConfig, OracleFeeConfig, PerAssetFeeConfig},
     QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
@@ -562,4 +562,309 @@ fn test_fee_deterministic_across_assets() {
     assert_eq!(token_b_client.balance(&platform_wallet), expected_fee);
     assert_eq!(token_a_client.balance(&owner), 50_000 - expected_fee);
     assert_eq!(token_b_client.balance(&owner), 50_000 - expected_fee);
+}
+
+// ---------------------------------------------------------------------------
+// Price-aware fee calculation tests
+// ---------------------------------------------------------------------------
+
+fn setup_price_aware_env() -> (Env, QuickexContractClient<'static>, Address, Address) {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+    client.initialize(&admin);
+
+    (env, client, admin, oracle_addr)
+}
+
+#[test]
+fn test_calculate_fee_price_aware_no_oracle_uses_static_bps() {
+    let (env, client, admin, _oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 10_000)
+    });
+    assert_eq!(fee, Ok(500));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_zero_amount() {
+    let (env, client, _admin, _oracle_addr) = setup_price_aware_env();
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 0)
+    });
+    assert_eq!(fee, Ok(0));
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, -100)
+    });
+    assert_eq!(fee, Ok(0));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_fresh_oracle_uses_dynamic() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // usd_fee = 500_000 * 1_000_000 / 10_000_000 = 50_000
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100_000)
+    });
+    assert_eq!(fee, Ok(50_000));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_stale_oracle_rejects() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // Advance past staleness threshold
+    env.ledger().with_mut(|li| li.timestamp = 1400);
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100_000)
+    });
+    assert_eq!(fee, Err(QuickexError::OracleStalePrice));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_no_cache_rejects() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    // No price recorded
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100_000)
+    });
+    assert_eq!(fee, Err(QuickexError::OraclePriceUnavailable));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_caps_at_amount() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 5_000_000, // $5 target
+            stale_threshold_secs: 300,
+        },
+    );
+    // Price = 10_000_000 micros = $10 → dynamic fee = 5_000_000 * 1M / 10M = 500_000
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // amount = 100 < dynamic fee → should cap at amount
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100)
+    });
+    assert_eq!(fee, Ok(100));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_exact_boundary_fresh() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // Exactly at boundary (age = 300, age == threshold) → still fresh
+    env.ledger().with_mut(|li| li.timestamp = 1300);
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100_000)
+    });
+    assert_eq!(fee, Ok(50_000));
+}
+
+#[test]
+fn test_calculate_fee_for_token_price_aware_per_asset_bypasses_oracle() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    // Per-asset override
+    client.set_per_asset_fee(
+        &admin,
+        &token,
+        &PerAssetFeeConfig {
+            fee_bps: 1_000, // 10%
+            arbiter_bps: 0,
+        },
+    );
+    // No oracle price recorded → would reject if not for per-asset bypass
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_for_token_price_aware(&env, &token, 10_000)
+    });
+    // Per-asset override bypasses oracle → 10% of 10_000 = 1_000
+    assert_eq!(fee, Ok(1_000));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_multiple_prices() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+
+    // Price = $1 (1_000_000 micros) → fee = 500_000 * 1M / 1M = 500_000
+    client.record_oracle_price(&admin, &1_000_000);
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 1_000_000)
+    });
+    assert_eq!(fee, Ok(500_000));
+
+    // Price = $100 (100_000_000 micros) → fee = 500_000 * 1M / 100M = 5_000
+    client.record_oracle_price(&admin, &100_000_000);
+    // Need fresh timestamp
+    env.ledger().with_mut(|li| li.timestamp = 1100);
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 1_000_000)
+    });
+    assert_eq!(fee, Ok(5_000));
+
+    // Price = $0.50 (500_000 micros) → fee = 500_000 * 1M / 500_000 = 1_000_000 (capped)
+    client.record_oracle_price(&admin, &500_000);
+    env.ledger().with_mut(|li| li.timestamp = 1200);
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 1_000_000)
+    });
+    // fee = 500_000 * 1_000_000 / 500_000 = 1_000_000, which equals amount
+    assert_eq!(fee, Ok(1_000_000));
+
+    // Price = $0.01 (10_000 micros) → fee = 500_000 * 1M / 10_000 = 50_000_000_000
+    // Amount = 1_000_000 → capped at amount
+    client.record_oracle_price(&admin, &10_000);
+    env.ledger().with_mut(|li| li.timestamp = 1300);
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 1_000_000)
+    });
+    assert_eq!(fee, Ok(1_000_000));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_zero_usd_fee() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    // usd_fee_micros = 0 → dynamic fee = 0
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 0,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 100_000)
+    });
+    assert_eq!(fee, Ok(0));
+}
+
+#[test]
+fn test_calculate_fee_for_token_price_aware_no_oracle_uses_static() {
+    let (env, client, admin, _oracle_addr) = setup_price_aware_env();
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+
+    // No oracle config → uses static bps
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 333 });
+
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_for_token_price_aware(&env, &token, 10_000)
+    });
+    // 333 bps = 3.33% of 10_000 → 333
+    assert_eq!(fee, Ok(333));
+}
+
+#[test]
+fn test_calculate_fee_price_aware_dynamic_fee_rounding() {
+    let (env, client, admin, oracle_addr) = setup_price_aware_env();
+
+    client.set_fee_config(&admin, &FeeConfig { fee_bps: 500 });
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+
+    // Price = 3_000_000 micros ($3) → fee = 500_000 * 1_000_000 / 3_000_000
+    // = 500_000_000_000 / 3_000_000 = 166_666 (truncated)
+    client.record_oracle_price(&admin, &3_000_000);
+    // Use a large amount to avoid capping
+    let fee = env.as_contract(&client.address, || {
+        crate::fee::calculate_fee_price_aware(&env, 1_000_000_000)
+    });
+    assert_eq!(fee, Ok(166_666));
 }

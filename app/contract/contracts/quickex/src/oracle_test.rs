@@ -103,7 +103,7 @@ fn test_record_oracle_price_rejects_negative() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_stale_oracle_falls_back_to_static_bps() {
+fn test_stale_oracle_rejects_with_price_aware() {
     let (env, client, admin) = setup();
     let token = create_token(&env);
     let owner = Address::generate(&env);
@@ -133,11 +133,11 @@ fn test_stale_oracle_falls_back_to_static_bps() {
     // Advance time past staleness threshold
     env.ledger().with_mut(|li| li.timestamp = 1400);
 
-    // Deposit and withdraw — oracle is stale, should fall back to static 5%
+    // Withdraw via price-aware path should reject with OracleStalePrice
     let amount: i128 = 10_000;
-    let salt = Bytes::from_slice(&env, b"stale_fallback_salt");
+    let salt = Bytes::from_slice(&env, b"stale_reject_salt");
     let commitment = client.deposit(&token, &amount, &owner, &salt, &0, &None, &0u64, &u64::MAX);
-    client.withdraw(
+    let result = client.try_withdraw(
         &token,
         &amount,
         &commitment,
@@ -147,10 +147,10 @@ fn test_stale_oracle_falls_back_to_static_bps() {
         &u64::MAX,
     );
 
-    // Static 5% fee on 10,000 = 500
-    let token_client = soroban_sdk::token::Client::new(&env, &token);
-    assert_eq!(token_client.balance(&collector), 500);
-    assert_eq!(token_client.balance(&owner), 100_000 - 500);
+    match result {
+        Err(Ok(err)) => assert_eq!(err, QuickexError::OracleStalePrice),
+        _ => panic!("expected OracleStalePrice error, got {:?}", result),
+    }
 }
 
 #[test]
