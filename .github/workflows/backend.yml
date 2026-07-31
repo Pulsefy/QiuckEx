@@ -2,13 +2,13 @@ name: Backend CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'app/backend/**'
+      - "app/backend/**"
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'app/backend/**'
+      - "app/backend/**"
 
 jobs:
   build-and-test:
@@ -18,14 +18,36 @@ jobs:
       run:
         working-directory: app/backend
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quickex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install PostgreSQL client and Supabase CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin supabase
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -38,15 +60,76 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Run database migrations against Postgres service (direct psql)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Applying all Supabase migrations in order against Postgres service..."
+          MIGRATION_DIR="supabase/migrations"
+          if [ -d "$MIGRATION_DIR" ]; then
+            for file in $(ls -1 "$MIGRATION_DIR"/*.sql | sort); do
+              echo "Applying: $(basename $file)"
+              psql -h localhost -U postgres -d quickex_test -f "$file"
+            done
+            echo "All direct SQL migrations applied successfully."
+          else
+            echo "Migration directory not found: $MIGRATION_DIR"
+          fi
+
+      - name: Apply additional module migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Applying module-specific migrations..."
+          for dir in src/crash-reporting/migrations src/branch-preview/migrations; do
+            if [ -d "$dir" ]; then
+              for file in $(ls -1 "$dir"/*.sql 2>/dev/null | sort); do
+                echo "Applying: $(basename $file)"
+                psql -h localhost -U postgres -d quickex_test -f "$file"
+              done
+            fi
+          done
+          echo "Module migrations applied."
+
+      - name: Verify migrations applied successfully
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Listing tables in quickex_test:"
+          psql -h localhost -U postgres -d quickex_test -c "\dt"
+          echo ""
+          echo "Listing custom functions:"
+          psql -h localhost -U postgres -d quickex_test -c "\df" | head -50
+
       - name: Build
         run: pnpm run build
 
-      # Tests are run separately to avoid CI failures during development
-      # Uncomment when tests are stable
-      # - name: Run Unit Tests
-      #   run: pnpm run test:unit
-      #   env:
-      #     NODE_ENV: test
-      #     STELLAR_NETWORK: testnet
-      #     SUPABASE_URL: https://test.supabase.co
-      #     SUPABASE_ANON_KEY: test-key
+      - name: Run Unit Tests
+        run: pnpm run test:unit
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quickex_test
+
+      - name: Run Integration Tests
+        run: pnpm run test:int
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quickex_test
+
+      - name: Run E2E Tests
+        run: pnpm run test:e2e
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quickex_test

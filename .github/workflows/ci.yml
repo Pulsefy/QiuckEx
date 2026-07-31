@@ -7,9 +7,32 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quickex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client and Supabase CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin supabase
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -24,9 +47,76 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Run backend database migrations
+        working-directory: app/backend
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Applying all backend Supabase migrations in order..."
+          MIGRATION_DIR="supabase/migrations"
+          if [ -d "$MIGRATION_DIR" ]; then
+            for file in $(ls -1 "$MIGRATION_DIR"/*.sql | sort); do
+              echo "Applying: $(basename $file)"
+              psql -h localhost -U postgres -d quickex_test -f "$file"
+            done
+            echo "Backend migrations applied."
+          else
+            echo "Migration directory not found: $MIGRATION_DIR"
+          fi
+
+      - name: Run backend module migrations
+        working-directory: app/backend
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Applying module-specific migrations..."
+          for dir in src/crash-reporting/migrations src/branch-preview/migrations; do
+            if [ -d "$dir" ]; then
+              for file in $(ls -1 "$dir"/*.sql 2>/dev/null | sort); do
+                echo "Applying: $(basename $file)"
+                psql -h localhost -U postgres -d quickex_test -f "$file"
+              done
+            fi
+          done
+          echo "Module migrations applied."
+
+      - name: Verify migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Verifying migration result..."
+          psql -h localhost -U postgres -d quickex_test -c "\dt" | wc -l
+          echo "Tables created successfully."
+
       # Task 1: Runs your pipeline checks consistently using Turbo
       - name: Build and validate workspace change
         run: |
           cd app/backend
           npx tsc --noEmit || echo "::warning::Bypassing existing codebase compilation warning cleanly."
+
+      - name: Run backend lint
+        working-directory: app/backend
+        run: pnpm run lint
+
+      - name: Run backend unit tests
+        working-directory: app/backend
+        run: pnpm run test:unit
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quickex_test
+
+      - name: Run backend integration tests
+        working-directory: app/backend
+        run: pnpm run test:int
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quickex_test
 
