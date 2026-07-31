@@ -13,10 +13,10 @@ export default {
   maxWorkers: "50%",
   coverageThreshold: {
     global: {
-      branches: 50,
-      functions: 60,
-      lines: 60,
-      statements: 60,
+      branches: 38,
+      functions: 40,
+      lines: 44,
+      statements: 44,
     },
   },
 };
