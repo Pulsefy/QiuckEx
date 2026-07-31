@@ -26,7 +26,6 @@ function buildSupabaseMock(
 ) {
   const makeChain = (rows: object[] | null, err: object | null = null) => {
     const chain: Record<string, jest.Mock> = {};
-    const terminal = jest.fn().mockResolvedValue({ data: rows, error: err });
     // Every chain method returns `chain` for further chaining AND resolves as a
     // thenable so that `await client.from(...).select(...).eq(...)` works even
     // when the last chained call is not `.limit()`.
