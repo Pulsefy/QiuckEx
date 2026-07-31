@@ -199,10 +199,18 @@ describe("RuntimeConfigService", () => {
       data: {},
     });
 
-    (mockAppConfigService as any).environmentName = "staging";
-    (mockAppConfigService as any).isStaging = true;
-    (mockAppConfigService as any).publicApiUrl =
-      "https://preview-api.quickex.to";
+    Object.defineProperty(mockAppConfigService, "environmentName", {
+      value: "staging",
+      configurable: true,
+    });
+    Object.defineProperty(mockAppConfigService, "isStaging", {
+      value: true,
+      configurable: true,
+    });
+    Object.defineProperty(mockAppConfigService, "publicApiUrl", {
+      value: "https://preview-api.quickex.to",
+      configurable: true,
+    });
 
     const futureDate = new Date(Date.now() + 3600000).toISOString();
     mockPreviewScopeService.getScope!.mockResolvedValue({
@@ -384,9 +392,18 @@ describe("RuntimeConfigService", () => {
       return undefined;
     });
 
-    (mockAppConfigService as any).network = "mainnet";
-    (mockAppConfigService as any).isMainnet = true;
-    (mockAppConfigService as any).publicApiUrl = "https://api.quickex.to";
+    Object.defineProperty(mockAppConfigService, "network", {
+      value: "mainnet",
+      configurable: true,
+    });
+    Object.defineProperty(mockAppConfigService, "isMainnet", {
+      value: true,
+      configurable: true,
+    });
+    Object.defineProperty(mockAppConfigService, "publicApiUrl", {
+      value: "https://api.quickex.to",
+      configurable: true,
+    });
 
     mockFeatureFlagsService.getSnapshot!.mockResolvedValue({
       metadata: {

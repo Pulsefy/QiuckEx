@@ -160,7 +160,13 @@ describe("JobAdminController", () => {
       jobRepository.updateJobStatus.mockResolvedValue(undefined);
       jobReplayRepository.createReplayLog.mockResolvedValue({
         id: "replay-1",
-      } as any);
+        jobId: "job-1",
+        jobType: JobType.WEBHOOK_DELIVERY,
+        status: "queued" as const,
+        triggeredBy: "api",
+        previousAttempts: 3,
+        createdAt: new Date().toISOString(),
+      });
 
       const result = await controller.retryJob("job-1");
 
