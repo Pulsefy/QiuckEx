@@ -8,9 +8,14 @@ export interface BranchPreviewEnvironment {
   network: 'testnet' | 'mainnet';
   contractRegistryVersion: string;
   isActive: boolean;
+  isShared: boolean;
+  expiryExempt: boolean;
   createdAt: Date;
   updatedAt: Date;
+  lastActivityAt?: Date;
   expiresAt?: Date;
+  autoExpiredAt?: Date;
+  autoExpiryReason?: string;
 }
 
 export interface CreateBranchPreviewDto {
@@ -20,6 +25,8 @@ export interface CreateBranchPreviewDto {
   network: 'testnet' | 'mainnet';
   contractRegistryVersion: string;
   ttlMs?: number;
+  isShared?: boolean;
+  expiryExempt?: boolean;
 }
 
 export interface UpdateBranchPreviewDto {
@@ -29,6 +36,8 @@ export interface UpdateBranchPreviewDto {
   contractRegistryVersion?: string;
   isActive?: boolean;
   ttlMs?: number;
+  isShared?: boolean;
+  expiryExempt?: boolean;
 }
 
 export class BranchPreviewResponseDto {

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import { useEnvironment } from '../contexts/EnvironmentContext';
+import { useSession } from '../contexts/SessionContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 export function EnvironmentSwitcher() {
@@ -20,14 +21,14 @@ export function EnvironmentSwitcher() {
     metadata,
     compatibility,
     isFetchingMetadata,
-    fetchMetadata,
   } = useEnvironment();
+  const { fetchSession } = useSession();
 
   useEffect(() => {
     if (currentId !== 'production') {
-      fetchMetadata();
+      void fetchSession();
     }
-  }, [currentId, fetchMetadata]);
+  }, [currentId, fetchSession]);
 
   return (
     <View
@@ -180,7 +181,7 @@ export function EnvironmentSwitcher() {
               styles.fetchButton,
               { borderColor: theme.buttonSecondaryBorder },
             ]}
-            onPress={fetchMetadata}
+            onPress={fetchSession}
           >
             <Text
               style={[

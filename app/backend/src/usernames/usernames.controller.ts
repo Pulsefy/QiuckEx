@@ -4,13 +4,13 @@ import {
   Get,
   Post,
   Query,
+  Param,
   ConflictException,
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-// import { RateLimitGroup } from "../config/rate-limit.config";
 import {
   ApiBody,
   ApiOperation,
@@ -31,6 +31,8 @@ import {
   TrendingCreatorsResponseDto,
   RecentlyActiveQueryDto,
   RecentlyActiveResponseDto,
+  FeaturedUsernamesQueryDto,
+  FeaturedUsernamesResponseDto,
   PublicProfileDto,
 } from "../dto";
 import { UsernamesService } from "./usernames.service";
@@ -50,6 +52,7 @@ export class UsernamesController {
   ) {}
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @ApiOperation({
     summary: "Create a new username",
     description:
@@ -77,6 +80,10 @@ export class UsernamesController {
   @ApiResponse({
     status: 403,
     description: "Wallet has reached the maximum allowed usernames",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Rate limit exceeded – retry after 60 seconds",
   })
   async createUsername(
     @Body() body: CreateUsernameDto,
@@ -176,22 +183,28 @@ export class UsernamesController {
   async searchUsernames(
     @Query() query: SearchUsernamesQueryDto,
   ): Promise<SearchUsernamesResponseDto> {
-    const results = await this.usernamesService.searchPublicUsernames(
+    const results = await this.usernamesService.searchDiscovery(
       query.query,
       query.limit,
       query.cursor,
     );
 
+    const profileResults = results.results.filter((r) => r.kind === "profile") as Array<{
+      kind: "profile"; id: string; username: string; publicKey?: string; similarityScore?: number; lastActiveAt?: string; createdAt: string;
+    }>;
+
     return {
-      profiles: results.data.map((r) => ({
+      results: results.results,
+      profiles: profileResults.map((r) => ({
         id: r.id,
         username: r.username,
-        publicKey: r.public_key,
-        lastActiveAt: r.last_active_at || r.created_at,
-        createdAt: r.created_at,
-        similarityScore: r.similarity_score,
+        publicKey: r.publicKey ?? "",
+        lastActiveAt: r.lastActiveAt || r.createdAt,
+        createdAt: r.createdAt,
+        similarityScore: r.similarityScore,
       })) as PublicProfileDto[],
-      total: results.data.length,
+      empty: results.empty,
+      total: results.total,
       next_cursor: results.next_cursor,
       has_more: results.has_more,
     };
@@ -307,7 +320,54 @@ export class UsernamesController {
     };
   }
 
+  @Get("featured")
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
+  @ApiOperation({
+    summary: "Get featured creators",
+    description:
+      "Returns curated/featured creator profiles for discovery, ordered by " +
+      "manual featured rank (lower rank shows first).",
+  })
+  @ApiQuery({
+    name: "limit",
+    description: "Maximum number of featured creators (1-100)",
+    required: false,
+    example: 10,
+  })
+  @ApiQuery({
+    name: "cursor",
+    description: "Opaque cursor for the next page of results",
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of featured creator profiles sorted by featured rank",
+    type: FeaturedUsernamesResponseDto,
+  })
+  async getFeaturedCreators(
+    @Query() query: FeaturedUsernamesQueryDto,
+  ): Promise<FeaturedUsernamesResponseDto> {
+    const creators = await this.usernamesService.getFeaturedCreators(
+      query.limit,
+      query.cursor,
+    );
+
+    return {
+      profiles: creators.data.map((c) => ({
+        id: c.id,
+        username: c.username,
+        publicKey: c.public_key,
+        lastActiveAt: c.last_active_at || c.created_at,
+        createdAt: c.created_at,
+        featuredRank: c.featured_rank,
+      })) as PublicProfileDto[],
+      next_cursor: creators.next_cursor,
+      has_more: creators.has_more,
+    };
+  }
+
   @Post("toggle-public")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: "Toggle public profile visibility",
     description:
@@ -350,6 +410,56 @@ export class UsernamesController {
         body.isPublic,
       );
       return { ok: true };
+    } catch (err) {
+      if (err instanceof UsernameValidationError) {
+        if (err.code === UsernameErrorCode.NOT_FOUND) {
+          throw new NotFoundException({
+            code: UsernameErrorCode.NOT_FOUND,
+            message: err.message,
+          });
+        }
+        throw new BadRequestException({
+          code: err.code,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Get(":username")
+  @ApiOperation({
+    summary: "Get profile by username",
+    description: "Returns profile details for a given username. " +
+      "If the profile is private, returns a privacy-aware response.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Profile details",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Username not found",
+  })
+  async getProfile(
+    @Param("username") username: string,
+  ) {
+    try {
+      const profile = await this.usernamesService.getProfileByUsername(username);
+      if (!profile.is_public) {
+        return {
+          username: profile.username,
+          isPublic: false,
+        };
+      }
+      return {
+        id: profile.id,
+        username: profile.username,
+        publicKey: profile.public_key,
+        isPublic: true,
+        lastActiveAt: profile.last_active_at || profile.created_at,
+        createdAt: profile.created_at,
+      };
     } catch (err) {
       if (err instanceof UsernameValidationError) {
         if (err.code === UsernameErrorCode.NOT_FOUND) {

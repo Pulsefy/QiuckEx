@@ -26,6 +26,9 @@ export class BranchPreviewRepository {
       network: dto.network,
       contractRegistryVersion: dto.contractRegistryVersion,
       isActive: true,
+      isShared: dto.isShared ?? false,
+      expiryExempt: dto.expiryExempt ?? false,
+      lastActivityAt: now,
       expiresAt: expiresAt || undefined,
     };
 
@@ -33,7 +36,15 @@ export class BranchPreviewRepository {
       .from(this.TABLE_NAME)
       .insert({
         id,
-        ...preview,
+        branch_name: preview.branchName,
+        api_url: preview.apiUrl,
+        frontend_url: preview.frontendUrl,
+        network: preview.network,
+        contract_registry_version: preview.contractRegistryVersion,
+        is_active: preview.isActive,
+        is_shared: preview.isShared,
+        expiry_exempt: preview.expiryExempt,
+        last_activity_at: now.toISOString(),
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
         expires_at: expiresAt?.toISOString(),
@@ -107,6 +118,8 @@ export class BranchPreviewRepository {
     if (dto.network) updateData.network = dto.network;
     if (dto.contractRegistryVersion) updateData.contract_registry_version = dto.contractRegistryVersion;
     if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
+    if (dto.isShared !== undefined) updateData.is_shared = dto.isShared;
+    if (dto.expiryExempt !== undefined) updateData.expiry_exempt = dto.expiryExempt;
     if (dto.ttlMs) {
       updateData.expires_at = new Date(now.getTime() + dto.ttlMs).toISOString();
     }
@@ -146,7 +159,79 @@ export class BranchPreviewRepository {
   }
 
   /**
-   * Find all expired branch previews
+   * Active previews eligible for auto-expiry evaluation (exempt/shared skipped in worker policy).
+   */
+  async findActiveForAutoExpiryEvaluation(): Promise<BranchPreviewEnvironment[]> {
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
+      .from(this.TABLE_NAME)
+      .select('*')
+      .eq('is_active', true);
+
+    if (error) {
+      this.logger.error(`Error fetching previews for auto-expiry: ${error.message}`, error);
+      return [];
+    }
+
+    return data.map(this.mapDbToModel);
+  }
+
+  /**
+   * Deactivate a preview after the auto-expiry worker marks it stale.
+   */
+  async deactivateForAutoExpiry(
+    id: string,
+    reason: string,
+    now: Date,
+  ): Promise<BranchPreviewEnvironment | null> {
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
+      .from(this.TABLE_NAME)
+      .update({
+        is_active: false,
+        auto_expired_at: now.toISOString(),
+        auto_expiry_reason: reason,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', id)
+      .eq('is_active', true)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`Failed to auto-expire preview ${id}: ${error.message}`, error);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return this.mapDbToModel(data);
+  }
+
+  /**
+   * Record resolver activity for inactivity-based expiry.
+   */
+  async touchLastActivity(branchName: string): Promise<void> {
+    const client = this.supabaseService.getClient();
+    const now = new Date().toISOString();
+    const { error } = await client
+      .from(this.TABLE_NAME)
+      .update({
+        last_activity_at: now,
+        updated_at: now,
+      })
+      .eq('branch_name', branchName.toLowerCase().trim())
+      .eq('is_active', true);
+
+    if (error) {
+      this.logger.debug(`Could not touch last activity for ${branchName}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find all expired branch previews (legacy TTL-only query).
    */
   async findExpired(): Promise<BranchPreviewEnvironment[]> {
     const client = this.supabaseService.getClient();
@@ -179,9 +264,18 @@ export class BranchPreviewRepository {
       network: dbRecord.network as 'testnet' | 'mainnet',
       contractRegistryVersion: dbRecord.contract_registry_version as string,
       isActive: dbRecord.is_active as boolean,
+      isShared: Boolean(dbRecord.is_shared),
+      expiryExempt: Boolean(dbRecord.expiry_exempt),
       createdAt: new Date(dbRecord.created_at as string),
       updatedAt: new Date(dbRecord.updated_at as string),
+      lastActivityAt: dbRecord.last_activity_at
+        ? new Date(dbRecord.last_activity_at as string)
+        : undefined,
       expiresAt: dbRecord.expires_at ? new Date(dbRecord.expires_at as string) : undefined,
+      autoExpiredAt: dbRecord.auto_expired_at
+        ? new Date(dbRecord.auto_expired_at as string)
+        : undefined,
+      autoExpiryReason: dbRecord.auto_expiry_reason as string | undefined,
     };
   }
 }

@@ -2,6 +2,8 @@
 
 This checklist supports the internal testing build pipeline for QuickEx Mobile.
 
+For the cross-app (backend/frontend/mobile/contracts) release gate, see the root [RELEASE_READINESS_CHECKLIST.md](../../RELEASE_READINESS_CHECKLIST.md).
+
 ## Release Pipeline
 - [ ] Verify `.github/workflows/mobile-release.yml` exists and triggers on release tags `v*`
 - [ ] Ensure `EAS_TOKEN` is configured in GitHub repository secrets

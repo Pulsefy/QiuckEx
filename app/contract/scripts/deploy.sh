@@ -99,6 +99,7 @@ manifest = {
     "network": "$NETWORK",
     "network_passphrase": "$PASSPHRASE",
     "rpc_url": "$RPC_URL",
+    "ledger_sequence": 0,
     "operator": "$SOURCE",
     "contracts": [
         {
@@ -176,11 +177,19 @@ HEALTH=$($STELLAR_BIN contract invoke \
   health_check 2>&1)
 echo "Health: $HEALTH"
 
+echo "==> Fetching current ledger sequence"
+LEDGER_SEQUENCE=$($STELLAR_BIN ledger current --network "$NETWORK" 2>&1 | grep -oP 'Current ledger sequence: \K\d+' || echo "")
+if [[ -z "$LEDGER_SEQUENCE" ]]; then
+  echo "warning: could not fetch ledger sequence, using 0 as fallback"
+  LEDGER_SEQUENCE=0
+fi
+echo "Ledger Sequence: $LEDGER_SEQUENCE"
+
 # ── Generate manifest ───────────────────────────────────────────────────────
 
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-python3 - "$DEPLOY_DIR" "$METADATA" "$CONTRACT_ID" "$WASM_SHA" "$TIMESTAMP" <<'PY'
+python3 - "$DEPLOY_DIR" "$METADATA" "$CONTRACT_ID" "$WASM_SHA" "$TIMESTAMP" "$LEDGER_SEQUENCE" <<'PY'
 import json, os, sys
 from pathlib import Path
 
@@ -189,6 +198,7 @@ metadata_raw = sys.argv[2]
 contract_id = sys.argv[3]
 wasm_sha = sys.argv[4]
 timestamp = sys.argv[5]
+ledger_sequence = sys.argv[6]
 admin = os.environ.get('ADMIN', '')
 source = os.environ.get('SOURCE', '')
 network = os.environ.get('NETWORK', '')
@@ -212,6 +222,7 @@ manifest = {
     "network": network,
     "network_passphrase": passphrase,
     "rpc_url": rpc_url,
+    "ledger_sequence": int(ledger_sequence),
     "operator": source,
     "contracts": [
         {

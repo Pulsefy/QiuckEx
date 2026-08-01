@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '../../../context/ThemeContext';
 import { MetadataSection } from '../MetadataSection';
 
@@ -28,8 +28,8 @@ function renderWithTheme(component: React.ReactElement) {
 }
 
 describe('MetadataSection', () => {
-  it('renders receipt hash with copy button', () => {
-    const { getByText } = renderWithTheme(
+  it('renders receipt hash with copy button', async () => {
+    renderWithTheme(
       <MetadataSection
         receiptMetadata={mockMetadata}
         contract={mockContract}
@@ -37,12 +37,12 @@ describe('MetadataSection', () => {
       />
     );
 
-    expect(getByText('Transaction Details')).toBeTruthy();
-    expect(getByText(/0xabc123/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Transaction Details')).toBeTruthy());
+    expect(screen.getByText(/0xabc123/)).toBeTruthy();
   });
 
-  it('expands to show contract metadata', () => {
-    const { getByText, queryByText } = renderWithTheme(
+  it('expands to show contract metadata', async () => {
+    renderWithTheme(
       <MetadataSection
         receiptMetadata={mockMetadata}
         contract={mockContract}
@@ -50,18 +50,21 @@ describe('MetadataSection', () => {
       />
     );
 
-    expect(queryByText('Contract ID')).toBeNull();
+    // Initial render is null while ThemeProvider async loads, so wait for it
+    await waitFor(() => expect(screen.getByText('Transaction Details')).toBeTruthy());
 
-    fireEvent.press(getByText('Transaction Details'));
+    expect(screen.queryByText('Contract ID')).toBeNull();
 
-    waitFor(() => {
-      expect(getByText('Contract ID')).toBeTruthy();
-      expect(getByText('WASM Hash')).toBeTruthy();
+    fireEvent.press(screen.getByText('Transaction Details'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Contract ID')).toBeTruthy();
+      expect(screen.getByText('WASM Hash')).toBeTruthy();
     });
   });
 
-  it('displays network badge with ledger', () => {
-    const { getByText } = renderWithTheme(
+  it('displays network badge with ledger', async () => {
+    renderWithTheme(
       <MetadataSection
         receiptMetadata={mockMetadata}
         contract={mockContract}
@@ -69,7 +72,7 @@ describe('MetadataSection', () => {
       />
     );
 
-    expect(getByText('Testnet')).toBeTruthy();
-    expect(getByText(/Ledger 1,234,567/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Testnet')).toBeTruthy());
+    expect(screen.getByText(/Ledger 1,234,567/)).toBeTruthy();
   });
 });

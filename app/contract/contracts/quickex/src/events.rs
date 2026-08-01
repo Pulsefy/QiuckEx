@@ -23,6 +23,8 @@ pub const EVENT_TOPIC_ESCROW: &str = "TOPIC_ESCROW";
 pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
 #[allow(dead_code)]
 pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_ORACLE: &str = "TOPIC_ORACLE";
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -268,6 +270,18 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
             "recipient",
         ],
         payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "OraclePriceUpdated",
+        topics: &[EVENT_TOPIC_ORACLE, "OraclePriceUpdated"],
+        payload_keys: &["price_micros", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "HookAllowlistChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "HookAllowlistChanged", "hook_contract"],
+        payload_keys: &["allowed", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
 ];
@@ -1117,6 +1131,46 @@ pub(crate) fn publish_per_asset_fee_set(
         fee_bps,
         arbiter_bps,
         schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+// ---- Oracle price events (Issue #666) ----
+
+#[contractevent(topics = ["TOPIC_ORACLE", "OraclePriceUpdated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OraclePriceUpdatedEvent {
+    pub schema_version: u32,
+    pub price_micros: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_oracle_price_updated(env: &Env, price_micros: i128, recorded_at: u64) {
+    OraclePriceUpdatedEvent {
+        schema_version: EVENT_SCHEMA_VERSION,
+        price_micros,
+        timestamp: recorded_at,
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "HookAllowlistChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookAllowlistChangedEvent {
+    #[topic]
+    pub hook_contract: Address,
+
+    pub schema_version: u32,
+    pub allowed: bool,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_allowlist_changed(env: &Env, hook_contract: Address, allowed: bool) {
+    HookAllowlistChangedEvent {
+        hook_contract,
+        schema_version: EVENT_SCHEMA_VERSION,
+        allowed,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

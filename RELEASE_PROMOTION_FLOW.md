@@ -2,6 +2,8 @@
 
 This document outlines the process for promoting a release from the staging environment to production.
 
+> Before promoting, complete the cross-app release gate in [RELEASE_READINESS_CHECKLIST.md](RELEASE_READINESS_CHECKLIST.md).
+
 ## Overview
 
 We maintain two primary environments:

@@ -11,6 +11,7 @@
     "network",
     "network_passphrase",
     "rpc_url",
+    "ledger_sequence",
     "contracts"
   ],
   "properties": {
@@ -48,6 +49,12 @@
       "format": "uri",
       "description": "Soroban RPC endpoint URL for the network used during deployment.",
       "examples": ["https://soroban-testnet.stellar.org"]
+    },
+    "ledger_sequence": {
+      "type": "integer",
+      "description": "Ledger sequence number at the time of deployment. This binds the deployment to a specific point in the network's history and enables ledger-aware validation.",
+      "minimum": 1,
+      "examples": [47000000]
     },
     "operator": {
       "type": "string",

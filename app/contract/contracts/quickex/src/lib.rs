@@ -33,6 +33,8 @@ pub mod nonce;
 #[cfg(test)]
 mod nonce_test;
 mod oracle;
+#[cfg(test)]
+mod oracle_test;
 mod pause_policy;
 #[cfg(test)]
 mod pause_policy_test;
@@ -985,6 +987,22 @@ impl QuickexContract {
         hook::get_registered_hooks(&env)
     }
 
+    /// Set whether a hook contract is allowed to be registered (**Admin only**).
+    pub fn set_hook_allowed(
+        env: Env,
+        caller: Address,
+        hook_contract: Address,
+        allowed: bool,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::set_hook_allowed(&env, &caller, hook_contract, allowed)
+    }
+
+    /// Check if a hook contract is allowed.
+    pub fn is_hook_allowed(env: Env, hook_contract: Address) -> bool {
+        storage::is_hook_allowed(&env, &hook_contract)
+    }
+
     /// Set the fee configuration (**Admin only**).
     pub fn set_fee_config(
         env: Env,
@@ -1027,6 +1045,23 @@ impl QuickexContract {
     /// Get the current oracle fee configuration.
     pub fn get_oracle_fee_config(env: Env) -> Option<OracleFeeConfig> {
         oracle::get_oracle_fee_config(&env)
+    }
+
+    /// Record a new oracle price in the contract cache (**Admin or Operator only**).
+    ///
+    /// Updates the cached price and timestamp, enabling dynamic fee calculation
+    /// when the price is within the configured staleness threshold.
+    ///
+    /// # Errors
+    /// * `OraclePriceInvalid` - Price is zero or negative
+    pub fn record_oracle_price(
+        env: Env,
+        caller: Address,
+        price_micros: i128,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        oracle::record_price(&env, price_micros)
     }
 
     /// Get the platform wallet address (read-only).
