@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Test, TestingModule } from "@nestjs/testing";
-import { SorobanEventIndexerService, DualReadConfig } from "../soroban-event-indexer.service";
+import {
+  SorobanEventIndexerService,
+  DualReadConfig,
+} from "../soroban-event-indexer.service";
 import { IndexerCheckpointRepository } from "../indexer-checkpoint.repository";
 import { EscrowEventRepository } from "../escrow-event.repository";
 import { PrivacyEventRepository } from "../privacy-event.repository";
@@ -9,12 +12,16 @@ import { StealthEventRepository } from "../stealth-event.repository";
 import { MetricsService } from "../../metrics/metrics.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { AppConfigService } from "../../config";
+import { UnparsedSorobanEventRepository } from "../unparsed-soroban-event.repository";
 
 describe("SorobanEventIndexerService - Dual-Read", () => {
   let service: SorobanEventIndexerService;
   let checkpointRepo: jest.Mocked<IndexerCheckpointRepository>;
 
   beforeEach(async () => {
+    const mockUnparsedRepo = {
+      upsertEvent: jest.fn().mockResolvedValue(undefined),
+    };
     const mockCheckpointRepo = {
       getLastLedger: jest.fn().mockResolvedValue(null),
       saveLastLedger: jest.fn().mockResolvedValue(undefined),
@@ -56,14 +63,19 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         { provide: PrivacyEventRepository, useValue: mockPrivacyRepo },
         { provide: AdminEventRepository, useValue: mockAdminRepo },
         { provide: StealthEventRepository, useValue: mockStealthRepo },
+        { provide: UnparsedSorobanEventRepository, useValue: mockUnparsedRepo },
         { provide: MetricsService, useValue: mockMetrics },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: AppConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
-    service = module.get<SorobanEventIndexerService>(SorobanEventIndexerService);
-    checkpointRepo = module.get(IndexerCheckpointRepository) as jest.Mocked<IndexerCheckpointRepository>;
+    service = module.get<SorobanEventIndexerService>(
+      SorobanEventIndexerService,
+    );
+    checkpointRepo = module.get(
+      IndexerCheckpointRepository,
+    ) as jest.Mocked<IndexerCheckpointRepository>;
   });
 
   describe("Dual-read window detection", () => {
@@ -74,7 +86,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveTime: new Date("2026-06-02T12:00:00Z"),
       };
 
-      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(true);
+      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(
+        true,
+      );
     });
 
     it("should detect when past dual-read window (at or after effective ledger)", () => {
@@ -84,8 +98,12 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveTime: new Date("2026-06-02T12:00:00Z"),
       };
 
-      expect((service as any).isInDualReadWindow(50_000_000, config)).toBe(false);
-      expect((service as any).isInDualReadWindow(60_000_000, config)).toBe(false);
+      expect((service as any).isInDualReadWindow(50_000_000, config)).toBe(
+        false,
+      );
+      expect((service as any).isInDualReadWindow(60_000_000, config)).toBe(
+        false,
+      );
     });
 
     it("should not be in dual-read window if no previous contract ID", () => {
@@ -94,7 +112,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(false);
+      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(
+        false,
+      );
     });
 
     it("should not be in dual-read window if no effective ledger", () => {
@@ -103,7 +123,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: undefined,
       };
 
-      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(false);
+      expect((service as any).isInDualReadWindow(40_000_000, config)).toBe(
+        false,
+      );
     });
   });
 
@@ -116,12 +138,20 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config);
 
-      expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(previousId, 2000);
-      expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(currentId, 2000);
+      expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(
+        previousId,
+        2000,
+      );
+      expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(
+        currentId,
+        2000,
+      );
     });
   });
 
@@ -135,7 +165,12 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
       checkpointRepo.getLastLedger.mockResolvedValue(5000);
 
-      const result = await service.indexLedgerRange(currentId, 1000, 2000, config);
+      const result = await service.indexLedgerRange(
+        currentId,
+        1000,
+        2000,
+        config,
+      );
 
       expect(result.processed).toBe(0);
       expect(result.persisted).toBe(0);
@@ -148,9 +183,13 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      checkpointRepo.getLastLedger.mockResolvedValueOnce(1500).mockResolvedValueOnce(null);
+      checkpointRepo.getLastLedger
+        .mockResolvedValueOnce(1500)
+        .mockResolvedValueOnce(null);
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config);
 
@@ -170,7 +209,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
       checkpointRepo.getLastLedger.mockResolvedValue(1500);
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config, true);
 
@@ -190,7 +231,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger,
       };
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 100_000_000, config);
 
@@ -218,7 +261,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
     it("should only index current contract when no dual-read config", async () => {
       const currentId = "CCUR";
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000);
 
@@ -233,7 +278,9 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
         effectiveLedger: 50_000_000,
       };
 
-      jest.spyOn(service as any, "fetchPage").mockResolvedValue({ records: [], nextCursor: undefined });
+      jest
+        .spyOn(service as any, "fetchPage")
+        .mockResolvedValue({ records: [], nextCursor: undefined });
 
       await service.indexLedgerRange(currentId, 1000, 2000, config);
 

@@ -11,12 +11,15 @@ import type {
   NotificationPayload,
 } from "../types/notification.types";
 import type { EscrowDepositedEvent } from "../../ingestion/types/contract-event.types";
+import { TemplateVersionService } from "../template-versioning/template-version.service"; // ADD THIS
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const PUBLIC_KEY = "GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2";
+
+let templateVersionService: jest.Mocked<TemplateVersionService>;
 
 function makeEmailPref(
   overrides: Partial<NotificationPreference> = {},
@@ -96,9 +99,15 @@ const mockInAppRepo = (): jest.Mocked<InAppNotificationRepository> =>
 
 const mockTemplateService = (): jest.Mocked<TemplateService> =>
   ({
-    render: jest.fn().mockReturnValue({ title: "Rendered", body: "Rendered Body" }),
+    render: jest
+      .fn()
+      .mockReturnValue({ title: "Rendered", body: "Rendered Body" }),
   }) as unknown as jest.Mocked<TemplateService>;
-
+const mockTemplateVersionService = (): jest.Mocked<TemplateVersionService> =>
+  ({
+    getActiveTemplate: jest.fn().mockResolvedValue(null),
+    promoteToActive: jest.fn(),
+  }) as unknown as jest.Mocked<TemplateVersionService>;
 const mockEmailProvider = () => ({
   channel: "email",
   send: jest.fn().mockResolvedValue({ messageId: "msg-1" }),
@@ -116,10 +125,11 @@ describe("NotificationService", () => {
   let module: TestingModule;
 
   beforeEach(async () => {
+    templateService = mockTemplateService();
+    templateVersionService = mockTemplateVersionService(); // ADD THIS
     prefsRepo = mockPrefsRepo();
     logRepo = mockLogRepo();
     inAppRepo = mockInAppRepo();
-    templateService = mockTemplateService();
     emailProvider = mockEmailProvider();
 
     module = await Test.createTestingModule({
@@ -131,17 +141,17 @@ describe("NotificationService", () => {
         { provide: InAppNotificationRepository, useValue: inAppRepo },
         { provide: TemplateService, useValue: templateService },
         { provide: NOTIFICATION_PROVIDERS, useValue: [emailProvider] },
-        {
-          provide: InAppNotificationRepository,
-          useValue: { create: jest.fn().mockResolvedValue(undefined) },
-        },
-        {
-          provide: TemplateService,
-          useValue: {
-            getTemplate: jest.fn().mockReturnValue(null),
-            render: jest.fn().mockReturnValue(""),
-          },
-        },
+        // {
+        //   provide: InAppNotificationRepository,
+        //   useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        // },
+        // {
+        //   provide: TemplateService,
+        //   useValue: {
+        //     getTemplate: jest.fn().mockReturnValue(null),
+        //     render: jest.fn().mockReturnValue(""),
+        //   },
+        // },
       ],
     }).compile();
 
