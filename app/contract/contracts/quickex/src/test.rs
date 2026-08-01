@@ -356,8 +356,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 25);
-    assert_eq!(EVENT_SCHEMAS.len(), 26);
+    assert_eq!(EVENT_SCHEMAS.len(), 27);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
