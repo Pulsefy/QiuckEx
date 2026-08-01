@@ -266,6 +266,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         payload_keys: &["price_micros", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
+    EventSchema {
+        name: "HookAllowlistChanged",
+        topics: &[EVENT_TOPIC_ADMIN, "HookAllowlistChanged", "hook_contract"],
+        payload_keys: &["allowed", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
 ];
 
 #[allow(dead_code)]
@@ -1097,6 +1103,27 @@ pub(crate) fn publish_oracle_price_updated(env: &Env, price_micros: i128, record
         schema_version: EVENT_SCHEMA_VERSION,
         price_micros,
         timestamp: recorded_at,
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "HookAllowlistChanged"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookAllowlistChangedEvent {
+    #[topic]
+    pub hook_contract: Address,
+
+    pub schema_version: u32,
+    pub allowed: bool,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_allowlist_changed(env: &Env, hook_contract: Address, allowed: bool) {
+    HookAllowlistChangedEvent {
+        hook_contract,
+        schema_version: EVENT_SCHEMA_VERSION,
+        allowed,
+        timestamp: env.ledger().timestamp(),
     }
     .publish(env);
 }
