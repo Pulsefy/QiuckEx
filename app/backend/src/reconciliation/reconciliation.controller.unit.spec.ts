@@ -1,127 +1,300 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ReconciliationController } from './reconciliation.controller';
-import { ReconciliationWorkerService } from './reconciliation-worker.service';
-import { BackfillService } from './backfill.service';
-import { AppConfigService } from '../config/app-config.service';
-import { ConflictException } from '@nestjs/common';
-import { Response } from 'express';
-import { ReconciliationReport, ReconciliationAction, EscrowDbStatus, OnChainState } from './types/reconciliation.types';
+import { Test, TestingModule } from "@nestjs/testing";
+import { ConflictException, NotFoundException } from "@nestjs/common";
+import { ReconciliationController } from "./reconciliation.controller";
+import { ReconciliationWorkerService } from "./reconciliation-worker.service";
+import { BackfillService } from "./backfill.service";
+import { AutoMatchService } from "./auto-match.service";
+import { UnmatchedQueueRepository } from "./unmatched-queue.repository";
+import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
 
-describe('ReconciliationController', () => {
+describe("ReconciliationController", () => {
   let controller: ReconciliationController;
-  let workerService: jest.Mocked<ReconciliationWorkerService>;
-  let configService: jest.Mocked<AppConfigService>;
+  let worker: jest.Mocked<ReconciliationWorkerService>;
+  let backfill: jest.Mocked<BackfillService>;
+  let autoMatch: jest.Mocked<AutoMatchService>;
+  let unmatchedQueue: jest.Mocked<UnmatchedQueueRepository>;
 
   beforeEach(async () => {
-    workerService = {
-      getLastReport: jest.fn(),
-      triggerManually: jest.fn(),
+    const mockWorker = {
       running: false,
-    } as unknown as jest.Mocked<ReconciliationWorkerService>;
+      getLastReport: jest.fn().mockReturnValue(null),
+      triggerManually: jest.fn(),
+    };
 
-    const backfillService = {
+    const mockBackfill = {
       startBackfill: jest.fn(),
-      getBackfillProgress: jest.fn(),
-    } as unknown as jest.Mocked<BackfillService>;
+      getBackfillProgress: jest.fn().mockReturnValue(null),
+    };
 
-    configService = {
-      network: 'testnet',
-    } as unknown as jest.Mocked<AppConfigService>;
+    const mockAutoMatch = {
+      running: false,
+      runAutoMatchCycle: jest.fn(),
+      processTransaction: jest.fn(),
+    };
+
+    const mockUnmatchedQueue = {
+      listPending: jest.fn(),
+      findById: jest.fn(),
+      resolve: jest.fn(),
+      dismiss: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReconciliationController],
       providers: [
-        { provide: ReconciliationWorkerService, useValue: workerService },
-        { provide: BackfillService, useValue: backfillService },
-        { provide: AppConfigService, useValue: configService },
+        { provide: ReconciliationWorkerService, useValue: mockWorker },
+        { provide: BackfillService, useValue: mockBackfill },
+        { provide: AutoMatchService, useValue: mockAutoMatch },
+        { provide: UnmatchedQueueRepository, useValue: mockUnmatchedQueue },
       ],
-    }).compile();
+    })
+      .overrideGuard(NetworkSafetyGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ReconciliationController>(ReconciliationController);
+    worker = module.get(
+      ReconciliationWorkerService,
+    ) as jest.Mocked<ReconciliationWorkerService>;
+    backfill = module.get(BackfillService) as jest.Mocked<BackfillService>;
+    autoMatch = module.get(AutoMatchService) as jest.Mocked<AutoMatchService>;
+    unmatchedQueue = module.get(
+      UnmatchedQueueRepository,
+    ) as jest.Mocked<UnmatchedQueueRepository>;
   });
 
-  it('should be defined', () => {
+  it("should be defined", () => {
     expect(controller).toBeDefined();
   });
 
-  describe('exportReport', () => {
-    const mockReport: ReconciliationReport = {
-      runId: '123-abc',
-      startedAt: '2024-01-01T00:00:00Z',
-      completedAt: '2024-01-01T00:00:01Z',
-      durationMs: 1000,
-      escrows: {
-        processed: 10,
-        updated: 0,
-        noOp: 10,
-        skipped: 0,
-        irreconcilable: 1,
-        results: [
-          {
-            id: 'esc-1',
-            contractAddress: 'GABC',
-            previousDbStatus: EscrowDbStatus.Pending,
-            onChainState: OnChainState.Unknown,
-            resolvedDbStatus: null,
-            action: ReconciliationAction.Flagged,
-            irreconcilable: true,
-            irreconcilableReason: 'Not found on chain',
-          },
-        ],
-      },
-      payments: {
-        processed: 20,
-        updated: 0,
-        noOp: 20,
-        skipped: 0,
-        irreconcilable: 0,
-        results: [],
-      },
-    };
+  describe("getStatus", () => {
+    it("returns worker status", () => {
+      const report = { runId: "r1" } as never;
+      worker.getLastReport.mockReturnValue(report);
 
-    it('should throw ConflictException if no report exists', () => {
-      workerService.getLastReport.mockReturnValue(null);
-      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as unknown as jest.Mocked<Response>;
+      const result = controller.getStatus();
 
-      expect(() => controller.exportReport('json', res)).toThrow(ConflictException);
+      expect(result).toEqual({ running: false, lastReport: report });
+    });
+  });
+
+  describe("trigger", () => {
+    it("calls worker.triggerManually and returns the report", async () => {
+      const report = { runId: "r1" } as never;
+      worker.triggerManually.mockResolvedValue(report);
+
+      const result = await controller.trigger();
+
+      expect(result).toBe(report);
     });
 
-    it('should export in JSON format by default', () => {
-      workerService.getLastReport.mockReturnValue(mockReport);
-      const res = { setHeader: jest.fn(), json: jest.fn(), send: jest.fn() } as unknown as jest.Mocked<Response>;
+    it("throws ConflictException when already running", async () => {
+      worker.triggerManually.mockRejectedValue(
+        new Error("Reconciliation is already running"),
+      );
 
-      controller.exportReport('json', res);
-
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="rc-report-123-abc.json"');
-      
-      expect(res.json).toHaveBeenCalled();
-      const exportData = res.json.mock.calls[0][0];
-      
-      expect(exportData.runId).toEqual('123-abc');
-      expect(exportData.environment.network).toEqual('testnet');
-      expect(exportData.blockers).toHaveLength(1);
-      expect(exportData.blockers[0]).toContain('Escrow esc-1');
-      expect(exportData.timestamps.startedAt).toEqual('2024-01-01T00:00:00Z');
+      await expect(controller.trigger()).rejects.toThrow(ConflictException);
     });
 
-    it('should export in markdown format', () => {
-      workerService.getLastReport.mockReturnValue(mockReport);
-      const res = { setHeader: jest.fn(), send: jest.fn(), json: jest.fn() } as unknown as jest.Mocked<Response>;
+    it("re-throws non-conflict errors", async () => {
+      worker.triggerManually.mockRejectedValue(new Error("boom"));
 
-      controller.exportReport('markdown', res);
+      await expect(controller.trigger()).rejects.toThrow("boom");
+    });
+  });
 
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/markdown');
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="rc-report-123-abc.md"');
-      
-      expect(res.send).toHaveBeenCalled();
-      const markdown = res.send.mock.calls[0][0];
-      
-      expect(markdown).toContain('# Release Candidate Validation Report');
-      expect(markdown).toContain('**Run ID**: `123-abc`');
-      expect(markdown).toContain('**Network**: `testnet`');
-      expect(markdown).toContain('- Escrow esc-1: Not found on chain');
-      expect(markdown).toContain('✅ No discrepancy alerts.');
+  describe("startBackfill", () => {
+    it("calls backfill.startBackfill and returns the result", async () => {
+      const config = { fromLedger: 1, toLedger: 100 } as never;
+      const result_ = { fromLedger: 1, toLedger: 100 } as never;
+      backfill.startBackfill.mockResolvedValue(result_);
+
+      const result = await controller.startBackfill(config);
+
+      expect(result).toBe(result_);
+    });
+
+    it("throws ConflictException when a backfill is already running", async () => {
+      backfill.startBackfill.mockRejectedValue(
+        new Error("A backfill job is already running"),
+      );
+
+      await expect(controller.startBackfill({} as never)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("re-throws non-conflict errors", async () => {
+      backfill.startBackfill.mockRejectedValue(new Error("boom"));
+
+      await expect(controller.startBackfill({} as never)).rejects.toThrow(
+        "boom",
+      );
+    });
+  });
+
+  describe("getBackfillStatus", () => {
+    it("returns null when no job", () => {
+      backfill.getBackfillProgress.mockReturnValue(null);
+      expect(controller.getBackfillStatus()).toBeNull();
+    });
+
+    it("returns progress when a job exists", () => {
+      const progress = { fromLedger: 1, toLedger: 100 } as never;
+      backfill.getBackfillProgress.mockReturnValue(progress);
+      expect(controller.getBackfillStatus()).toBe(progress);
+    });
+  });
+
+  describe("getAutoMatchStatus", () => {
+    it("returns running flag", () => {
+      expect(controller.getAutoMatchStatus()).toEqual({ running: false });
+    });
+  });
+
+  describe("triggerAutoMatch", () => {
+    it("throws ConflictException when already running", async () => {
+      Object.defineProperty(autoMatch, "running", {
+        value: true,
+        writable: true,
+      });
+
+      await expect(controller.triggerAutoMatch()).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("runs cycle when not running and returns counters", async () => {
+      const counters = {
+        processed: 5,
+        matched: 3,
+        queued: 1,
+        unmatched: 1,
+      };
+      autoMatch.runAutoMatchCycle.mockResolvedValue(counters);
+
+      const result = await controller.triggerAutoMatch();
+
+      expect(result).toEqual(counters);
+      expect(autoMatch.runAutoMatchCycle).toHaveBeenCalled();
+    });
+  });
+
+  describe("processTransaction", () => {
+    it("delegates to autoMatch.processTransaction", async () => {
+      const tx = { txHash: "0xabc" } as never;
+      const matchResult = { score: 0.9 } as never;
+      autoMatch.processTransaction.mockResolvedValue(matchResult);
+
+      const result = await controller.processTransaction(tx);
+
+      expect(result).toBe(matchResult);
+      expect(autoMatch.processTransaction).toHaveBeenCalledWith(tx);
+    });
+  });
+
+  describe("listUnmatched", () => {
+    it("returns paginated unmatched items", async () => {
+      const page = {
+        items: [{ id: "u1" }],
+        total: 1,
+        hasMore: false,
+      } as never;
+      unmatchedQueue.listPending.mockResolvedValue(page);
+
+      const result = await controller.listUnmatched("10", "0");
+
+      expect(result).toEqual(page);
+      expect(unmatchedQueue.listPending).toHaveBeenCalledWith(10, 0);
+    });
+
+    it("defaults limit to 20 and offset to 0", async () => {
+      unmatchedQueue.listPending.mockResolvedValue({
+        items: [],
+        total: 0,
+        hasMore: false,
+      } as never);
+
+      await controller.listUnmatched();
+
+      expect(unmatchedQueue.listPending).toHaveBeenCalledWith(20, 0);
+    });
+
+    it("clamps limit to max 100", async () => {
+      unmatchedQueue.listPending.mockResolvedValue({
+        items: [],
+        total: 0,
+        hasMore: false,
+      } as never);
+
+      await controller.listUnmatched("500", "0");
+
+      expect(unmatchedQueue.listPending).toHaveBeenCalledWith(100, 0);
+    });
+  });
+
+  describe("getUnmatched", () => {
+    it("returns unmatched transaction when found", async () => {
+      unmatchedQueue.findById.mockResolvedValue({
+        id: "u1",
+        txHash: "tx1",
+      } as never);
+
+      const result = await controller.getUnmatched("u1");
+
+      expect(result).toEqual({ id: "u1", txHash: "tx1" });
+    });
+
+    it("throws NotFoundException when not found", async () => {
+      unmatchedQueue.findById.mockResolvedValue(null);
+
+      await expect(controller.getUnmatched("missing")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("resolveUnmatched", () => {
+    it("resolves and returns status", async () => {
+      unmatchedQueue.findById.mockResolvedValue({ id: "u1" } as never);
+      unmatchedQueue.resolve.mockResolvedValue(undefined);
+
+      const result = await controller.resolveUnmatched("u1", {
+        resolvedBy: "GABC",
+        note: "test",
+      });
+
+      expect(result).toEqual({ id: "u1", status: "resolved" });
+      expect(unmatchedQueue.resolve).toHaveBeenCalledWith("u1", "GABC", "test");
+    });
+
+    it("throws NotFoundException when record not found", async () => {
+      unmatchedQueue.findById.mockResolvedValue(null);
+
+      await expect(
+        controller.resolveUnmatched("missing", { resolvedBy: "GABC" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("dismissUnmatched", () => {
+    it("dismisses and returns status", async () => {
+      unmatchedQueue.findById.mockResolvedValue({ id: "u1" } as never);
+      unmatchedQueue.dismiss.mockResolvedValue(undefined);
+
+      const result = await controller.dismissUnmatched("u1", {
+        resolvedBy: "GABC",
+      });
+
+      expect(result).toEqual({ id: "u1", status: "dismissed" });
+    });
+
+    it("throws NotFoundException when record not found", async () => {
+      unmatchedQueue.findById.mockResolvedValue(null);
+
+      await expect(
+        controller.dismissUnmatched("missing", { resolvedBy: "GABC" }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

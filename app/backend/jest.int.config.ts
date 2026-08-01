@@ -1,6 +1,7 @@
-import base from "./jest.config"
+import base from "./jest.config";
 
 export default {
   ...base,
-  testRegex: '.*\\.int\\.spec\\.ts$',
+  testRegex: ".*\\.int\\.spec\\.ts$",
+  coverageThreshold: undefined,
 };

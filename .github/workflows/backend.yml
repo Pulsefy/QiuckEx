@@ -2,13 +2,13 @@ name: Backend CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'app/backend/**'
+      - "app/backend/**"
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'app/backend/**'
+      - "app/backend/**"
 
 jobs:
   build-and-test:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -50,3 +50,19 @@ jobs:
       #     STELLAR_NETWORK: testnet
       #     SUPABASE_URL: https://test.supabase.co
       #     SUPABASE_ANON_KEY: test-key
+
+      - name: Run Unit Tests with Coverage
+        run: pnpm run test:unit:coverage
+        env:
+          NODE_ENV: test
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-key
+
+      - name: Run Integration Tests with Coverage
+        run: pnpm run test:int:coverage
+        env:
+          NODE_ENV: test
+          STELLAR_NETWORK: testnet
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-key

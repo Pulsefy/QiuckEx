@@ -12,6 +12,11 @@ export interface TransactionItem {
   source: string;
   destination: string;
   status: "Success" | "Pending";
+  /**
+   * Payment direction relative to the connected account.
+   * Derived client-side: 'sent' if source matches accountId, 'received' otherwise.
+   */
+  direction?: "sent" | "received";
 }
 
 /**
