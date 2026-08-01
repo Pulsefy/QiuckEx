@@ -4,10 +4,14 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, V
 
 mod admin;
 #[cfg(test)]
+mod assert_helpers;
+#[cfg(test)]
 mod bench_test;
 mod commitment;
 #[cfg(test)]
 mod commitment_test;
+#[cfg(test)]
+mod coverage_test;
 mod errors;
 mod escrow;
 mod escrow_id;
@@ -594,6 +598,27 @@ impl QuickexContract {
         escrow::cleanup_escrow(&env, commitment)
     }
 
+    /// Automatically finalize an expired escrow by refunding to the owner.
+    ///
+    /// This function enables deterministic timeout-based refund finalization so
+    /// expired flows can resolve cleanly on testnet without manual intervention.
+    /// Any caller can invoke this function once the escrow has expired.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `AlreadySpent` - Escrow is already in a terminal state
+    /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
+    /// * `InvalidDisputeState` - Escrow is disputed, funds are locked
+    pub fn finalize_expired_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::Refund)?;
+        hook::assert_not_reentrant(&env)?;
+        escrow::finalize_expired_escrow(&env, commitment)
+    }
+
     /// Extend the storage TTL of an escrow record.
     ///
     /// Any user can call this to keep an escrow from being archived.
@@ -1082,6 +1107,22 @@ impl QuickexContract {
         let commitment_bytes: Bytes = commitment.into();
         let entry: Option<EscrowEntry> = get_escrow(&env, &commitment_bytes);
         entry.map(|e| e.status)
+    }
+
+    /// Check whether an escrow is currently eligible for `finalize_expired_escrow`,
+    /// without submitting a state-changing transaction (read-only).
+    ///
+    /// Intended for keepers/dapps to poll before calling `finalize_expired_escrow`,
+    /// and for indexers reconstructing refund availability off-chain.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    pub fn is_refund_eligible(env: Env, commitment: BytesN<32>) -> Result<bool, QuickexError> {
+        escrow::is_refund_eligible(&env, commitment)
     }
 
     /// Verify withdrawal parameters without submitting a transaction (read-only).
