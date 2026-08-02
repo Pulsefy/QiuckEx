@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { BranchPreviewService } from './branch-preview.service';
-import { BranchPreviewCache } from './branch-preview.cache';
-import { BranchPreviewRepository } from './branch-preview.repository';
-import { AuditService } from '../audit/audit.service';
-import { BranchPreviewAutoExpiryService } from './branch-preview-auto-expiry.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { BranchPreviewService } from "./branch-preview.service";
+import { BranchPreviewCache } from "./branch-preview.cache";
+import { BranchPreviewRepository } from "./branch-preview.repository";
+import { AuditService } from "../audit/audit.service";
+import { BranchPreviewAutoExpiryService } from "./branch-preview-auto-expiry.service";
 
-describe('BranchPreviewService', () => {
+describe("BranchPreviewService", () => {
   let service: BranchPreviewService;
   let cache: jest.Mocked<BranchPreviewCache>;
   let repository: jest.Mocked<BranchPreviewRepository>;
@@ -51,83 +51,85 @@ describe('BranchPreviewService', () => {
 
     service = module.get<BranchPreviewService>(BranchPreviewService);
     cache = module.get(BranchPreviewCache) as jest.Mocked<BranchPreviewCache>;
-    repository = module.get(BranchPreviewRepository) as jest.Mocked<BranchPreviewRepository>;
+    repository = module.get(
+      BranchPreviewRepository,
+    ) as jest.Mocked<BranchPreviewRepository>;
   });
 
-  it('should be defined', () => {
+  it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
-  it('returns fallback for unknown branch', async () => {
-    const branchName = 'unknown-branch-123';
+  it("returns fallback for unknown branch", async () => {
+    const branchName = "unknown-branch-123";
     cache.get.mockReturnValue(undefined);
     repository.findByBranchName.mockResolvedValue(null);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.isFallback).toBe(true);
-    expect(result.branchName).toBe('fallback');
+    expect(result.branchName).toBe("fallback");
   });
 
-  it('returns cached preview when available and valid', async () => {
-    const branchName = 'feature/test-branch';
+  it("returns cached preview when available and valid", async () => {
+    const branchName = "feature/test-branch";
     const mockPreview = {
-      id: 'test-id',
+      id: "test-id",
       branchName,
-      apiUrl: 'https://api.test.com',
-      frontendUrl: 'https://app.test.com',
-      network: 'testnet' as const,
-      contractRegistryVersion: 'v1.0.0',
+      apiUrl: "https://api.test.com",
+      frontendUrl: "https://app.test.com",
+      network: "testnet" as const,
+      contractRegistryVersion: "v1.0.0",
       isActive: true,
       isShared: false,
       expiryExempt: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     cache.get.mockReturnValue(mockPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
-    expect(result.isFallback).toBeUndefined();
-    expect(result.apiUrl).toBe('https://api.test.com');
+
+    expect(result.isFallback).toBe(false);
+    expect(result.apiUrl).toBe("https://api.test.com");
     expect(repository.findByBranchName).not.toHaveBeenCalled();
   });
 
-  it('fetches from database when cache miss', async () => {
-    const branchName = 'feature/database-test';
+  it("fetches from database when cache miss", async () => {
+    const branchName = "feature/database-test";
     const mockPreview = {
-      id: 'test-id-2',
+      id: "test-id-2",
       branchName,
-      apiUrl: 'https://api.db-test.com',
-      frontendUrl: 'https://app.db-test.com',
-      network: 'testnet' as const,
-      contractRegistryVersion: 'v1.1.0',
+      apiUrl: "https://api.db-test.com",
+      frontendUrl: "https://app.db-test.com",
+      network: "testnet" as const,
+      contractRegistryVersion: "v1.1.0",
       isActive: true,
       isShared: false,
       expiryExempt: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     cache.get.mockReturnValue(undefined);
     repository.findByBranchName.mockResolvedValue(mockPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
-    expect(result.apiUrl).toBe('https://api.db-test.com');
-    expect(cache.set).toHaveBeenCalledWith(branchName, mockPreview, undefined);
+
+    expect(result.apiUrl).toBe("https://api.db-test.com");
+    expect(cache.set).toHaveBeenCalledWith(branchName, mockPreview);
   });
 
-  it('returns fallback for stale/expired preview', async () => {
-    const branchName = 'feature/expired-branch';
+  it("returns fallback for stale/expired preview", async () => {
+    const branchName = "feature/expired-branch";
     const expiredPreview = {
-      id: 'expired-id',
+      id: "expired-id",
       branchName,
-      apiUrl: 'https://api.expired.com',
-      frontendUrl: 'https://app.expired.com',
-      network: 'testnet' as const,
-      contractRegistryVersion: 'v0.9.0',
+      apiUrl: "https://api.expired.com",
+      frontendUrl: "https://app.expired.com",
+      network: "testnet" as const,
+      contractRegistryVersion: "v0.9.0",
       isActive: true,
       isShared: false,
       expiryExempt: false,
@@ -135,12 +137,12 @@ describe('BranchPreviewService', () => {
       updatedAt: new Date(Date.now() - 86400000),
       expiresAt: new Date(Date.now() - 3600000), // Expired 1 hour ago
     };
-    
+
     cache.get.mockReturnValue(expiredPreview);
     repository.findByBranchName.mockResolvedValue(expiredPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.isFallback).toBe(true);
   });
 });

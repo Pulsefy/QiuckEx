@@ -11,4 +11,12 @@ export default {
   setupFiles: ["<rootDir>/jest.setup.ts"],
   testTimeout: 10000,
   maxWorkers: "50%",
+  coverageThreshold: {
+    global: {
+      branches: 38,
+      functions: 40,
+      lines: 44,
+      statements: 44,
+    },
+  },
 };

@@ -12,7 +12,6 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-// import { RateLimitGroup } from "../config/rate-limit.config";
 import {
   ApiBody,
   ApiOperation,
@@ -55,6 +54,7 @@ export class UsernamesController {
   ) {}
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @ApiOperation({
     summary: "Create a new username",
     description:
@@ -82,6 +82,10 @@ export class UsernamesController {
   @ApiResponse({
     status: 403,
     description: "Wallet has reached the maximum allowed usernames",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Rate limit exceeded – retry after 60 seconds",
   })
   async createUsername(
     @Body() body: CreateUsernameDto,
@@ -365,6 +369,7 @@ export class UsernamesController {
   }
 
   @Post("toggle-public")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: "Toggle public profile visibility",
     description:

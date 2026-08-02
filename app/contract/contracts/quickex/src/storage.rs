@@ -49,7 +49,9 @@ use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
 #[cfg(test)]
 use soroban_sdk::xdr::ToXdr;
 
-use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
+use crate::types::{
+    CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry,
+};
 
 /// Record type for TTL policy selection.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -179,6 +181,8 @@ pub enum DataKey {
     PlatformWallet,
     /// Oracle fee configuration for dynamic USD-based fees.
     OracleFeeConfig,
+    /// Cached oracle price with timestamp for staleness guards.
+    CachedOraclePrice,
     /// Registered hook contract addresses.
     HookRegistry,
     /// Reentrancy guard to prevent callback-based reentry during hook execution.
@@ -201,6 +205,8 @@ pub enum DataKey {
     FeeCollector(u32),
     /// Tracks arbiter votes for disputed escrows. Keyed by (commitment, arbiter).
     DisputeVote(Bytes, Address),
+    /// Tracks whether a hook contract is on the allowlist.
+    HookAllowlist(Address),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -804,6 +810,32 @@ pub fn set_oracle_fee_config(env: &Env, config: &crate::types::OracleFeeConfig) 
     env.storage()
         .persistent()
         .set(&DataKey::OracleFeeConfig, config);
+}
+
+/// Get the cached oracle price record (price + timestamp).
+pub fn get_cached_oracle_price(env: &Env) -> Option<CachedOraclePrice> {
+    env.storage().persistent().get(&DataKey::CachedOraclePrice)
+}
+
+/// Set the cached oracle price record. Called when the oracle delivers a fresh price.
+pub fn set_cached_oracle_price(env: &Env, price: &CachedOraclePrice) {
+    let key = DataKey::CachedOraclePrice;
+    env.storage().persistent().set(&key, price);
+    set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+}
+
+pub fn is_hook_allowed(env: &Env, hook_contract: &Address) -> bool {
+    let key = DataKey::HookAllowlist(hook_contract.clone());
+    env.storage().persistent().get(&key).unwrap_or(false)
+}
+
+pub fn set_hook_allowed(env: &Env, hook_contract: &Address, allowed: bool) {
+    let key = DataKey::HookAllowlist(hook_contract.clone());
+    if allowed {
+        env.storage().persistent().set(&key, &true);
+    } else {
+        env.storage().persistent().remove(&key);
+    }
 }
 
 pub fn get_registered_hooks(env: &Env) -> Vec<Address> {

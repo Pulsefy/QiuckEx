@@ -21,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 
 import { MarketplaceService } from './marketplace.service';
-import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto } from './dto';
+import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto, MarketplaceListingDetailDto } from './dto';
 import { MarketplaceError, MarketplaceErrorCode } from './errors';
 
 @ApiTags('marketplace')
@@ -86,7 +86,7 @@ export class MarketplaceController {
   async getListingDetail(
     @Param('listingId') listingId: string,
     @Query('viewerPublicKey') viewerPublicKey?: string,
-  ) {
+  ): Promise<MarketplaceListingDetailDto> {
     try {
       const detail = await this.marketplaceService.getListingDetail(
         listingId,

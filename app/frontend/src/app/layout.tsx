@@ -5,6 +5,7 @@ import { EnvGuard } from "@/components/EnvGuard";
 import { NotificationCenterProvider } from "@/components/NotificationCenterProvider";
 import { ErrorReportingShell } from "@/components/ErrorReportingShell";
 import { ThemeProvider, themeInitScript } from "@/components/ThemeProvider";
+import { BootstrapProvider } from "@/contexts/BootstrapContext";
 import "./globals.css";
 
 const siteUrl =
@@ -62,37 +63,39 @@ export default function RootLayout({
       <body className="bg-background text-foreground antialiased">
         <StagingBanner />
         <ThemeProvider>
-          <NotificationCenterProvider>
-            <EnvGuard>
-              <Header />
-              <ErrorReportingShell>
-                <main
-                  id="main-content"
-                  tabIndex={-1}
-                  className="min-h-screen container mx-auto px-6 py-10 focus:outline-none"
-                >
-                  {children}
-                </main>
-              </ErrorReportingShell>
+          <BootstrapProvider>
+            <NotificationCenterProvider>
+              <EnvGuard>
+                <Header />
+                <ErrorReportingShell>
+                  <main
+                    id="main-content"
+                    tabIndex={-1}
+                    className="min-h-screen container mx-auto px-6 py-10 focus:outline-none"
+                  >
+                    {children}
+                  </main>
+                </ErrorReportingShell>
 
-              <footer className="container mx-auto border-t border-border px-6 py-12 text-sm text-subtle">
-                <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
-                  <p>Copyright 2026 QuickEx Platform. Built by Pulsefy.</p>
-                  <div className="flex gap-8 underline decoration-border underline-offset-4 hover:decoration-border-strong">
-                    <a
-                      href="https://github.com/pulsefy/QuickEx"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      GitHub
-                    </a>
-                    <a href="#">Terms</a>
-                    <a href="#">Privacy</a>
+                <footer className="container mx-auto border-t border-border px-6 py-12 text-sm text-subtle">
+                  <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
+                    <p>Copyright 2026 QuickEx Platform. Built by Pulsefy.</p>
+                    <div className="flex gap-8 underline decoration-border underline-offset-4 hover:decoration-border-strong">
+                      <a
+                        href="https://github.com/pulsefy/QuickEx"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        GitHub
+                      </a>
+                      <a href="#">Terms</a>
+                      <a href="#">Privacy</a>
+                    </div>
                   </div>
-                </div>
-              </footer>
-            </EnvGuard>
-          </NotificationCenterProvider>
+                </footer>
+              </EnvGuard>
+            </NotificationCenterProvider>
+          </BootstrapProvider>
         </ThemeProvider>
       </body>
     </html>
