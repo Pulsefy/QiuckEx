@@ -9,6 +9,7 @@ import { PrivacyEventRepository } from "./privacy-event.repository";
 import { AdminEventRepository } from "./admin-event.repository";
 import { StealthEventRepository } from "./stealth-event.repository";
 import { IndexerCheckpointRepository } from "./indexer-checkpoint.repository";
+import { UnparsedSorobanEventRepository } from "./unparsed-soroban-event.repository";
 import { SorobanEventParser } from "./soroban-event.parser";
 import { StellarIngestionService } from "./stellar-ingestion.service";
 import { SorobanEventIndexerService } from "./soroban-event-indexer.service";
@@ -29,6 +30,7 @@ import { IngestionBootstrapService } from "./ingestion-bootstrap.service";
     AdminEventRepository,
     StealthEventRepository,
     IndexerCheckpointRepository,
+    UnparsedSorobanEventRepository,
     SorobanEventParser,
     StellarIngestionService,
     SorobanEventIndexerService,
@@ -40,6 +42,7 @@ import { IngestionBootstrapService } from "./ingestion-bootstrap.service";
     SorobanEventParser,
     CursorRepository,
     EscrowEventRepository,
+    UnparsedSorobanEventRepository,
   ],
 })
 export class IngestionModule {}

@@ -62,18 +62,18 @@ export class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <section className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-6 rounded-3xl border border-white/10 bg-neutral-950/90 p-8 text-center shadow-2xl shadow-black/20">
-          <p className="text-sm uppercase tracking-[0.22em] text-neutral-400">
+        <section className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-6 rounded-3xl border border-border-strong bg-background/90 p-8 text-center shadow-2xl shadow-black/20">
+          <p className="text-sm uppercase tracking-[0.22em] text-subtle">
             Something went wrong
           </p>
-          <h1 className="text-3xl font-semibold text-white">An error occurred</h1>
-          <p className="max-w-xl text-neutral-300">
+          <h1 className="text-3xl font-semibold text-foreground">An error occurred</h1>
+          <p className="max-w-xl text-muted">
             This issue has been captured and can be reported with your request details.
           </p>
           <button
             type="button"
             onClick={this.handleReportClick}
-            className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-100"
+            className="rounded-full bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
           >
             Report Issue
           </button>

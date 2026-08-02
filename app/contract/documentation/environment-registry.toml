@@ -1,0 +1,35 @@
+# QuickEx environment registry
+#
+# This file is the deploy-time source of truth used by operators and downstream
+# services (backend/frontend) to discover deployed contract coordinates.
+
+version = 1
+application = "quickex"
+
+[environments.testnet]
+network = "testnet"
+rpc_url = "https://soroban-testnet.stellar.org"
+network_passphrase = "Test SDF Network ; September 2015"
+identity = "seyi"
+mainnet_gated = false
+
+[[environments.testnet.contracts]]
+name = "quickex"
+contract_id = "CCM5LR3XVTSDDNVEK7U4QQUN663TU4LZGDTMP3H4QIPIZO2WJOAJS2JH"
+wasm_hash = "0x57025c36c2dca81767dfbe03e78e7abc383e138ef9fe44b61f327e2cac83ed92"
+admin_addresses = ["GA5TBSBGERHVMEFBJGEM3KYMRLWO73Y2QRAV6P66GPEBOJ5ZMJUT7LLY"]
+init_params = { admin = "GA5TBSBGERHVMEFBJGEM3KYMRLWO73Y2QRAV6P66GPEBOJ5ZMJUT7LLY" }
+deployed_at = "2026-06-02T11:54:30Z"
+deployed_by = "seyi"
+upload_tx_hash = "1848411768eab5cacdaa72d371787db1e46c90b193a0e8ba4e9107ac996366dd"
+deploy_tx_hash = "a007fe77e9bbe4c0c68d951dfa9005684c5886029e60dd3a0539266136729ac4"
+explorer_url = "https://stellar.expert/explorer/testnet/contract/CCM5LR3XVTSDDNVEK7U4QQUN663TU4LZGDTMP3H4QIPIZO2WJOAJS2JH"
+lab_url = "https://lab.stellar.org/r/testnet/contract/CCM5LR3XVTSDDNVEK7U4QQUN663TU4LZGDTMP3H4QIPIZO2WJOAJS2JH"
+notes = "Deployed with stellar CLI via `stellar contract deploy` using the latest build artifacts and updated for issue #429."
+
+[environments.mainnet]
+network = "mainnet"
+rpc_url = "https://mainnet.stellar.org"
+network_passphrase = "Public Global Stellar Network ; September 2015"
+identity = "quickex-mainnet"
+mainnet_gated = true

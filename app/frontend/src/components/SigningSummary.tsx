@@ -64,19 +64,19 @@ export function SigningSummary({
           <p className="text-[10px] uppercase tracking-widest font-black text-indigo-400/70">
             Secure Signing Request
           </p>
-          <h3 className="text-lg font-black text-white">{actionLabels[action]}</h3>
+          <h3 className="text-lg font-black text-foreground">{actionLabels[action]}</h3>
         </div>
       </div>
 
       {/* Main Summary Card */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+      <div className="bg-surface border border-border-strong rounded-2xl overflow-hidden">
         {amount && (
-          <div className="p-6 text-center border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-            <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="p-6 text-center border-b border-border bg-gradient-to-b from-white/[0.02] to-transparent">
+            <p className="text-xs font-bold text-subtle uppercase tracking-widest mb-1">
               Transaction Value
             </p>
             <div className="flex items-center justify-center gap-2">
-              <span className="text-3xl font-black text-white">{amount.value}</span>
+              <span className="text-3xl font-black text-foreground">{amount.value}</span>
               <span className="text-lg font-bold text-indigo-400">{amount.asset}</span>
             </div>
           </div>
@@ -85,33 +85,33 @@ export function SigningSummary({
         <div className="p-4 space-y-3">
           {details.map((detail, i) => (
             <div key={i} className="flex justify-between items-center text-sm">
-              <span className="text-neutral-500 font-medium">{detail.label}</span>
-              <span className="text-white font-bold font-mono text-xs">{detail.value}</span>
+              <span className="text-subtle font-medium">{detail.label}</span>
+              <span className="text-foreground font-bold font-mono text-xs">{detail.value}</span>
             </div>
           ))}
 
           {fee && (
             <div className="flex justify-between items-center text-sm">
-              <span className="text-neutral-500 font-medium">{fee.label ?? "Estimated Fee"}</span>
-              <span className={`font-bold ${isHighFee ? "text-red-400" : "text-neutral-300"}`}>
+              <span className="text-subtle font-medium">{fee.label ?? "Estimated Fee"}</span>
+              <span className={`font-bold ${isHighFee ? "text-red-400" : "text-muted"}`}>
                 {fee.value} {fee.asset}
                 {feePercentage !== undefined ? ` (${feePercentage.toFixed(1)}%)` : ""}
               </span>
             </div>
           )}
 
-          <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
-            <span className="text-neutral-500 font-medium flex items-center gap-1.5">
+          <div className="flex justify-between items-center text-sm pt-2 border-t border-border">
+            <span className="text-subtle font-medium flex items-center gap-1.5">
               <Wallet size={14} /> Network
             </span>
-            <span className={`font-bold ${isNetworkMismatch ? "text-red-400" : "text-neutral-300"}`}>
+            <span className={`font-bold ${isNetworkMismatch ? "text-red-400" : "text-muted"}`}>
               {network}
             </span>
           </div>
 
           {expiry && (
             <div className="flex justify-between items-center text-sm">
-              <span className="text-neutral-500 font-medium flex items-center gap-1.5">
+              <span className="text-subtle font-medium flex items-center gap-1.5">
                 <Clock size={14} /> Quote Expiry
               </span>
               <span className={`font-bold ${isExpired ? "text-red-400" : "text-emerald-400"}`}>
@@ -142,7 +142,7 @@ export function SigningSummary({
       )}
 
       {!isNetworkMismatch && !isExpired && !isHighFee && (
-        <p className="text-[10px] text-neutral-500 text-center px-4 leading-relaxed italic">
+        <p className="text-[10px] text-subtle text-center px-4 leading-relaxed italic">
           Verify the details above match your intention. This summary is generated from the exact payload that will be sent to your wallet.
         </p>
       )}

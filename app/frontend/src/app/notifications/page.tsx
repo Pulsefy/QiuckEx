@@ -95,28 +95,28 @@ function NotificationsPageContent() {
   };
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="relative min-h-screen text-foreground">
       <NetworkBadge />
 
       <div className="fixed left-[-20%] top-[-15%] h-[24rem] w-[24rem] rounded-full bg-indigo-500/15 blur-[120px]" />
-      <div className="fixed bottom-[-18%] right-[-12%] h-[22rem] w-[22rem] rounded-full bg-emerald-500/10 blur-[120px]" />
+      <div className="fixed bottom-[-18%] right-[-12%] h-[22rem] w-[22rem] rounded-full bg-success-soft blur-[120px]" />
 
       <div className="relative z-10 mx-auto max-w-6xl">
-        <header className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.85)] backdrop-blur">
-          <nav className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-neutral-400">
-            <Link href="/" className="transition hover:text-white">
+        <header className="rounded-[2rem] border border-border-strong bg-card/[0.04] p-8 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.85)] backdrop-blur">
+          <nav className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-subtle">
+            <Link href="/" className="transition hover:text-foreground">
               QuickEx
             </Link>
             <span>/</span>
-            <span className="text-neutral-100">Notifications</span>
+            <span className="text-foreground">Notifications</span>
           </nav>
 
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
                 Notification Center
               </h1>
-              <p className="mt-3 max-w-2xl text-base text-neutral-200">
+              <p className="mt-3 max-w-2xl text-base text-muted">
                 Review updates, jump directly into the right payment or escrow
                 context, and keep your inbox clean without losing anything on
                 refresh.
@@ -126,7 +126,7 @@ function NotificationsPageContent() {
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/dashboard"
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-neutral-100 transition hover:bg-white/10"
+                className="rounded-full border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
               >
                 Back to dashboard
               </Link>
@@ -134,7 +134,7 @@ function NotificationsPageContent() {
                 type="button"
                 onClick={() => markAllAsRead()}
                 disabled={unreadCount === 0}
-                className="rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Mark all as read
               </button>
@@ -142,38 +142,38 @@ function NotificationsPageContent() {
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-3xl border border-white/10 bg-neutral-950/60 p-5">
-              <p className="text-sm text-neutral-400">Unread</p>
-              <p className="mt-2 text-3xl font-semibold text-white">
+            <div className="rounded-3xl border border-border-strong bg-background/60 p-5">
+              <p className="text-sm text-subtle">Unread</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">
                 {unreadCount}
               </p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-neutral-950/60 p-5">
-              <p className="text-sm text-neutral-400">Payments</p>
-              <p className="mt-2 text-3xl font-semibold text-white">
+            <div className="rounded-3xl border border-border-strong bg-background/60 p-5">
+              <p className="text-sm text-subtle">Payments</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">
                 {counts.payments}
               </p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-neutral-950/60 p-5">
-              <p className="text-sm text-neutral-400">Escrows</p>
-              <p className="mt-2 text-3xl font-semibold text-white">
+            <div className="rounded-3xl border border-border-strong bg-background/60 p-5">
+              <p className="text-sm text-subtle">Escrows</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">
                 {counts.escrows}
               </p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-neutral-950/60 p-5">
-              <p className="text-sm text-neutral-400">System</p>
-              <p className="mt-2 text-3xl font-semibold text-white">
+            <div className="rounded-3xl border border-border-strong bg-background/60 p-5">
+              <p className="text-sm text-subtle">System</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">
                 {counts.system}
               </p>
             </div>
           </div>
         </header>
 
-        <section className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur">
+        <section className="mt-8 rounded-[2rem] border border-border-strong bg-surface p-8 backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-neutral-300">
+                <p className="text-sm font-semibold text-muted">
                   Category
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -184,8 +184,8 @@ function NotificationsPageContent() {
                       onClick={() => updateFilters({ category: option.value })}
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         activeCategory === option.value
-                          ? "bg-white text-neutral-950"
-                          : "border border-white/10 bg-white/5 text-neutral-100 hover:bg-white/10"
+                          ? "bg-card text-foreground"
+                          : "border border-border-strong bg-surface text-foreground hover:bg-surface-strong"
                       }`}
                     >
                       {option.label}
@@ -195,7 +195,7 @@ function NotificationsPageContent() {
               </div>
 
               <div>
-                <p className="text-sm font-semibold text-neutral-300">
+                <p className="text-sm font-semibold text-muted">
                   Read state
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -207,7 +207,7 @@ function NotificationsPageContent() {
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         activeReadState === option.value
                           ? "bg-indigo-500 text-white"
-                          : "border border-white/10 bg-white/5 text-neutral-100 hover:bg-white/10"
+                          : "border border-border-strong bg-surface text-foreground hover:bg-surface-strong"
                       }`}
                     >
                       {option.label}
@@ -221,7 +221,7 @@ function NotificationsPageContent() {
               <button
                 type="button"
                 onClick={() => updateFilters({ category: "all", status: "all" })}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-neutral-100 transition hover:bg-white/10"
+                className="rounded-full border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
               >
                 Reset filters
               </button>
@@ -249,8 +249,8 @@ export default function NotificationsPage() {
   return (
     <Suspense
       fallback={
-        <div className="relative min-h-screen text-white">
-          <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-neutral-200 backdrop-blur">
+        <div className="relative min-h-screen text-foreground">
+          <div className="mx-auto max-w-6xl rounded-[2rem] border border-border-strong bg-card/[0.04] p-8 text-muted backdrop-blur">
             Loading notifications...
           </div>
         </div>

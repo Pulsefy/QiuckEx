@@ -14,8 +14,9 @@ import { winstonConfig } from "./common/logging/winston.config";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 // ----------------------------------------
 
-import { AppModule } from "./app.module";
+import { buildCorsOptions } from "./config/cors.config";
 import { AppConfigService } from "./config";
+import { AppModule } from "./app.module";
 import { resolveNetworkSnapshot } from "./config/network.config";
 import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exception.filter";
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
@@ -102,39 +103,13 @@ async function bootstrap() {
   // Use Helmet for security headers
   app.use(helmet());
 
-  // In development allow all origins to make it easy to test from Expo web or devices on LAN.
-  // In production keep the stricter origin whitelist to avoid accidental exposure.
-  if (process.env.NODE_ENV !== "production") {
-    app.enableCors();
-    logger.log("CORS enabled for all origins (dev mode)");
-  } else {
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "https://app.quickex.example.com",
-    ];
-
-    app.enableCors({
-      origin: (origin, callback) => {
-        if (!origin) {
-          return callback(null, true);
-        }
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          logger.warn(`CORS blocked request from origin: ${origin}`);
-          callback(new Error(`Origin not allowed by CORS: ${origin}`));
-        }
-      },
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "x-correlation-id",
-        "X-API-Key",
-      ],
-    });
-  }
+  app.enableCors(
+    buildCorsOptions({
+      nodeEnv: configService.nodeEnv,
+      allowedOrigins: configService.corsAllowedOrigins,
+      vercelProject: configService.corsVercelProject,
+    }),
+  );
 
   // Global validation pipe
   app.useGlobalPipes(

@@ -37,7 +37,7 @@ function UrgencyBar({ endsAt }: { endsAt: Date }) {
       : "bg-indigo-500";
 
   return (
-    <div className="w-full h-[3px] bg-white/5 rounded-full overflow-hidden">
+    <div className="w-full h-[3px] bg-surface rounded-full overflow-hidden">
       <div
         className={`h-full rounded-full ${color} transition-all duration-1000`}
         style={{ width: `${pct}%` }}
@@ -60,7 +60,7 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
   };
 
   return (
-    <div className="group relative flex flex-col bg-neutral-900/50 border border-white/5 rounded-3xl overflow-hidden hover:border-indigo-500/30 transition-all duration-300 hover:shadow-[0_0_40px_-15px_rgba(99,102,241,0.25)] hover:-translate-y-1">
+    <div className="group relative flex flex-col bg-card/50 border border-border rounded-3xl overflow-hidden hover:border-indigo-500/30 transition-all duration-300 hover:shadow-[0_0_40px_-15px_rgba(99,102,241,0.25)] hover:-translate-y-1">
       {/* Top glow strip */}
       <div className="h-[2px] w-full bg-gradient-to-r from-indigo-500/0 via-indigo-500/60 to-indigo-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
@@ -86,7 +86,7 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
                 isWatched
                   ? 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
-                  : 'bg-white/5 border border-white/10 text-neutral-400 hover:text-red-400 hover:bg-red-500/10'
+                  : 'bg-surface border border-border-strong text-subtle hover:text-red-400 hover:bg-red-500/10'
               }`}
               title={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
             >
@@ -97,30 +97,30 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
 
         {/* Username */}
         <div className="flex-1">
-          <p className="text-xs text-neutral-600 font-mono mb-0.5">quickex.to/</p>
-          <h3 className="text-3xl font-black tracking-tight text-white leading-none group-hover:text-indigo-300 transition-colors duration-300">
+          <p className="text-xs text-faint font-mono mb-0.5">quickex.to/</p>
+          <h3 className="text-3xl font-black tracking-tight text-foreground leading-none group-hover:text-brand transition-colors duration-300">
             {listing.username}
           </h3>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5">
-            <p className="text-[9px] uppercase font-black tracking-widest text-neutral-600 mb-1">
+          <div className="p-3 rounded-2xl bg-surface border border-border">
+            <p className="text-[9px] uppercase font-black tracking-widest text-faint mb-1">
               Current Bid
             </p>
-            <p className="font-black text-base text-white leading-none">
+            <p className="font-black text-base text-foreground leading-none">
               {listing.currentBid.toLocaleString()}
-              <span className="text-[10px] font-bold text-neutral-500 ml-1">USDC</span>
+              <span className="text-[10px] font-bold text-subtle ml-1">USDC</span>
             </p>
           </div>
-          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5">
-            <p className="text-[9px] uppercase font-black tracking-widest text-neutral-600 mb-1">
+          <div className="p-3 rounded-2xl bg-surface border border-border">
+            <p className="text-[9px] uppercase font-black tracking-widest text-faint mb-1">
               Ends In
             </p>
             <p
               className={`font-black text-base leading-none ${
-                isUrgent ? "text-red-400 animate-pulse" : "text-white"
+                isUrgent ? "text-red-400 animate-pulse" : "text-foreground"
               }`}
             >
               {countdown}
@@ -131,7 +131,7 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
         <UrgencyBar endsAt={listing.endsAt} />
 
         {/* Bottom row: owner + bid count */}
-        <div className="flex items-center justify-between text-[11px] text-neutral-600">
+        <div className="flex items-center justify-between text-[11px] text-faint">
           <span className="font-mono">
             {listing.ownerAddress}
           </span>
@@ -142,9 +142,9 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
 
         {/* Buy now price */}
         {listing.buyNowPrice && (
-          <p className="text-[10px] text-neutral-500 -mt-2">
+          <p className="text-[10px] text-subtle -mt-2">
             Buy Now:{" "}
-            <span className="text-white font-bold">
+            <span className="text-foreground font-bold">
               {listing.buyNowPrice.toLocaleString()} USDC
             </span>
           </p>
@@ -154,7 +154,7 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
           <button
             type="button"
             onClick={() => onViewDetails(listing)}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-bold tracking-wide text-neutral-100 transition-all duration-200 hover:bg-white/10"
+            className="w-full rounded-2xl border border-border-strong bg-surface py-3.5 text-sm font-bold tracking-wide text-foreground transition-all duration-200 hover:bg-surface-strong"
           >
             View Details
           </button>
@@ -162,7 +162,7 @@ export function UsernameCard({ listing, onBid, onViewDetails }: UsernameCardProp
             id={`bid-btn-${listing.id}`}
             type="button"
             onClick={() => onBid(listing)}
-            className="w-full rounded-2xl border border-indigo-500/30 bg-indigo-500/10 py-3.5 text-sm font-black tracking-wide text-indigo-300 transition-all duration-200 hover:border-indigo-500 hover:bg-indigo-500 hover:text-white hover:shadow-[0_8px_32px_-10px_rgba(99,102,241,0.6)] active:scale-95"
+            className="w-full rounded-2xl border border-indigo-500/30 bg-indigo-500/10 py-3.5 text-sm font-black tracking-wide text-brand transition-all duration-200 hover:border-indigo-500 hover:bg-indigo-500 hover:text-white hover:shadow-[0_8px_32px_-10px_rgba(99,102,241,0.6)] active:scale-95"
           >
             Place Bid
           </button>

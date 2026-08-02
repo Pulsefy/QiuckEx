@@ -10,19 +10,19 @@ import type { Request } from 'express';
 
 import { AppConfigService } from '../config';
 import { AuditService } from '../audit/audit.service';
+import {
+  CONTRACT_WRITES_DISABLED_CODE,
+  CONTRACT_WRITES_DISABLED_MESSAGE,
+  TESTNET_CONTRACT_WRITES_FLAG,
+} from './contract-write-kill-switch.constants';
 import { FeatureFlagsService } from './feature-flags.service';
 import { REQUIRES_FLAG_KEY } from './requires-flag.decorator';
 
 /**
  * Guard that enforces network-aware feature flag gating on high-risk flows.
  *
- * Behaviour:
- *  - If the handler has no @RequiresFlag() decorator → pass through.
- *  - On testnet → pass through (development-safe default).
- *  - On mainnet → evaluate the flag. If disabled (or missing) → 503.
- *    The allowedUsers list on the flag enables early-access per org/user.
- *
- * All blocked requests are audited so they are visible in admin tooling.
+ * Contract write routes use a fresh flag read so the testnet kill switch takes
+ * effect across instances without waiting for the normal feature flag cache.
  */
 @Injectable()
 export class NetworkSafetyGuard implements CanActivate {
@@ -41,20 +41,53 @@ export class NetworkSafetyGuard implements CanActivate {
       [ctx.getHandler(), ctx.getClass()],
     );
 
-    // No flag requirement on this route → always allow.
+    // No flag requirement on this route: always allow.
     if (!flagKey) return true;
-
-    // Testnet is always safe → allow.
-    if (this.config.isTestnet) return true;
 
     const req = ctx.switchToHttp().getRequest<Request>();
     const userId = (req.headers['x-user-id'] as string | undefined)?.trim();
+
+    if (flagKey === TESTNET_CONTRACT_WRITES_FLAG) {
+      if (!this.config.isTestnet) return true;
+
+      const result = await this.flags.evaluateFlagFresh(flagKey, { userId });
+
+      if (result.enabled) return true;
+
+      await this.audit.log(
+        userId ?? 'anonymous',
+        'network_safety_gate.blocked',
+        flagKey,
+        {
+          reason: result.reason,
+          network: this.config.network,
+          path: req.path,
+          method: req.method,
+        },
+      );
+
+      this.logger.warn(
+        `NetworkSafetyGuard blocked ${req.method} ${req.path} ` +
+          `(flag=${flagKey} reason=${result.reason} network=testnet)`,
+      );
+
+      throw new ServiceUnavailableException({
+        code: CONTRACT_WRITES_DISABLED_CODE,
+        error: CONTRACT_WRITES_DISABLED_CODE,
+        flag: flagKey,
+        reason: result.reason,
+        message: CONTRACT_WRITES_DISABLED_MESSAGE,
+      });
+    }
+
+    // Testnet remains open for all non-write routes and non-testnet kill switches.
+    if (this.config.isTestnet) return true;
 
     const result = await this.flags.evaluateFlag(flagKey, { userId });
 
     if (result.enabled) return true;
 
-    // Blocked on mainnet — audit and reject.
+    // Blocked on mainnet: audit and reject.
     await this.audit.log(
       userId ?? 'anonymous',
       'network_safety_gate.blocked',

@@ -29,14 +29,14 @@ export function NotificationFeed({
 }: NotificationFeedProps) {
   if (notifications.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
-        <p className="text-lg font-semibold text-white">{emptyTitle}</p>
-        <p className="mt-2 text-sm text-neutral-300">{emptyDescription}</p>
+      <div className="rounded-3xl border border-dashed border-border-strong bg-card/[0.02] p-8 text-center">
+        <p className="text-lg font-semibold text-foreground">{emptyTitle}</p>
+        <p className="mt-2 text-sm text-muted">{emptyDescription}</p>
         {onResetFilters ? (
           <button
             type="button"
             onClick={onResetFilters}
-            className="mt-5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-white/10"
+            className="mt-5 rounded-full border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
           >
             Show everything
           </button>
@@ -52,8 +52,8 @@ export function NotificationFeed({
           key={notification.id}
           className={`rounded-3xl border p-4 transition ${
             notification.readAt
-              ? "border-white/8 bg-white/[0.03]"
-              : "border-indigo-400/20 bg-indigo-500/[0.08] shadow-[0_20px_50px_-35px_rgba(99,102,241,0.85)]"
+              ? "border-border bg-card"
+              : "border-brand/40 bg-brand-soft shadow-[0_20px_50px_-35px_rgba(99,102,241,0.85)]"
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -63,21 +63,21 @@ export function NotificationFeed({
               {CATEGORY_LABELS[notification.category]}
             </span>
             {!notification.readAt ? (
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white">
+              <span className="rounded-full border border-border-strong bg-surface-strong px-2.5 py-1 text-[11px] font-semibold text-foreground">
                 Unread
               </span>
             ) : null}
-            <span className="ml-auto text-xs text-neutral-400">
+            <span className="ml-auto text-xs text-subtle">
               {formatRelativeTime(notification.createdAt)}
             </span>
           </div>
 
-          <h3 className="mt-4 text-lg font-semibold text-white">
+          <h3 className="mt-4 text-lg font-semibold text-foreground">
             {notification.title}
           </h3>
           <p
             className={`mt-2 text-sm ${
-              compact ? "text-neutral-300" : "text-neutral-200"
+              compact ? "text-muted" : "text-muted"
             }`}
           >
             {notification.description}
@@ -90,7 +90,7 @@ export function NotificationFeed({
                 onMarkAsRead(notification.id);
                 onNavigate?.();
               }}
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
+              className="rounded-full bg-card px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
             >
               {notification.actionLabel}
             </Link>
@@ -99,12 +99,12 @@ export function NotificationFeed({
               <button
                 type="button"
                 onClick={() => onMarkAsRead(notification.id)}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-white/10"
+                className="rounded-full border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
               >
                 Mark as read
               </button>
             ) : (
-              <span className="text-sm text-neutral-400">
+              <span className="text-sm text-subtle">
                 Already read
               </span>
             )}

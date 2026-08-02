@@ -9,6 +9,8 @@ import { AuditService } from '../audit/audit.service';
 import {
   BulkRevokeDto,
   BulkRevokeResultDto,
+  WebhookSampleEventDto,
+  WebhookSampleEventType,
   WebhookTestResultDto,
   IntegrationHealthDto,
   PingResponseDto,
@@ -37,22 +39,37 @@ export class DeveloperService {
   }
 
   async testWebhook(webhookId: string): Promise<WebhookTestResultDto> {
+    return this.sendSampleWebhookEvent(webhookId, {
+      event_type: 'payment.received',
+      include_signature: true,
+    }, 'webhook.test');
+  }
+
+  async sendSampleWebhookEvent(
+    webhookId: string,
+    dto: WebhookSampleEventDto = {},
+    auditAction = 'webhook.sample',
+  ): Promise<WebhookTestResultDto> {
     const webhook = await this.webhookService.getWebhook(webhookId);
     if (!webhook) throw new NotFoundException('Webhook not found');
 
-    const sentAt = new Date().toISOString();
-    const testEventId = `test_${crypto.randomUUID()}`;
+    const eventType = dto.event_type ?? 'payment.received';
+    const sentAt = dto.timestamp ?? new Date().toISOString();
+    const eventId = `sample_${eventType.replace('.', '_')}_${crypto.randomUUID()}`;
     const payload = {
-      eventType: 'payment.received',
-      eventId: testEventId,
+      eventType,
+      eventId,
       recipientPublicKey: webhook.publicKey,
-      payload: { test: true, source: 'developer_self_service_api' },
+      payload: this.buildSamplePayload(eventType, webhook.publicKey, sentAt),
       timestamp: sentAt,
     };
 
     const bodyStr = JSON.stringify(payload);
-    const ts = Date.now();
-    const signature = this.signPayload(webhook.secret, bodyStr, ts);
+    const includeSignature = dto.include_signature ?? true;
+    const ts = new Date(sentAt).getTime();
+    const signature = includeSignature
+      ? this.signPayload(webhook.secret, bodyStr, ts)
+      : undefined;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TEST_WEBHOOK_TIMEOUT_MS);
@@ -67,9 +84,10 @@ export class DeveloperService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-QX-Signature': signature,
-          'X-QX-Event': 'payment.received',
-          'X-QX-Event-Id': testEventId,
+          ...(signature ? { 'X-QX-Signature': signature } : {}),
+          ...(includeSignature ? { 'X-QX-Timestamp': String(ts) } : {}),
+          'X-QX-Event': eventType,
+          'X-QX-Event-Id': eventId,
           'X-QX-Test': 'true',
           'User-Agent': 'QuickEx-Webhook/1.0',
         },
@@ -100,9 +118,16 @@ export class DeveloperService {
 
     await this.auditService.log(
       'developer_api',
-      'webhook.test',
+      auditAction,
       webhookId,
-      { target_url: webhook.webhookUrl, http_status: httpStatus, success, latency_ms: latencyMs },
+      {
+        target_url: webhook.webhookUrl,
+        http_status: httpStatus,
+        success,
+        latency_ms: latencyMs,
+        event_type: eventType,
+        signature_included: includeSignature,
+      },
     );
 
     return {
@@ -113,6 +138,9 @@ export class DeveloperService {
       response_body: responseBody,
       latency_ms: latencyMs,
       sent_at: sentAt,
+      event_type: eventType,
+      event_id: eventId,
+      signature_included: includeSignature,
     };
   }
 
@@ -218,5 +246,64 @@ export class DeveloperService {
     const signed = `${timestamp}.${body}`;
     const hmac = crypto.createHmac('sha256', secret).update(signed).digest('hex');
     return `t=${timestamp},v1=${hmac}`;
+  }
+
+  private buildSamplePayload(
+    eventType: WebhookSampleEventType,
+    recipientPublicKey: string,
+    timestamp: string,
+  ): Record<string, unknown> {
+    const base = {
+      test: true,
+      source: 'developer_self_service_api',
+      schema_version: '2026-04-29',
+    };
+
+    switch (eventType) {
+      case 'link.created':
+        return {
+          ...base,
+          link_id: 'plink_sample_01',
+          creator_public_key: recipientPublicKey,
+          asset: 'XLM',
+          amount: '25.0000000',
+          memo: 'QuickEx sample payment link',
+          expires_at: new Date(new Date(timestamp).getTime() + 86_400_000).toISOString(),
+        };
+      case 'payment.received':
+        return {
+          ...base,
+          payment_id: 'pay_sample_received_01',
+          link_id: 'plink_sample_01',
+          from_public_key: 'GBZXN7PIRZGNMHGA6U2QBG7A5XBQ2YH6R3MGNJ2T63PXWKBUI5V3R2ZU',
+          to_public_key: recipientPublicKey,
+          asset: 'XLM',
+          amount: '25.0000000',
+          tx_hash: 'sample_received_tx_hash',
+        };
+      case 'payment.settled':
+        return {
+          ...base,
+          payment_id: 'pay_sample_settled_01',
+          settlement_id: 'set_sample_01',
+          recipient_public_key: recipientPublicKey,
+          asset: 'XLM',
+          amount: '25.0000000',
+          fee_amount: '0.1000000',
+          settled_at: timestamp,
+          tx_hash: 'sample_settlement_tx_hash',
+        };
+      case 'payment.failed':
+        return {
+          ...base,
+          payment_id: 'pay_sample_failed_01',
+          link_id: 'plink_sample_01',
+          recipient_public_key: recipientPublicKey,
+          asset: 'XLM',
+          amount: '25.0000000',
+          failure_code: 'INSUFFICIENT_BALANCE',
+          failure_message: 'Sample failure: sender balance was too low.',
+        };
+    }
   }
 }

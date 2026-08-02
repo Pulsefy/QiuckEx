@@ -12,10 +12,14 @@ import { AppState, Platform } from "react-native";
 
 import { PinAuthModal } from "@/components/security/pin-auth-modal";
 import {
+    clearBiometricSession,
     clearSensitiveToken,
     getSecuritySettings,
     getSensitiveToken,
+    getSessionExpiryExplanation,
     hasFallbackPin,
+    isBiometricSessionValid,
+    recordBiometricAuth,
     saveSecuritySettings,
     saveSensitiveToken,
     setFallbackPin,
@@ -48,18 +52,28 @@ interface SecurityContextValue {
   saveSensitiveSessionToken: (token: string) => Promise<void>;
   getSensitiveSessionToken: () => Promise<string | null>;
   clearSensitiveSessionToken: () => Promise<void>;
+  /** Check if the current biometric session is still valid */
+  isSessionValid: () => Promise<boolean>;
+  /** Get a user-facing explanation of session state */
+  getSessionExplanation: () => Promise<string>;
+  /** Update session timeout duration (in minutes) */
+  setSessionTimeoutMinutes: (minutes: number) => Promise<void>;
+  /** Clear the biometric session, forcing re-auth */
+  resetSession: () => Promise<void>;
 }
 
 const SecurityContext = createContext<SecurityContextValue | null>(null);
 
 const DEFAULT_SETTINGS: SecuritySettings = {
   biometricLockEnabled: false,
+  sessionTimeoutMinutes: 5,
 };
 
 const PIN_DESCRIPTION_BY_REASON: Record<SecurityAuthReason, string> = {
   app_unlock: "Enter your fallback PIN to unlock QuickEx.",
   payment_authorization: "Enter your fallback PIN to authorize this payment.",
   sensitive_data_access: "Enter your fallback PIN to reveal sensitive data.",
+  session_expired: "Your session has expired. Enter your fallback PIN to continue.",
 };
 
 function isValidPin(pin: string) {
@@ -166,7 +180,9 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
           ? "Authenticate to approve payment"
           : reason === "sensitive_data_access"
             ? "Authenticate to access sensitive data"
-            : "Authenticate to unlock QuickEx";
+            : reason === "session_expired"
+              ? "Authenticate to resume your session"
+              : "Authenticate to unlock QuickEx";
 
       try {
         const result = await LocalAuthentication.authenticateAsync({
@@ -187,8 +203,25 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     async (reason: SecurityAuthReason) => {
       if (!settings.biometricLockEnabled) return true;
 
+      // For non-high-risk reasons, check if the session is still valid
+      if (reason !== "session_expired") {
+        const sessionValid = await isBiometricSessionValid(
+          settings.sessionTimeoutMinutes,
+        );
+        if (sessionValid) {
+          // Session is still valid - record this access to keep session alive
+          await recordBiometricAuth(reason);
+          return true;
+        }
+        // Session expired - force re-auth with session_expired context
+      }
+
       const biometricOk = await tryBiometricAuth(reason);
-      if (biometricOk) return true;
+      if (biometricOk) {
+        // Record successful auth as new session
+        await recordBiometricAuth(reason);
+        return true;
+      }
 
       if (!hasPinConfigured) return false;
 
@@ -198,6 +231,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       hasPinConfigured,
       openPinPrompt,
       settings.biometricLockEnabled,
+      settings.sessionTimeoutMinutes,
       tryBiometricAuth,
     ],
   );
@@ -230,6 +264,8 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
       if (!enabled) {
         setIsAppLocked(false);
+        // Clear the biometric session when disabling lock
+        await clearBiometricSession();
       } else {
         setIsAppLocked(true);
       }
@@ -265,6 +301,33 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     await clearSensitiveToken();
   }, []);
 
+  // ── New session timeout methods ─────────────────────────────────────────────
+
+  const isSessionValid = useCallback(async () => {
+    return isBiometricSessionValid(settings.sessionTimeoutMinutes);
+  }, [settings.sessionTimeoutMinutes]);
+
+  const getSessionExplanation = useCallback(async () => {
+    return getSessionExpiryExplanation();
+  }, []);
+
+  const setSessionTimeoutMinutes = useCallback(
+    async (minutes: number) => {
+      const clampedMinutes = Math.max(1, Math.min(60, minutes));
+      const nextSettings: SecuritySettings = {
+        ...settings,
+        sessionTimeoutMinutes: clampedMinutes,
+      };
+      await saveSecuritySettings(nextSettings);
+      setSettings(nextSettings);
+    },
+    [settings],
+  );
+
+  const resetSession = useCallback(async () => {
+    await clearBiometricSession();
+  }, []);
+
   const contextValue = useMemo<SecurityContextValue>(
     () => ({
       isReady,
@@ -279,6 +342,10 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       saveSensitiveSessionToken,
       getSensitiveSessionToken,
       clearSensitiveSessionToken,
+      isSessionValid,
+      getSessionExplanation,
+      setSessionTimeoutMinutes,
+      resetSession,
     }),
     [
       authenticateForSensitiveAction,
@@ -288,14 +355,19 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       isAppLocked,
       isBiometricAvailable,
       isReady,
+      isSessionValid,
+      getSessionExplanation,
       savePin,
       saveSensitiveSessionToken,
       setBiometricLockEnabled,
+      resetSession,
+      setSessionTimeoutMinutes,
       settings,
       unlockApp,
     ],
   );
 
+  // Handle successful PIN auth - record session and resolve
   const onSubmitPin = useCallback(async () => {
     if (!isValidPin(pinInput)) {
       setPinError("PIN must contain 4 to 6 digits.");
@@ -311,8 +383,17 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Record successful PIN auth as a biometric session
+    await recordBiometricAuth(pinPromptDescription.includes("session_expired")
+      ? "session_expired"
+      : pinPromptDescription.includes("payment")
+        ? "payment_authorization"
+        : pinPromptDescription.includes("sensitive")
+          ? "sensitive_data_access"
+          : "app_unlock");
+
     resolvePinPrompt(true);
-  }, [pinInput, resolvePinPrompt]);
+  }, [pinInput, pinPromptDescription, resolvePinPrompt]);
 
   const onCancelPin = useCallback(() => {
     resolvePinPrompt(false);

@@ -103,7 +103,7 @@ fn test_deposit_with_commitment_duplicate_fails() {
 
     // First deposit succeeds
     ctx.client
-        .deposit_with_commitment(&ctx.alice, &ctx.token, &500, &commitment, &0, &None);
+        .deposit_with_commitment(&ctx.alice, &ctx.token, &500, &commitment, &0, &None, &0u64, &u64::MAX);
 
     // Second deposit with the same commitment must fail
     ctx.mint(&ctx.alice.clone(), 500);
@@ -115,6 +115,8 @@ fn test_deposit_with_commitment_duplicate_fails() {
             &commitment,
             &0,
             &None,
+            &0u64,
+            &u64::MAX,
         ),
         QuickexError::CommitmentAlreadyExists,
     );
@@ -134,6 +136,8 @@ fn test_deposit_with_commitment_with_arbiter_stores_arbiter() {
         &commitment,
         &0,
         &Some(ctx.arbiter.clone()),
+        &0u64,
+        &u64::MAX,
     );
 
     assert_escrow_pending(&ctx.client, &commitment);
@@ -153,7 +157,7 @@ fn test_deposit_with_commitment_zero_amount_fails() {
     let commitment = BytesN::from_array(&ctx.env, &[0x01u8; 32]);
     assert_qx_err(
         ctx.client
-            .try_deposit_with_commitment(&ctx.alice, &ctx.token, &0, &commitment, &0, &None),
+            .try_deposit_with_commitment(&ctx.alice, &ctx.token, &0, &commitment, &0, &None, &0u64, &u64::MAX),
         QuickexError::InvalidAmount,
     );
 }
@@ -177,6 +181,8 @@ fn test_deposit_with_commitment_paused_feature_fails() {
             &commitment,
             &0,
             &None,
+            &0u64,
+            &u64::MAX,
         ),
         QuickexError::OperationPaused,
     );
@@ -194,7 +200,7 @@ fn test_refund_never_expiring_escrow_fails() {
 
     // expires_at == 0 means the escrow never expires → refund must be rejected
     assert_qx_err(
-        ctx.client.try_refund(&commitment, &ctx.alice),
+        ctx.client.try_refund(&commitment, &ctx.alice, &0u64, &u64::MAX),
         QuickexError::EscrowNotExpired,
     );
 }
@@ -211,11 +217,13 @@ fn test_refund_before_timeout_window_fails() {
         &ctx.salt(b"timed_refund"),
         &3600,
         &None,
+        &0u64,
+        &u64::MAX,
     );
 
     // Time has not advanced — refund is not yet available
     assert_qx_err(
-        ctx.client.try_refund(&commitment, &ctx.alice),
+        ctx.client.try_refund(&commitment, &ctx.alice, &0u64, &u64::MAX),
         QuickexError::EscrowNotExpired,
     );
 }
@@ -237,6 +245,8 @@ fn test_verify_proof_view_expired_returns_false() {
         &ctx.salt(b"proof_exp"),
         &timeout,
         &None,
+        &0u64,
+        &u64::MAX,
     );
 
     // Advance past expiry
@@ -267,6 +277,8 @@ fn test_assert_helpers_pending_and_spent() {
         &commitment,
         &ctx.alice,
         &ctx.salt(b"h_pending"),
+        &0u64,
+        &u64::MAX,
     );
     assert_escrow_spent(&ctx.client, &commitment);
 }
@@ -281,7 +293,7 @@ fn test_assert_helpers_disputed_and_refunded() {
     assert_escrow_disputed(&ctx.client, &commitment);
 
     // Resolve for owner → Refunded
-    ctx.client.resolve_dispute(&commitment, &true, &ctx.bob);
+    ctx.client.resolve_dispute(&commitment, &true, &ctx.bob, &0u64, &u64::MAX);
     assert_escrow_refunded(&ctx.client, &commitment);
 }
 
@@ -312,7 +324,7 @@ fn test_demo_full_lifecycle_under_10_lines() {
     let c = ctx.simple_deposit(&ctx.alice.clone(), 1_000, b"ten"); // 2
     assert_escrow_pending(&ctx.client, &c); // 3
     ctx.client
-        .withdraw(&ctx.token, &1_000, &c, &ctx.alice, &ctx.salt(b"ten")); // 4
+        .withdraw(&ctx.token, &1_000, &c, &ctx.alice, &ctx.salt(b"ten"), &0u64, &u64::MAX); // 4
     assert_escrow_spent(&ctx.client, &c); // 5
     assert_eq!(ctx.balance(&ctx.alice), 1_000); // 6
 }
@@ -322,9 +334,9 @@ fn test_demo_full_lifecycle_under_10_lines() {
 fn test_demo_admin_lifecycle_under_10_lines() {
     let ctx = TestContext::with_admin(); // 1
     assert_eq!(ctx.client.get_admin(), Some(ctx.admin.clone())); // 2
-    ctx.client.set_paused(&ctx.admin, &true); // 3
+    ctx.client.set_paused(&ctx.admin, &true, &1u32); // 3
     assert!(ctx.client.is_paused()); // 4
-    ctx.client.set_paused(&ctx.admin, &false); // 5
+    ctx.client.set_paused(&ctx.admin, &false, &0u32); // 5
     assert!(!ctx.client.is_paused()); // 6
 }
 
@@ -334,7 +346,7 @@ fn test_demo_fee_withdrawal_under_10_lines() {
     let ctx = TestContext::with_fees(1000); // 1 (10%)
     let c = ctx.simple_deposit(&ctx.alice.clone(), 1_000, b"fee_10"); // 2
     ctx.client
-        .withdraw(&ctx.token, &1_000, &c, &ctx.alice, &ctx.salt(b"fee_10")); // 3
+        .withdraw(&ctx.token, &1_000, &c, &ctx.alice, &ctx.salt(b"fee_10"), &0u64, &u64::MAX); // 3
     assert_eq!(ctx.balance(&ctx.alice), 900); // 4
     assert_eq!(ctx.balance(&ctx.platform_wallet), 100); // 5
 }
@@ -346,7 +358,7 @@ fn test_demo_dispute_flow_under_10_lines() {
     let c = ctx.deposit_with_arbiter(&ctx.alice.clone(), 2_000, b"dp10", 3600); // 2
     ctx.client.dispute(&c); // 3
     assert_escrow_disputed(&ctx.client, &c); // 4
-    ctx.client.resolve_dispute(&c, &false, &ctx.bob); // 5  (pay bob)
+    ctx.client.resolve_dispute(&c, &false, &ctx.bob, &0u64, &u64::MAX); // 5  (pay bob)
     assert_escrow_spent(&ctx.client, &c); // 6
     assert_eq!(ctx.balance(&ctx.bob), 2_000); // 7
 }
@@ -358,9 +370,9 @@ fn test_demo_expiry_and_refund_under_10_lines() {
     ctx.mint(&ctx.alice.clone(), 500); // 2
     let c = ctx
         .client
-        .deposit(&ctx.token, &500, &ctx.alice, &ctx.salt(b"exp"), &100, &None); // 3
+        .deposit(&ctx.token, &500, &ctx.alice, &ctx.salt(b"exp"), &100, &None, &0u64, &u64::MAX); // 3
     ctx.advance_time(101); // 4
-    ctx.client.refund(&c, &ctx.alice); // 5
+    ctx.client.refund(&c, &ctx.alice, &0u64, &u64::MAX); // 5
     assert_escrow_refunded(&ctx.client, &c); // 6
     assert_eq!(ctx.balance(&ctx.alice), 500); // 7
 }

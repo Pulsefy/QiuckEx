@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { QRPreview } from "@/components/QRPreview";
+import { getQuickexApiBase } from "@/lib/api";
 
 type Profile = {
   username: string;
@@ -15,10 +17,11 @@ type Profile = {
   twitterHandle?: string;
   discordHandle?: string;
   githubHandle?: string;
+  isPublic?: boolean;
 };
 
 const FOCUS_RING_CLASS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export default function PublicProfile() {
   const params = useParams();
@@ -26,7 +29,7 @@ export default function PublicProfile() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -35,37 +38,80 @@ export default function PublicProfile() {
   });
 
   useEffect(() => {
-    // TODO: Fetch profile from API
-    // Mock data for now
-    setTimeout(() => {
-      setProfile({
-        username,
-        publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-        primaryColor: "#6366f1",
-        avatarUrl: "",
-        bio: "Building the future of payments on Stellar",
-        twitterHandle: "stellarorg",
-        discordHandle: "",
-        githubHandle: "stellar",
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    fetch(`${getQuickexApiBase()}/username/${username}`)
+      .then((res) => {
+        if (res.status === 404) {
+          throw new Error("404");
+        }
+        if (!res.ok) {
+          throw new Error("Failed to load profile");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (active) {
+          setProfile(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err.message === "404" ? "Username not found" : "Failed to load profile");
+          setLoading(false);
+        }
       });
-      setLoading(false);
-    }, 500);
+
+    return () => {
+      active = false;
+    };
   }, [username]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        <p>Loading profile...</p>
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <p className="text-subtle">Loading profile...</p>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        <div className="text-center">
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4">
           <h1 className="text-4xl font-black mb-4">404</h1>
-          <p className="text-neutral-400">Username not found</p>
+          <p className="text-subtle text-lg mb-6">{error || "Username not found"}</p>
+          <Link
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.isPublic === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-foreground bg-background">
+        <NetworkBadge />
+        <div className="text-center px-4 max-w-md">
+          <div className="text-6xl mb-6 select-none">🔒</div>
+          <h1 className="text-3xl font-black mb-3">This Profile is Private</h1>
+          <p className="text-subtle text-lg mb-8">
+            The profile for <strong className="text-foreground">@{username}</strong> exists but has been set to private by the owner.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-200"
+          >
+            Go Home
+          </Link>
         </div>
       </div>
     );
@@ -74,7 +120,7 @@ export default function PublicProfile() {
   const primaryColor = profile.primaryColor || "#6366f1";
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="relative min-h-screen text-foreground">
       <a
         href="#public-profile-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
@@ -123,7 +169,7 @@ export default function PublicProfile() {
 
           {/* Bio */}
           {profile.bio && (
-            <p className="text-neutral-300 text-lg mb-6 max-w-md mx-auto">
+            <p className="text-muted text-lg mb-6 max-w-md mx-auto">
               {profile.bio}
             </p>
           )}
@@ -137,7 +183,7 @@ export default function PublicProfile() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${profile.twitterHandle} on X`}
-                  className={`w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
+                  className={`w-12 h-12 rounded-full bg-surface hover:bg-surface-strong flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
                   style={{ color: primaryColor }}
                 >
                   𝕏
@@ -145,7 +191,7 @@ export default function PublicProfile() {
               )}
               {profile.discordHandle && (
                 <div
-                  className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl"
+                  className="w-12 h-12 rounded-full bg-surface flex items-center justify-center text-xl"
                   style={{ color: primaryColor }}
                 >
                   💬
@@ -157,7 +203,7 @@ export default function PublicProfile() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${profile.githubHandle} on GitHub`}
-                  className={`w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
+                  className={`w-12 h-12 rounded-full bg-surface hover:bg-surface-strong flex items-center justify-center transition text-xl ${FOCUS_RING_CLASS}`}
                   style={{ color: primaryColor }}
                 >
                   🐙
@@ -168,12 +214,12 @@ export default function PublicProfile() {
         </div>
 
         {/* Payment Form */}
-        <div className="rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl p-8 mb-8">
+        <div className="rounded-3xl bg-card border border-border backdrop-blur-2xl p-8 mb-8">
           <h2 className="text-2xl font-black mb-6">Send Payment</h2>
 
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <div>
-              <label htmlFor="payment-amount" className="block text-sm font-bold text-neutral-300 mb-2">
+              <label htmlFor="payment-amount" className="block text-sm font-bold text-muted mb-2">
                 Amount
               </label>
               <input
@@ -181,21 +227,21 @@ export default function PublicProfile() {
                 type="number"
                 value={paymentForm.amount}
                 onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-lg ${FOCUS_RING_CLASS}`}
+                className={`w-full px-4 py-3 rounded-xl bg-surface border border-border-strong text-foreground text-lg ${FOCUS_RING_CLASS}`}
                 placeholder="0.00"
                 step="0.01"
               />
             </div>
 
             <div>
-              <label htmlFor="payment-asset" className="block text-sm font-bold text-neutral-300 mb-2">
+              <label htmlFor="payment-asset" className="block text-sm font-bold text-muted mb-2">
                 Asset
               </label>
               <select
                 id="payment-asset"
                 value={paymentForm.asset}
                 onChange={(e) => setPaymentForm({ ...paymentForm, asset: e.target.value })}
-                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white ${FOCUS_RING_CLASS}`}
+                className={`w-full px-4 py-3 rounded-xl bg-surface border border-border-strong text-foreground ${FOCUS_RING_CLASS}`}
               >
                 <option value="USDC">USDC</option>
                 <option value="XLM">XLM</option>
@@ -205,7 +251,7 @@ export default function PublicProfile() {
             </div>
 
             <div>
-              <label htmlFor="payment-memo" className="block text-sm font-bold text-neutral-300 mb-2">
+              <label htmlFor="payment-memo" className="block text-sm font-bold text-muted mb-2">
                 Memo (optional)
               </label>
               <input
@@ -213,7 +259,7 @@ export default function PublicProfile() {
                 type="text"
                 value={paymentForm.memo}
                 onChange={(e) => setPaymentForm({ ...paymentForm, memo: e.target.value })}
-                className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white ${FOCUS_RING_CLASS}`}
+                className={`w-full px-4 py-3 rounded-xl bg-surface border border-border-strong text-foreground ${FOCUS_RING_CLASS}`}
                 placeholder="Payment for..."
                 maxLength={28}
               />
@@ -222,7 +268,7 @@ export default function PublicProfile() {
             <button
               type="submit"
               aria-label={`Generate payment link for ${profile.username}`}
-              className={`w-full py-4 rounded-xl font-bold text-white transition hover:opacity-90 mt-6 ${FOCUS_RING_CLASS}`}
+              className={`w-full py-4 rounded-xl font-bold text-foreground transition hover:opacity-90 mt-6 ${FOCUS_RING_CLASS}`}
               style={{ backgroundColor: primaryColor }}
             >
               Generate Payment Link
@@ -232,7 +278,7 @@ export default function PublicProfile() {
 
         {/* QR Code Preview */}
         {paymentForm.amount && (
-          <div className="rounded-3xl bg-black/40 border border-white/5 backdrop-blur-2xl p-8">
+          <div className="rounded-3xl bg-card border border-border backdrop-blur-2xl p-8">
             <h3 className="text-xl font-bold mb-4">Payment QR Code</h3>
             <QRPreview
               value={JSON.stringify({
@@ -246,7 +292,7 @@ export default function PublicProfile() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-12 text-neutral-400 text-sm">
+        <div className="text-center mt-12 text-subtle text-sm">
           <p>Powered by QuickEx • Stellar Network</p>
         </div>
       </main>

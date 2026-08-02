@@ -24,6 +24,7 @@ import { Request, Response } from "express";
 import * as crypto from "crypto";
 
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 import { AssetMetadataService } from "./asset-metadata.service";
 import {
   AssetMetadataResponseDto,
@@ -38,6 +39,7 @@ import { AdminVerifyAssetDto } from "./dto/admin-asset.dto";
   required: false,
 })
 @UseGuards(ApiKeyGuard)
+@RateLimitGroupTag("public")
 @Controller("assets")
 export class AssetMetadataController {
   private readonly logger = new Logger(AssetMetadataController.name);

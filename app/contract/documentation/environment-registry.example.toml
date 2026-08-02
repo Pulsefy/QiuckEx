@@ -1,0 +1,42 @@
+# QuickEx environment registry example
+#
+# This file is the canonical shape for recording deployed contract state.
+# Keep one registry record per network and update it whenever a deploy or
+# upgrade changes the contract address, hash, or initialization parameters.
+
+version = 1
+application = "quickex"
+
+[environments.testnet]
+network = "testnet"
+rpc_url = "https://soroban-testnet.stellar.org"
+network_passphrase = "Test SDF Network ; September 2015"
+identity = "quickex-testnet"
+mainnet_gated = false
+
+[[environments.testnet.contracts]]
+name = "quickex"
+contract_id = "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+wasm_hash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+admin_addresses = ["GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"]
+init_params = { admin = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", paused = false }
+deployed_at = "2026-06-02T00:00:00Z"
+deployed_by = "quickex-testnet"
+notes = "Initial testnet deploy; replace placeholder values after deployment."
+
+[environments.mainnet]
+network = "mainnet"
+rpc_url = "https://mainnet.stellar.org"
+network_passphrase = "Public Global Stellar Network ; September 2015"
+identity = "quickex-mainnet"
+mainnet_gated = true
+
+[[environments.mainnet.contracts]]
+name = "quickex"
+contract_id = "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+wasm_hash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+admin_addresses = ["GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"]
+init_params = { admin = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", paused = false }
+deployed_at = "2026-06-02T00:00:00Z"
+deployed_by = "quickex-mainnet"
+notes = "Mainnet record should remain empty until governance approves release."

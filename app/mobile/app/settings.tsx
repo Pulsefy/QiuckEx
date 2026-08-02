@@ -1,5 +1,6 @@
 import { Link, useRouter } from "expo-router";
 import React from "react";
+import { EnvironmentSwitcher } from "../components/EnvironmentSwitcher";
 import {
   Alert,
   Platform,
@@ -381,8 +382,34 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Feedback
+          </Text>
+
+          <Link href="/feedback" asChild>
+            <Pressable style={styles.row}>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  Send Feedback
+                </Text>
+                <Text style={[styles.helper, { color: theme.textMuted }]}>
+                  Report an issue or idea. Build and environment details are
+                  attached automatically.
+                </Text>
+              </View>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>→</Text>
+            </Pressable>
+          </Link>
+        </View>
+
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}> 
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             Onboarding
           </Text>
           <OnboardingResetButton />
@@ -404,6 +431,8 @@ export default function SettingsScreen() {
           </Pressable>
           <Text style={[styles.helper, { color: theme.textMuted }]}>Remove all cached and secure data, sign out, and reset the app state.</Text>
         </View>
+
+        <EnvironmentSwitcher />
 
         {Platform.OS !== "web" ? (
           <View style={styles.section}>
@@ -438,6 +467,22 @@ export default function SettingsScreen() {
                 </Text>
               </Pressable>
             </Link>
+            {APP_ENVIRONMENT !== "production" && (
+              <Link href="/offline-queue-inspector" asChild>
+                <Pressable
+                  style={[
+                    styles.debugButton,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[styles.debugButtonText, { color: theme.textPrimary }]}
+                  >
+                    Offline Queue Inspector
+                  </Text>
+                </Pressable>
+              </Link>
+            )}
           </View>
         ) : null}
       </ScrollView>

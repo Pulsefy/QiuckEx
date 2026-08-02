@@ -71,7 +71,7 @@ export function NotificationBell() {
             : "Open notifications."
         }
         onClick={() => setIsOpen((currentValue) => !currentValue)}
-        className="relative flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/5 px-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+        className="relative flex h-11 items-center justify-center rounded-full border border-border-strong bg-surface px-3.5 text-sm font-semibold text-foreground transition hover:bg-surface-strong"
       >
         <span aria-hidden="true">Inbox</span>
         {unreadCount > 0 ? (
@@ -84,19 +84,19 @@ export function NotificationBell() {
       {isOpen ? (
         <div
           id="quickex-notification-panel"
-          className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-2rem))] rounded-[2rem] border border-white/10 bg-neutral-950/98 p-5 shadow-[0_30px_80px_-25px_rgba(15,23,42,0.9)] backdrop-blur"
+          className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-2rem))] rounded-[2rem] border border-border-strong bg-background/98 p-5 shadow-[0_30px_80px_-25px_rgba(15,23,42,0.9)] backdrop-blur"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-lg font-semibold text-white">Notifications</p>
-              <p className="mt-1 text-sm text-neutral-300">
+              <p className="text-lg font-semibold text-foreground">Notifications</p>
+              <p className="mt-1 text-sm text-muted">
                 Stay on top of payments, escrows, and system updates.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-neutral-100 transition hover:bg-white/10"
+              className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-surface-strong"
             >
               Close
             </button>
@@ -110,8 +110,8 @@ export function NotificationBell() {
                 onClick={() => setReadState(option)}
                 className={`rounded-full px-3.5 py-2 text-sm font-semibold transition ${
                   readState === option
-                    ? "bg-white text-neutral-950"
-                    : "border border-white/10 bg-white/5 text-neutral-100 hover:bg-white/10"
+                    ? "bg-card text-foreground"
+                    : "border border-border-strong bg-surface text-foreground hover:bg-surface-strong"
                 }`}
               >
                 {option === "all" ? "All" : "Unread"}
@@ -122,7 +122,7 @@ export function NotificationBell() {
               type="button"
               onClick={() => markAllAsRead()}
               disabled={unreadCount === 0}
-              className="ml-auto rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto rounded-full border border-border-strong bg-surface px-3.5 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-50"
             >
               Mark all read
             </button>
@@ -139,8 +139,8 @@ export function NotificationBell() {
             />
           </div>
 
-          <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
-            <span className="text-sm text-neutral-400">
+          <div className="mt-5 flex items-center justify-between border-t border-border-strong pt-4">
+            <span className="text-sm text-subtle">
               {unreadCount} unread
             </span>
             <Link

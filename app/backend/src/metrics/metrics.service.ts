@@ -18,6 +18,13 @@ export class MetricsService implements OnModuleInit {
   private sorobanIndexerUnknownSchemaVersion: client.Counter<string>;
   private parityCheckResults: client.Gauge<string>;
   private shadowTrafficRequests: client.Counter<string>;
+  private indexerLagLedgers: client.Gauge<string>;
+  private indexerLagGuardBlockedRequests: client.Counter<string>;
+  private indexerLagGuardStatus: client.Gauge<string>;
+  private abuseSignalsTotal: client.Counter<string>;
+  private abuseSignalsHighScore: client.Counter<string>;
+  private abuseSignalsByOutcome: client.Counter<string>;
+  private abuseScoresHistogram: client.Histogram<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -112,6 +119,47 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["method", "route", "status_code", "shadow_status"],
       });
 
+      this.indexerLagLedgers = new client.Gauge({
+        name: "indexer_lag_ledgers",
+        help: "Current indexer lag in ledgers",
+      });
+
+      this.indexerLagGuardBlockedRequests = new client.Counter({
+        name: "indexer_lag_guard_blocked_requests_total",
+        help: "Total number of requests blocked by indexer lag guard",
+        labelNames: ["method", "route"],
+      });
+
+      this.indexerLagGuardStatus = new client.Gauge({
+        name: "indexer_lag_guard_status",
+        help: "Indexer lag guard status (0=disabled, 1=enabled, 2=overridden, 3=lagging)",
+      });
+
+      this.abuseSignalsTotal = new client.Counter({
+        name: "abuse_signals_total",
+        help: "Total number of abuse signals recorded",
+        labelNames: ["action_type", "action_outcome"],
+      });
+
+      this.abuseSignalsHighScore = new client.Counter({
+        name: "abuse_signals_high_score_total",
+        help: "Total number of high-score abuse signals (above threshold)",
+        labelNames: ["score_range", "top_tag"],
+      });
+
+      this.abuseSignalsByOutcome = new client.Counter({
+        name: "abuse_signals_by_outcome_total",
+        help: "Abuse signals broken down by outcome",
+        labelNames: ["outcome"],
+      });
+
+      this.abuseScoresHistogram = new client.Histogram({
+        name: "abuse_signal_score",
+        help: "Distribution of computed abuse scores",
+        labelNames: ["action_outcome"],
+        buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -126,6 +174,13 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.sorobanIndexerUnknownSchemaVersion);
       this.register.registerMetric(this.parityCheckResults);
       this.register.registerMetric(this.shadowTrafficRequests);
+      this.register.registerMetric(this.indexerLagLedgers);
+      this.register.registerMetric(this.indexerLagGuardBlockedRequests);
+      this.register.registerMetric(this.indexerLagGuardStatus);
+      this.register.registerMetric(this.abuseSignalsTotal);
+      this.register.registerMetric(this.abuseSignalsHighScore);
+      this.register.registerMetric(this.abuseSignalsByOutcome);
+      this.register.registerMetric(this.abuseScoresHistogram);
 
       this.initialized = true;
     } catch (error) {
@@ -309,6 +364,48 @@ export class MetricsService implements OnModuleInit {
       this.shadowTrafficRequests
         .labels(method, route, statusCode.toString(), shadowStatus)
         .inc();
+    } catch (error) {}
+  }
+
+  recordIndexerLag(lagLedgers: number) {
+    if (!this.initialized || !this.indexerLagLedgers) return;
+    try {
+      this.indexerLagLedgers.set(lagLedgers);
+    } catch (error) {}
+  }
+
+  recordIndexerLagGuardBlockedRequest(method: string, route: string) {
+    if (!this.initialized || !this.indexerLagGuardBlockedRequests) return;
+    try {
+      this.indexerLagGuardBlockedRequests.labels(method, route).inc();
+    } catch (error) {}
+  }
+
+  setIndexerLagGuardStatus(status: 0 | 1 | 2 | 3) {
+    if (!this.initialized || !this.indexerLagGuardStatus) return;
+    try {
+      this.indexerLagGuardStatus.set(status);
+    } catch (error) {}
+  }
+
+  recordAbuseSignal(
+    actionType: string,
+    actionOutcome: string,
+    score: number,
+    tags: string[],
+  ) {
+    if (!this.initialized) return;
+    try {
+      this.abuseSignalsTotal?.labels(actionType, actionOutcome).inc();
+      this.abuseSignalsByOutcome?.labels(actionOutcome).inc();
+      this.abuseScoresHistogram?.labels(actionOutcome).observe(score);
+
+      if (score >= 30) {
+        const scoreRange =
+          score >= 80 ? "80-100" : score >= 50 ? "50-79" : "30-49";
+        const topTag = tags[0] ?? "none";
+        this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
+      }
     } catch (error) {}
   }
 }

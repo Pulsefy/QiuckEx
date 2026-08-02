@@ -5,14 +5,13 @@ import React from "react";
 export default function OfflinePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
-      <div className="w-24 h-24 mb-8 bg-neutral-900 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl">
+      <div className="w-24 h-24 mb-8 bg-card border border-border-strong rounded-3xl flex items-center justify-center shadow-2xl">
         <svg
-          xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
           stroke="currentColor"
-          className="w-12 h-12 text-neutral-500"
+          className="w-12 h-12 text-subtle"
         >
           <path
             strokeLinecap="round"
@@ -24,19 +23,19 @@ export default function OfflinePage() {
       <h1 className="text-4xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
         You&apos;re Offline
       </h1>
-      <p className="text-neutral-400 max-w-md mx-auto mb-8 text-lg">
+      <p className="text-subtle max-w-md mx-auto mb-8 text-lg">
         It looks like you&apos;ve lost your connection. Don&apos;t worry,
         QuickEx is ready to resume once you&apos;re back online.
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+        className="px-8 py-3 bg-card text-foreground font-bold rounded-xl hover:bg-surface-strong transition-all transform hover:scale-105 active:scale-95 shadow-lg"
       >
         Retry Connection
       </button>
 
-      <div className="mt-12 p-4 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
-        <p className="text-sm text-neutral-500">
+      <div className="mt-12 p-4 rounded-2xl bg-surface border border-border backdrop-blur-sm">
+        <p className="text-sm text-subtle">
           Tip: You can still use the app for some basic features if they were
           cached.
         </p>

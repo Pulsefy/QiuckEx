@@ -29,6 +29,10 @@ export interface TrendingCreatorResult extends SearchProfileResult {
   transaction_count: number;
 }
 
+export interface FeaturedProfileResult extends SearchProfileResult {
+  featured_rank: number | null;
+}
+
 export interface MarketplaceListing {
   id: string;
   username: string;
@@ -62,6 +66,16 @@ export interface VerifiedAssetDbRecord {
   verified: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Deterministic ascending tiebreaker used when the primary ranking metric
+ * (volume, activity timestamp, featured rank) is equal between two rows.
+ */
+function compareIdsAsc(a: { id: string }, b: { id: string }): number {
+  if (a.id < b.id) return -1;
+  if (a.id > b.id) return 1;
+  return 0;
 }
 
 @Injectable()
@@ -144,6 +158,18 @@ export class SupabaseService {
     if (error) this.handleError(error);
     return data ?? [];
   }
+
+  async getUsername(username: string): Promise<SearchProfileResult | null> {
+    const { data, error } = await this.client
+      .from("usernames")
+      .select("id, username, public_key, created_at, last_active_at, is_public")
+      .eq("username", username.toLowerCase())
+      .maybeSingle();
+
+    if (error) this.handleError(error);
+    return data as SearchProfileResult | null;
+  }
+
 
   // ---------------------------------------------------------------------------
   // Reconciliation helpers
@@ -383,17 +409,19 @@ export class SupabaseService {
       },
     );
 
-    // Get top creators by volume
-    const topCreators = Array.from(volumeMap.entries())
-      .sort((a, b) => b[1].volume - a[1].volume)
-      .slice(0, limit);
+    // Rank all candidates by volume first. Slicing to `limit` must happen
+    // *after* filtering to public profiles below, otherwise a candidate that
+    // ranks in the true top-N of public profiles could be dropped here just
+    // because non-public accounts occupied the top volume slots.
+    const rankedCandidates = Array.from(volumeMap.entries()).sort(
+      (a, b) => b[1].volume - a[1].volume,
+    );
 
-    // Fetch public profiles for these creators
-    if (topCreators.length === 0) {
+    if (rankedCandidates.length === 0) {
       return [];
     }
 
-    const publicKeys = topCreators.map(([key]) => key);
+    const publicKeys = rankedCandidates.map(([key]) => key);
     const { data: profiles, error: profilesError } = await this.client
       .from("usernames")
       .select("id, username, public_key, created_at, last_active_at, is_public")
@@ -405,21 +433,30 @@ export class SupabaseService {
       return [];
     }
 
-    // Merge volume data with profile data
-    return (profiles ?? [])
-      .map((profile: SearchProfileResult) => {
-        const found = topCreators.find(([key]) => key === profile.public_key);
-        const stats = found ? found[1] : { volume: 0, count: 0 };
+    const profileByKey = new Map(
+      (profiles ?? []).map((profile: SearchProfileResult) => [
+        profile.public_key,
+        profile,
+      ]),
+    );
+
+    // Merge volume data with profile data. Ties in volume are broken by `id`
+    // so the ranking is deterministic and stable across identical requests.
+    return rankedCandidates
+      .filter(([key]) => profileByKey.has(key))
+      .map(([key, stats]) => {
+        const profile = profileByKey.get(key) as SearchProfileResult;
         return {
           ...profile,
           transaction_volume: stats.volume,
           transaction_count: stats.count,
         } as TrendingCreatorResult;
       })
-      .sort(
-        (a: TrendingCreatorResult, b: TrendingCreatorResult) =>
-          (b.transaction_volume || 0) - (a.transaction_volume || 0),
-      );
+      .sort((a: TrendingCreatorResult, b: TrendingCreatorResult) => {
+        const diff = (b.transaction_volume || 0) - (a.transaction_volume || 0);
+        return diff !== 0 ? diff : compareIdsAsc(a, b);
+      })
+      .slice(0, limit);
   }
 
   /**
@@ -489,14 +526,16 @@ export class SupabaseService {
       return [];
     }
 
-    // Fetch public profiles for these active users
+    // Fetch public profiles for these active users. We intentionally do not
+    // limit or order at the DB level here: `last_active_at` on this table can
+    // be stale compared to the payment-derived activity merged in below, so
+    // limiting before that merge could drop candidates that actually rank in
+    // the true top-N. Ranking and limiting happen after the merge instead.
     const { data: profiles, error: profilesError } = await this.client
       .from("usernames")
       .select("id, username, public_key, created_at, last_active_at, is_public")
       .in("public_key", Array.from(activePublicKeys))
-      .eq("is_public", true)
-      .order("last_active_at", { ascending: false })
-      .limit(limit);
+      .eq("is_public", true);
 
     if (profilesError) {
       this.logger.warn(`Failed to fetch profiles: ${profilesError.message}`);
@@ -529,7 +568,8 @@ export class SupabaseService {
       },
     );
 
-    // Merge with profile data and sort by activity
+    // Merge with profile data and sort by activity. Ties are broken by `id`
+    // so the ranking is deterministic and stable across identical requests.
     return (profiles ?? [])
       .map((profile: SearchProfileResult) => ({
         ...profile,
@@ -539,9 +579,56 @@ export class SupabaseService {
       .sort((a: SearchProfileResult, b: SearchProfileResult) => {
         const aTime = new Date(a.last_active_at || a.created_at).getTime();
         const bTime = new Date(b.last_active_at || b.created_at).getTime();
-        return bTime - aTime;
+        return bTime !== aTime ? bTime - aTime : compareIdsAsc(a, b);
       })
       .slice(0, limit);
+  }
+
+  /**
+   * Get curated/featured usernames for discovery, ordered by manual
+   * `featured_rank` (ascending, nulls last) with `id` as a deterministic
+   * tiebreaker.
+   */
+  async getFeaturedUsernames(
+    limit: number = 10,
+  ): Promise<FeaturedProfileResult[]> {
+    const { data, error } = await this.client
+      .from("usernames")
+      .select(
+        "id, username, public_key, created_at, last_active_at, is_public, featured_rank",
+      )
+      .eq("is_public", true)
+      .eq("is_featured", true)
+      .order("featured_rank", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+      .limit(limit);
+
+    if (error) this.handleError(error);
+
+    return (data ?? []) as FeaturedProfileResult[];
+  }
+
+  /**
+   * Fetch a single public profile by username
+   */
+  async getPublicProfile(
+    username: string,
+  ): Promise<SearchProfileResult | null> {
+    const { data, error } = await this.client
+      .from("usernames")
+      .select(
+        "id, username, public_key, created_at, last_active_at, is_public",
+      )
+      .eq("username", username)
+      .eq("is_public", true)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null; // not found
+      this.handleError(error);
+    }
+
+    return (data as SearchProfileResult) ?? null;
   }
 
   /**
@@ -578,6 +665,41 @@ export class SupabaseService {
       .single();
     if (error) this.handleError(error);
     return data as MarketplaceListing;
+  }
+
+  async searchActiveListings(
+    query: string,
+    limit: number = 10,
+  ): Promise<{ listings: MarketplaceListing[]; next_cursor: string | null; has_more: boolean; total: number }> {
+    const normalizedQuery = query.trim().toLowerCase();
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+
+    let dbQuery = this.client
+      .from("username_marketplace")
+      .select("*", { count: "exact" })
+      .eq("status", "active");
+
+    if (normalizedQuery) {
+      dbQuery = dbQuery.or(`username.ilike.%${normalizedQuery}%,seller_public_key.ilike.%${normalizedQuery}%`);
+    }
+
+    const { data, error, count } = await dbQuery
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    if (error) this.handleError(error);
+
+    const rows = (data ?? []) as MarketplaceListing[];
+    const hasMore = rows.length > effectiveLimit;
+    const listings = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    return {
+      listings,
+      next_cursor: null,
+      has_more: hasMore,
+      total: count ?? rows.length,
+    };
   }
 
   async getActiveListings(

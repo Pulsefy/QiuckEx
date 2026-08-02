@@ -32,20 +32,20 @@ export default function TeamSettings() {
   };
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="relative min-h-screen text-foreground">
       {/* Background glows */}
       <div className="fixed top-[-20%] left-[-30%] w-[60%] h-[60%] bg-indigo-500/10 blur-[120px] rounded-full" />
 
       {/* DESKTOP SIDEBAR (Reused from settings) */}
-      <aside className="hidden md:flex w-72 h-screen fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-3xl flex-col z-20">
+      <aside className="hidden md:flex w-72 h-screen fixed left-0 top-0 border-r border-border bg-card backdrop-blur-3xl flex-col z-20">
         <nav className="flex-1 px-4 py-30 space-y-2">
-          <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition">
+          <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-subtle hover:text-foreground hover:bg-surface rounded-2xl font-semibold transition">
             <span>📊</span> Dashboard
           </Link>
-          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-neutral-500 hover:text-white hover:bg-white/5 rounded-2xl font-semibold transition">
+          <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-subtle hover:text-foreground hover:bg-surface rounded-2xl font-semibold transition">
             <span>⚙️</span> Profile Settings
           </Link>
-          <Link href="/settings/teams" className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl font-bold">
+          <Link href="/settings/teams" className="flex items-center gap-3 px-4 py-3 bg-surface border border-border rounded-2xl font-bold">
             <span className="text-indigo-400">👥</span> Team Management
           </Link>
         </nav>
@@ -54,23 +54,23 @@ export default function TeamSettings() {
       <main className="relative z-10 p-4 sm:p-6 md:p-12 md:ml-72">
         <header className="mb-10">
           <h1 className="text-3xl font-black tracking-tight mb-2">Team Management</h1>
-          <p className="text-neutral-500 font-medium">Manage members, roles, and workspace permissions.</p>
+          <p className="text-subtle font-medium">Manage members, roles, and workspace permissions.</p>
         </header>
 
         <nav className="flex gap-3 mb-8">
-          <Link href="/settings" className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5 transition">
+          <Link href="/settings" className="px-4 py-2 rounded-xl border border-border-strong text-sm font-semibold hover:bg-surface transition">
             General
           </Link>
-          <Link href="/settings/teams" className="px-4 py-2 rounded-xl border border-white/10 bg-white/10 text-sm font-semibold">
+          <Link href="/settings/teams" className="px-4 py-2 rounded-xl border border-border-strong bg-surface-strong text-sm font-semibold">
             Team
           </Link>
-          <Link href="/settings/developer" className="px-4 py-2 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5 transition">
+          <Link href="/settings/developer" className="px-4 py-2 rounded-xl border border-border-strong text-sm font-semibold hover:bg-surface transition">
             Developer
           </Link>
         </nav>
 
-        <div className="rounded-3xl bg-black/40 border border-white/5 overflow-hidden">
-          <div className="p-6 border-b border-white/5 flex justify-between items-center">
+        <div className="rounded-3xl bg-card border border-border overflow-hidden">
+          <div className="p-6 border-b border-border flex justify-between items-center">
             <h2 className="text-xl font-bold">Workspace Members</h2>
             <button 
               disabled={userRole !== "admin"}
@@ -78,7 +78,7 @@ export default function TeamSettings() {
             >
               + Invite Member
               {userRole !== "admin" && (
-                <span className="block text-[10px] text-indigo-200 font-medium">Admin only</span>
+                <span className="block text-[10px] text-brand font-medium">Admin only</span>
               )}
             </button>
           </div>
@@ -86,24 +86,24 @@ export default function TeamSettings() {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-neutral-500 text-xs font-bold uppercase tracking-wider">
+                <tr className="text-subtle text-xs font-bold uppercase tracking-wider">
                   <th className="px-6 py-4">Member</th>
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border">
                 {members.map((member) => (
-                  <tr key={member.id} className="group hover:bg-white/[0.02] transition">
+                  <tr key={member.id} className="group hover:bg-card/[0.02] transition">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-neutral-800 rounded-full flex items-center justify-center font-bold text-indigo-400">
+                        <div className="w-10 h-10 bg-surface-strong rounded-full flex items-center justify-center font-bold text-indigo-400">
                           {member.name[0]}
                         </div>
                         <div>
                           <p className="font-bold">{member.name}</p>
-                          <p className="text-xs text-neutral-500">{member.email}</p>
+                          <p className="text-xs text-subtle">{member.email}</p>
                         </div>
                       </div>
                     </td>
@@ -112,7 +112,7 @@ export default function TeamSettings() {
                         value={member.role}
                         disabled={userRole !== "admin" || member.id === "1"} // Can't change own role or if not admin
                         onChange={(e) => handleRoleChange(member.id, e.target.value as "admin" | "operator" | "viewer")}
-                        className="bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-card border border-border-strong rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="admin">Admin</option>
                         <option value="operator">Operator</option>
@@ -121,7 +121,7 @@ export default function TeamSettings() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
-                        member.status === "active" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                        member.status === "active" ? "bg-success-soft text-emerald-500" : "bg-warning-soft text-amber-500"
                       }`}>
                         {member.status}
                       </span>
@@ -130,7 +130,7 @@ export default function TeamSettings() {
                       <button 
                         onClick={() => removeMember(member.id)}
                         disabled={userRole !== "admin" || member.id === "1"}
-                        className="p-2 text-neutral-500 hover:text-red-500 transition disabled:opacity-0"
+                        className="p-2 text-subtle hover:text-red-500 transition disabled:opacity-0"
                       >
                         🗑️
                       </button>
@@ -144,17 +144,17 @@ export default function TeamSettings() {
 
         {/* Role Descriptions */}
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
+          <div className="p-6 rounded-2xl bg-surface border border-border">
             <p className="text-indigo-400 font-black text-xs uppercase mb-2">Admin</p>
-            <p className="text-sm text-neutral-400">Full access to all settings, team management, and financial operations.</p>
+            <p className="text-sm text-subtle">Full access to all settings, team management, and financial operations.</p>
           </div>
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
+          <div className="p-6 rounded-2xl bg-surface border border-border">
             <p className="text-purple-400 font-black text-xs uppercase mb-2">Operator</p>
-            <p className="text-sm text-neutral-400">Can manage links and view analytics, but cannot manage team or workspace settings.</p>
+            <p className="text-sm text-subtle">Can manage links and view analytics, but cannot manage team or workspace settings.</p>
           </div>
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-            <p className="text-neutral-400 font-black text-xs uppercase mb-2">Viewer</p>
-            <p className="text-sm text-neutral-400">Read-only access to dashboard and analytics. Cannot perform any actions.</p>
+          <div className="p-6 rounded-2xl bg-surface border border-border">
+            <p className="text-subtle font-black text-xs uppercase mb-2">Viewer</p>
+            <p className="text-sm text-subtle">Read-only access to dashboard and analytics. Cannot perform any actions.</p>
           </div>
         </div>
       </main>
