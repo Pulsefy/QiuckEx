@@ -442,3 +442,17 @@ pub fn rotate_fee_collector(
     publish_fee_collector_rotated(env, new_collector, next_index);
     Ok(next_index)
 }
+
+/// Set whether a hook contract is allowed to be registered (**Admin only**).
+pub fn set_hook_allowed(
+    env: &Env,
+    caller: &Address,
+    hook_contract: Address,
+    allowed: bool,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    storage::set_hook_allowed(env, &hook_contract, allowed);
+    crate::events::publish_hook_allowlist_changed(env, hook_contract, allowed);
+    Ok(())
+}
