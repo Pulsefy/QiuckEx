@@ -16,7 +16,11 @@ pub struct TestnetOracleAdapter;
 impl OraclePriceAdapter for TestnetOracleAdapter {
     fn fetch_price(&self, env: &Env, oracle: &Address) -> Option<(i128, u64)> {
         let args = soroban_sdk::vec![env];
-        match env.try_invoke_contract::<(i128, u64), Error>(oracle, &Symbol::new(env, "get_price"), args) {
+        match env.try_invoke_contract::<(i128, u64), Error>(
+            oracle,
+            &Symbol::new(env, "get_price"),
+            args,
+        ) {
             Ok(Ok((price_micros, timestamp))) => {
                 if price_micros <= 0 || timestamp == 0 {
                     None
