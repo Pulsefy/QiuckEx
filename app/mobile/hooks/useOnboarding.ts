@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { redactContext } from '../utils/feedback-redaction';
 
 const ONBOARDING_STORAGE_KEY = 'quickex_onboarding_completed';
 const ANALYTICS_STORAGE_KEY = 'quickex_onboarding_events';
@@ -69,7 +70,7 @@ export function useOnboarding() {
       await AsyncStorage.setItem(ANALYTICS_STORAGE_KEY, JSON.stringify(events));
 
       // Log to console for now - in production, this would send to analytics service
-      console.log('Onboarding Analytics:', event);
+      console.log('Onboarding Analytics:', redactContext(event));
 
       // In a real implementation, you would also send this to your analytics backend
       // await sendToAnalytics(event);

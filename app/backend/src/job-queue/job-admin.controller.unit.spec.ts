@@ -1,21 +1,23 @@
 /**
  * Job Admin Controller - Integration Tests
- * 
+ *
  * Tests the admin API endpoints for job monitoring and management.
  */
 
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { JobAdminController } from './job-admin.controller';
-import { JobQueueService } from './job-queue.service';
-import { JobRepository } from './job.repository';
-import { JobType, JobStatus, Job } from './types';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { Test, TestingModule } from "@nestjs/testing";
+import { NotFoundException, BadRequestException } from "@nestjs/common";
+import { JobAdminController } from "./job-admin.controller";
+import { JobQueueService } from "./job-queue.service";
+import { JobRepository } from "./job.repository";
+import { JobReplayRepository } from "./job-replay.repository";
+import { JobType, JobStatus, Job } from "./types";
+import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 
-describe('JobAdminController', () => {
+describe("JobAdminController", () => {
   let controller: JobAdminController;
   let jobQueueService: jest.Mocked<JobQueueService>;
   let jobRepository: jest.Mocked<JobRepository>;
+  let jobReplayRepository: jest.Mocked<JobReplayRepository>;
 
   beforeEach(async () => {
     const mockJobQueueService = {
@@ -26,6 +28,11 @@ describe('JobAdminController', () => {
 
     const mockJobRepository = {
       updateJobStatus: jest.fn(),
+    };
+
+    const mockJobReplayRepository = {
+      createReplayLog: jest.fn(),
+      getReplayLogs: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -39,6 +46,10 @@ describe('JobAdminController', () => {
           provide: JobRepository,
           useValue: mockJobRepository,
         },
+        {
+          provide: JobReplayRepository,
+          useValue: mockJobReplayRepository,
+        },
       ],
     })
       .overrideGuard(ApiKeyGuard)
@@ -48,10 +59,11 @@ describe('JobAdminController', () => {
     controller = module.get<JobAdminController>(JobAdminController);
     jobQueueService = module.get(JobQueueService);
     jobRepository = module.get(JobRepository);
+    jobReplayRepository = module.get(JobReplayRepository);
   });
 
-  describe('listJobs', () => {
-    it('should list jobs with filters', async () => {
+  describe("listJobs", () => {
+    it("should list jobs with filters", async () => {
       const mockResult = {
         jobs: [],
         total: 0,
@@ -82,12 +94,12 @@ describe('JobAdminController', () => {
     });
   });
 
-  describe('getJob', () => {
-    it('should return job details', async () => {
+  describe("getJob", () => {
+    it("should return job details", async () => {
       const mockJob: Job = {
-        id: 'job-1',
+        id: "job-1",
         type: JobType.WEBHOOK_DELIVERY,
-        payload: { test: 'data' },
+        payload: { test: "data" },
         status: JobStatus.PENDING,
         attempts: 0,
         maxAttempts: 3,
@@ -101,38 +113,38 @@ describe('JobAdminController', () => {
 
       jobQueueService.getJob.mockResolvedValue(mockJob);
 
-      const result = await controller.getJob('job-1');
+      const result = await controller.getJob("job-1");
 
       expect(result).toEqual(mockJob);
-      expect(jobQueueService.getJob).toHaveBeenCalledWith('job-1');
+      expect(jobQueueService.getJob).toHaveBeenCalledWith("job-1");
     });
 
-    it('should throw NotFoundException if job not found', async () => {
+    it("should throw NotFoundException if job not found", async () => {
       jobQueueService.getJob.mockResolvedValue(null);
 
-      await expect(controller.getJob('nonexistent')).rejects.toThrow(
+      await expect(controller.getJob("nonexistent")).rejects.toThrow(
         NotFoundException,
       );
     });
   });
 
-  describe('cancelJob', () => {
-    it('should cancel a job', async () => {
+  describe("cancelJob", () => {
+    it("should cancel a job", async () => {
       jobQueueService.cancel.mockResolvedValue(undefined);
 
-      const result = await controller.cancelJob('job-1');
+      const result = await controller.cancelJob("job-1");
 
-      expect(result).toEqual({ message: 'Job job-1 cancellation requested' });
-      expect(jobQueueService.cancel).toHaveBeenCalledWith('job-1');
+      expect(result).toEqual({ message: "Job job-1 cancellation requested" });
+      expect(jobQueueService.cancel).toHaveBeenCalledWith("job-1");
     });
   });
 
-  describe('retryJob', () => {
-    it('should retry a failed job', async () => {
+  describe("retryJob", () => {
+    it("should retry a failed job", async () => {
       const mockJob: Job = {
-        id: 'job-1',
+        id: "job-1",
         type: JobType.WEBHOOK_DELIVERY,
-        payload: { test: 'data' },
+        payload: { test: "data" },
         status: JobStatus.FAILED,
         attempts: 3,
         maxAttempts: 3,
@@ -140,18 +152,30 @@ describe('JobAdminController', () => {
         scheduledAt: new Date(),
         startedAt: new Date(),
         completedAt: null,
-        failureReason: 'Network error',
+        failureReason: "Network error",
         visibilityTimeout: null,
       };
 
       jobQueueService.getJob.mockResolvedValue(mockJob);
       jobRepository.updateJobStatus.mockResolvedValue(undefined);
+      jobReplayRepository.createReplayLog.mockResolvedValue({
+        id: "replay-1",
+        jobId: "job-1",
+        jobType: JobType.WEBHOOK_DELIVERY,
+        status: "queued" as const,
+        triggeredBy: "api",
+        previousAttempts: 3,
+        createdAt: new Date().toISOString(),
+      });
 
-      const result = await controller.retryJob('job-1');
+      const result = await controller.retryJob("job-1");
 
-      expect(result).toEqual({ message: 'Job job-1 scheduled for retry' });
+      expect(result).toEqual({
+        message: "Job job-1 scheduled for retry",
+        replayLogId: "replay-1",
+      });
       expect(jobRepository.updateJobStatus).toHaveBeenCalledWith(
-        'job-1',
+        "job-1",
         JobStatus.PENDING,
         {
           failureReason: null,
@@ -160,19 +184,19 @@ describe('JobAdminController', () => {
       );
     });
 
-    it('should throw NotFoundException if job not found', async () => {
+    it("should throw NotFoundException if job not found", async () => {
       jobQueueService.getJob.mockResolvedValue(null);
 
-      await expect(controller.retryJob('nonexistent')).rejects.toThrow(
+      await expect(controller.retryJob("nonexistent")).rejects.toThrow(
         NotFoundException,
       );
     });
 
-    it('should throw BadRequestException for completed jobs', async () => {
+    it("should throw BadRequestException for completed jobs", async () => {
       const mockJob: Job = {
-        id: 'job-1',
+        id: "job-1",
         type: JobType.WEBHOOK_DELIVERY,
-        payload: { test: 'data' },
+        payload: { test: "data" },
         status: JobStatus.COMPLETED,
         attempts: 1,
         maxAttempts: 3,
@@ -186,16 +210,16 @@ describe('JobAdminController', () => {
 
       jobQueueService.getJob.mockResolvedValue(mockJob);
 
-      await expect(controller.retryJob('job-1')).rejects.toThrow(
+      await expect(controller.retryJob("job-1")).rejects.toThrow(
         BadRequestException,
       );
     });
 
-    it('should throw BadRequestException for cancelled jobs', async () => {
+    it("should throw BadRequestException for cancelled jobs", async () => {
       const mockJob: Job = {
-        id: 'job-1',
+        id: "job-1",
         type: JobType.WEBHOOK_DELIVERY,
-        payload: { test: 'data' },
+        payload: { test: "data" },
         status: JobStatus.CANCELLED,
         attempts: 0,
         maxAttempts: 3,
@@ -209,17 +233,17 @@ describe('JobAdminController', () => {
 
       jobQueueService.getJob.mockResolvedValue(mockJob);
 
-      await expect(controller.retryJob('job-1')).rejects.toThrow(
+      await expect(controller.retryJob("job-1")).rejects.toThrow(
         BadRequestException,
       );
     });
   });
 
-  describe('bulkRetry', () => {
-    it('should bulk retry failed jobs', async () => {
+  describe("bulkRetry", () => {
+    it("should bulk retry failed jobs", async () => {
       const mockJobs: Job[] = [
         {
-          id: 'job-1',
+          id: "job-1",
           type: JobType.WEBHOOK_DELIVERY,
           payload: {},
           status: JobStatus.FAILED,
@@ -229,11 +253,11 @@ describe('JobAdminController', () => {
           scheduledAt: new Date(),
           startedAt: null,
           completedAt: null,
-          failureReason: 'Error 1',
+          failureReason: "Error 1",
           visibilityTimeout: null,
         },
         {
-          id: 'job-2',
+          id: "job-2",
           type: JobType.WEBHOOK_DELIVERY,
           payload: {},
           status: JobStatus.FAILED,
@@ -243,7 +267,7 @@ describe('JobAdminController', () => {
           scheduledAt: new Date(),
           startedAt: null,
           completedAt: null,
-          failureReason: 'Error 2',
+          failureReason: "Error 2",
           visibilityTimeout: null,
         },
       ];
@@ -262,13 +286,13 @@ describe('JobAdminController', () => {
       });
 
       expect(result.retriedCount).toBe(2);
-      expect(result.jobIds).toEqual(['job-1', 'job-2']);
+      expect(result.jobIds).toEqual(["job-1", "job-2"]);
       expect(jobRepository.updateJobStatus).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe('getMetrics', () => {
-    it('should return job metrics summary', async () => {
+  describe("getMetrics", () => {
+    it("should return job metrics summary", async () => {
       // Mock listJobs to return counts for different statuses
       jobQueueService.listJobs.mockImplementation(async (filters) => {
         // Return different counts based on status
@@ -282,7 +306,7 @@ describe('JobAdminController', () => {
 
         return {
           jobs: [],
-          total: counts[filters.status || 'pending'] || 0,
+          total: counts[filters.status || "pending"] || 0,
           limit: 0,
           offset: 0,
         };
@@ -290,21 +314,25 @@ describe('JobAdminController', () => {
 
       const result = await controller.getMetrics();
 
-      expect(result).toHaveProperty('byType');
-      expect(result).toHaveProperty('dlqCount');
-      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty('pending');
-      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty('running');
-      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty('completed');
-      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty('failed');
-      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty('cancelled');
+      expect(result).toHaveProperty("byType");
+      expect(result).toHaveProperty("dlqCount");
+      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty("pending");
+      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty("running");
+      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty(
+        "completed",
+      );
+      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty("failed");
+      expect(result.byType[JobType.WEBHOOK_DELIVERY]).toHaveProperty(
+        "cancelled",
+      );
     });
   });
 
-  describe('getDeadLetterQueue', () => {
-    it('should return DLQ jobs', async () => {
+  describe("getDeadLetterQueue", () => {
+    it("should return DLQ jobs", async () => {
       const mockDLQJobs: Job[] = [
         {
-          id: 'job-1',
+          id: "job-1",
           type: JobType.WEBHOOK_DELIVERY,
           payload: {},
           status: JobStatus.FAILED,
@@ -314,7 +342,7 @@ describe('JobAdminController', () => {
           scheduledAt: new Date(),
           startedAt: null,
           completedAt: null,
-          failureReason: 'Exhausted retries',
+          failureReason: "Exhausted retries",
           visibilityTimeout: null,
         },
       ];
@@ -328,6 +356,9 @@ describe('JobAdminController', () => {
 
       const result = await controller.getDeadLetterQueue(
         JobType.WEBHOOK_DELIVERY,
+        undefined,
+        undefined,
+        undefined,
         50,
         0,
       );
@@ -338,10 +369,10 @@ describe('JobAdminController', () => {
       );
     });
 
-    it('should filter out jobs that have not exhausted retries', async () => {
+    it("should filter out jobs that have not exhausted retries", async () => {
       const mockJobs: Job[] = [
         {
-          id: 'job-1',
+          id: "job-1",
           type: JobType.WEBHOOK_DELIVERY,
           payload: {},
           status: JobStatus.FAILED,
@@ -351,11 +382,11 @@ describe('JobAdminController', () => {
           scheduledAt: new Date(),
           startedAt: null,
           completedAt: null,
-          failureReason: 'Exhausted retries',
+          failureReason: "Exhausted retries",
           visibilityTimeout: null,
         },
         {
-          id: 'job-2',
+          id: "job-2",
           type: JobType.WEBHOOK_DELIVERY,
           payload: {},
           status: JobStatus.FAILED,
@@ -365,7 +396,7 @@ describe('JobAdminController', () => {
           scheduledAt: new Date(),
           startedAt: null,
           completedAt: null,
-          failureReason: 'Will retry',
+          failureReason: "Will retry",
           visibilityTimeout: null,
         },
       ];
@@ -379,12 +410,15 @@ describe('JobAdminController', () => {
 
       const result = await controller.getDeadLetterQueue(
         JobType.WEBHOOK_DELIVERY,
+        undefined,
+        undefined,
+        undefined,
         50,
         0,
       );
 
       expect(result.jobs).toHaveLength(1);
-      expect(result.jobs[0].id).toBe('job-1');
+      expect(result.jobs[0].id).toBe("job-1");
     });
   });
 });

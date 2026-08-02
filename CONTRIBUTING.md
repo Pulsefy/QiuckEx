@@ -25,6 +25,32 @@ The container will install:
 - Docker (for local services)
 - All backend/frontend dependencies
 
+## Manual Environment Setup (Without Dev Containers)
+
+If you prefer to set up the environment manually on your host machine:
+
+### 1. TypeScript/Node
+1. Install Node.js (LTS).
+2. Install `pnpm` globally (`npm i -g pnpm`).
+3. Run `pnpm install` in the repository root.
+4. Start the frontend/backend servers via TurboRepo:
+   ```bash
+   pnpm turbo run dev
+   ```
+
+### 2. Rust/Soroban
+1. Install Rust via `rustup`:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   rustup default stable
+   rustup target add wasm32-unknown-unknown
+   ```
+2. Build the contracts:
+   ```bash
+   cd app/contract
+   cargo build --target wasm32-unknown-unknown --release
+   ```
+
 ## Branch Naming
 
 - Feature branches: `feat/<short-description>`
