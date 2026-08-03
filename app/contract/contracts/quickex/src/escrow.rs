@@ -597,7 +597,7 @@ pub fn withdraw(
     put_escrow(env, &commitment_bytes, &updated);
 
     let (_payout_amount, fee_amount) =
-        fee_router::route_payout(env, &token_ref, &to, amount_paid, None);
+        fee_router::route_payout_price_aware(env, &token_ref, &to, amount_paid, None)?;
 
     events::publish_escrow_withdrawn(
         env,
@@ -946,14 +946,15 @@ pub fn resolve_dispute(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        fee_router::route_payout(
+    let fee_amount = if final_status == EscrowStatus::Spent {
+        let (_payout_amount, fee) = fee_router::route_payout_price_aware(
             env,
             &entry.token,
             &recipient_address,
             entry.amount_paid,
             Some(&caller),
-        )
+        )?;
+        fee
     } else {
         // Refund path — no fee, direct transfer to owner.
         let token_client = token::Client::new(env, &entry.token);
@@ -962,7 +963,7 @@ pub fn resolve_dispute(
             &recipient_address,
             &entry.amount_paid,
         );
-        (entry.amount_paid, 0)
+        0
     };
 
     if resolve_for_owner {
@@ -1180,14 +1181,15 @@ pub fn resolve_dispute_multi_sig(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
-        fee_router::route_payout(
+    let fee_amount = if final_status == EscrowStatus::Spent {
+        let (_payout_amount, fee) = fee_router::route_payout_price_aware(
             env,
             &entry.token,
             &recipient_address,
             entry.amount_paid,
             None,
-        )
+        )?;
+        fee
     } else {
         let token_client = token::Client::new(env, &entry.token);
         token_client.transfer(
@@ -1195,7 +1197,7 @@ pub fn resolve_dispute_multi_sig(
             &recipient_address,
             &entry.amount_paid,
         );
-        (entry.amount_paid, 0)
+        0
     };
 
     // Emit dispute resolved event
