@@ -1,21 +1,21 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import { ApiKeysService } from './api-keys.service';
-import { ApiKeysRepository } from './api-keys.repository';
-import { ApiKeyRecord } from './api-keys.types';
+import { Test, TestingModule } from "@nestjs/testing";
+import { NotFoundException } from "@nestjs/common";
+import * as bcrypt from "bcrypt";
+import { ApiKeysService } from "./api-keys.service";
+import { ApiKeysRepository } from "./api-keys.repository";
+import { ApiKeyRecord } from "./api-keys.types";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
-  id: 'test-uuid-1234',
-  name: 'Test Key',
-  key_hash: '$2b$10$hashedvalue',
+  id: "test-uuid-1234",
+  name: "Test Key",
+  key_hash: "$2b$10$hashedvalue",
   key_hash_old: null,
-  key_prefix: 'qx_live_abc',
-  scopes: ['links:read'],
+  key_prefix: "qx_live_abc",
+  scopes: ["links:read"],
   owner_id: null,
   organization_id: null,
   is_active: true,
@@ -24,8 +24,8 @@ const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
   last_used_at: null,
   rotated_at: null,
   last_reset_at: new Date().toISOString(),
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
   ...overrides,
 });
 
@@ -33,7 +33,7 @@ const makeRecord = (overrides: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ApiKeysService', () => {
+describe("ApiKeysService", () => {
   let service: ApiKeysService;
   let repo: jest.Mocked<ApiKeysRepository>;
 
@@ -60,7 +60,7 @@ describe('ApiKeysService', () => {
     repo = module.get(ApiKeysRepository);
   });
 
-  it('should be defined', () => {
+  it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
@@ -68,39 +68,39 @@ describe('ApiKeysService', () => {
   // create
   // -------------------------------------------------------------------------
 
-  describe('create', () => {
-    it('returns a public record with the raw key', async () => {
+  describe("create", () => {
+    it("returns a public record with the raw key", async () => {
       const record = makeRecord();
       repo.insert.mockResolvedValue(record);
 
       const result = await service.create({
-        name: 'Test Key',
-        scopes: ['links:read'],
+        name: "Test Key",
+        scopes: ["links:read"],
       });
 
       expect(result.key).toMatch(/^qx_live_[a-f0-9]+$/);
       expect(result.id).toBe(record.id);
       expect(result.name).toBe(record.name);
-      expect(result.scopes).toEqual(['links:read']);
+      expect(result.scopes).toEqual(["links:read"]);
       // raw key must NOT be stored in key_hash directly
       expect(result.key).not.toBe(result.key_prefix);
     });
 
-    it('stores a bcrypt hash, not the raw key', async () => {
+    it("stores a bcrypt hash, not the raw key", async () => {
       const record = makeRecord();
       repo.insert.mockResolvedValue(record);
 
-      await service.create({ name: 'Test Key', scopes: ['links:read'] });
+      await service.create({ name: "Test Key", scopes: ["links:read"] });
 
       const insertedHash = repo.insert.mock.calls[0][0].key_hash;
       expect(insertedHash).toMatch(/^\$2b\$/); // bcrypt prefix
     });
 
-    it('generates a prefix matching the stored key_prefix format', async () => {
+    it("generates a prefix matching the stored key_prefix format", async () => {
       const record = makeRecord();
       repo.insert.mockResolvedValue(record);
 
-      await service.create({ name: 'Test Key', scopes: ['links:read'] });
+      await service.create({ name: "Test Key", scopes: ["links:read"] });
 
       const insertedPrefix = repo.insert.mock.calls[0][0].key_prefix;
       expect(insertedPrefix).toMatch(/^qx_live_/);
@@ -111,23 +111,23 @@ describe('ApiKeysService', () => {
   // list
   // -------------------------------------------------------------------------
 
-  describe('list', () => {
-    it('returns mapped public records without key_hash', async () => {
+  describe("list", () => {
+    it("returns mapped public records without key_hash", async () => {
       const record = makeRecord();
       repo.findAll.mockResolvedValue([record]);
 
       const result = await service.list();
 
       expect(result).toHaveLength(1);
-      expect(result[0]).not.toHaveProperty('key_hash');
-      expect(result[0]).not.toHaveProperty('updated_at');
+      expect(result[0]).not.toHaveProperty("key_hash");
+      expect(result[0]).not.toHaveProperty("updated_at");
       expect(result[0].id).toBe(record.id);
     });
 
-    it('forwards owner_id filter to repository', async () => {
+    it("forwards owner_id filter to repository", async () => {
       repo.findAll.mockResolvedValue([]);
-      await service.list('wallet-abc');
-      expect(repo.findAll).toHaveBeenCalledWith('wallet-abc', undefined);
+      await service.list("wallet-abc");
+      expect(repo.findAll).toHaveBeenCalledWith("wallet-abc", undefined);
     });
   });
 
@@ -135,20 +135,20 @@ describe('ApiKeysService', () => {
   // revoke
   // -------------------------------------------------------------------------
 
-  describe('revoke', () => {
-    it('calls repo.revoke when key exists', async () => {
+  describe("revoke", () => {
+    it("calls repo.revoke when key exists", async () => {
       repo.findById.mockResolvedValue(makeRecord());
       repo.revoke.mockResolvedValue(undefined);
 
-      await service.revoke('test-uuid-1234');
+      await service.revoke("test-uuid-1234");
 
-      expect(repo.revoke).toHaveBeenCalledWith('test-uuid-1234');
+      expect(repo.revoke).toHaveBeenCalledWith("test-uuid-1234");
     });
 
-    it('throws NotFoundException when key does not exist', async () => {
+    it("throws NotFoundException when key does not exist", async () => {
       repo.findById.mockResolvedValue(null);
 
-      await expect(service.revoke('missing-id')).rejects.toThrow(
+      await expect(service.revoke("missing-id")).rejects.toThrow(
         NotFoundException,
       );
       expect(repo.revoke).not.toHaveBeenCalled();
@@ -159,26 +159,26 @@ describe('ApiKeysService', () => {
   // rotate
   // -------------------------------------------------------------------------
 
-  describe('rotate', () => {
-    it('returns a new raw key and updated record', async () => {
-      const original = makeRecord({ key_prefix: 'qx_live_old' });
-      const updated = makeRecord({ key_prefix: 'qx_live_new' });
+  describe("rotate", () => {
+    it("returns a new raw key and updated record", async () => {
+      const original = makeRecord({ key_prefix: "qx_live_old" });
+      const updated = makeRecord({ key_prefix: "qx_live_new" });
       repo.findById.mockResolvedValue(original);
       repo.updateKey.mockResolvedValue(updated);
 
-      const result = await service.rotate('test-uuid-1234');
+      const result = await service.rotate("test-uuid-1234");
 
       expect(result.key).toMatch(/^qx_live_[a-f0-9]+$/);
       expect(repo.updateKey).toHaveBeenCalledWith(
-        'test-uuid-1234',
+        "test-uuid-1234",
         expect.objectContaining({ key_hash: expect.stringMatching(/^\$2b\$/) }),
       );
     });
 
-    it('throws NotFoundException when key does not exist', async () => {
+    it("throws NotFoundException when key does not exist", async () => {
       repo.findById.mockResolvedValue(null);
 
-      await expect(service.rotate('missing-id')).rejects.toThrow(
+      await expect(service.rotate("missing-id")).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -188,55 +188,68 @@ describe('ApiKeysService', () => {
   // validateKey
   // -------------------------------------------------------------------------
 
-  describe('validateKey', () => {
-    it('returns null when no candidates match the prefix', async () => {
+  describe("validateKey", () => {
+    it("returns null when no candidates match the prefix", async () => {
       repo.findByPrefix.mockResolvedValue([]);
 
-      const result = await service.validateKey('qx_live_abc123fakekeyvalue');
+      const result = await service.validateKey("qx_live_abc123fakekeyvalue");
 
       expect(result).toBeNull();
     });
 
-    it('returns null when prefix matches but bcrypt compare fails', async () => {
+    it("returns null when prefix matches but bcrypt compare fails", async () => {
       // Store a hash for a different key so compare will fail
       const record = makeRecord({
-        key_hash: '$2b$10$invalidhashvalue000000000000000000000000000000000000000',
+        key_hash:
+          "$2b$10$invalidhashvalue000000000000000000000000000000000000000",
       });
       repo.findByPrefix.mockResolvedValue([record]);
       repo.incrementUsage.mockResolvedValue(undefined);
 
-      const result = await service.validateKey('qx_live_wrongkey12345678901234567890123456789012345678');
+      const result = await service.validateKey(
+        "qx_live_wrongkey12345678901234567890123456789012345678",
+      );
 
       expect(result).toBeNull();
     });
 
-    it('returns record when key matches key_hash_old within 24h', async () => {
+    it("returns record when key matches key_hash_old within 24h", async () => {
       // We'll use a known bcrypt hash for 'qx_live_oldkey12345678901234567890'
-      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
+      const oldHash = await bcrypt.hash(
+        "qx_live_oldkey12345678901234567890",
+        10,
+      );
       const record = makeRecord({
-        key_hash: '$2b$10$newhashvalue...',
+        key_hash: "$2b$10$newhashvalue...",
         key_hash_old: oldHash,
         rotated_at: new Date().toISOString(),
       });
       repo.findByPrefix.mockResolvedValue([record]);
       repo.incrementUsage.mockResolvedValue(undefined);
 
-      const result = await service.validateKey('qx_live_oldkey12345678901234567890');
+      const result = await service.validateKey(
+        "qx_live_oldkey12345678901234567890",
+      );
 
       expect(result).not.toBeNull();
       expect(result?.record.id).toBe(record.id);
     });
 
-    it('returns null when key matches key_hash_old but after 24h', async () => {
-      const oldHash = await bcrypt.hash('qx_live_oldkey12345678901234567890', 10);
+    it("returns null when key matches key_hash_old but after 24h", async () => {
+      const oldHash = await bcrypt.hash(
+        "qx_live_oldkey12345678901234567890",
+        10,
+      );
       const record = makeRecord({
-        key_hash: '$2b$10$newhashvalue...',
+        key_hash: "$2b$10$newhashvalue...",
         key_hash_old: oldHash,
         rotated_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), // 25h ago
       });
       repo.findByPrefix.mockResolvedValue([record]);
 
-      const result = await service.validateKey('qx_live_oldkey12345678901234567890');
+      const result = await service.validateKey(
+        "qx_live_oldkey12345678901234567890",
+      );
 
       expect(result).toBeNull();
     });
@@ -246,32 +259,33 @@ describe('ApiKeysService', () => {
   // isOverQuota
   // -------------------------------------------------------------------------
 
-  describe('isOverQuota', () => {
-    it('returns false when usage is below quota', () => {
+  describe("isOverQuota", () => {
+    it("returns false when usage is below quota", () => {
       const record = makeRecord({ request_count: 5000, monthly_quota: 10000 });
       expect(service.isOverQuota(record)).toBe(false);
     });
 
-    it('returns true when usage equals quota', () => {
+    it("returns true when usage equals quota", () => {
       const record = makeRecord({ request_count: 10000, monthly_quota: 10000 });
       expect(service.isOverQuota(record)).toBe(true);
     });
 
-    it('returns true when usage exceeds quota', () => {
+    it("returns true when usage exceeds quota", () => {
       const record = makeRecord({ request_count: 10001, monthly_quota: 10000 });
       expect(service.isOverQuota(record)).toBe(true);
     });
 
-    it('returns false if current month is later than last_reset_at', () => {
+    it("returns false if current month is later than last_reset_at", () => {
       const lastMonth = new Date();
+      lastMonth.setUTCDate(1);
       lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
-      
-      const record = makeRecord({ 
-        request_count: 15000, 
+
+      const record = makeRecord({
+        request_count: 15000,
         monthly_quota: 10000,
-        last_reset_at: lastMonth.toISOString()
+        last_reset_at: lastMonth.toISOString(),
       });
-      
+
       expect(service.isOverQuota(record)).toBe(false);
     });
   });

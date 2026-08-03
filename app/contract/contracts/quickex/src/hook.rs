@@ -2,6 +2,9 @@ use crate::{errors::QuickexError, storage, types::HookEventKind};
 use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
+    if !storage::is_hook_allowed(env, &hook_contract) {
+        return Err(QuickexError::HookNotAllowed);
+    }
     let mut hooks = storage::get_registered_hooks(env);
     if hooks.contains(hook_contract.clone()) {
         return Err(QuickexError::HookAlreadyRegistered);

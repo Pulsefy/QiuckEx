@@ -144,6 +144,13 @@ export class AppConfigService {
   }
 
   /**
+   * Public API base URL for client bootstrapping.
+   */
+  get publicApiUrl(): string | undefined {
+    return this.configService.get("PUBLIC_API_URL", { infer: true });
+  }
+
+  /**
    * Parsed list of explicitly allowed CORS origins.
    * Sourced from the CORS_ALLOWED_ORIGINS env var (comma-separated).
    */
