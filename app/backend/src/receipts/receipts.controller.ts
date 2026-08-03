@@ -10,19 +10,31 @@
 import {
   Controller,
   Get,
+  Post,
+  Body,
   Param,
   Query,
   ParseIntPipe,
   DefaultValuePipe,
   HttpCode,
   HttpStatus,
-} from '@nestjs/common';
-import { ReceiptsService } from './receipts.service';
-import { GetReceiptsByAddressDto, ReceiptResponse, ReceiptListResponse } from './dto/receipt.dto';
+} from "@nestjs/common";
+import { ReceiptsService } from "./receipts.service";
+import { ReceiptHashService } from "./receipt-hash.service";
+import {
+  GetReceiptsByAddressDto,
+  VerifyReceiptHashDto,
+  ReceiptResponse,
+  ReceiptListResponse,
+  VerifyReceiptHashResponse,
+} from "./dto/receipt.dto";
 
-@Controller('v1/receipts')
+@Controller("v1/receipts")
 export class ReceiptsController {
-  constructor(private readonly receiptsService: ReceiptsService) {}
+  constructor(
+    private readonly receiptsService: ReceiptsService,
+    private readonly receiptHashService: ReceiptHashService,
+  ) {}
 
   /**
    * GET /v1/receipts/tx/:txHash
@@ -30,15 +42,20 @@ export class ReceiptsController {
    *
    * Returns a single normalized receipt for a transaction.
    * operationIndex defaults to 0 (first operation).
+   * Response includes `receiptHash` — a deterministic SHA-256 hash of
+   * canonical transaction data, stable across retries.
    */
-  @Get('tx/:txHash')
+  @Get("tx/:txHash")
   @HttpCode(HttpStatus.OK)
   async getByTxHash(
-    @Param('txHash') txHash: string,
-    @Query('operationIndex', new DefaultValuePipe(0), ParseIntPipe)
+    @Param("txHash") txHash: string,
+    @Query("operationIndex", new DefaultValuePipe(0), ParseIntPipe)
     operationIndex: number,
   ): Promise<ReceiptResponse> {
-    const receipt = await this.receiptsService.getByTxHash({ txHash, operationIndex });
+    const receipt = await this.receiptsService.getByTxHash({
+      txHash,
+      operationIndex,
+    });
     return { receipt };
   }
 
@@ -53,10 +70,10 @@ export class ReceiptsController {
    *   limit?    default 20, max 100
    *   cursor?   paging token from previous response
    */
-  @Get('address/:address')
+  @Get("address/:address")
   @HttpCode(HttpStatus.OK)
   async getByAddress(
-    @Param('address') address: string,
+    @Param("address") address: string,
     @Query() query: Partial<GetReceiptsByAddressDto>,
   ): Promise<ReceiptListResponse> {
     const result = await this.receiptsService.getByAddress({
@@ -67,5 +84,26 @@ export class ReceiptsController {
       cursor: query.cursor,
     });
     return result;
+  }
+
+  /**
+   * POST /v1/receipts/verify-hash
+   *
+   * Verifies that a receipt hash matches the provided canonical inputs.
+   * Used by indexers and support tooling to validate receipt integrity
+   * without needing to fetch the full receipt.
+   */
+  @Post("verify-hash")
+  @HttpCode(HttpStatus.OK)
+  async verifyHash(
+    @Body() dto: VerifyReceiptHashDto,
+  ): Promise<VerifyReceiptHashResponse> {
+    const { receiptHash, ...inputs } = dto;
+    const computedHash = this.receiptHashService.computeHash(inputs);
+    return {
+      valid: computedHash === receiptHash,
+      computedHash,
+      providedHash: receiptHash,
+    };
   }
 }
