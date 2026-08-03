@@ -286,3 +286,10 @@ pub enum PauseReason {
     RegulatoryCompliance = 4,
     OperatorIntervention = 5,
 }
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum HookFailureReason {
+    CallFailed = 1,
+}

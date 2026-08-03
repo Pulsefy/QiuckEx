@@ -1100,3 +1100,33 @@ pub(crate) fn publish_oracle_price_updated(env: &Env, price_micros: i128, record
     }
     .publish(env);
 }
+
+#[contractevent(topics = ["TOPIC_ADMIN", "HookFailed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookFailedEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    #[topic]
+    pub hook_id: Address,
+
+    pub schema_version: u32,
+    pub error_code: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_failed(
+    env: &Env,
+    escrow_id: BytesN<32>,
+    hook_id: Address,
+    error_code: u32,
+) {
+    HookFailedEvent {
+        escrow_id,
+        hook_id,
+        schema_version: EVENT_SCHEMA_VERSION,
+        error_code,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
