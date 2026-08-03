@@ -1080,6 +1080,8 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
               size={160}
               color={color(tokens.textPrimary)}
               backgroundColor={color(tokens.surface)}
+              ecl="M"
+              quietZone={4}
             />
           </View>
           <Text style={[styles.qrLabel, { color: color(tokens.textMuted) }]}>

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { redactContext } from '../../utils/feedback-redaction';
 
 import { useTheme } from '../../src/theme/ThemeContext';
 
@@ -268,7 +269,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: OnboardingFlowPro
   };
 
   const trackOnboardingEvent = (eventName: string, params: Record<string, unknown>) => {
-    console.log('Analytics Event:', eventName, params);
+    console.log('Analytics Event:', eventName, redactContext(params));
   };
 
   const currentStepData = steps[currentStep];

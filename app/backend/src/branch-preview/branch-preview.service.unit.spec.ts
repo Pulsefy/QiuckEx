@@ -68,7 +68,7 @@ describe('BranchPreviewService', () => {
     repository.findByBranchName.mockResolvedValue(null);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.isFallback).toBe(true);
     expect(result.branchName).toBe('fallback');
   });
@@ -88,11 +88,11 @@ describe('BranchPreviewService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     cache.get.mockReturnValue(mockPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.isFallback).toBe(false);
     expect(result.apiUrl).toBe('https://api.test.com');
     expect(repository.findByBranchName).not.toHaveBeenCalled();
@@ -113,12 +113,12 @@ describe('BranchPreviewService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     cache.get.mockReturnValue(undefined);
     repository.findByBranchName.mockResolvedValue(mockPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.apiUrl).toBe('https://api.db-test.com');
     expect(cache.set).toHaveBeenCalledWith(branchName.toLowerCase(), mockPreview);
   });
@@ -139,12 +139,12 @@ describe('BranchPreviewService', () => {
       updatedAt: new Date(Date.now() - 86400000),
       expiresAt: new Date(Date.now() - 3600000), // Expired 1 hour ago
     };
-    
+
     cache.get.mockReturnValue(expiredPreview);
     repository.findByBranchName.mockResolvedValue(expiredPreview);
 
     const result = await service.getPreviewForBranch(branchName);
-    
+
     expect(result.isFallback).toBe(true);
   });
 

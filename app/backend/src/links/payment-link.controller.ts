@@ -5,12 +5,15 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  UseGuards,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from "@nestjs/swagger";
 import { PaymentLinkService } from "./payment-link.service";
 import { PaymentLinkStatusDto } from "../dto/link/payment-link-status.dto";
+import { CustomThrottlerGuard } from "../auth/guards/custom-throttler.guard";
 
 @ApiTags("payment-links")
+@UseGuards(CustomThrottlerGuard)
 @Controller("payment-links")
 export class PaymentLinkController {
   constructor(private readonly paymentLinkService: PaymentLinkService) {}
@@ -55,6 +58,10 @@ export class PaymentLinkController {
   @ApiResponse({
     status: 404,
     description: "Username not found",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Rate limit exceeded – retry after 60 seconds",
   })
   async getPaymentLinkStatus(
     @Query("username") username: string,

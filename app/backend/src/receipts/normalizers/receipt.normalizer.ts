@@ -7,7 +7,7 @@
  * Location: app/backend/src/receipts/normalizers/receipt.normalizer.ts
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from "@nestjs/common";
 import {
   NormalizedReceipt,
   ReceiptType,
@@ -17,7 +17,8 @@ import {
   PartyInfo,
   ContractMeta,
   DiagnosticMeta,
-} from '../schemas/receipt.schema';
+} from "../schemas/receipt.schema";
+import { ReceiptHashService } from "../receipt-hash.service";
 
 // ── Raw types from Horizon / Soroban RPC ────────────────────────────────────
 
@@ -59,7 +60,7 @@ export interface HorizonTransaction {
 }
 
 export interface SorobanRpcResult {
-  status: 'SUCCESS' | 'FAILED' | 'NOT_FOUND';
+  status: "SUCCESS" | "FAILED" | "NOT_FOUND";
   txHash: string;
   contractId?: string;
   functionName?: string;
@@ -83,7 +84,7 @@ export interface IndexerMetadata {
   receiptId?: string;
   senderUsername?: string;
   receiverUsername?: string;
-  network: 'testnet' | 'mainnet';
+  network: "testnet" | "mainnet";
 }
 
 // ── Normalizer ───────────────────────────────────────────────────────────────
@@ -92,10 +93,12 @@ export interface IndexerMetadata {
 export class ReceiptNormalizer {
   private readonly logger = new Logger(ReceiptNormalizer.name);
 
-  private readonly EXPLORER_BASE: Record<'testnet' | 'mainnet', string> = {
-    testnet: 'https://stellar.expert/explorer/testnet/tx',
-    mainnet: 'https://stellar.expert/explorer/public/tx',
+  private readonly EXPLORER_BASE: Record<"testnet" | "mainnet", string> = {
+    testnet: "https://stellar.expert/explorer/testnet/tx",
+    mainnet: "https://stellar.expert/explorer/public/tx",
   };
+
+  constructor(private readonly receiptHashService: ReceiptHashService) {}
 
   /**
    * Build a stable NormalizedReceipt from all available sources.
@@ -110,14 +113,32 @@ export class ReceiptNormalizer {
   ): NormalizedReceipt {
     const txHash = transaction.hash;
     const operationIndex = this.extractOperationIndex(operation);
-    const receiptId = indexer.receiptId ?? this.deriveReceiptId(txHash, operationIndex);
+    const receiptId =
+      indexer.receiptId ?? this.deriveReceiptId(txHash, operationIndex);
     const type = this.deriveType(operation, soroban);
     const status = this.deriveStatus(transaction, soroban);
     const network = indexer.network;
 
+    // Compute deterministic receipt hash from canonical transaction data
+    const receiptHash = this.receiptHashService.computeHash({
+      txHash,
+      operationIndex,
+      sourceAccount: operation.from ?? operation.source_account,
+      destAccount: operation.to ?? "",
+      amount: operation.amount ?? "0",
+      assetCode:
+        operation.asset_type === "native"
+          ? "XLM"
+          : (operation.asset_code ?? "UNKNOWN"),
+      assetIssuer: operation.asset_issuer ?? "",
+      ledger: transaction.ledger ?? 0,
+      network,
+    });
+
     return {
       // Identity
       receiptId,
+      receiptHash,
       txHash,
       operationIndex,
       type,
@@ -125,9 +146,10 @@ export class ReceiptNormalizer {
 
       // Timestamps (stable: use indexer submittedAt for failed txs so
       // timestamps don't shift on testnet retries)
-      createdAt: status === 'failed'
-        ? indexer.submittedAt
-        : (indexer.confirmedAt ?? transaction.created_at),
+      createdAt:
+        status === "failed"
+          ? indexer.submittedAt
+          : (indexer.confirmedAt ?? transaction.created_at),
       updatedAt: new Date().toISOString(),
       ledger: transaction.ledger ?? null,
 
@@ -140,7 +162,7 @@ export class ReceiptNormalizer {
 
       // Value
       asset: this.buildAsset(operation),
-      amount: operation.amount ?? '0',
+      amount: operation.amount ?? "0",
       displayAmount: this.formatDisplayAmount(operation),
       memo: transaction.memo ?? null,
       memoType: this.normalizeMemoType(transaction.memo_type),
@@ -149,7 +171,10 @@ export class ReceiptNormalizer {
       fee: this.buildFee(transaction, soroban),
 
       // Contract
-      contract: type === 'contract_action' ? this.buildContract(operation, soroban) : null,
+      contract:
+        type === "contract_action"
+          ? this.buildContract(operation, soroban)
+          : null,
 
       // Diagnostics (always present)
       diagnostic: this.buildDiagnostic(transaction, soroban),
@@ -169,7 +194,7 @@ export class ReceiptNormalizer {
 
   private extractOperationIndex(op: HorizonOperation): number {
     // Horizon paging tokens encode ledger+tx+op; fall back to 0
-    const parts = op.paging_token?.split('-');
+    const parts = op.paging_token?.split("-");
     return parts?.length >= 3 ? parseInt(parts[2], 10) : 0;
   }
 
@@ -177,21 +202,21 @@ export class ReceiptNormalizer {
     op: HorizonOperation,
     soroban: SorobanRpcResult | null,
   ): ReceiptType {
-    if (soroban || op.type === 'invoke_host_function') return 'contract_action';
+    if (soroban || op.type === "invoke_host_function") return "contract_action";
     // QuickEx tags refunds by convention via the memo or function name
-    if (op.type === 'payment' && op.function === 'refund') return 'refund';
-    return 'payment';
+    if (op.type === "payment" && op.function === "refund") return "refund";
+    return "payment";
   }
 
   private deriveStatus(
     tx: HorizonTransaction,
     soroban: SorobanRpcResult | null,
   ): ReceiptStatus {
-    if (!tx.successful) return 'failed';
-    if (soroban?.status === 'FAILED') return 'failed';
-    if (soroban?.status === 'NOT_FOUND') return 'pending';
-    if (!tx.ledger) return 'pending';
-    return 'success';
+    if (!tx.successful) return "failed";
+    if (soroban?.status === "FAILED") return "failed";
+    if (soroban?.status === "NOT_FOUND") return "pending";
+    if (!tx.ledger) return "pending";
+    return "success";
   }
 
   private buildReceiver(
@@ -206,47 +231,44 @@ export class ReceiptNormalizer {
   }
 
   private buildAsset(op: HorizonOperation): StellarAsset {
-    const type = (op.asset_type ?? 'native') as StellarAsset['type'];
+    const type = (op.asset_type ?? "native") as StellarAsset["type"];
     return {
       type,
-      code: type === 'native' ? 'XLM' : (op.asset_code ?? 'UNKNOWN'),
+      code: type === "native" ? "XLM" : (op.asset_code ?? "UNKNOWN"),
       issuer: op.asset_issuer ?? null,
     };
   }
 
   private formatDisplayAmount(op: HorizonOperation): string {
     const code =
-      op.asset_type === 'native' ? 'XLM' : (op.asset_code ?? 'UNKNOWN');
-    const amount = op.amount ?? '0';
+      op.asset_type === "native" ? "XLM" : (op.asset_code ?? "UNKNOWN");
+    const amount = op.amount ?? "0";
     return `${amount} ${code}`;
   }
 
-  private normalizeMemoType(
-    raw: string,
-  ): NormalizedReceipt['memoType'] {
-    const map: Record<string, NormalizedReceipt['memoType']> = {
-      text: 'text',
-      id: 'id',
-      hash: 'hash',
-      return: 'return',
-      none: 'none',
-      MemoNone: 'none',
-      MemoText: 'text',
-      MemoID: 'id',
-      MemoHash: 'hash',
-      MemoReturn: 'return',
+  private normalizeMemoType(raw: string): NormalizedReceipt["memoType"] {
+    const map: Record<string, NormalizedReceipt["memoType"]> = {
+      text: "text",
+      id: "id",
+      hash: "hash",
+      return: "return",
+      none: "none",
+      MemoNone: "none",
+      MemoText: "text",
+      MemoID: "id",
+      MemoHash: "hash",
+      MemoReturn: "return",
     };
-    return map[raw] ?? 'none';
+    return map[raw] ?? "none";
   }
 
   private buildFee(
     tx: HorizonTransaction,
     soroban: SorobanRpcResult | null,
   ): FeeMetadata {
-    const baseFee = tx.fee_charged ?? '0';
-    const resourceFee = soroban?.resourceFee ?? '0';
-    const totalStroops =
-      BigInt(baseFee) + BigInt(resourceFee);
+    const baseFee = tx.fee_charged ?? "0";
+    const resourceFee = soroban?.resourceFee ?? "0";
+    const totalStroops = BigInt(baseFee) + BigInt(resourceFee);
     const totalXlm = (Number(totalStroops) / 1e7).toFixed(7);
 
     return {
@@ -264,17 +286,18 @@ export class ReceiptNormalizer {
 
     return {
       contractId: soroban.contractId,
-      functionName: soroban.functionName ?? op.function ?? 'unknown',
+      functionName: soroban.functionName ?? op.function ?? "unknown",
       args: soroban.args ?? {},
       returnValue: soroban.returnValue ?? null,
-      resources: soroban.cpuInstructions != null
-        ? {
-            cpuInstructions: soroban.cpuInstructions,
-            memBytes: soroban.memBytes ?? 0,
-            ledgerReads: soroban.ledgerReads ?? 0,
-            ledgerWrites: soroban.ledgerWrites ?? 0,
-          }
-        : null,
+      resources:
+        soroban.cpuInstructions != null
+          ? {
+              cpuInstructions: soroban.cpuInstructions,
+              memBytes: soroban.memBytes ?? 0,
+              ledgerReads: soroban.ledgerReads ?? 0,
+              ledgerWrites: soroban.ledgerWrites ?? 0,
+            }
+          : null,
     };
   }
 

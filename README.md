@@ -64,16 +64,34 @@ Before getting started, ensure you have the following installed:
 - Rust toolchain (for contracts; install via [rustup.rs](https://rustup.rs)).
 - React Native CLI (for mobile; see [reactnative.dev](https://reactnative.dev/docs/environment-setup)).
 
-### Installation
+### Installation & Local Development Setup
 1. Clone the repository:
-   ```
+   ```bash
    git clone https://github.com/pulsefy/QuickEx.git
    cd QuickEx
    ```
 
-2. Install dependencies across the monorepo:
-   ```
+2. **TypeScript/Node Setup**:
+   Install dependencies across the monorepo using `pnpm`:
+   ```bash
    pnpm install
+   ```
+   Start the local development server (Frontend + Backend):
+   ```bash
+   pnpm turbo run dev
+   ```
+
+3. **Rust/Soroban Setup** (for Contracts):
+   Ensure you have the Rust toolchain installed:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   rustup default stable
+   rustup target add wasm32-unknown-unknown
+   ```
+   Build the contracts locally:
+   ```bash
+   cd app/contract
+   cargo build --target wasm32-unknown-unknown --release
    ```
 
 ### Environment Setup
@@ -186,3 +204,152 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 - Have questions? Open an issue or DM @pulsefy.
 
 Built with ❤️ by Pulsefy. Powered by Stellar. 🚀
+
+# Local Development
+
+## Prerequisites
+
+Install the following:
+
+- Rust (stable)
+- Cargo
+- Node.js 20+
+- npm or pnpm
+- PostgreSQL
+- Redis
+- Stellar CLI (if developing smart contracts)
+
+---
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/Pulsefy/QiuckEx.git
+
+cd QiuckEx
+```
+
+---
+
+## Configure Environment
+
+Copy the example configuration.
+
+```bash
+cp .env.example .env
+```
+
+Update the values for:
+
+- DATABASE_URL
+- JWT secrets
+- Stripe keys
+- Stellar secret/public keys
+- Horizon endpoint
+- Soroban RPC endpoint
+
+---
+
+## Install Dependencies
+
+Backend
+
+```bash
+npm install
+```
+
+or
+
+```bash
+pnpm install
+```
+
+Rust contracts
+
+```bash
+cargo build
+```
+
+---
+
+## Database
+
+Run database migrations.
+
+Prisma
+
+```bash
+npx prisma migrate dev
+```
+
+or
+
+TypeORM
+
+```bash
+npm run migration:run
+```
+
+(Use the command appropriate for the repository.)
+
+---
+
+## Start Backend
+
+```bash
+npm run dev
+```
+
+---
+
+## Run Smart Contract Tests
+
+```bash
+cargo test
+```
+
+---
+
+## Run Backend Tests
+
+```bash
+npm test
+```
+
+---
+
+## Formatting
+
+TypeScript
+
+```bash
+npm run lint
+
+npm run format
+```
+
+Rust
+
+```bash
+cargo fmt
+
+cargo clippy
+
+cargo test
+```
+
+---
+
+## Required Environment Variables
+
+| Variable | Purpose |
+|----------|----------|
+| DATABASE_URL | PostgreSQL connection |
+| JWT_SECRET | Authentication signing key |
+| STRIPE_SECRET_KEY | Stripe payment processing |
+| STRIPE_WEBHOOK_SECRET | Stripe webhook verification |
+| STELLAR_SECRET_KEY | Stellar wallet signing |
+| STELLAR_PUBLIC_KEY | Stellar account |
+| STELLAR_HORIZON_URL | Horizon API |
+| STELLAR_RPC_URL | Soroban RPC endpoint |
+| REDIS_URL | Redis cache |
