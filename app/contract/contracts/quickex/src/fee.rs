@@ -118,7 +118,10 @@ pub fn calculate_fee_for_token(env: &Env, token: &Address, amount: i128) -> i128
 /// — it does NOT silently fall back to static basis points.
 ///
 /// When no oracle config exists, the global static [`FeeConfig`] is used (Ok).
-pub fn calculate_fee_price_aware(env: &Env, amount: i128) -> Result<i128, crate::errors::QuickexError> {
+pub fn calculate_fee_price_aware(
+    env: &Env,
+    amount: i128,
+) -> Result<i128, crate::errors::QuickexError> {
     if amount <= 0 {
         return Ok(0);
     }

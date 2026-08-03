@@ -299,9 +299,7 @@ fn test_route_payout_price_aware_no_oracle_uses_static_bps() {
     let amount: i128 = 10_000;
     let salt = Bytes::from_slice(&env, b"price_no_oracle");
     let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
-    client.withdraw(
-        &token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX,
-    );
+    client.withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
 
     // No oracle → static 5% → 500 fee
     assert_eq!(token_client.balance(&collector), 500);
@@ -337,9 +335,7 @@ fn test_route_payout_price_aware_fresh_oracle_uses_dynamic() {
     let amount: i128 = 100_000;
     let salt = Bytes::from_slice(&env, b"price_fresh_oracle");
     let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
-    client.withdraw(
-        &token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX,
-    );
+    client.withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
 
     assert_eq!(token_client.balance(&collector), 50_000);
     assert_eq!(token_client.balance(&user), 100_000 - 50_000);
@@ -375,9 +371,7 @@ fn test_route_payout_price_aware_stale_oracle_rejects() {
     let amount: i128 = 100_000;
     let salt = Bytes::from_slice(&env, b"price_stale_reject");
     let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
-    let result = client.try_withdraw(
-        &token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX,
-    );
+    let result = client.try_withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
 
     match result {
         Err(Ok(err)) => assert_eq!(err, QuickexError::OracleStalePrice),
@@ -411,9 +405,7 @@ fn test_route_payout_price_aware_no_oracle_price_rejects() {
     let amount: i128 = 100_000;
     let salt = Bytes::from_slice(&env, b"price_no_cache");
     let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
-    let result = client.try_withdraw(
-        &token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX,
-    );
+    let result = client.try_withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
 
     match result {
         Err(Ok(err)) => assert_eq!(err, QuickexError::OraclePriceUnavailable),
@@ -512,10 +504,23 @@ fn test_route_payout_price_aware_multiple_assets_different_prices() {
     let amount_a: i128 = 100_000;
     let salt_a = Bytes::from_slice(&env, b"price_asset_a");
     let commit_a = client.deposit(
-        &token_a, &amount_a, &user, &salt_a, &0, &None, &0u64, &u64::MAX,
+        &token_a,
+        &amount_a,
+        &user,
+        &salt_a,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
     );
     client.withdraw(
-        &token_a, &amount_a, &commit_a, &user, &salt_a, &0u64, &u64::MAX,
+        &token_a,
+        &amount_a,
+        &commit_a,
+        &user,
+        &salt_a,
+        &0u64,
+        &u64::MAX,
     );
     assert_eq!(token_a_client.balance(&collector), 50_000);
 
@@ -526,10 +531,23 @@ fn test_route_payout_price_aware_multiple_assets_different_prices() {
     let amount_b: i128 = 100_000;
     let salt_b = Bytes::from_slice(&env, b"price_asset_b");
     let commit_b = client.deposit(
-        &token_b, &amount_b, &user, &salt_b, &0, &None, &1u64, &u64::MAX,
+        &token_b,
+        &amount_b,
+        &user,
+        &salt_b,
+        &0,
+        &None,
+        &1u64,
+        &u64::MAX,
     );
     client.withdraw(
-        &token_b, &amount_b, &commit_b, &user, &salt_b, &1u64, &u64::MAX,
+        &token_b,
+        &amount_b,
+        &commit_b,
+        &user,
+        &salt_b,
+        &1u64,
+        &u64::MAX,
     );
     assert_eq!(token_b_client.balance(&collector), 5_000);
 
