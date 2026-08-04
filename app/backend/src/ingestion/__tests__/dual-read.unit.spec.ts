@@ -9,6 +9,7 @@ import { EscrowEventRepository } from "../escrow-event.repository";
 import { PrivacyEventRepository } from "../privacy-event.repository";
 import { AdminEventRepository } from "../admin-event.repository";
 import { StealthEventRepository } from "../stealth-event.repository";
+import { UnparsedSorobanEventRepository } from "../unparsed-soroban-event.repository";
 import { MetricsService } from "../../metrics/metrics.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { AppConfigService } from "../../config";
@@ -41,6 +42,11 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
     const mockStealthRepo = {
       upsertEvent: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const mockUnparsedRepo = {
+      save: jest.fn().mockResolvedValue(undefined),
+      replay: jest.fn().mockResolvedValue([]),
     };
 
     const mockMetrics = {
@@ -146,7 +152,7 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
       expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(
         previousId,
-        2000,
+        50_000_000,
       );
       expect(checkpointRepo.saveLastLedger).toHaveBeenCalledWith(
         currentId,

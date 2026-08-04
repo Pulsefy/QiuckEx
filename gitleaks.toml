@@ -1,0 +1,53 @@
+# gitleaks configuration for QuickEx
+# https://github.com/gitleaks/gitleaks/blob/master/gitleaks.toml
+
+title = "QuickEx Gitleaks Config"
+
+# ── Custom rules for project-specific secrets ────────────────────────────────
+
+[[rules]]
+id = "stellar-secret-key"
+description = "Stellar secret key (starts with S)"
+regex = '''S[A-Z0-9]{55}'''
+tags = ["stellar", "secret-key"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "supabase-service-role-key"
+description = "Supabase service role key (JWT format)"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'''
+tags = ["supabase", "jwt"]
+severity = "HIGH"
+
+[[rules]]
+id = "supabase-anon-key"
+description = "Supabase anon/service key (JWT format)"
+regex = '''eyJ[A-Za-z0-9_-]{40,}\.[A-Za-z0-9_-]{40,}\.[A-Za-z0-9_-]{40,}'''
+tags = ["supabase", "jwt"]
+severity = "MEDIUM"
+
+# ── Allowlist: exclude known false-positives ────────────────────────────────
+
+[allowlist]
+description = "Allowlist for false positives"
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''package-lock\.json''',
+  '''gitleaks\.toml''',
+  '''\.secrets\.baseline''',
+  '''\.env\.example''',
+  '''docs/security\.md''',
+  '''node_modules''',
+  '''dist''',
+  '''coverage''',
+  '''\.turbo''',
+]
+
+regexes = [
+  # Placeholder patterns in .env.example and docs
+  '''your-secret-key-here''',
+  '''your-secret-token''',
+  '''test-anon-key''',
+  '''test-key''',
+  '''examplePublicKey''',
+]

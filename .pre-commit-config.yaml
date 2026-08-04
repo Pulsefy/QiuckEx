@@ -1,0 +1,58 @@
+# Pre-commit hooks for secret scanning and code quality
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# The detect-secrets hook scans for accidental secrets (API keys, private keys,
+# tokens, passwords) before they are committed. A baseline file tracks known
+# secrets so that false-positives can be audited once and then ignored.
+
+repos:
+  # ── Secret detection ──────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args:
+          - "--baseline"
+          - ".secrets.baseline"
+        exclude: >
+          (?x)^(
+            pnpm-lock\.yaml|
+            package-lock\.json|
+            .*\.lock|
+            node_modules/.*|
+            dist/.*|
+            coverage/.*
+          )$
+
+  # ── Generic pre-commit hooks ──────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # Prevent committing files larger than 500 kB
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      # Prevent merging conflict marker strings
+      - id: check-merge-conflict
+      # Detect private key files
+      - id: detect-private-key
+      # Ensure .env files are never committed (double-safety alongside .gitignore)
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+      # Validate YAML syntax
+      - id: check-yaml
+      # Validate JSON syntax
+      - id: check-json
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+      # Check for files that would conflict on case-insensitive filesystems
+      - id: check-case-conflict
+
+  # ── Gitleaks – complementary scanner with broader pattern coverage ────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

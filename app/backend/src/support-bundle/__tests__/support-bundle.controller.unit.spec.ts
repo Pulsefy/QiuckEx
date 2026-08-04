@@ -2,8 +2,8 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { SupportBundleController } from "../support-bundle.controller";
 import { SupportBundleService } from "../support-bundle.service";
 import { SupportBundleDto } from "../dto/support-bundle.dto";
-import { ApiKeyGuard } from "../../auth/guards/api-key.guard";
 import { ApiKeysService } from "../../api-keys/api-keys.service";
+import { Reflector } from "@nestjs/core";
 
 describe("SupportBundleController", () => {
   let controller: SupportBundleController;
@@ -66,6 +66,14 @@ describe("SupportBundleController", () => {
         {
           provide: SupportBundleService,
           useValue: mockService,
+        },
+        {
+          provide: ApiKeysService,
+          useValue: { validateKey: jest.fn(), isOverQuota: jest.fn() },
+        },
+        {
+          provide: Reflector,
+          useValue: { getAllAndOverride: jest.fn().mockReturnValue([]) },
         },
       ],
     }).compile();
