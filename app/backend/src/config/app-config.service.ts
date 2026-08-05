@@ -11,6 +11,26 @@ import { EnvConfig } from "./env.schema";
 export class AppConfigService {
   constructor(private readonly configService: ConfigService<EnvConfig, true>) {}
 
+  getBootstrapBase() {
+    return {
+      network: {
+        environment: this.network,
+        rpcUrl: this.sorobanRpcUrl || "",
+        horizonUrl: this.horizonUrl || "",
+        networkPassphrase: this.stellarNetworkPassphrase,
+      },
+      contracts: {
+        registryId: this.quickexContractId || "",
+        routerId: this.routerContractId || "",
+        allowedTokens: this.allowedTokens,
+      },
+      backendMetadata: {
+        version: this.appVersion,
+        apiUrl: this.apiBaseUrl,
+      },
+    };
+  }
+
   /**
    * Get the server port
    */
@@ -124,6 +144,13 @@ export class AppConfigService {
   }
 
   /**
+   * Public API base URL for client bootstrapping.
+   */
+  get publicApiUrl(): string | undefined {
+    return this.configService.get("PUBLIC_API_URL", { infer: true });
+  }
+
+  /**
    * Parsed list of explicitly allowed CORS origins.
    * Sourced from the CORS_ALLOWED_ORIGINS env var (comma-separated).
    */
@@ -138,6 +165,24 @@ export class AppConfigService {
    */
   get corsVercelProject(): string | undefined {
     return this.configService.get('CORS_VERCEL_PROJECT', { infer: true });
+  }
+
+  /**
+   * Contract method allowlist enforcement mode.
+   */
+  get contractMethodAllowlistMode(): "enforce" | "off" {
+    return this.configService.get("CONTRACT_METHOD_ALLOWLIST_MODE", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Raw JSON string describing the contract method allowlist, or undefined if unset.
+   */
+  get contractMethodAllowlistJson(): string | undefined {
+    return this.configService.get("CONTRACT_METHOD_ALLOWLIST_JSON", {
+      infer: true,
+    });
   }
 
   /**
@@ -270,5 +315,84 @@ export class AppConfigService {
    */
   get indexerLagGuardOverride(): boolean {
     return this.configService.get("INDEXER_LAG_GUARD_OVERRIDE", { infer: true });
+  }
+
+  /**
+   * Days to retain abuse signals before auto-pruning
+   */
+  get abuseSignalRetentionDays(): number {
+    return this.configService.get("ABUSE_SIGNAL_RETENTION_DAYS", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Abuse score threshold for flagging as suspicious (0-100)
+   */
+  get abuseSignalScoreThreshold(): number {
+    return this.configService.get("ABUSE_SIGNAL_SCORE_THRESHOLD", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Enable geo-lite lookups for abuse signals
+   */
+  get abuseSignalGeoEnabled(): boolean {
+    return this.configService.get("ABUSE_SIGNAL_GEO_ENABLED", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Salt for IP/UA hashing in abuse signals
+   */
+  get abuseSignalHashSalt(): string {
+    return this.configService.get("ABUSE_SIGNAL_HASH_SALT", { infer: true });
+  }
+
+  // ====================================================================
+  // NEW ACCESSORS FOR BOOTSTRAP PAYLOAD
+  // ====================================================================
+
+  /**
+   * Get the API base URL for frontend routing
+   */
+  get apiBaseUrl(): string {
+    return this.configService.get("API_BASE_URL", { infer: true }) || "http://localhost:3000";
+  }
+
+  /**
+   * Get the current application version
+   */
+  get appVersion(): string {
+    return this.configService.get("APP_VERSION", { infer: true }) || process.env.npm_package_version || "1.0.0";
+  }
+
+  /**
+   * Get the Router Contract ID
+   */
+  get routerContractId(): string | undefined {
+    return this.configService.get("ROUTER_CONTRACT_ID", { infer: true });
+  }
+
+  /**
+   * Get predefined allowed tokens
+   */
+  get allowedTokens(): string[] {
+    const raw = this.configService.get("ALLOWED_TOKENS", { infer: true });
+    return raw ? raw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+  }
+
+  /**
+   * Get Stellar Network Passphrase
+   */
+  get stellarNetworkPassphrase(): string {
+    return (
+      this.configService.get("STELLAR_NETWORK_PASSPHRASE", { infer: true }) ||
+      (this.isTestnet
+        ? "Test SDF Network ; September 2015"
+        : "Public Global Stellar Network ; September 2015")
+    );
   }
 }

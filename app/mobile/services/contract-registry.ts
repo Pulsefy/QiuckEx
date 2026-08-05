@@ -3,8 +3,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CACHE_KEY = '@contract_registry';
 export const REGISTRY_CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
+export interface ContractRegistryEntry {
+  id: string;
+  wasmHash: string;
+  version: number;
+  schemaVersion: string;
+  schemaCompatibility: { min: string; max: string };
+  networkPassphrase: string;
+  deploymentId?: string;
+  initParams?: Record<string, unknown>;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ContractRegistry {
-  [key: string]: { id: string; version: string };
+  [key: string]: ContractRegistryEntry;
+}
+
+interface ContractRegistryEnvelope {
+  network: string;
+  authoritative: boolean;
+  version: number;
+  etag: string;
+  data: ContractRegistry;
 }
 
 export interface ContractRegistrySyncResult {
@@ -19,13 +40,32 @@ interface ContractRegistryCache {
   data: ContractRegistry;
 }
 
+function isContractRegistryEnvelope(value: unknown): value is ContractRegistryEnvelope {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as ContractRegistryEnvelope).data === 'object' &&
+    (value as ContractRegistryEnvelope).data !== null
+  );
+}
+
 export const ContractRegistryService = {
   async sync(backendUrl: string): Promise<ContractRegistrySyncResult> {
     try {
       const response = await fetch(`${backendUrl}/api/contracts/registry`);
-      if (!response.ok) throw new Error('Failed to fetch registry');
-      
-      const data = await response.json() as ContractRegistry;
+      if (response.status === 404) {
+        throw new Error('Contract registry route not found on backend');
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch registry (status ${response.status})`);
+      }
+
+      const body: unknown = await response.json();
+      if (!isContractRegistryEnvelope(body)) {
+        throw new Error('Contract registry response payload is malformed');
+      }
+
+      const data = body.data;
       const timestamp = Date.now();
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp,
@@ -41,7 +81,7 @@ export const ContractRegistryService = {
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached) as ContractRegistryCache;
-        // Serve stale cache if offline
+        // Serve stale cache if offline or backend returned bad data
         return {
           registry: parsed.data,
           fetchedAt: parsed.timestamp,
@@ -49,7 +89,8 @@ export const ContractRegistryService = {
           source: 'cache',
         };
       }
-      throw new Error('Registry unavailable and no cache found');
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      throw new Error(`Registry unavailable and no cache found: ${reason}`);
     }
   },
 

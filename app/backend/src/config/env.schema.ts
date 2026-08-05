@@ -12,6 +12,32 @@ export const envSchema = Joi.object({
     .default(4000)
     .description("Port number for the server"),
 
+  API_BASE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Base API URL exposed to frontend via bootstrap endpoint"),
+
+  APP_VERSION: Joi.string()
+    .empty("")
+    .optional()
+    .description("Application release version string"),
+
+  ROUTER_CONTRACT_ID: Joi.string()
+    .empty("")
+    .optional()
+    .description("Router Soroban contract address"),
+
+  ALLOWED_TOKENS: Joi.string()
+    .empty("")
+    .optional()
+    .description("Comma-separated list of pre-allowed token addresses"),
+
+  STELLAR_NETWORK_PASSPHRASE: Joi.string()
+    .empty("")
+    .optional()
+    .description("Explicit Stellar network passphrase override"),
+
   // Network configuration (required)
   NETWORK: Joi.string()
     .valid("testnet", "mainnet")
@@ -91,6 +117,12 @@ export const envSchema = Joi.object({
     .description("Node environment"),
 
   // CORS configuration
+  PUBLIC_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Public API base URL exposed by the runtime config endpoint for client bootstrapping"),
+
   CORS_ALLOWED_ORIGINS: Joi.string()
     .empty("")
     .optional()
@@ -98,6 +130,11 @@ export const envSchema = Joi.object({
       "Comma-separated list of allowed CORS origins (e.g. https://quickex.to,https://app.quickex.to). " +
         "Required in production when no wildcard is desired.",
     ),
+
+  // New rate limit allowlist configuration
+  RATE_LIMIT_ALLOWLIST_CIDRS: Joi.string().optional().description("Comma-separated CIDRs to whitelist from rate limits (CI, trusted contributors)"),
+  RATE_LIMIT_ALLOWLIST_API_KEYS: Joi.string().optional().description("Comma-separated API keys to whitelist from rate limits"),
+  RATE_LIMIT_ALLOWLIST_USER_IDS: Joi.string().optional().description("Comma-separated user IDs to whitelist from rate limits"),
 
   CORS_VERCEL_PROJECT: Joi.string()
     .empty("")
@@ -133,11 +170,36 @@ export const envSchema = Joi.object({
     .default(15000)
     .description("Cache TTL in milliseconds for feature flag snapshots"),
 
+  // Branch preview fallback configuration
+  FALLBACK_API_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://api.quickex.io")
+    .description("Fallback API URL for unknown branches"),
+  FALLBACK_FRONTEND_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("https://app.quickex.io")
+    .description("Fallback frontend URL for unknown branches"),
+
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
     .optional()
     .description(
       "Optional JSON array of bootstrap feature flags used when the store is unavailable",
+    ),
+
+  // Contract method allowlist (BE-67)
+  CONTRACT_METHOD_ALLOWLIST_MODE: Joi.string()
+    .valid("enforce", "off")
+    .default("enforce")
+    .description(
+      "When 'enforce', unlisted contract/method pairs are rejected on transaction build/submit endpoints",
+    ),
+
+  CONTRACT_METHOD_ALLOWLIST_JSON: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      'Optional JSON object mapping contractId -> allowed method names, or "*" to allow all methods for that contract. Example: {"CABC...":["swap","deposit"],"CDEF...":"*"}',
     ),
 
   // Stellar ingestion (optional; omit to disable)
@@ -356,6 +418,38 @@ export const envSchema = Joi.object({
   INDEXER_LAG_GUARD_OVERRIDE: Joi.boolean()
     .default(false)
     .description("Admin override to disable lag guard temporarily (for emergencies)"),
+
+  // ── Abuse Signal Configuration ──────────────────────────────────────────
+  ABUSE_SIGNAL_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(90)
+    .description("Days to retain abuse signals before auto-pruning"),
+  ABUSE_SIGNAL_SCORE_THRESHOLD: Joi.number()
+    .integer()
+    .min(0)
+    .max(100)
+    .default(30)
+    .description("Abuse score threshold for flagging as suspicious"),
+  ABUSE_SIGNAL_GEO_ENABLED: Joi.boolean()
+    .default(false)
+    .description("Enable geo-lite lookups for abuse signals"),
+  ABUSE_SIGNAL_HASH_SALT: Joi.string()
+    .empty("")
+    .default("default-abuse-salt")
+    .description("Salt for IP/UA hashing in abuse signals"),
+
+  PREVIEW_INACTIVITY_THRESHOLD_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(3 * 24 * 60 * 60 * 1000)
+    .description("Inactivity window before branch preview auto-expiry"),
+  PREVIEW_MAX_AGE_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(14 * 24 * 60 * 60 * 1000)
+    .description("Maximum age before branch preview auto-expiry"),
 });
 
 /**
@@ -363,6 +457,11 @@ export const envSchema = Joi.object({
  */
 export interface EnvConfig {
   PORT: number;
+  API_BASE_URL?: string;
+  APP_VERSION?: string;
+  ROUTER_CONTRACT_ID?: string;
+  ALLOWED_TOKENS?: string;
+  STELLAR_NETWORK_PASSPHRASE?: string;
   NETWORK: "testnet" | "mainnet";
   STELLAR_NETWORK?: "testnet" | "mainnet";
   SUPABASE_URL: string;
@@ -377,6 +476,8 @@ export interface EnvConfig {
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;
   NODE_ENV: "development" | "production" | "test";
+  PUBLIC_API_URL?: string;
+
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
@@ -384,6 +485,8 @@ export interface EnvConfig {
   CACHE_TTL_MS: number;
   FEATURE_FLAGS_CACHE_TTL_MS: number;
   FEATURE_FLAGS_BOOTSTRAP_JSON?: string;
+  CONTRACT_METHOD_ALLOWLIST_MODE: "enforce" | "off";
+  CONTRACT_METHOD_ALLOWLIST_JSON?: string;
   QUICKEX_CONTRACT_ID?: string;
   SENDGRID_API_KEY?: string;
   SENDGRID_FROM_EMAIL?: string;
@@ -418,4 +521,10 @@ export interface EnvConfig {
   INDEXER_LAG_THRESHOLD_LEDGERS: number;
   INDEXER_LAG_GUARD_ENABLED: boolean;
   INDEXER_LAG_GUARD_OVERRIDE: boolean;
+  ABUSE_SIGNAL_RETENTION_DAYS: number;
+  ABUSE_SIGNAL_SCORE_THRESHOLD: number;
+  ABUSE_SIGNAL_GEO_ENABLED: boolean;
+  ABUSE_SIGNAL_HASH_SALT: string;
+  PREVIEW_INACTIVITY_THRESHOLD_MS: number;
+  PREVIEW_MAX_AGE_MS: number;
 }

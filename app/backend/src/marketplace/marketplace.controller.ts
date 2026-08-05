@@ -21,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 
 import { MarketplaceService } from './marketplace.service';
-import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto } from './dto';
+import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto, MarketplaceListingDetailDto } from './dto';
 import { MarketplaceError, MarketplaceErrorCode } from './errors';
 
 @ApiTags('marketplace')
@@ -71,6 +71,34 @@ export class MarketplaceController {
       next_cursor: result.next_cursor,
       has_more: result.has_more,
     };
+  }
+
+  @Get(':listingId/detail')
+  @ApiOperation({ summary: 'Get listing detail with bids and action hints' })
+  @ApiParam({ name: 'listingId', description: 'Listing UUID' })
+  @ApiQuery({
+    name: 'viewerPublicKey',
+    required: false,
+    description: 'Optional viewer wallet for bid eligibility hints',
+  })
+  @ApiResponse({ status: 200, description: 'Listing detail payload' })
+  @ApiResponse({ status: 404, description: 'Listing not found' })
+  async getListingDetail(
+    @Param('listingId') listingId: string,
+    @Query('viewerPublicKey') viewerPublicKey?: string,
+  ): Promise<MarketplaceListingDetailDto> {
+    try {
+      const detail = await this.marketplaceService.getListingDetail(
+        listingId,
+        viewerPublicKey?.trim() || null,
+      );
+      return detail;
+    } catch (err) {
+      if (err instanceof MarketplaceError) {
+        this.throwHttp(err);
+      }
+      throw err;
+    }
   }
 
   @Get(':listingId')

@@ -23,6 +23,7 @@ import { useOnboarding } from "../hooks/useOnboarding";
 import { WalletProvider } from "../hooks/useWalletContext";
 import { NetworkGuardProvider } from "../contexts/NetworkGuardContext";
 import { EnvironmentProvider } from "../contexts/EnvironmentContext";
+import { SessionProvider } from "../contexts/SessionContext";
 import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
@@ -138,7 +139,8 @@ function ThemeBridge() {
         <SecurityProvider>
         <WalletProvider>
           <NetworkGuardProvider expectedNetwork="testnet">
-            <NotificationProvider>
+            <SessionProvider>
+              <NotificationProvider>
               <GlobalNetworkBanner />
               <WalletSyncBridge />
               {/* Dev-only global poller: ensures polling runs on web during development
@@ -150,7 +152,8 @@ function ThemeBridge() {
               ) : null}
               <AppShell />
               <ToastNotification />
-            </NotificationProvider>
+              </NotificationProvider>
+            </SessionProvider>
           </NetworkGuardProvider>
         </WalletProvider>
       </SecurityProvider>
@@ -251,6 +254,7 @@ function AppShell() {
         <Stack.Screen name="contacts" />
         <Stack.Screen name="add-contact" />
         <Stack.Screen name="edit-contact" />
+        <Stack.Screen name="feedback" />
       </Stack>
       {isReady && settings.biometricLockEnabled ? (
         <AppLockOverlay

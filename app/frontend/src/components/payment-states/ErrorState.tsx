@@ -38,7 +38,10 @@ export function ErrorState({ message, onRetry, retryCount }: ErrorStateProps) {
       </div>
 
       <h2 className="text-2xl font-bold mb-4">Unable to Load Payment</h2>
-      <p className="text-muted text-center max-w-md mb-8">{message}</p>
+      <p className="text-muted text-center max-w-md mb-8">
+        <p className="text-subtle text-sm text-center mb-6">
+          Check your connection or verify that the payment link is still valid.
+        </p>{message}</p>
 
       {isMultipleFailures && (
         <div className="bg-warning-soft border border-amber-500/20 rounded-xl p-4 mb-8 max-w-md">
@@ -53,18 +56,18 @@ export function ErrorState({ message, onRetry, retryCount }: ErrorStateProps) {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row">
         <button
           type="button"
           onClick={onRetry}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="px-6 py-3 bg-brand hover:opacity-90 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {retryCount === 0 ? "Try Again" : `Retry (Attempt ${retryCount + 1})`}
         </button>
 
         <Link
           href="/"
-          className="px-6 py-3 bg-surface-strong hover:bg-surface-strong rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="px-6 py-3 bg-card border border-border hover:bg-surface rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Go Home
         </Link>

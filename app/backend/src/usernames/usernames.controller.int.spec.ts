@@ -18,6 +18,9 @@ describe('UsernamesController', () => {
   beforeEach(async () => {
     const mockCreate = jest.fn().mockResolvedValue({ ok: true });
     const mockListByPublicKey = jest.fn().mockResolvedValue([]);
+    const mockGetTrendingCreators = jest.fn().mockResolvedValue({ data: [], next_cursor: null, has_more: false });
+    const mockGetRecentlyActiveUsers = jest.fn().mockResolvedValue({ data: [], next_cursor: null, has_more: false });
+    const mockGetFeaturedCreators = jest.fn().mockResolvedValue({ data: [], next_cursor: null, has_more: false });
     const mockEmit = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -28,6 +31,9 @@ describe('UsernamesController', () => {
           useValue: {
             create: mockCreate,
             listByPublicKey: mockListByPublicKey,
+            getTrendingCreators: mockGetTrendingCreators,
+            getRecentlyActiveUsers: mockGetRecentlyActiveUsers,
+            getFeaturedCreators: mockGetFeaturedCreators,
           },
         },
         {
@@ -99,6 +105,117 @@ describe('UsernamesController', () => {
       const result = await controller.listUsernames({ publicKey: validPublicKey });
       expect(result).toEqual({ usernames: rows });
       expect(usernamesService.listByPublicKey).toHaveBeenCalledWith(validPublicKey);
+    });
+  });
+
+  describe('getTrendingCreators', () => {
+    it('maps ranked creators to the response shape and forwards pagination info', async () => {
+      const creators = [
+        {
+          id: 'id-1',
+          username: 'alice',
+          public_key: validPublicKey,
+          created_at: '2025-01-01T00:00:00Z',
+          last_active_at: '2025-01-02T00:00:00Z',
+          is_public: true,
+          transaction_volume: 500,
+          transaction_count: 5,
+        },
+      ];
+      usernamesService.getTrendingCreators.mockResolvedValueOnce({
+        data: creators,
+        next_cursor: 'next-page-cursor',
+        has_more: true,
+      });
+
+      const result = await controller.getTrendingCreators({ timeWindowHours: 24, limit: 10 });
+
+      expect(usernamesService.getTrendingCreators).toHaveBeenCalledWith(24, 10, undefined);
+      expect(result.creators).toEqual([
+        {
+          id: 'id-1',
+          username: 'alice',
+          publicKey: validPublicKey,
+          lastActiveAt: '2025-01-02T00:00:00Z',
+          createdAt: '2025-01-01T00:00:00Z',
+          transactionVolume: 500,
+          transactionCount: 5,
+        },
+      ]);
+      expect(result.timeWindowHours).toBe(24);
+      expect(result.next_cursor).toBe('next-page-cursor');
+      expect(result.has_more).toBe(true);
+    });
+  });
+
+  describe('getRecentlyActive', () => {
+    it('maps recently active users to the response shape and forwards pagination info', async () => {
+      const users = [
+        {
+          id: 'id-1',
+          username: 'alice',
+          public_key: validPublicKey,
+          created_at: '2025-01-01T00:00:00Z',
+          last_active_at: '2025-01-02T00:00:00Z',
+          is_public: true,
+        },
+      ];
+      usernamesService.getRecentlyActiveUsers.mockResolvedValueOnce({
+        data: users,
+        next_cursor: null,
+        has_more: false,
+      });
+
+      const result = await controller.getRecentlyActive({ timeWindowHours: 24, limit: 10 });
+
+      expect(usernamesService.getRecentlyActiveUsers).toHaveBeenCalledWith(24, 10, undefined);
+      expect(result.users).toEqual([
+        {
+          id: 'id-1',
+          username: 'alice',
+          publicKey: validPublicKey,
+          lastActiveAt: '2025-01-02T00:00:00Z',
+          createdAt: '2025-01-01T00:00:00Z',
+        },
+      ]);
+      expect(result.has_more).toBe(false);
+      expect(result.next_cursor).toBeNull();
+    });
+  });
+
+  describe('getFeaturedCreators', () => {
+    it('maps featured creators to the response shape and forwards pagination info', async () => {
+      const creators = [
+        {
+          id: 'id-1',
+          username: 'alice',
+          public_key: validPublicKey,
+          created_at: '2025-01-01T00:00:00Z',
+          last_active_at: null,
+          is_public: true,
+          featured_rank: 1,
+        },
+      ];
+      usernamesService.getFeaturedCreators.mockResolvedValueOnce({
+        data: creators,
+        next_cursor: null,
+        has_more: false,
+      });
+
+      const result = await controller.getFeaturedCreators({ limit: 10 });
+
+      expect(usernamesService.getFeaturedCreators).toHaveBeenCalledWith(10, undefined);
+      expect(result.profiles).toEqual([
+        {
+          id: 'id-1',
+          username: 'alice',
+          publicKey: validPublicKey,
+          lastActiveAt: '2025-01-01T00:00:00Z',
+          createdAt: '2025-01-01T00:00:00Z',
+          featuredRank: 1,
+        },
+      ]);
+      expect(result.has_more).toBe(false);
     });
   });
 });

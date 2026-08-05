@@ -4,6 +4,7 @@ use crate::events::{
     publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
     publish_upgrade_completed, publish_upgrade_started,
 };
+use crate::fee;
 use crate::fee_router;
 use crate::storage;
 use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
@@ -20,7 +21,7 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
 
     // Set initial admin address (singleton for compatibility).
     storage::set_admin(env, &admin);
-    storage::set_paused(env, false);
+    storage::set_paused(env, false, 0);
     storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
 
     // Grant Admin role to the initial administrator.
@@ -162,11 +163,23 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
 }
 
 /// Set the paused state (**Admin or Operator only**).
-pub fn set_paused(env: &Env, caller: Address, new_state: bool) -> Result<(), QuickexError> {
+#[allow(dead_code)]
+pub fn set_paused(
+    env: &Env,
+    caller: Address,
+    new_state: bool,
+    reason: u32,
+) -> Result<(), QuickexError> {
     require_any_role(env, &caller, &[Role::Admin, Role::Operator])?;
 
-    storage::set_paused(env, new_state);
-    publish_contract_paused(env, caller, new_state);
+    storage::set_paused(env, new_state, reason);
+    publish_contract_paused(env, caller.clone(), new_state, reason);
+
+    if new_state {
+        crate::events::publish_pause_enabled(env, caller, true, 0, reason);
+    } else {
+        crate::events::publish_pause_disabled(env, caller, true, 0, reason);
+    }
     Ok(())
 }
 
@@ -326,19 +339,42 @@ pub fn set_pause_flags(
     caller: &Address,
     flags_to_enable: u64,
     flags_to_disable: u64,
+    reason: u32,
+    event_reason: u32,
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
-    storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable);
+    storage::set_pause_flags(env, caller, flags_to_enable, flags_to_disable, reason);
+
+    if flags_to_enable > 0 {
+        crate::events::publish_pause_enabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_enable,
+            event_reason,
+        );
+    }
+    if flags_to_disable > 0 {
+        crate::events::publish_pause_disabled(
+            env,
+            caller.clone(),
+            false,
+            flags_to_disable,
+            event_reason,
+        );
+    }
     Ok(())
 }
 
 /// Set fee configuration (**Admin or Operator only**).
 pub fn set_fee_config(env: &Env, caller: &Address, config: FeeConfig) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
+    fee::validate_fee_bps(config.fee_bps)?;
 
+    let old_fee_bps = storage::get_fee_config(env).fee_bps;
     storage::set_fee_config(env, &config);
-    crate::events::publish_fee_config_changed(env, config.fee_bps);
+    crate::events::publish_fee_config_changed(env, old_fee_bps, config.fee_bps);
     Ok(())
 }
 
@@ -351,12 +387,22 @@ pub fn set_per_asset_fee(
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
-    if config.fee_bps > 10_000 || config.arbiter_bps > 10_000 {
-        return Err(QuickexError::InvalidAmount);
-    }
+    fee::validate_fee_bps(config.fee_bps)?;
+    fee::validate_fee_bps(config.arbiter_bps)?;
+
+    let previous = storage::get_per_asset_fee(env, &token);
+    let old_fee_bps = previous.as_ref().map(|c| c.fee_bps).unwrap_or(0);
+    let old_arbiter_bps = previous.as_ref().map(|c| c.arbiter_bps).unwrap_or(0);
 
     storage::set_per_asset_fee(env, &token, &config);
-    publish_per_asset_fee_set(env, token, config.fee_bps, config.arbiter_bps);
+    publish_per_asset_fee_set(
+        env,
+        token,
+        old_fee_bps,
+        old_arbiter_bps,
+        config.fee_bps,
+        config.arbiter_bps,
+    );
     Ok(())
 }
 
@@ -395,4 +441,18 @@ pub fn rotate_fee_collector(
     let next_index = fee_router::rotate_collector(env, &new_collector);
     publish_fee_collector_rotated(env, new_collector, next_index);
     Ok(next_index)
+}
+
+/// Set whether a hook contract is allowed to be registered (**Admin only**).
+pub fn set_hook_allowed(
+    env: &Env,
+    caller: &Address,
+    hook_contract: Address,
+    allowed: bool,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    storage::set_hook_allowed(env, &hook_contract, allowed);
+    crate::events::publish_hook_allowlist_changed(env, hook_contract, allowed);
+    Ok(())
 }

@@ -147,6 +147,7 @@ export class ContractRegistryService {
     }
 
     this.validatePassphrase(dto.networkPassphrase);
+
     const normalizedName = dto.name.trim().toLowerCase();
     const now = new Date().toISOString();
     const records = await this.readRecords();

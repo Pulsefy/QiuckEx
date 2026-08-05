@@ -79,6 +79,14 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsBoolean()
   preflight?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Force bypass cache and retrieve fresh rates from Horizon/Soroban",
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  revalidate?: boolean;
 }
 
 export class QuotePathDto {
@@ -100,4 +108,10 @@ export class QuoteResponseDto {
   @ApiProperty({ description: "Horizon URL used for path search" }) horizonUrl!: string;
   @ApiPropertyOptional({ description: "Preflight simulation result, if requested" })
   preflight?: { feasible: boolean; error?: string };
+
+  @ApiProperty({ description: "Age of the quote data in seconds", example: 0 })
+  age!: number;
+
+  @ApiProperty({ description: "Source of the quote data (hit or miss)", example: "miss" })
+  cacheSource!: "hit" | "miss";
 }

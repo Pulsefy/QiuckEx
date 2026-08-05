@@ -343,6 +343,67 @@ export class WebhookProvider implements INotificationProvider {
       return false;
     }
   }
+
+  /**
+   * Verify an incoming webhook signature and return a stable reason code,
+   * using the exact canonicalization logic as verifySignature/signPayload
+   * (sha256=HMAC(secret, "{timestamp}.{body}")).
+   */
+  static verifySignatureDetailed(
+    body: string,
+    signature: string,
+    timestamp: string,
+    secret: string,
+    toleranceMs = 5 * 60 * 1000,
+  ): WebhookVerificationResult {
+    if (!body || !signature || !timestamp || !secret) {
+      return { valid: false, reason: "MISSING_FIELDS" };
+    }
+
+    if (!signature.startsWith("sha256=")) {
+      return { valid: false, reason: "INVALID_SIGNATURE_FORMAT" };
+    }
+
+    const ts = new Date(timestamp).getTime();
+    if (isNaN(ts)) {
+      return { valid: false, reason: "INVALID_TIMESTAMP" };
+    }
+    if (Math.abs(Date.now() - ts) > toleranceMs) {
+      return { valid: false, reason: "TIMESTAMP_OUT_OF_TOLERANCE" };
+    }
+
+    const expectedDigest = signature.slice(7);
+    const hmac = crypto.createHmac("sha256", secret);
+    hmac.update(`${timestamp}.${body}`);
+    const actualDigest = hmac.digest("hex");
+
+    let matches: boolean;
+    try {
+      matches = crypto.timingSafeEqual(
+        Buffer.from(expectedDigest, "hex"),
+        Buffer.from(actualDigest, "hex"),
+      );
+    } catch {
+      matches = false;
+    }
+
+    return matches
+      ? { valid: true, reason: "VALID" }
+      : { valid: false, reason: "SIGNATURE_MISMATCH" };
+  }
+}
+
+export type WebhookVerificationReason =
+  | "VALID"
+  | "MISSING_FIELDS"
+  | "INVALID_SIGNATURE_FORMAT"
+  | "INVALID_TIMESTAMP"
+  | "TIMESTAMP_OUT_OF_TOLERANCE"
+  | "SIGNATURE_MISMATCH";
+
+export interface WebhookVerificationResult {
+  valid: boolean;
+  reason: WebhookVerificationReason;
 }
 
 // ---------------------------------------------------------------------------

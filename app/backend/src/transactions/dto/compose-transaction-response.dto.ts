@@ -16,6 +16,8 @@ export interface FeeEstimate {
 
 export interface ComposeTransactionResponse {
   success: true;
+  /** Correlation id linking this response to request logs and RPC/Horizon traces */
+  correlationId?: string;
   unsignedXdr: string;
   resourceEstimate: ResourceEstimate;
   feeEstimate: FeeEstimate;
@@ -40,7 +42,39 @@ export interface ComposeTransactionResponse {
 
 export interface ComposeTransactionError {
   success: false;
+  correlationId?: string;
   error: string;
   userMessage: string;
   details?: Record<string, unknown>;
+}
+
+export interface SubmitTransactionResponse {
+  success: boolean;
+  correlationId?: string;
+  transactionId?: string;
+  idempotencyKey: string;
+  submittedAt: string;
+  error?: string;
+  userMessage?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface SimulationResponse {
+  success: boolean;
+  correlationId?: string;
+  simulationStatus: "success" | "failed" | "restore_required";
+  resourceEstimate?: ResourceEstimate;
+  feeEstimate?: FeeEstimate;
+  error?: string;
+  userMessage?: string;
+  details?: Record<string, unknown>;
+  idempotencyKey: string;
+  simulationLatencyMs: number;
+}
+
+export interface DeterministicFailureDefinition {
+  code: string;
+  userMessage: string;
+  description: string;
+  actionableSteps: string[];
 }

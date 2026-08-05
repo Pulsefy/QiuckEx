@@ -57,6 +57,8 @@ pub enum QuickexError {
     ArbiterAlreadyVoted = 320,
     /// Insufficient arbiter votes to reach the threshold for resolution.
     InsufficientVotes = 321,
+    /// Hook contract is not allowed.
+    HookNotAllowed = 322,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,
@@ -64,6 +66,13 @@ pub enum QuickexError {
     StealthAddressAlreadyUsed = 401,
     /// No stealth escrow found for the given stealth address.
     StealthEscrowNotFound = 402,
+    // Oracle errors (600-699)
+    /// Oracle price data exceeds the configured staleness threshold and was rejected.
+    OracleStalePrice = 600,
+    /// No oracle price has been cached yet; dynamic fee cannot be computed.
+    OraclePriceUnavailable = 601,
+    /// The cached oracle price is zero or negative, which is invalid.
+    OraclePriceInvalid = 602,
     // Internal/unexpected conditions (900-999)
     InternalError = 900,
     InvalidTimeout = 901,

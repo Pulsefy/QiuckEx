@@ -22,7 +22,8 @@ Thank you for your interest in contributing to the QuickEx mobile app!
 ## Testing Guidelines
 
 - Smoke tests ensure screens render without crashing.
-- Run tests with `pnpm --filter=mobile test`.
+- **Theme Regression Coverage**: High-risk screens (Payment, Receipt, Settings, Notifications) must maintain visual regression snapshot tests for `light`, `dark`, and `system` theme modes to prevent regressions. These are located in `__tests__/theme-screenshots.test.tsx`.
+- Run tests with `pnpm --filter=mobile test`. When theme tokens change, update snapshots with `npx jest __tests__/theme-screenshots.test.tsx -u`.
 
 ## PR Checklist
 

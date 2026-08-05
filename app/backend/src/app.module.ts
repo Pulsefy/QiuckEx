@@ -52,6 +52,14 @@ import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
 import { OperationsModule } from "./operations/operations.module";
 import { RcValidationModule } from "./rc-validation/rc-validation.module";
+import { AbuseSignalsModule } from "./abuse-signals/abuse-signal.module";
+import { AbuseSignalMiddleware } from "./abuse-signals/abuse-signal.middleware";
+import { PreviewScopeModule } from "./preview-scope/preview-scope.module";
+import { PreviewScopeMiddleware } from "./preview-scope/preview-scope.middleware";
+import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
+import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
+import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
+import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 
 type AppImport =
 | Type<unknown>
@@ -94,13 +102,19 @@ FeatureFlagsModule,
 PrivacyModule,
 SorobanToolingModule,
 EnvironmentParityModule,
-IndexerLagModule,
+    BranchPreviewModule,
+    RuntimeConfigModule,
+    IndexerLagModule,
 SupportBundleModule,
 OperationsModule,
-RcValidationModule,
-];
+    RcValidationModule,
+    AbuseSignalsModule,
+    PreviewScopeModule,
+    TransactionTimelineModule,
+    DashboardFeedModule,
+    ];
 
-try {
+    try {
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
   const isLocalSupabase =
     supabaseUrl.includes("localhost") ||
@@ -141,13 +155,21 @@ useClass: OrganizationRoleGuard,
 })
 export class AppModule implements NestModule {
 configure(consumer: MiddlewareConsumer) {
-consumer
-.apply(
-MetricsMiddleware,
-CorrelationIdMiddleware,
-OrganizationContextMiddleware,
-ShadowTrafficMiddleware,
-)
-.forRoutes("*");
+  consumer
+    .apply(
+      MetricsMiddleware,
+      CorrelationIdMiddleware,
+      OrganizationContextMiddleware,
+      ShadowTrafficMiddleware,
+    )
+    .forRoutes("*");
+
+  consumer
+    .apply(AbuseSignalMiddleware)
+    .forRoutes("payment-links", "links");
+
+  consumer
+    .apply(PreviewScopeMiddleware)
+    .forRoutes("*");
 }
 }

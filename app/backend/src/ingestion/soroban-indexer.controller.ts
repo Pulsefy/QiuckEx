@@ -6,13 +6,14 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Param,
   Query,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min, IsArray } from "class-validator";
 
 import { SorobanEventIndexerService, LedgerRangeResult } from "./soroban-event-indexer.service";
-import type { UnparsedSorobanEventRecord } from "./unparsed-soroban-event.repository";
+import type { UnparsedSorobanEventRecord, UnparsedSorobanEventReason } from "./unparsed-soroban-event.repository";
 
 class ReindexDto {
   @IsString()
@@ -34,6 +35,12 @@ class ReindexDto {
   @IsBoolean()
   @IsOptional()
   force?: boolean;
+}
+
+class ReplayBatchDto {
+  @IsArray()
+  @IsString({ each: true })
+  pagingTokens!: string[];
 }
 
 /**
@@ -79,26 +86,58 @@ export class SorobanIndexerController {
 
   @Get("unparsed-events")
   @ApiOperation({
-    summary: "List pending unparsed Soroban events",
+    summary: "List pending unparsed Soroban events with filters",
     description:
-      "Returns raw contract events retained because their schema version was unknown or parsing failed.",
+      "Returns raw contract events retained because their schema version was unknown or parsing failed. " +
+      "Filter by contractId, schemaVersion, and errorType (unknown_schema_version or parse_failure).",
   })
   @ApiResponse({ status: 200, description: "Pending unparsed events" })
   listUnparsed(
     @Query("limit") limit?: string,
+    @Query("contractId") contractId?: string,
+    @Query("schemaVersion") schemaVersion?: string,
+    @Query("errorType") errorType?: UnparsedSorobanEventReason,
   ): Promise<UnparsedSorobanEventRecord[]> {
-    return this.indexer.listUnparsedEvents(Number(limit ?? 100));
+    return this.indexer.listUnparsedEvents(Number(limit ?? 100), {
+      contractId,
+      schemaVersion: schemaVersion ? Number(schemaVersion) : undefined,
+      errorType,
+    });
   }
 
   @Post("unparsed-events/replay")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Replay pending unparsed Soroban events",
+    summary: "Replay pending unparsed Soroban events (batch by limit)",
     description:
       "Attempts to parse and persist retained raw events after schema support has been updated.",
   })
   @ApiResponse({ status: 200, description: "Replay completed" })
   replayUnparsed(@Query("limit") limit?: string) {
     return this.indexer.replayUnparsedEvents(Number(limit ?? 100));
+  }
+
+  @Post("unparsed-events/:pagingToken/replay")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Replay a single specific unparsed Soroban event",
+    description:
+      "Attempts to parse and persist a single retained raw event after schema support has been updated.",
+  })
+  @ApiResponse({ status: 200, description: "Replay result" })
+  replaySingle(@Param("pagingToken") pagingToken: string) {
+    return this.indexer.replaySingleEvent(pagingToken);
+  }
+
+  @Post("unparsed-events/replay/batch")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Replay a specific batch of unparsed Soroban events",
+    description:
+      "Attempts to parse and persist a specific list of retained raw events by their paging tokens.",
+  })
+  @ApiResponse({ status: 200, description: "Replay completed" })
+  async replaySpecificBatch(@Body() dto: ReplayBatchDto) {
+    return this.indexer.replaySpecificBatch(dto.pagingTokens);
   }
 }
