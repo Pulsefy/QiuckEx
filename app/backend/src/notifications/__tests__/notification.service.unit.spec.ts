@@ -19,7 +19,7 @@ import { TemplateVersionService } from "../template-versioning/template-version.
 
 const PUBLIC_KEY = "GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2";
 
-let templateVersionService: jest.Mocked<TemplateVersionService>;
+// let templateVersionService: jest.Mocked<TemplateVersionService>;
 
 function makeEmailPref(
   overrides: Partial<NotificationPreference> = {},
@@ -102,13 +102,11 @@ const mockTemplateService = (): jest.Mocked<TemplateVersionService> =>
     render: jest
       .fn()
       .mockReturnValue({ title: "Rendered", body: "Rendered Body" }),
-    renderActiveTemplateForEventType: jest
-      .fn()
-      .mockResolvedValue({
-        title: "Rendered",
-        body: "Rendered Body",
-        templateId: "tpl-1",
-      }),
+    renderActiveTemplateForEventType: jest.fn().mockResolvedValue({
+      title: "Rendered",
+      body: "Rendered Body",
+      templateId: "tpl-1",
+    }),
   }) as unknown as jest.Mocked<TemplateVersionService>;
 
 const mockEmailProvider = () => ({
