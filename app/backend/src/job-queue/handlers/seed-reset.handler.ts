@@ -6,7 +6,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Job, JobHandler } from '../types';
+import { Job, JobHandler, CancellationToken } from '../types';
 import { DemoService } from '../../demos/demo.service';
 import { SeedResetScheduler } from '../../demos/seed-reset.scheduler';
 
@@ -76,9 +76,13 @@ export class SeedResetHandler implements JobHandler<SeedResetPayload> {
   }
 
   /**
-   * Handle seed reset job
+   * Execute seed reset job
    */
-  async handle(job: Job<SeedResetPayload>): Promise<SeedResetResult> {
+  async execute(
+    job: Job<SeedResetPayload>,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _cancellationToken: CancellationToken,
+  ): Promise<void> {
     const startTime = Date.now();
     const { trigger, options, attempt, maxRetries } = job.payload;
 
@@ -113,28 +117,33 @@ export class SeedResetHandler implements JobHandler<SeedResetPayload> {
         result = await this.executeReset();
       }
 
-      // Step 4: Log success
-      this.logger.log(
-        `Seed reset job ${job.id} completed successfully in ${result.executionTimeMs}ms`,
-      );
+      // Step 4: Log success or raise on partial failure
+      if (!result.success) {
+        throw new Error(`Seed reset completed with errors: ${result.errors.join('; ')}`);
+      }
 
-      return {
-        ...result,
-        executionTimeMs: Date.now() - startTime,
-      };
+      this.logger.log(
+        `Seed reset job ${job.id} completed successfully in ${Date.now() - startTime}ms `
+        + `(${result.seededLinks} links, ${result.seededTransactions} transactions)`,
+      );
 
     } catch (error) {
       const errorMsg = `Seed reset job ${job.id} failed: ${(error as Error).message}`;
       this.logger.error(errorMsg);
 
-      // Check if this is a permanent error
-      if (error instanceof PermanentSeedResetError) {
-        throw error;
-      }
-
-      // Re-throw for retry
+      // Re-throw so the executor can decide on retry vs permanent failure
       throw error;
     }
+  }
+
+  /**
+   * Handle seed reset job failure
+   */
+  async onFailure(job: Job<SeedResetPayload>, error: Error): Promise<void> {
+    this.logger.error(
+      `Seed reset job ${job.id} permanently failed (trigger: ${job.payload.trigger}): ${error.message}`,
+      error.stack,
+    );
   }
 
   /**

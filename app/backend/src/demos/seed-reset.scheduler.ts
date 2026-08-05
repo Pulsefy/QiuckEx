@@ -5,8 +5,8 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { CronJob } from 'cron';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AppConfigService } from '../config/app-config.service';
 import { DemoService, DemoSeedResult, DemoClearResult } from './demo.service';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { SeedResetReportDto, SeedResetOptionsDto, SeedResetStatusDto } from './dto/seed-reset.dto';
@@ -37,12 +37,12 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly demoService: DemoService,
-    private readonly configService: AppConfigService,
+    private readonly rawConfigService: ConfigService,
     private readonly jobQueueService: JobQueueService,
     private readonly eventEmitter: EventEmitter2,
   ) {
     // Load exclusions from config
-    this.exclusions = this.configService.get<string>('SEED_RESET_EXCLUSIONS', '')
+    this.exclusions = this.rawConfigService.get<string>('SEED_RESET_EXCLUSIONS', '')
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
@@ -197,8 +197,8 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
       );
 
       // Retry logic if enabled
-      const maxRetries = this.configService.get<number>('SEED_RESET_MAX_RETRIES', 3);
-      const retryDelay = this.configService.get<number>('SEED_RESET_RETRY_DELAY_MS', 60000);
+      const maxRetries = this.rawConfigService.get<number>('SEED_RESET_MAX_RETRIES', 3);
+      const retryDelay = this.rawConfigService.get<number>('SEED_RESET_RETRY_DELAY_MS', 60000);
 
       if (maxRetries > 0 && report.retryCount! < maxRetries) {
         this.logger.log(`Scheduling retry ${report.retryCount! + 1} of ${maxRetries}...`);
@@ -251,14 +251,14 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
    * Check if seed reset is enabled
    */
   private isSeedResetEnabled(): boolean {
-    return this.configService.get<boolean>('SEED_RESET_ENABLED', false);
+    return this.rawConfigService.get<boolean>('SEED_RESET_ENABLED', false);
   }
 
   /**
    * Get cron interval from config or use default
    */
   private getCronInterval(): string {
-    return this.configService.get<string>('SEED_RESET_INTERVAL', '0 0 * * *');
+    return this.rawConfigService.get<string>('SEED_RESET_INTERVAL', '0 0 * * *');
   }
 
   /**
@@ -268,7 +268,7 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
     if (this.cronJob) {
       try {
         const next = this.cronJob.nextDate();
-        return next.toISOString();
+        return next.toISO() ?? undefined;
       } catch {
         return undefined;
       }
@@ -283,19 +283,19 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
     const applied: string[] = [];
 
     // Check environment exclusion
-    const environment = this.configService.get<string>('NODE_ENV', 'development');
+    const environment = this.rawConfigService.get<string>('NODE_ENV', 'development');
     if (this.exclusions.includes(environment)) {
       applied.push(`environment:${environment}`);
     }
 
     // Check network exclusion (should only run on testnet)
-    const network = this.configService.get<string>('NETWORK', 'testnet');
+    const network = this.rawConfigService.get<string>('NETWORK', 'testnet');
     if (network !== 'testnet') {
       applied.push(`network:${network}`);
     }
 
     // Check if feature flag is enabled
-    const featureEnabled = this.configService.get<boolean>('FEATURE_SEED_RESET', false);
+    const featureEnabled = this.rawConfigService.get<boolean>('FEATURE_SEED_RESET', false);
     if (!featureEnabled) {
       applied.push('feature-flag:disabled');
     }
@@ -313,7 +313,10 @@ export class SeedResetScheduler implements OnModuleInit, OnModuleDestroy {
   /**
    * Force a reset bypassing exclusions
    */
-  async forceReset(options: SeedResetOptionsDto = {}): Promise<SeedResetReportDto> {
+  async forceReset(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options: SeedResetOptionsDto = {},
+  ): Promise<SeedResetReportDto> {
     this.logger.warn('Force reset triggered, bypassing exclusions');
     const report = await this.executeReset('force');
     return report;

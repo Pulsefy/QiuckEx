@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -66,6 +68,7 @@ export class ContractRegistryService {
     private readonly eventEmitter: EventEmitter2,
     private readonly contractChangeWebhookService: ContractChangeWebhookService,
     private readonly webhookDispatcher: ContractChangeWebhookDispatcher,
+    @Inject(forwardRef(() => ContractSpecService))
     private readonly specService: ContractSpecService,
   ) {
     this.expectedContracts = (process.env.CONTRACT_REGISTRY_EXPECTED_SET ?? 'quickex')

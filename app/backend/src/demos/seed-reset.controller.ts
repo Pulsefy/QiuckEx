@@ -77,7 +77,7 @@ export class SeedResetController {
   }
 
   @Get('status')
-  @RequireScopes('admin', 'read')
+  @RequireScopes('admin')
   @ApiOperation({
     summary: 'Get seed reset scheduler status',
     description:
@@ -95,7 +95,7 @@ export class SeedResetController {
   }
 
   @Get('running')
-  @RequireScopes('admin', 'read')
+  @RequireScopes('admin')
   @ApiOperation({
     summary: 'Check if a reset is currently running',
     description: 'Returns whether a seed reset is currently in progress.',
@@ -134,7 +134,7 @@ export class SeedResetController {
   }
 
   @Get('status/data')
-  @RequireScopes('admin', 'read')
+  @RequireScopes('admin')
   @ApiOperation({
     summary: 'Get current demo data status',
     description:

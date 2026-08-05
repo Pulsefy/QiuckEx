@@ -1,11 +1,12 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import * as crypto from 'crypto';
 
 import { AppConfigService } from '../config';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -54,6 +55,7 @@ export class ContractSpecService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: AppConfigService,
+    @Inject(forwardRef(() => ContractRegistryService))
     private readonly registryService: ContractRegistryService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -154,7 +156,7 @@ export class ContractSpecService {
     this.updateCache(record);
 
     this.logger.log(
-      `Stored contract spec for ${normalizedName} at version ${record.version}`,
+      `Stored contract spec for ${normalizedName} at version ${record.version} (actor: ${actor})`,
     );
 
     return this.toResponseDto(record);

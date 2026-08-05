@@ -269,7 +269,6 @@ export class DemoService {
   ): Promise<void> {
     try {
       const client = this.supabaseService.getClient();
-      const field = success ? 'successful_resets' : 'failed_resets';
 
       // Get current settings
       const { data: settings, error: fetchError } = await client
