@@ -29,6 +29,7 @@ import {
   ExportGenerationHandler,
   ReconciliationHandler,
   StellarReconnectHandler,
+  SeedResetHandler,
 } from "./handlers";
 
 /**
@@ -48,6 +49,7 @@ import {
  * - ExportGenerationHandler: Handler for export generation jobs
  * - ReconciliationHandler: Handler for reconciliation jobs
  * - StellarReconnectHandler: Handler for Stellar SSE reconnection jobs
+ * - SeedResetHandler: Handler for seed reset jobs
  */
 @Module({
   imports: [
@@ -75,6 +77,7 @@ import {
     ExportGenerationHandler,
     ReconciliationHandler,
     StellarReconnectHandler,
+    SeedResetHandler,
   ],
   exports: [
     JobQueueService,
@@ -87,6 +90,7 @@ import {
     ExportGenerationHandler,
     ReconciliationHandler,
     StellarReconnectHandler,
+    SeedResetHandler,
   ],
 })
 export class JobQueueModule {}
