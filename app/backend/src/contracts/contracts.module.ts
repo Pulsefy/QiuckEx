@@ -16,6 +16,8 @@ import { ContractMethodAllowlistGuard } from './contract-method-allowlist.guard'
 import { ContractAllowlistController } from './contract-allowlist.controller';
 import { DeploymentArtifactsController } from './deployment-artifacts.controller';
 import { DeploymentArtifactsService } from './deployment-artifacts.service';
+import { ContractSpecController } from './contract-spec.controller';
+import { ContractSpecService } from './contract-spec.service';
 
 @Module({
   imports: [ApiKeysModule, AuditModule, SupabaseModule],
@@ -25,6 +27,7 @@ import { DeploymentArtifactsService } from './deployment-artifacts.service';
     ContractViewsController,
     ContractAllowlistController,
     DeploymentArtifactsController,
+    ContractSpecController, // Add new controller
   ],
   providers: [
     ContractRegistryService,
@@ -35,12 +38,14 @@ import { DeploymentArtifactsService } from './deployment-artifacts.service';
     ContractAllowlistService,
     ContractMethodAllowlistGuard,
     DeploymentArtifactsService,
+    ContractSpecService, // Add new service
   ],
   exports: [
     ContractRegistryService,
     ContractViewsService,
     ContractAllowlistService,
     ContractMethodAllowlistGuard,
+    ContractSpecService, // Export new service
   ],
 })
 export class ContractsModule {}

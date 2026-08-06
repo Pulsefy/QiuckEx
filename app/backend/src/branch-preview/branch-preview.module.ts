@@ -6,9 +6,10 @@ import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
 import { AuditModule } from '../audit/audit.module';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
 
 @Module({
-  imports: [AuditModule, SupabaseModule],
+  imports: [AuditModule, SupabaseModule, ApiKeysModule],
   controllers: [BranchPreviewController],
   providers: [
     BranchPreviewService,

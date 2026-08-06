@@ -24,9 +24,9 @@ describe("App endpoints", () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(ApiKeyGuard)
+      .overrideGuard(ApiKeyGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
-      .overrideProvider(CustomThrottlerGuard)
+      .overrideGuard(CustomThrottlerGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .overrideProvider(UsernamesService)
       .useValue({
@@ -164,20 +164,22 @@ describe("App endpoints", () => {
       ],
     });
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .get("/ready")
-      .expect(503)
-      .expect({
-        ready: false,
-        checks: [
-          { name: "supabase", status: "down" },
-          {
-            name: "environment",
-            status: "up",
-            details: ["All critical env variables loaded"],
-          },
-        ],
-      });
+      .expect(503);
+
+    expect(response.body).toMatchObject({
+      ready: false,
+      timestamp: expect.any(String),
+      checks: [
+        { name: "supabase", status: "down" },
+        {
+          name: "environment",
+          status: "up",
+          details: ["All critical env variables loaded"],
+        },
+      ],
+    });
   });
 
   // -----------------------------
