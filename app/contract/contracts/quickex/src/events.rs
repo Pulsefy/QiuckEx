@@ -1180,6 +1180,10 @@ pub(crate) fn publish_hook_failed(
         hook_id,
         schema_version: EVENT_SCHEMA_VERSION,
         error_code,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
 #[contractevent(topics = ["TOPIC_ADMIN", "HookAllowlistChanged"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HookAllowlistChangedEvent {
