@@ -9,6 +9,7 @@ import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { MetricsModule } from "../metrics/metrics.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { ContractsModule } from "../contracts/contracts.module";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ContractsModule } from "../contracts/contracts.module";
     MetricsModule,
     FeatureFlagsModule,
     ContractsModule,
+    AuditModule,
   ],
   controllers: [TransactionsController],
   providers: [

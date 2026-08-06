@@ -6,6 +6,7 @@ import { AuditService } from "../audit/audit.service";
 import { ContractRegistryService } from "./contract-registry.service";
 import { ContractChangeWebhookService } from "./contract-change-webhook.service";
 import { ContractChangeWebhookDispatcher } from "./contract-change-webhook.dispatcher";
+import { ContractSpecService } from "./contract-spec.service";
 
 describe("ContractRegistryService", () => {
   let service: ContractRegistryService;
@@ -19,6 +20,7 @@ describe("ContractRegistryService", () => {
   let mockWebhookDispatcher: jest.Mocked<
     Partial<ContractChangeWebhookDispatcher>
   >;
+  let mockSpecService: jest.Mocked<Partial<ContractSpecService>>;
 
   beforeEach(() => {
     const mockClient = {
@@ -58,6 +60,10 @@ describe("ContractRegistryService", () => {
       dispatch: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<Partial<ContractChangeWebhookDispatcher>>;
 
+    mockSpecService = {
+      invalidateCache: jest.fn(),
+    } as unknown as jest.Mocked<Partial<ContractSpecService>>;
+
     service = new ContractRegistryService(
       mockSupabaseService as unknown as SupabaseService,
       mockAuditService as unknown as AuditService,
@@ -65,6 +71,7 @@ describe("ContractRegistryService", () => {
       mockEventEmitter,
       mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
       mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+      mockSpecService as unknown as ContractSpecService,
     );
   });
 
@@ -250,6 +257,7 @@ describe("ContractRegistryService", () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockSpecService as unknown as ContractSpecService,
       );
 
       const result = await service.finalizeDualRead("quickex");
@@ -288,6 +296,7 @@ describe("ContractRegistryService", () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockSpecService as unknown as ContractSpecService,
       );
 
       await expect(service.finalizeDualRead("missing")).rejects.toThrow(
@@ -339,6 +348,7 @@ describe("ContractRegistryService", () => {
         mockEventEmitter,
         mockContractChangeWebhookService as unknown as ContractChangeWebhookService,
         mockWebhookDispatcher as unknown as ContractChangeWebhookDispatcher,
+        mockSpecService as unknown as ContractSpecService,
       );
 
       await expect(service.finalizeDualRead("quickex")).rejects.toThrow(
