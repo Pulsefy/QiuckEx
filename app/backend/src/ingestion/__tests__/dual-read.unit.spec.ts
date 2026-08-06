@@ -13,16 +13,12 @@ import { UnparsedSorobanEventRepository } from "../unparsed-soroban-event.reposi
 import { MetricsService } from "../../metrics/metrics.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { AppConfigService } from "../../config";
-import { UnparsedSorobanEventRepository } from "../unparsed-soroban-event.repository";
 
 describe("SorobanEventIndexerService - Dual-Read", () => {
   let service: SorobanEventIndexerService;
   let checkpointRepo: jest.Mocked<IndexerCheckpointRepository>;
 
   beforeEach(async () => {
-    const mockUnparsedRepo = {
-      upsertEvent: jest.fn().mockResolvedValue(undefined),
-    };
     const mockCheckpointRepo = {
       getLastLedger: jest.fn().mockResolvedValue(null),
       saveLastLedger: jest.fn().mockResolvedValue(undefined),
@@ -46,7 +42,10 @@ describe("SorobanEventIndexerService - Dual-Read", () => {
 
     const mockUnparsedRepo = {
       save: jest.fn().mockResolvedValue(undefined),
-      replay: jest.fn().mockResolvedValue([]),
+      listPending: jest.fn().mockResolvedValue([]),
+      markReplayed: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+      getByPagingToken: jest.fn().mockResolvedValue(null),
     };
 
     const mockMetrics = {

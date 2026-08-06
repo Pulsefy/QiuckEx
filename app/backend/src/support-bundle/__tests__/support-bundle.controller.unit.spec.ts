@@ -155,31 +155,3 @@ describe("SupportBundleController", () => {
     });
   });
 });
-
-beforeEach(async () => {
-  const mockService = {
-    generateBundle: jest.fn().mockResolvedValue(mockBundle),
-  };
-
-  const mockApiKeysService = {
-    validateKey: jest.fn().mockResolvedValue(null), // treats requests as public/unauthenticated
-    isOverQuota: jest.fn().mockReturnValue(false),
-  };
-
-  const module: TestingModule = await Test.createTestingModule({
-    controllers: [SupportBundleController],
-    providers: [
-      {
-        provide: SupportBundleService,
-        useValue: mockService,
-      },
-      ApiKeyGuard, // ADD THIS
-      { provide: ApiKeysService, useValue: mockApiKeysService }, // ADD THIS
-    ],
-  }).compile();
-
-  controller = module.get<SupportBundleController>(SupportBundleController);
-  service = module.get(
-    SupportBundleService,
-  ) as jest.Mocked<SupportBundleService>;
-});
