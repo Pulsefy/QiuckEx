@@ -1,4 +1,8 @@
-use crate::{types::PerAssetFeeConfig, EscrowStatus, QuickexContract, QuickexContractClient};
+use crate::{
+    errors::QuickexError,
+    types::{OracleFeeConfig, PerAssetFeeConfig},
+    EscrowStatus, QuickexContract, QuickexContractClient,
+};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Bytes, Env,
@@ -269,5 +273,292 @@ fn test_fee_router_collector_rotation_applies_to_new_payouts_and_old_escrows() {
     assert_eq!(
         client.get_commitment_state(&new_commitment),
         Some(EscrowStatus::Spent)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Price-aware fee router tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_route_payout_price_aware_no_oracle_uses_static_bps() {
+    let (env, client, admin) = setup();
+    let token = create_token(&env);
+    let user = Address::generate(&env);
+    let collector = Address::generate(&env);
+
+    let token_admin = token::StellarAssetClient::new(&env, &token);
+    let token_client = token::Client::new(&env, &token);
+
+    token_admin.mint(&user, &10_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 500 });
+    client.set_platform_wallet(&admin, &collector);
+
+    // Perform a deposit+withdraw using price-aware path
+    let amount: i128 = 10_000;
+    let salt = Bytes::from_slice(&env, b"price_no_oracle");
+    let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    client.withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+
+    // No oracle → static 5% → 500 fee
+    assert_eq!(token_client.balance(&collector), 500);
+    assert_eq!(token_client.balance(&user), 10_000 - 500);
+}
+
+#[test]
+fn test_route_payout_price_aware_fresh_oracle_uses_dynamic() {
+    let (env, client, admin) = setup();
+    let token = create_token(&env);
+    let user = Address::generate(&env);
+    let collector = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+
+    let token_admin = token::StellarAssetClient::new(&env, &token);
+    let token_client = token::Client::new(&env, &token);
+
+    token_admin.mint(&user, &100_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 500 });
+    client.set_platform_wallet(&admin, &collector);
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // Dynamic fee = 50_000
+    let amount: i128 = 100_000;
+    let salt = Bytes::from_slice(&env, b"price_fresh_oracle");
+    let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    client.withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+
+    assert_eq!(token_client.balance(&collector), 50_000);
+    assert_eq!(token_client.balance(&user), 100_000 - 50_000);
+}
+
+#[test]
+fn test_route_payout_price_aware_stale_oracle_rejects() {
+    let (env, client, admin) = setup();
+    let token = create_token(&env);
+    let user = Address::generate(&env);
+    let collector = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+
+    let token_admin = token::StellarAssetClient::new(&env, &token);
+    token_admin.mint(&user, &100_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 500 });
+    client.set_platform_wallet(&admin, &collector);
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    client.record_oracle_price(&admin, &10_000_000);
+
+    // Advance past staleness threshold
+    env.ledger().with_mut(|li| li.timestamp = 1400);
+
+    // Withdrawal via price-aware path should reject
+    let amount: i128 = 100_000;
+    let salt = Bytes::from_slice(&env, b"price_stale_reject");
+    let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    let result = client.try_withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, QuickexError::OracleStalePrice),
+        _ => panic!("expected OracleStalePrice error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_route_payout_price_aware_no_oracle_price_rejects() {
+    let (env, client, admin) = setup();
+    let token = create_token(&env);
+    let user = Address::generate(&env);
+    let collector = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+
+    let token_admin = token::StellarAssetClient::new(&env, &token);
+    token_admin.mint(&user, &100_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 500 });
+    client.set_platform_wallet(&admin, &collector);
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+    // No price cached
+
+    let amount: i128 = 100_000;
+    let salt = Bytes::from_slice(&env, b"price_no_cache");
+    let commitment = client.deposit(&token, &amount, &user, &salt, &0, &None, &0u64, &u64::MAX);
+    let result = client.try_withdraw(&token, &amount, &commitment, &user, &salt, &0u64, &u64::MAX);
+
+    match result {
+        Err(Ok(err)) => assert_eq!(err, QuickexError::OraclePriceUnavailable),
+        _ => panic!("expected OraclePriceUnavailable error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_route_payout_price_aware_fresh_oracle_dispute_with_arbiter_split() {
+    let (env, client, admin) = setup();
+    let token = create_token(&env);
+    let owner = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let collector = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+
+    let token_admin = token::StellarAssetClient::new(&env, &token);
+    let token_client = token::Client::new(&env, &token);
+
+    token_admin.mint(&owner, &10_000);
+
+    client.set_platform_wallet(&admin, &collector);
+    client.set_per_asset_fee(
+        &admin,
+        &token,
+        &PerAssetFeeConfig {
+            fee_bps: 1_000,
+            arbiter_bps: 2_000,
+        },
+    );
+    // Oracle configured but per-asset overrides it (bypasses oracle)
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+
+    let amount: i128 = 1_000;
+    let salt = Bytes::from_slice(&env, b"price_aware_dispute");
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
+    );
+
+    client.dispute(&commitment);
+    client.resolve_dispute(&arbiter, &commitment, &false, &recipient, &0u64, &u64::MAX);
+
+    // Per-asset override: 10% fee, 20% arbiter split
+    // total_fee = 100, arbiter = 20, collector = 80
+    assert_eq!(token_client.balance(&recipient), 900);
+    assert_eq!(token_client.balance(&arbiter), 20);
+    assert_eq!(token_client.balance(&collector), 80);
+}
+
+#[test]
+fn test_route_payout_price_aware_multiple_assets_different_prices() {
+    let (env, client, admin) = setup();
+    let token_a = create_token(&env);
+    let token_b = create_token(&env);
+    let user = Address::generate(&env);
+    let collector = Address::generate(&env);
+    let oracle_addr = Address::generate(&env);
+
+    let token_a_admin = token::StellarAssetClient::new(&env, &token_a);
+    let token_b_admin = token::StellarAssetClient::new(&env, &token_b);
+    let token_a_client = token::Client::new(&env, &token_a);
+    let token_b_client = token::Client::new(&env, &token_b);
+
+    token_a_admin.mint(&user, &200_000);
+    token_b_admin.mint(&user, &200_000);
+
+    client.set_fee_config(&admin, &crate::types::FeeConfig { fee_bps: 500 });
+    client.set_platform_wallet(&admin, &collector);
+    client.set_oracle_fee_config(
+        &admin,
+        &OracleFeeConfig {
+            oracle: oracle_addr,
+            usd_fee_micros: 500_000,
+            stale_threshold_secs: 300,
+        },
+    );
+
+    // Token A price = $10 → dynamic fee = 50_000
+    client.record_oracle_price(&admin, &10_000_000);
+
+    let amount_a: i128 = 100_000;
+    let salt_a = Bytes::from_slice(&env, b"price_asset_a");
+    let commit_a = client.deposit(
+        &token_a,
+        &amount_a,
+        &user,
+        &salt_a,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token_a,
+        &amount_a,
+        &commit_a,
+        &user,
+        &salt_a,
+        &0u64,
+        &u64::MAX,
+    );
+    assert_eq!(token_a_client.balance(&collector), 50_000);
+
+    // Token B price = $100 (record new price) → dynamic fee = 5_000
+    client.record_oracle_price(&admin, &100_000_000);
+    env.ledger().with_mut(|li| li.timestamp = 1100);
+
+    let amount_b: i128 = 100_000;
+    let salt_b = Bytes::from_slice(&env, b"price_asset_b");
+    let commit_b = client.deposit(
+        &token_b,
+        &amount_b,
+        &user,
+        &salt_b,
+        &0,
+        &None,
+        &1u64,
+        &u64::MAX,
+    );
+    client.withdraw(
+        &token_b,
+        &amount_b,
+        &commit_b,
+        &user,
+        &salt_b,
+        &1u64,
+        &u64::MAX,
+    );
+    assert_eq!(token_b_client.balance(&collector), 5_000);
+
+    // Total collected: 50_000 + 5_000 = 55_000
+    assert_eq!(
+        token_a_client.balance(&collector) + token_b_client.balance(&collector),
+        55_000
+    );
+    // Bound safety: user got everything else
+    assert_eq!(
+        token_a_client.balance(&user) + token_b_client.balance(&user),
+        200_000 + 200_000 - 55_000
     );
 }

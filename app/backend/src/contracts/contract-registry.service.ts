@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -28,6 +30,7 @@ import {
 import {
   ContractChangeWebhookDispatcher,
 } from './contract-change-webhook.dispatcher';
+import { ContractSpecService } from './contract-spec.service';
 
 interface RegistryRecord {
   name: string;
@@ -65,6 +68,8 @@ export class ContractRegistryService {
     private readonly eventEmitter: EventEmitter2,
     private readonly contractChangeWebhookService: ContractChangeWebhookService,
     private readonly webhookDispatcher: ContractChangeWebhookDispatcher,
+    @Inject(forwardRef(() => ContractSpecService))
+    private readonly specService: ContractSpecService,
   ) {
     this.expectedContracts = (process.env.CONTRACT_REGISTRY_EXPECTED_SET ?? 'quickex')
       .split(',')
@@ -221,6 +226,9 @@ export class ContractRegistryService {
       },
     );
 
+    // Invalidate spec cache for this contract since registry changed
+    await this.updateSpecOnRegistryChange(normalizedName, actor);
+
     return this.toDeploymentItem(nextRecord);
   }
 
@@ -304,6 +312,11 @@ export class ContractRegistryService {
       });
     }
 
+    // Invalidate spec cache for all published contracts
+    for (const contract of dto.contracts) {
+      await this.updateSpecOnRegistryChange(contract.name, actor);
+    }
+
     return this.getRegistry();
   }
 
@@ -356,6 +369,9 @@ export class ContractRegistryService {
     this.logger.log(
       `Finalized dual-read for contract ${contractName} at timestamp ${now}`,
     );
+
+    // Invalidate spec cache for this contract since registry changed
+    await this.updateSpecOnRegistryChange(targetName, actor);
 
     return this.getRegistry();
   }
@@ -427,7 +443,31 @@ export class ContractRegistryService {
       });
     }
 
+    // Invalidate spec cache for this contract since registry changed
+    await this.updateSpecOnRegistryChange(targetName, actor);
+
     return this.getRegistry();
+  }
+
+  /**
+   * Update spec cache when registry entry changes
+   * Invalidate cached spec so next fetch retrieves fresh data
+   */
+  private async updateSpecOnRegistryChange(
+    contractName: string,
+    actor: string = 'deployment_automation',
+  ): Promise<void> {
+    try {
+      // Invalidate cache so next fetch gets fresh spec
+      this.specService.invalidateCache(contractName);
+      this.logger.debug(
+        `Invalidated spec cache for ${contractName} due to registry change (actor: ${actor})`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to invalidate spec cache for ${contractName}: ${(error as Error).message}`,
+      );
+    }
   }
 
   private validatePassphrase(passphrase: string): void {

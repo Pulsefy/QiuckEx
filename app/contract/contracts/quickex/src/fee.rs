@@ -65,6 +65,7 @@ pub fn fee_from_bps_ceil(amount: i128, bps: u32) -> i128 {
 ///
 /// Uses dynamic oracle pricing when configured and falls back to the static
 /// fee basis points if the oracle is unavailable or stale.
+#[allow(dead_code)]
 pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
     if amount <= 0 {
         return 0;
@@ -96,6 +97,7 @@ pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
 /// 1. Per-asset fee config for `token` (if set).
 /// 2. Oracle dynamic pricing (if configured and fresh).
 /// 3. Global static `FeeConfig` basis points.
+#[allow(dead_code)]
 pub fn calculate_fee_for_token(env: &Env, token: &Address, amount: i128) -> i128 {
     if amount <= 0 {
         return 0;
@@ -106,4 +108,64 @@ pub fn calculate_fee_for_token(env: &Env, token: &Address, amount: i128) -> i128
     }
     // Fall back to oracle + global bps path.
     calculate_fee(env, amount)
+}
+
+/// Price-aware fee calculation with explicit oracle validation.
+///
+/// When oracle fee config is set, this function REQUIRES a fresh oracle price
+/// to compute the dynamic fee. If the price is stale or unavailable, it returns
+/// [`QuickexError::OracleStalePrice`] or [`QuickexError::OraclePriceUnavailable`]
+/// — it does NOT silently fall back to static basis points.
+///
+/// When no oracle config exists, the global static [`FeeConfig`] is used (Ok).
+pub fn calculate_fee_price_aware(
+    env: &Env,
+    amount: i128,
+) -> Result<i128, crate::errors::QuickexError> {
+    if amount <= 0 {
+        return Ok(0);
+    }
+
+    if storage::get_oracle_fee_config(env).is_some() {
+        // Oracle is configured — require a fresh price.
+        let oracle_config = storage::get_oracle_fee_config(env).unwrap();
+        let (price_micros, _) = oracle::fetch_price(env, &oracle_config.oracle)?;
+        if price_micros > 0 {
+            let fee = oracle_config
+                .usd_fee_micros
+                .saturating_mul(1_000_000)
+                .checked_div(price_micros)
+                .unwrap_or(0);
+            if fee > amount {
+                return Ok(amount);
+            }
+            return Ok(fee);
+        }
+    }
+
+    // No oracle configured — use global static bps.
+    let config = storage::get_fee_config(env);
+    Ok(fee_from_bps_floor(amount, config.fee_bps))
+}
+
+/// Price-aware fee calculation for a specific token.
+///
+/// Priority:
+/// 1. Per-asset fee override (static bps, bypasses oracle).
+/// 2. Oracle dynamic pricing — required if oracle is configured (reject on failure).
+/// 3. Global static `FeeConfig` — only used when no oracle is configured.
+pub fn calculate_fee_for_token_price_aware(
+    env: &Env,
+    token: &Address,
+    amount: i128,
+) -> Result<i128, crate::errors::QuickexError> {
+    if amount <= 0 {
+        return Ok(0);
+    }
+    // Per-asset override is highest priority and bypasses oracle.
+    if let Some(per_asset) = storage::get_per_asset_fee(env, token) {
+        return Ok(fee_from_bps_floor(amount, per_asset.fee_bps));
+    }
+    // Oracle-aware path or static fallback.
+    calculate_fee_price_aware(env, amount)
 }

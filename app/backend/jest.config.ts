@@ -1,11 +1,11 @@
 export default {
   moduleFileExtensions: ["js", "json", "ts"],
   rootDir: ".",
-  testRegex: ".*\.spec\.ts$",
+  testRegex: ".*\\.spec\\.ts$",
   transform: {
-    "^.+\.(t|j)s$": "ts-jest",
+    "^.+\\.(t|j)s$": "ts-jest",
   },
-  collectCoverageFrom: ["src/**/*.(t|j)s"],
+  collectCoverageFrom: ["src/**/*.(t|j)s", "!src/**/*spec.ts"],
   coverageDirectory: "./coverage",
   testEnvironment: "node",
   setupFiles: ["<rootDir>/jest.setup.ts"],

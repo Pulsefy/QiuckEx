@@ -205,6 +205,8 @@ pub enum DataKey {
     FeeCollector(u32),
     /// Tracks arbiter votes for disputed escrows. Keyed by (commitment, arbiter).
     DisputeVote(Bytes, Address),
+    /// Tracks whether a hook contract is on the allowlist.
+    HookAllowlist(Address),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -820,6 +822,20 @@ pub fn set_cached_oracle_price(env: &Env, price: &CachedOraclePrice) {
     let key = DataKey::CachedOraclePrice;
     env.storage().persistent().set(&key, price);
     set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+}
+
+pub fn is_hook_allowed(env: &Env, hook_contract: &Address) -> bool {
+    let key = DataKey::HookAllowlist(hook_contract.clone());
+    env.storage().persistent().get(&key).unwrap_or(false)
+}
+
+pub fn set_hook_allowed(env: &Env, hook_contract: &Address, allowed: bool) {
+    let key = DataKey::HookAllowlist(hook_contract.clone());
+    if allowed {
+        env.storage().persistent().set(&key, &true);
+    } else {
+        env.storage().persistent().remove(&key);
+    }
 }
 
 pub fn get_registered_hooks(env: &Env) -> Vec<Address> {

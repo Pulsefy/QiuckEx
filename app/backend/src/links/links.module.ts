@@ -19,6 +19,7 @@ import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { PrivacyModule } from "../privacy/privacy.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { AuditModule } from "../audit/audit.module";
+import { MetricsModule } from "../metrics/metrics.module";
 
 @Module({
   controllers: [
@@ -54,6 +55,7 @@ import { AuditModule } from "../audit/audit.module";
     PrivacyModule,
     TransactionsModule,
     AuditModule,
+    MetricsModule,
     forwardRef(() => JobQueueModule),
   ],
 })
