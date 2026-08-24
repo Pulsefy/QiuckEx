@@ -25,6 +25,7 @@
 
 use crate::{
     errors::QuickexError,
+    events::EVENT_SCHEMA_VERSION,
     storage::{CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION, PRIVACY_ENABLED_KEY},
     types::FeeConfig,
     EscrowStatus, QuickexContract, QuickexContractClient,
@@ -845,6 +846,49 @@ fn upgrade_safety_gate_emits_events() {
         events_after > events_before,
         "upgrade ceremony must emit events (AC3: indexers can track upgrades from events alone)"
     );
+
+    // Every emitted event must carry a schema version (event schema AC4).
+    for name in ["UpgradeStarted", "UpgradeCompleted"] {
+        let data = upgrade_ceremony_event_payload(&env, &gs.contract_id, name);
+        let version: u32 = data
+            .get(Symbol::new(&env, "schema_version"))
+            .unwrap_or_else(|| panic!("{name} payload must include schema_version"))
+            .try_into_val(&env)
+            .expect("schema_version must decode as u32");
+        assert_eq!(
+            version, EVENT_SCHEMA_VERSION,
+            "{name} must carry the current EVENT_SCHEMA_VERSION"
+        );
+        assert!(
+            data.get(Symbol::new(&env, "timestamp")).is_some(),
+            "{name} payload must include timestamp"
+        );
+    }
+}
+
+/// Returns the decoded data map of the most recent `event_name` event
+/// published by `contract_id`, panicking if it was never emitted.
+fn upgrade_ceremony_event_payload(
+    env: &Env,
+    contract_id: &Address,
+    event_name: &str,
+) -> soroban_sdk::Map<Symbol, soroban_sdk::Val> {
+    for entry in env.events().all().iter() {
+        if entry.0 != *contract_id {
+            continue;
+        }
+        let t1: Symbol = match entry.1.get(1).and_then(|v| v.try_into_val(env).ok()) {
+            Some(sym) => sym,
+            None => continue,
+        };
+        if t1 == Symbol::new(env, event_name) {
+            return entry
+                .2
+                .try_into_val(env)
+                .expect("event data must decode into a symbol map");
+        }
+    }
+    panic!("event {event_name} was not emitted by the contract");
 }
 
 #[test]
