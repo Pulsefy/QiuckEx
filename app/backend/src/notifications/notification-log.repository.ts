@@ -5,6 +5,11 @@ import {
   NotificationEventType,
 } from "./types/notification.types";
 import { WEBHOOK_MAX_DELIVERY_ATTEMPTS } from "./webhook-retry.constants";
+import {
+  redactSensitiveText,
+  redactPayloadMetadata,
+} from "./utils/redaction.util";
+
 
 @Injectable()
 export class NotificationLogRepository {
@@ -340,11 +345,15 @@ export class NotificationLogRepository {
     }));
   }
 
-  /** Cursor-paginated variant of getWebhookDeliveryLogs. */
+  /** Cursor-paginated variant of getWebhookDeliveryLogs supporting filters. */
   async getWebhookDeliveryLogsPaginated(
     publicKey: string,
     limit = 50,
     cursor?: string,
+    filters?: {
+      status?: string;
+      eventType?: string;
+    },
   ): Promise<{
     data: Array<{
       id: string;
@@ -356,7 +365,9 @@ export class NotificationLogRepository {
       httpStatus?: number;
       responseBody?: string;
       createdAt: string;
+      updatedAt?: string;
       deliveredAt?: string;
+      payloadMetadata?: Record<string, unknown>;
     }>;
     next_cursor: string | null;
     has_more: boolean;
@@ -367,10 +378,18 @@ export class NotificationLogRepository {
       .getClient()
       .from("notification_log")
       .select(
-        "id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, webhook_delivered_at",
+        "id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, updated_at, webhook_delivered_at, payload_metadata",
       )
       .eq("public_key", publicKey)
       .eq("channel", "webhook");
+
+    if (filters?.status && filters.status.toLowerCase() !== "all") {
+      query = query.eq("status", filters.status.toLowerCase());
+    }
+
+    if (filters?.eventType && filters.eventType.toLowerCase() !== "all") {
+      query = query.eq("event_type", filters.eventType);
+    }
 
     // Decode cursor
     if (cursor) {
@@ -406,18 +425,28 @@ export class NotificationLogRepository {
     const hasMore = rawRows.length > effectiveLimit;
     const pageRows = hasMore ? rawRows.slice(0, effectiveLimit) : rawRows;
 
-    const mapped = pageRows.map((r) => ({
-      id: r.id,
-      eventType: r.event_type as NotificationEventType,
-      eventId: r.event_id,
-      status: r.status,
-      attempts: r.attempts,
-      lastError: r.last_error ?? undefined,
-      httpStatus: r.webhook_response_status ?? undefined,
-      responseBody: r.webhook_response_body ?? undefined,
-      createdAt: r.created_at,
-      deliveredAt: r.webhook_delivered_at ?? undefined,
-    }));
+    const mapped = pageRows.map((r) => {
+      const metadataRaw = r.payload_metadata ?? {
+        account_id: publicKey,
+        event_id: r.event_id,
+        event_type: r.event_type,
+        status: r.status,
+      };
+      return {
+        id: r.id,
+        eventType: r.event_type as NotificationEventType,
+        eventId: r.event_id,
+        status: r.status,
+        attempts: r.attempts,
+        lastError: r.last_error ? redactSensitiveText(r.last_error) : undefined,
+        httpStatus: r.webhook_response_status ?? undefined,
+        responseBody: r.webhook_response_body ? redactSensitiveText(r.webhook_response_body) : undefined,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at ?? r.created_at,
+        deliveredAt: r.webhook_delivered_at ?? undefined,
+        payloadMetadata: redactPayloadMetadata(metadataRaw),
+      };
+    });
 
     let nextCursor: string | null = null;
     if (hasMore && pageRows.length > 0) {
@@ -430,6 +459,66 @@ export class NotificationLogRepository {
 
     return { data: mapped, next_cursor: nextCursor, has_more: hasMore };
   }
+
+  /** Fetch details of a single webhook delivery log by ID with public_key access control. */
+  async getWebhookDeliveryLogById(
+    publicKey: string,
+    logId: string,
+  ): Promise<{
+    id: string;
+    eventType: NotificationEventType;
+    eventId: string;
+    status: string;
+    attempts: number;
+    lastError?: string;
+    httpStatus?: number;
+    responseBody?: string;
+    createdAt: string;
+    updatedAt: string;
+    deliveredAt?: string;
+    payloadMetadata?: Record<string, unknown>;
+  } | null> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .select(
+        "id, public_key, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, updated_at, webhook_delivered_at, payload_metadata",
+      )
+      .eq("id", logId)
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`Failed to fetch webhook log ${logId}: ${error.message}`);
+      return null;
+    }
+
+    if (!data) return null;
+
+    const metadataRaw = data.payload_metadata ?? {
+      account_id: publicKey,
+      event_id: data.event_id,
+      event_type: data.event_type,
+      status: data.status,
+    };
+
+    return {
+      id: data.id,
+      eventType: data.event_type as NotificationEventType,
+      eventId: data.event_id,
+      status: data.status,
+      attempts: data.attempts,
+      lastError: data.last_error ? redactSensitiveText(data.last_error) : undefined,
+      httpStatus: data.webhook_response_status ?? undefined,
+      responseBody: data.webhook_response_body ? redactSensitiveText(data.webhook_response_body) : undefined,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at ?? data.created_at,
+      deliveredAt: data.webhook_delivered_at ?? undefined,
+      payloadMetadata: redactPayloadMetadata(metadataRaw),
+    };
+  }
+
 
   /** Get webhook stats for a specific public key. */
   async getWebhookStats(publicKey: string): Promise<{

@@ -34,7 +34,10 @@ import {
   WebhookRedeliverResponseDto,
   VerifyWebhookSignatureDto,
   VerifyWebhookSignatureResponseDto,
+  WebhookHistoryQueryDto,
+  WebhookDeliveryDetailDto,
 } from "./dto/webhook.dto";
+
 import { RateLimitGroupTag } from "../auth/decorators/rate-limit-group.decorator";
 import { WebhookProvider } from "./providers/notification-provider.interface";
 
@@ -223,10 +226,74 @@ export class WebhooksController {
     return result;
   }
 
+  @Get(":publicKey/history")
+  @ApiOperation({
+    summary: "Query webhook delivery history",
+    description:
+      "Lists delivery attempt logs for a public key with support for filtering by endpoint, status, and eventType.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiQuery({ name: "endpoint", required: false, description: "Filter by webhook endpoint ID" })
+  @ApiQuery({ name: "status", required: false, description: "Filter by status (pending | sent | failed | dlq | all)" })
+  @ApiQuery({ name: "eventType", required: false, description: "Filter by event type (e.g. payment.received)" })
+  @ApiQuery({ name: "cursor", required: false, description: "Opaque pagination cursor" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (1-100)" })
+  @ApiResponse({
+    status: 200,
+    description: "Paginated delivery history logs",
+    schema: {
+      type: "object",
+      properties: {
+        data: { type: "array", items: { $ref: "#/components/schemas/WebhookDeliveryLogDto" } },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  async queryDeliveryHistory(
+    @Param("publicKey") publicKey: string,
+    @Query() query: WebhookHistoryQueryDto,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
+    return this.webhookService.getDeliveryHistory(publicKey, query);
+  }
+
+  @Get(":publicKey/deliveries")
+  @ApiOperation({ summary: "List webhook delivery attempts (alias for /history)" })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  async listDeliveries(
+    @Param("publicKey") publicKey: string,
+    @Query() query: WebhookHistoryQueryDto,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
+    return this.webhookService.getDeliveryHistory(publicKey, query);
+  }
+
+  @Get(":publicKey/deliveries/:logId")
+  @ApiOperation({ summary: "Get details for a specific webhook delivery attempt by log ID" })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "logId", description: "Delivery log UUID" })
+  @ApiResponse({
+    status: 200,
+    description: "Detailed delivery attempt record",
+    type: WebhookDeliveryDetailDto,
+  })
+  @ApiResponse({ status: 404, description: "Delivery log not found" })
+  async getDeliveryDetailByLogId(
+    @Param("publicKey") publicKey: string,
+    @Param("logId") logId: string,
+  ): Promise<WebhookDeliveryDetailDto> {
+    const detail = await this.webhookService.getDeliveryDetail(publicKey, logId);
+    if (!detail) {
+      throw new NotFoundException("Delivery log not found");
+    }
+    return detail;
+  }
+
   @Get(":publicKey/:id/logs")
-  @ApiOperation({ summary: "Get webhook delivery logs" })
+  @ApiOperation({ summary: "Get webhook delivery logs for a specific webhook" })
   @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
   @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiQuery({ name: "status", required: false, description: "Filter by status" })
+  @ApiQuery({ name: "eventType", required: false, description: "Filter by event type" })
   @ApiQuery({
     name: "limit",
     required: false,
@@ -244,14 +311,20 @@ export class WebhooksController {
     @Param("id") id: string,
     @Query("limit") limit?: number,
     @Query('cursor') cursor?: string,
+    @Query('status') status?: string,
+    @Query('eventType') eventType?: string,
   ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
     const webhook = await this.webhookService.getWebhook(id);
     if (!webhook || webhook.publicKey !== publicKey) {
       throw new NotFoundException("Webhook not found");
     }
 
-    return this.webhookService.getDeliveryLogs(publicKey, limit ? Number(limit) : undefined, cursor);
+    return this.webhookService.getDeliveryLogs(publicKey, limit ? Number(limit) : undefined, cursor, {
+      status,
+      eventType,
+    });
   }
+
 
   @Get(":publicKey/:id/stats")
   @ApiOperation({ summary: "Get webhook delivery statistics" })

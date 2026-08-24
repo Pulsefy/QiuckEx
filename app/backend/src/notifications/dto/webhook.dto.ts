@@ -160,8 +160,51 @@ export class WebhookResponseDto {
   @ApiProperty() updatedAt!: string;
 }
 
+export class WebhookHistoryQueryDto {
+  @ApiPropertyOptional({
+    description: "Filter by webhook endpoint ID or URL",
+  })
+  @IsOptional()
+  @IsString()
+  endpoint?: string;
+
+  @ApiPropertyOptional({
+    description: "Filter by delivery status (pending | sent | failed | dlq | all)",
+    example: "failed",
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: "Filter by event type (e.g. payment.received, EscrowDeposited)",
+    example: "payment.received",
+  })
+  @IsOptional()
+  @IsString()
+  eventType?: string;
+
+  @ApiPropertyOptional({
+    description: "Maximum items per page (1-100)",
+    example: 50,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: "Opaque pagination cursor",
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+}
+
 export class WebhookDeliveryLogDto {
   @ApiProperty() id!: string;
+  @ApiPropertyOptional() webhookId?: string;
+  @ApiPropertyOptional() endpointUrl?: string;
   @ApiProperty() eventType!: string;
   @ApiProperty() eventId!: string;
   @ApiProperty() status!: string;
@@ -170,8 +213,29 @@ export class WebhookDeliveryLogDto {
   @ApiPropertyOptional() httpStatus?: number;
   @ApiPropertyOptional() responseBody?: string;
   @ApiProperty() createdAt!: string;
+  @ApiPropertyOptional() updatedAt?: string;
   @ApiPropertyOptional() deliveredAt?: string;
+  @ApiPropertyOptional({
+    description: "Redacted payload metadata for frontend inspection",
+  })
+  payloadMetadata?: Record<string, unknown>;
 }
+
+export class WebhookDeliveryAttemptItemDto {
+  @ApiProperty() attemptNumber!: number;
+  @ApiProperty() status!: string;
+  @ApiPropertyOptional() httpStatus?: number;
+  @ApiPropertyOptional() error?: string;
+  @ApiProperty() timestamp!: string;
+}
+
+export class WebhookDeliveryDetailDto extends WebhookDeliveryLogDto {
+  @ApiProperty({ default: 3 }) maxAttempts!: number;
+  @ApiPropertyOptional() dlqReason?: string;
+  @ApiPropertyOptional() nextRetryAt?: string;
+  @ApiProperty({ type: [WebhookDeliveryAttemptItemDto] }) attemptHistory!: WebhookDeliveryAttemptItemDto[];
+}
+
 
 export class WebhookStatsDto {
   @ApiProperty() totalSent!: number;

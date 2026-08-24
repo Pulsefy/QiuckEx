@@ -14,7 +14,10 @@ import type {
   WebhookDeliveryStatusDto,
   WebhookReplayLogDto,
   WebhookRedeliverResponseDto,
+  WebhookHistoryQueryDto,
+  WebhookDeliveryDetailDto,
 } from "./dto/webhook.dto";
+
 
 @Injectable()
 export class WebhookService {
@@ -125,11 +128,17 @@ export class WebhookService {
     publicKey: string,
     limit?: number,
     cursor?: string,
+    filters?: { status?: string; eventType?: string },
   ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
-    const result = await this.logRepo.getWebhookDeliveryLogsPaginated(publicKey, limit, cursor);
+    const result = await this.logRepo.getWebhookDeliveryLogsPaginated(publicKey, limit, cursor, filters);
+    const webhooks = await this.prefsRepo.getWebhooksByPublicKey(publicKey);
+    const primaryWebhook = webhooks[0];
+
     return {
       data: result.data.map((log) => ({
         id: log.id,
+        webhookId: primaryWebhook?.id,
+        endpointUrl: primaryWebhook?.webhookUrl,
         eventType: log.eventType,
         eventId: log.eventId,
         status: log.status,
@@ -138,12 +147,87 @@ export class WebhookService {
         httpStatus: log.httpStatus,
         responseBody: log.responseBody,
         createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
         deliveredAt: log.deliveredAt,
+        payloadMetadata: log.payloadMetadata,
       })),
       next_cursor: result.next_cursor,
       has_more: result.has_more,
     };
   }
+
+  /**
+   * Query delivery history for a public key with filtering by endpoint, status, and eventType.
+   */
+  async getDeliveryHistory(
+    publicKey: string,
+    query: WebhookHistoryQueryDto,
+  ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
+    let targetPublicKey = publicKey;
+
+    if (query.endpoint) {
+      const webhook = await this.prefsRepo.getWebhookById(query.endpoint);
+      if (webhook) {
+        if (webhook.publicKey !== publicKey) {
+          // Cross-tenant access attempt
+          return { data: [], next_cursor: null, has_more: false };
+        }
+      }
+    }
+
+    return this.getDeliveryLogs(targetPublicKey, query.limit, query.cursor, {
+      status: query.status,
+      eventType: query.eventType,
+    });
+  }
+
+  /**
+   * Get single delivery attempt detail by log ID for a public key with access control.
+   */
+  async getDeliveryDetail(
+    publicKey: string,
+    logId: string,
+  ): Promise<WebhookDeliveryDetailDto | null> {
+    const log = await this.logRepo.getWebhookDeliveryLogById(publicKey, logId);
+    if (!log) return null;
+
+    const webhooks = await this.prefsRepo.getWebhooksByPublicKey(publicKey);
+    const primaryWebhook = webhooks[0];
+
+    const attempts = Math.max(log.attempts, 1);
+    const attemptHistory = Array.from({ length: attempts }, (_, index) => {
+      const attemptNumber = index + 1;
+      const isLast = attemptNumber === attempts;
+      return {
+        attemptNumber,
+        status: isLast ? log.status : "retried",
+        httpStatus: isLast ? log.httpStatus : undefined,
+        error: isLast ? log.lastError : undefined,
+        timestamp: isLast ? (log.deliveredAt ?? log.updatedAt) : log.createdAt,
+      };
+    });
+
+    return {
+      id: log.id,
+      webhookId: primaryWebhook?.id,
+      endpointUrl: primaryWebhook?.webhookUrl,
+      eventType: log.eventType,
+      eventId: log.eventId,
+      status: log.status,
+      attempts: log.attempts,
+      maxAttempts: 3,
+      lastError: log.lastError,
+      dlqReason: log.status === "dlq" ? (log.lastError ?? "Exhausted retries") : undefined,
+      httpStatus: log.httpStatus,
+      responseBody: log.responseBody,
+      createdAt: log.createdAt,
+      updatedAt: log.updatedAt,
+      deliveredAt: log.deliveredAt,
+      payloadMetadata: log.payloadMetadata,
+      attemptHistory,
+    };
+  }
+
 
   async getStats(publicKey: string): Promise<WebhookStatsDto> {
     const stats = await this.logRepo.getWebhookStats(publicKey);
