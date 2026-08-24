@@ -165,22 +165,22 @@ COMMENT ON COLUMN recurring_payment_executions.retry_count IS 'Number of retry a
 
 -- Function to calculate next execution date based on frequency
 CREATE OR REPLACE FUNCTION calculate_next_execution_date(
-  current_date TIMESTAMPTZ,
+  p_current_date TIMESTAMPTZ,
   freq TEXT
 )
 RETURNS TIMESTAMPTZ AS $$
 BEGIN
   CASE freq
     WHEN 'daily' THEN
-      RETURN current_date + INTERVAL '1 day';
+      RETURN p_current_date + INTERVAL '1 day';
     WHEN 'weekly' THEN
-      RETURN current_date + INTERVAL '1 week';
+      RETURN p_current_date + INTERVAL '1 week';
     WHEN 'monthly' THEN
-      RETURN current_date + INTERVAL '1 month';
+      RETURN p_current_date + INTERVAL '1 month';
     WHEN 'yearly' THEN
-      RETURN current_date + INTERVAL '1 year';
+      RETURN p_current_date + INTERVAL '1 year';
     ELSE
-      RETURN current_date;
+      RETURN p_current_date;
   END CASE;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;

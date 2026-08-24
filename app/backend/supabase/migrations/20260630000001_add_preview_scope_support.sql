@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS preview_scopes (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_preview_scopes_expires_at
+CREATE INDEX IF NOT EXISTS idx_preview_scopes_expires_at
   ON preview_scopes (expires_at);
 
 -- Auto-maintain updated_at.
