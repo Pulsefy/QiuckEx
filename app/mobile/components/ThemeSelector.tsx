@@ -73,7 +73,7 @@ export function ThemeSelector() {
         { backgroundColor: theme.surface, borderColor: theme.border },
       ]}
     >
-      <Text style={[styles.heading, { color: theme.textPrimary }]}>
+      <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">
         {t("appearance")}
       </Text>
       <Text style={[styles.subheading, { color: theme.textSecondary }]}>
@@ -96,8 +96,10 @@ export function ThemeSelector() {
                 },
                 isActive && { borderColor: theme.primary, borderWidth: 2 },
               ]}
-              accessibilityLabel={`Select ${opt.label} theme`}
-              accessibilityRole="button"
+              accessibilityLabel={`Appearance mode: ${opt.label}. ${opt.description}. ${isActive ? 'Currently selected.' : 'Not selected.'}.`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isActive }}
+              accessibilityHint={`Double-tap to set appearance to ${opt.label} mode`}
             >
               <MiniSwatch colors={opt.preview.swatchPreview} />
               <Text
@@ -106,6 +108,8 @@ export function ThemeSelector() {
                   { color: theme.textPrimary },
                   isActive && { fontWeight: "800" },
                 ]}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
               >
                 {opt.mode === "light"
                   ? `☀️ ${opt.label}`
@@ -116,6 +120,8 @@ export function ThemeSelector() {
               <Text
                 style={[styles.modeDesc, { color: theme.textMuted }]}
                 numberOfLines={1}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
               >
                 {opt.description}
               </Text>
@@ -125,6 +131,8 @@ export function ThemeSelector() {
                     styles.activeIndicator,
                     { backgroundColor: theme.primary },
                   ]}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
                 />
               )}
             </Pressable>
@@ -133,7 +141,7 @@ export function ThemeSelector() {
       </View>
 
       {/* ── Brand themes ───────────────────────────────────────────── */}
-      <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+      <Text style={[styles.sectionTitle, { color: theme.textPrimary }]} accessibilityRole="header">
         {t("brandThemes", "Brand Themes")}
       </Text>
 
@@ -152,11 +160,13 @@ export function ThemeSelector() {
                 },
                 isActive && { borderColor: brandTheme.primary, borderWidth: 2 },
               ]}
-              accessibilityLabel={`Select ${brandTheme.name} brand theme`}
-              accessibilityRole="button"
+              accessibilityLabel={`Brand theme: ${brandTheme.name}. ${isActive ? 'Currently selected brand theme.' : 'Tap to select this brand theme.'}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isActive }}
+              accessibilityHint={`Double-tap to activate the ${brandTheme.name} branded appearance`}
             >
               {/* Swatch preview */}
-              <View style={styles.swatchRow}>
+              <View style={styles.swatchRow} accessibilityElementsHidden={true} importantForAccessibility="no">
                 {brandTheme.swatchPreview.map((color: string, i: number) => (
                   <View
                     key={i}
@@ -174,6 +184,8 @@ export function ThemeSelector() {
                   { color: theme.textPrimary },
                   isActive && { color: brandTheme.primary, fontWeight: "800" },
                 ]}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
               >
                 {brandTheme.name}
               </Text>
@@ -183,6 +195,8 @@ export function ThemeSelector() {
                     styles.activeIndicator,
                     { backgroundColor: brandTheme.primary },
                   ]}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
                 />
               )}
             </Pressable>
