@@ -1,8 +1,9 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -10,6 +11,7 @@ import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { RateLimitGroupTag } from '../../auth/decorators/rate-limit-group.decorator';
 import {
   ContractViewsService,
+  type AccruedFeesView,
   type ContractMetadataView,
   type EscrowSummaryView,
   type FeeConfigView,
@@ -91,5 +93,26 @@ export class ContractViewsController {
   @ApiResponse({ status: 404, description: 'Link not found or TTL expired.' })
   getLink(@Param('identifier') identifier: string): Promise<LinkSummaryView> {
     return this.views.getLinkSummary(identifier);
+  }
+
+  @Get('fees/accrued')
+  @ApiOperation({
+    summary: 'Accrued protocol fees for a token',
+    description:
+      'Returns the on-chain accrued protocol fee balance for a token via the ' +
+      'contract get_accrued_fees view. Read-only; intended for monitoring. ' +
+      'Results are cached for 15 s. Unlike the display-oriented views, RPC ' +
+      'failures are surfaced as errors rather than masked with defaults.',
+  })
+  @ApiQuery({
+    name: 'token',
+    required: true,
+    description: 'Token contract (SAC) address to query.',
+  })
+  @ApiResponse({ status: 200, description: 'Accrued fee balance.' })
+  @ApiResponse({ status: 400, description: 'Malformed token address.' })
+  @ApiResponse({ status: 404, description: 'QUICKEX_CONTRACT_ID not configured.' })
+  getAccruedFees(@Query('token') token: string): Promise<AccruedFeesView> {
+    return this.views.getAccruedFees(token);
   }
 }

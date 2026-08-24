@@ -152,11 +152,15 @@ required fields.
 - `upgrade(caller, new_wasm_hash)` – upgrade contract (caller must authorize).
 - `migrate(caller)` – run post-upgrade storage migration steps for the current release.
 - `get_version()` – inspect the stored schema version (`0` means a legacy deployment with no version key yet).
+- `withdraw_fees(caller, token, amount, recipient)` – withdraw accrued protocol fees for an
+  asset to a designated recipient (admin only; see [Fee Management](#fee-management)).
 
 ### 5. Read-only queries
 - `get_commitment_state(commitment)` – escrow status (Pending/Spent/Expired).
 - `verify_proof_view(amount, salt, owner)` – verify withdrawal params without submitting a tx.
 - `get_escrow_details(commitment)` – full escrow entry.
+- `get_accrued_fees(token)` – accrued protocol fee balance for an asset that the admin can
+  withdraw (see [Fee Management](#fee-management)).
 
 ---
 
@@ -174,6 +178,7 @@ The contract uses persistent storage with the following structure:
 - `DataKey::Paused` - Stores the paused state of the contract
 - `DataKey::PrivacyLevel(Address)` - Stores privacy level for each account
 - `DataKey::PrivacyHistory(Address)` - Stores privacy history for each account
+- `DataKey::AccruedFee(Address)` - Per-asset accrued protocol fee balance left in the contract (fees that could not be routed to a collector/arbiter at settlement time); admin-withdrawable via `withdraw_fees`
 
 The `EscrowEntry` struct contains:
 - `token: Address` - The token address
@@ -198,6 +203,32 @@ Helper functions:
 - `deposit(token: Address, amount: i128, owner: Address, salt: Bytes)` - Deposit funds and create an escrow entry
 - `withdraw(to: Address, amount: i128, salt: Bytes)` - Withdraw funds by proving commitment ownership
 - `create_escrow(from: Address, to: Address, amount: u64)` - Create escrow
+
+### Fee Management
+
+Protocol fees are deducted from payouts (see `fee.rs` / `fee_router.rs`) using the
+configured basis-point bounds. When a routed fee cannot be paid out — no fee collector
+(`platform_wallet` / rotated collector) and/or no arbiter configured at settlement time —
+the fee stays in the contract and is credited to the per-asset **accrued fee** ledger
+(`DataKey::AccruedFee(token)`). The admin can retrieve those accumulated fees at any time;
+escrowed principal is never touchable via this path.
+
+- `withdraw_fees(caller: Address, token: Address, amount: i128, recipient: Address) -> i128`
+  - **Admin only.** Transfers `amount` of `token` from the contract to `recipient`, debiting
+    the accrued-fee ledger for that asset. Emits a `FeesWithdrawn` event carrying the asset,
+    amount, recipient, and acting admin. Respects pause policy: blocked while the contract
+    is paused or in emergency mode.
+  - Errors: `InvalidAmount` (`amount <= 0`), `InsufficientFees` (`amount` exceeds the accrued
+    balance), `InsufficientRole` (caller is not the admin), `ContractPaused` /
+    `OperationPaused` (pause or emergency-mode policy).
+- `get_accrued_fees(token: Address) -> i128`
+  - Read-only. Returns the accrued protocol fee balance for `token` that the admin can
+    currently withdraw. Returns `0` for assets with no accrued fees.
+
+Fee routing configuration (admin/operator): `set_fee_config(caller, config)` for the global
+basis points, `set_per_asset_fee(caller, token, config)` for per-asset overrides, and
+`set_platform_wallet(caller, wallet)` / `rotate_fee_collector(caller, new_collector)` to
+choose where routed fees are paid out.
 
 ### Amount Commitments (X-Ray Privacy Placeholder)
 
@@ -314,6 +345,30 @@ soroban contract invoke \
   --commitment <COMMITMENT_HASH>
 ```
 
+### Check Accrued Protocol Fees
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --fn get_accrued_fees \
+  -- \
+  --token <TOKEN_CONTRACT_ADDRESS>
+```
+
+### Withdraw Accrued Protocol Fees (admin only)
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source <ADMIN_SECRET_KEY> \
+  --fn withdraw_fees \
+  -- \
+  --caller <ADMIN_ADDRESS> \
+  --token <TOKEN_CONTRACT_ADDRESS> \
+  --amount 1000000 \
+  --recipient <RECIPIENT_ADDRESS>
+```
+
+The withdrawal is capped by the accrued fee balance for the asset; requesting more fails
+with `InsufficientFees`. During a global pause or emergency mode the call is blocked.
 
 ### Roadmap
 

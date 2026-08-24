@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
@@ -20,6 +25,20 @@ export interface PauseStateView {
   paused: boolean;
   /** Ledger sequence when the contract was last paused, or null */
   pausedAtLedger: number | null;
+}
+
+export interface AccruedFeesView {
+  /** Token contract (SAC) address the balance is for */
+  token: string;
+  /**
+   * Accrued protocol fee balance in token base units, as a decimal string
+   * (the contract returns an i128, which can exceed Number.MAX_SAFE_INTEGER).
+   */
+  accruedFees: string;
+  /** QuickEx contract instance queried */
+  contractId: string;
+  /** Stellar network the contract is deployed on */
+  network: string;
 }
 
 export interface ContractMetadataView {
@@ -142,6 +161,21 @@ export class ContractViewsService {
     return this.cached(`link:${identifier}`, () => this.fetchLinkSummary(identifier));
   }
 
+  /**
+   * Accrued protocol fee balance for a token, from the on-chain
+   * `get_accrued_fees` view. Intended for monitoring/admin dashboards.
+   *
+   * Unlike the display-oriented views, this endpoint does **not** fall back to
+   * safe defaults: a malformed token is rejected and RPC/simulation failures
+   * propagate so a monitor sees an error instead of a misleading zero balance.
+   *
+   * @throws {@link BadRequestException} when `token` is not a valid address
+   * @throws {@link NotFoundException} when `QUICKEX_CONTRACT_ID` is not configured
+   */
+  async getAccruedFees(token: string): Promise<AccruedFeesView> {
+    return this.cached(`accrued_fees:${token}`, () => this.fetchAccruedFees(token));
+  }
+
   // ---------------------------------------------------------------------------
   // Fetch implementations
   // ---------------------------------------------------------------------------
@@ -244,6 +278,41 @@ export class ContractViewsService {
     }
 
     return this.parseLinkSummary(result, identifier);
+  }
+
+  private async fetchAccruedFees(token: string): Promise<AccruedFeesView> {
+    // Validate the token is a well-formed Stellar/Soroban address (SAC contract
+    // or account). Address.fromString throws on malformed input.
+    let address: StellarSdk.Address;
+    try {
+      address = StellarSdk.Address.fromString(token);
+    } catch {
+      throw new BadRequestException({
+        error: 'INVALID_TOKEN_ADDRESS',
+        message: `"${token}" is not a valid Stellar/Soroban address.`,
+      });
+    }
+
+    const contractId = this.requireContractId();
+    const stellarCfg = this.configService.get<{ network: string }>('stellar');
+
+    const args = [StellarSdk.nativeToScVal(address, { type: 'address' })];
+    const result = await this.simulateContractView(
+      contractId,
+      'get_accrued_fees',
+      args,
+    );
+
+    // i128 balance — keep as a decimal string to avoid precision loss.
+    const accruedFees =
+      result === null ? '0' : String(StellarSdk.scValToNative(result));
+
+    return {
+      token,
+      accruedFees,
+      contractId,
+      network: stellarCfg?.network ?? 'testnet',
+    };
   }
 
   // ---------------------------------------------------------------------------
