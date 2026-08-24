@@ -139,6 +139,26 @@ export class SupabaseService {
     if (error) this.handleError(error);
   }
 
+  /**
+   * Atomically claim a username and record the `username.claimed` domain event
+   * in the outbox, so the event is durable before it is dispatched. See the
+   * `claim_username_with_outbox` Postgres function.
+   */
+  async claimUsernameWithOutbox(
+    username: string,
+    publicKey: string,
+    eventId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const { error } = await this.client.rpc("claim_username_with_outbox", {
+      p_username: username,
+      p_public_key: publicKey,
+      p_event_id: eventId,
+      p_payload: payload,
+    });
+    if (error) this.handleError(error);
+  }
+
   async countUsernamesByPublicKey(publicKey: string): Promise<number> {
     const { count, error } = await this.client
       .from("usernames")

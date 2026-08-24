@@ -60,6 +60,7 @@ import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
 import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
 import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
+import { OutboxModule } from "./events/outbox/outbox.module";
 
 type AppImport =
 | Type<unknown>
@@ -112,6 +113,7 @@ OperationsModule,
     PreviewScopeModule,
     TransactionTimelineModule,
     DashboardFeedModule,
+    OutboxModule,
     ];
 
     try {
