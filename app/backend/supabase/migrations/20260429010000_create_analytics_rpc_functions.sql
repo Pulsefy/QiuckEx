@@ -4,6 +4,20 @@
 -- 1) Summary metrics including conversion rate and total USD volume
 -- 2) Asset distribution percentages
 -- 3) Time-series buckets (daily, weekly, monthly) for charts
+--
+-- NOTE: Requires the payment_records table to exist. Skipped if not found.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'payment_records'
+  ) THEN
+    RAISE NOTICE 'payment_records table not found — skipping analytics RPC functions migration';
+    RETURN;
+  END IF;
+END
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Summary aggregation (USD equivalent + conversion rate)

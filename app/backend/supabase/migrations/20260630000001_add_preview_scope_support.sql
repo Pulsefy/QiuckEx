@@ -28,8 +28,7 @@ CREATE TABLE IF NOT EXISTS preview_scopes (
 );
 
 CREATE INDEX idx_preview_scopes_expires_at
-  ON preview_scopes (expires_at)
-  WHERE expires_at > NOW();
+  ON preview_scopes (expires_at);
 
 -- Auto-maintain updated_at.
 CREATE OR REPLACE FUNCTION trigger_preview_scopes_set_updated_at()

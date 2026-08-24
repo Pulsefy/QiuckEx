@@ -73,10 +73,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER recurring_payment_links_updated_at_trigger
-  BEFORE UPDATE ON recurring_payment_links
-  FOR EACH ROW
-  EXECUTE FUNCTION update_recurring_link_updated_at();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'recurring_payment_links_updated_at_trigger'
+  ) THEN
+    CREATE TRIGGER recurring_payment_links_updated_at_trigger
+      BEFORE UPDATE ON recurring_payment_links
+      FOR EACH ROW
+      EXECUTE FUNCTION update_recurring_link_updated_at();
+  END IF;
+END
+$$;
 
 COMMENT ON TABLE recurring_payment_links IS 'Recurring payment link configurations (subscriptions)';
 COMMENT ON COLUMN recurring_payment_links.username IS 'Optional username route (quickex.to/username)';

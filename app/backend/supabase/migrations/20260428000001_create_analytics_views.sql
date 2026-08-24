@@ -1,6 +1,20 @@
 -- Migration: Create materialized views for analytics
 -- This migration creates materialized views to optimize analytics queries
 -- and prevent excessive load on the main transaction tables
+--
+-- NOTE: Requires the stellar_ingestion table to exist. Skipped if not found.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'stellar_ingestion'
+  ) THEN
+    RAISE NOTICE 'stellar_ingestion table not found — skipping analytics views migration';
+    RETURN;
+  END IF;
+END
+$$;
 
 -- Create the daily_metrics materialized view
 CREATE MATERIALIZED VIEW IF NOT EXISTS daily_metrics AS
