@@ -27,8 +27,17 @@ export class AppConfigService {
       backendMetadata: {
         version: this.appVersion,
         apiUrl: this.apiBaseUrl,
+        environmentName: this.environmentName,
+        branchName: this.branchName,
       },
     };
+  }
+
+  /**
+   * Get the branch name
+   */
+  get branchName(): string | undefined {
+    return this.configService.get("BRANCH_NAME", { infer: true });
   }
 
   /**
@@ -88,6 +97,7 @@ export class AppConfigService {
     | "staging"
     | "production"
     | "test"
+    | "preview"
     | undefined {
     return this.configService.get("ENVIRONMENT_NAME", { infer: true });
   }

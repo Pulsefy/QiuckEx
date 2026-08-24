@@ -14,6 +14,8 @@ export interface BootstrapConfig {
     version: string;
     apiUrl: string;
     featureFlags: Record<string, boolean>;
+    environmentName?: string;
+    branchName?: string;
   };
 }
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/Header";
-import { StagingBanner } from "@/components/StagingBanner";
+import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 import { EnvGuard } from "@/components/EnvGuard";
 import { NotificationCenterProvider } from "@/components/NotificationCenterProvider";
 import { ErrorReportingShell } from "@/components/ErrorReportingShell";
@@ -61,9 +61,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="bg-background text-foreground antialiased">
-        <StagingBanner />
         <ThemeProvider>
           <BootstrapProvider>
+            <EnvironmentBanner />
             <NotificationCenterProvider>
               <EnvGuard>
                 <Header />
