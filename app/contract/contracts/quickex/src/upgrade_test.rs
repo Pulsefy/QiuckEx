@@ -892,13 +892,14 @@ fn upgrade_ceremony_event_payload(
             Some(sym) => sym,
             None => continue,
         };
-        seen.push_back(t1);
-        if t1 == Symbol::new(env, event_name) {
+        let target = Symbol::new(env, event_name);
+        if t1 == target {
             return event
                 .2
                 .try_into_val(env)
                 .expect("event data must decode into a symbol map");
         }
+        seen.push_back(t1);
     }
     panic!(
         "event {event_name} was not emitted by the contract (scanned {} events; topics seen: {seen:?})",
