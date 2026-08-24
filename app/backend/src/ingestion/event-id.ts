@@ -50,6 +50,9 @@ function getIdentityFields(event: EventWithoutId): string[] {
     case "EphemeralKeyRegistered":
     case "StealthWithdrawn":
       return [event.eventType, event.txHash, event.stealthAddress];
+
+    case "HookInvocationFailed":
+      return [event.eventType, event.txHash, event.hookContract, event.escrowId];
   }
 }
 

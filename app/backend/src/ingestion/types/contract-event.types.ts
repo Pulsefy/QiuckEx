@@ -12,7 +12,8 @@ export type SorobanEventType =
   | "AdminChanged"
   | "ContractUpgraded"
   | "EphemeralKeyRegistered"
-  | "StealthWithdrawn";
+  | "StealthWithdrawn"
+  | "HookInvocationFailed";
 
 export interface BaseContractEvent {
   eventType: SorobanEventType;
@@ -100,6 +101,13 @@ export interface StealthWithdrawnEvent extends BaseContractEvent {
   amount: bigint;
 }
 
+export interface HookInvocationFailedEvent extends BaseContractEvent {
+  eventType: "HookInvocationFailed";
+  hookContract: string;
+  escrowId: string;
+  reason: number;
+}
+
 export type QuickExContractEvent =
   | EscrowDepositedEvent
   | EscrowWithdrawnEvent
@@ -109,7 +117,8 @@ export type QuickExContractEvent =
   | AdminChangedEvent
   | ContractUpgradedEvent
   | EphemeralKeyRegisteredEvent
-  | StealthWithdrawnEvent;
+  | StealthWithdrawnEvent
+  | HookInvocationFailedEvent;
 
 export type EscrowEvent =
   | EscrowDepositedEvent

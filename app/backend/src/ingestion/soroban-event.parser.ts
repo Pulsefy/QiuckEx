@@ -14,6 +14,7 @@ import type {
   ContractUpgradedEvent,
   EphemeralKeyRegisteredEvent,
   StealthWithdrawnEvent,
+  HookInvocationFailedEvent,
 } from "./types/contract-event.types";
 import {
   QUICKEX_EVENT_SCHEMA_CONTRACTS,
@@ -214,6 +215,13 @@ export class SorobanEventParser {
             );
           case "StealthWithdrawn":
             return this.parseStealthWithdrawn(
+              topics,
+              dataVal,
+              base,
+              layout.indexedOffset,
+            );
+          case "HookInvocationFailed":
+            return this.parseHookInvocationFailed(
               topics,
               dataVal,
               base,
@@ -443,6 +451,32 @@ export class SorobanEventParser {
       recipient,
       token: this.decodeAddress(map["token"]),
       amount: BigInt(scValToNative(map["amount"])),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hook event parsers
+  // ---------------------------------------------------------------------------
+
+  private parseHookInvocationFailed(
+    topics: xdr.ScVal[],
+    data: xdr.ScVal,
+    base: Omit<
+      HookInvocationFailedEvent,
+      "eventId" | "eventType" | "hookContract" | "escrowId" | "reason"
+    >,
+    indexedOffset: number,
+  ): Omit<HookInvocationFailedEvent, "eventId"> {
+    const hookContract = this.decodeAddress(topics[indexedOffset]);
+    const escrowId = this.decodeBytes32Hex(topics[indexedOffset + 1]);
+    const map = this.dataToMap(data);
+
+    return {
+      eventType: "HookInvocationFailed",
+      ...base,
+      hookContract,
+      escrowId,
+      reason: Number(scValToNative(map["reason"])),
     };
   }
 
