@@ -402,9 +402,14 @@ export const envSchema = Joi.object({
 
   // Staging environment identifier
   ENVIRONMENT_NAME: Joi.string()
-    .valid("development", "staging", "production", "test")
+    .valid("development", "staging", "production", "test", "preview")
     .optional()
     .description("Explicit environment name for parity tracking"),
+
+  BRANCH_NAME: Joi.string()
+    .empty("")
+    .optional()
+    .description("Branch name for preview environments"),
 
   // ── Indexer Lag Guard ─────────────────────────────────────────────────────
   INDEXER_LAG_THRESHOLD_LEDGERS: Joi.number()
@@ -517,7 +522,8 @@ export interface EnvConfig {
   SHADOW_TRAFFIC_SAMPLE_RATE: number;
   SHADOW_TRAFFIC_ENDPOINTS: string;
   STAGING_SEED_DATA_ENABLED: boolean;
-  ENVIRONMENT_NAME?: "development" | "staging" | "production" | "test";
+  ENVIRONMENT_NAME?: "development" | "staging" | "production" | "test" | "preview";
+  BRANCH_NAME?: string;
   INDEXER_LAG_THRESHOLD_LEDGERS: number;
   INDEXER_LAG_GUARD_ENABLED: boolean;
   INDEXER_LAG_GUARD_OVERRIDE: boolean;

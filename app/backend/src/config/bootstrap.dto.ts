@@ -4,7 +4,8 @@ import {
   IsUrl,
   IsArray, 
   ValidateNested, 
-  IsObject 
+  IsObject,
+  IsOptional
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -53,6 +54,16 @@ export class BackendMetadataDto {
   @ApiProperty({ description: 'Key-value pairs for active feature flags' })
   @IsObject()
   featureFlags: Record<string, boolean>;
+
+  @ApiProperty({ description: 'Environment name', required: false })
+  @IsOptional()
+  @IsString()
+  environmentName?: string;
+
+  @ApiProperty({ description: 'Branch name', required: false })
+  @IsOptional()
+  @IsString()
+  branchName?: string;
 }
 
 export class BootstrapResponseDto {
