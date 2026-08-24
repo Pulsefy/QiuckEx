@@ -31,6 +31,46 @@ Indexers MUST read this field before decoding any other payload field.
 2. If absent → decode with the v1 decoder (legacy path).
 3. If present and `== 2` → decode with the v2 decoder.
 4. If present and `> 2` → log a warning and skip until the indexer is updated.
+   The reference implementation lives in
+   `app/backend/src/ingestion/soroban-event.parser.ts`.
+
+### Versioning policy — when the version MUST be incremented
+
+Bump `EVENT_SCHEMA_VERSION` in `src/events.rs` whenever ANY of the following
+changes land on any emitted event:
+
+| Change                                                        | Bump? |
+|---------------------------------------------------------------|-------|
+| Field added to or removed from any event payload              | YES   |
+| Field renamed (rename = remove + add)                         | YES   |
+| Field type or encoding changes (e.g. `u64` → `u128`)          | YES   |
+| Semantic meaning of an existing field changes                 | YES   |
+| Topic layout changes (namespace, event symbol, indexed order) | YES   |
+| New event type introduced                                     | NO*   |
+| Bug fix that does not alter payload/topic shape               | NO    |
+
+\* A new event type does not bump the version because existing decoders ignore
+unknown event names, but the new type MUST be registered in `EVENT_SCHEMAS`
+(`src/events.rs`), in the backend `QUICKEX_EVENT_SCHEMA_CONTRACTS`
+(`app/backend/src/ingestion/event-schema.ts`), and in the catalogue below.
+
+Rationale: indexers replay history across contract upgrades. Skipping a
+required bump silently corrupts historical replay; an unnecessary bump only
+costs indexers one extra decoder branch. When in doubt, bump.
+
+Release procedure:
+
+1. Increment `EVENT_SCHEMA_VERSION` in `src/events.rs`.
+2. Add the old version to `compatible_versions` for every affected event in
+   `EVENT_SCHEMAS` / `EVENT_COMPATIBILITY`, and mirror the change in the
+   backend `event-schema.ts`.
+3. Add a row to the version table above describing the change.
+4. Deploy indexer support for the new version BEFORE promoting the upgraded
+   contract; only then raise `MAX_SUPPORTED_SCHEMA_VERSION`
+   (`app/backend/src/ingestion/soroban-event.parser.ts`).
+5. Keep `test_event_schema_catalog_locks_canonical_topics_and_payloads`
+   green: its length assertion must equal the number of emitted event types,
+   guaranteeing every emitted event is version-checked.
 
 The canonical version constant lives in `src/events.rs`:
 
@@ -38,9 +78,9 @@ The canonical version constant lives in `src/events.rs`:
 pub const EVENT_SCHEMA_VERSION: u32 = 2;
 ```
 
-Golden tests in `src/test.rs` (`golden_schema_v2` module) lock every topic and
-payload key. Any schema drift will cause those tests to fail, preventing
-accidental breakage.
+Golden tests in `src/test.rs` (`test_event_schema_catalog_*`,
+`test_event_snapshot_*`) lock every topic and payload key. Any schema drift
+will cause those tests to fail, preventing accidental breakage.
 
 ---
 
@@ -131,6 +171,15 @@ accidental breakage.
 - `ContractMigrated`
   - Topics: `TOPIC_ADMIN`, `ContractMigrated`, `admin`
   - Data: `schema_version`, `from_version`, `to_version`, `timestamp`
+
+- `UpgradeStarted`
+  - Topics: `TOPIC_ADMIN`, `UpgradeStarted`, `admin`
+  - Data: `schema_version`, `old_version`, `new_version`, `window_start`,
+    `window_end`, `timestamp`
+
+- `UpgradeCompleted`
+  - Topics: `TOPIC_ADMIN`, `UpgradeCompleted`, `admin`
+  - Data: `schema_version`, `old_version`, `new_version`, `timestamp`
 
 - `FeeConfigChanged`
   - Topics: `TOPIC_ADMIN`, `FeeConfigChanged`
