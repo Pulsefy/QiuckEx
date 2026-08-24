@@ -15,14 +15,15 @@
 //! | [`ContractVersion`](DataKey::ContractVersion) | `u32` | Stored schema/version marker for upgrade migrations. |
 //! | [`Admin`](DataKey::Admin) | `Address`     | Contract admin address. Set during initialisation, transferable by admin. |
 //! | [`Paused`](DataKey::Paused) | `bool`       | Global pause flag. When true, critical operations may be blocked. |
-//! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Numeric privacy level per account (0 = off). Used by `enable_privacy`. |
+//! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Canonical numeric privacy level per account (0 = off, >0 = on). Single authoritative privacy state. |
 //! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Per-account history of privacy level changes (chronological). |
 //!
 //! ## Related Keys (legacy compatibility)
 //!
 //! | Key                    | Format                    | Value Type | Description |
 //! |------------------------|---------------------------|------------|-------------|
-//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy boolean privacy on/off key. Read as a fallback and migrated to [`DataKey::PrivacyEnabled`] on write. |
+//! | `PrivacyEnabled`       | `DataKey::PrivacyEnabled(Address)` | `bool` | Deprecated boolean privacy key. Migrated lazily to [`DataKey::PrivacyLevel`] on read/write. |
+//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy Symbol-based privacy key. Migrated lazily to [`DataKey::PrivacyLevel`] on read/write. |
 //!
 //! ## Relations
 //!
@@ -31,7 +32,7 @@
 //!   status, and created_at.
 //! - **Admin ↔ Paused**: Admin can set the paused flag. Both are singleton keys.
 //! - **PrivacyLevel ↔ PrivacyHistory**: Same account may have both; level is current, history is append-only.
-//! - **PrivacyLevel / PrivacyHistory ↔ PrivacyEnabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
+//! - **PrivacyLevel (Canonical)**: Authoritative privacy representation for both boolean and level-based APIs.
 //!
 //! ## Backwards Compatibility
 //!
@@ -737,16 +738,14 @@ pub fn is_paused(env: &Env) -> bool {
 // Privacy helpers (level-based API)
 // -----------------------------------------------------------------------------
 
-/// Set privacy level for an account.
+/// Set canonical privacy level for an account.
 pub fn set_privacy_level(env: &Env, account: &Address, level: u32) {
-    let key = DataKey::PrivacyLevel(account.clone());
-    env.storage().persistent().set(&key, &level);
+    crate::privacy::set_privacy_level(env, account.clone(), level);
 }
 
-/// Get privacy level for an account.
+/// Get canonical privacy level for an account, with lazy migration for deprecated boolean keys.
 pub fn get_privacy_level(env: &Env, account: &Address) -> Option<u32> {
-    let key = DataKey::PrivacyLevel(account.clone());
-    env.storage().persistent().get(&key)
+    crate::privacy::get_privacy_level(env, account)
 }
 
 /// Add to privacy history for an account.

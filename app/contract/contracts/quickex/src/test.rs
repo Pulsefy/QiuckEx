@@ -625,6 +625,7 @@ fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
     let account = Address::generate(&env);
     let legacy_key = (Symbol::new(&env, PRIVACY_ENABLED_KEY), account.clone());
     let typed_key = DataKey::PrivacyEnabled(account.clone());
+    let canonical_key = DataKey::PrivacyLevel(account.clone());
 
     env.as_contract(&client.address, || {
         env.storage().persistent().set(&legacy_key, &true);
@@ -632,16 +633,69 @@ fn test_legacy_privacy_flag_is_read_and_migrated_on_write() {
 
     client.initialize(&admin);
 
+    // Read lazily migrates legacy symbol key to canonical PrivacyLevel(1)
     assert!(client.get_privacy(&account));
-
-    client.set_privacy(&account, &false);
-    assert!(!client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(1));
 
     env.as_contract(&client.address, || {
         assert!(!env.storage().persistent().has(&legacy_key));
-        let stored: bool = env.storage().persistent().get(&typed_key).unwrap();
-        assert!(!stored);
+        let stored_level: u32 = env.storage().persistent().get(&canonical_key).unwrap();
+        assert_eq!(stored_level, 1);
     });
+
+    // set_privacy(false) sets canonical PrivacyLevel to 0 and cleans up typed/legacy keys
+    client.set_privacy(&account, &false);
+    assert!(!client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(0));
+
+    env.as_contract(&client.address, || {
+        assert!(!env.storage().persistent().has(&legacy_key));
+        assert!(!env.storage().persistent().has(&typed_key));
+        let stored_level: u32 = env.storage().persistent().get(&canonical_key).unwrap();
+        assert_eq!(stored_level, 0);
+    });
+}
+
+#[test]
+fn test_privacy_api_consolidation_and_non_contradiction() {
+    let (env, client) = setup();
+    let admin = Address::generate(&env);
+    let account = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // 1. Fresh account: no privacy configured
+    assert!(!client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), None);
+    assert_eq!(client.privacy_history(&account).len(), 0);
+
+    // 2. Set privacy via boolean API (set_privacy true -> canonical level 1)
+    client.set_privacy(&account, &true);
+    assert!(client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(1));
+
+    // 3. Set level via level API (enable_privacy 3 -> canonical level 3)
+    client.enable_privacy(&account, &3);
+    assert!(client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(3));
+
+    // 4. Disable level via level API (enable_privacy 0 -> canonical level 0)
+    client.enable_privacy(&account, &0);
+    assert!(!client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(0));
+
+    // 5. Re-enable via boolean API
+    client.set_privacy(&account, &true);
+    assert!(client.get_privacy(&account));
+    assert_eq!(client.privacy_status(&account), Some(1));
+
+    // 6. Verify full history (newest first)
+    let history = client.privacy_history(&account);
+    assert_eq!(history.len(), 4);
+    assert_eq!(history.get(0), Some(1));
+    assert_eq!(history.get(1), Some(0));
+    assert_eq!(history.get(2), Some(3));
+    assert_eq!(history.get(3), Some(1));
 }
 
 /// Regression suite: create and verify amount commitment — core commitment flow.

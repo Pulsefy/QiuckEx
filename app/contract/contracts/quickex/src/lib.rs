@@ -144,9 +144,7 @@ impl QuickexContract {
     /// * `account` - The account to configure
     /// * `privacy_level` - Numeric level (0 = off, higher = more privacy; interpretation is application-specific)
     pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        set_privacy_level(&env, &account, privacy_level);
-        add_privacy_history(&env, &account, privacy_level);
-        true
+        privacy::enable_privacy(&env, account, privacy_level)
     }
 
     /// Get the current numeric privacy level for an account.
@@ -157,7 +155,7 @@ impl QuickexContract {
     /// * `env` - The contract environment
     /// * `account` - The account to query
     pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
-        get_privacy_level(&env, &account)
+        privacy::privacy_status(&env, account)
     }
 
     /// Get the history of privacy level changes for an account.
