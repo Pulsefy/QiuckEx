@@ -10,6 +10,7 @@ import { decodeCursor } from "../common/pagination/cursor.util";
 import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
 import { AppConfigService } from "../config";
 import { DiscoveryCacheService } from "./cache/discovery-cache.service";
+import { buildDeterministicEventId } from "../events/outbox/outbox.types";
 import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
@@ -81,7 +82,16 @@ export class UsernamesService {
     }
 
     try {
-      await this.supabase.insertUsername(normalized, publicKey);
+      await this.supabase.claimUsernameWithOutbox(
+        normalized,
+        publicKey,
+        buildDeterministicEventId("username.claimed", normalized),
+        {
+          username: normalized,
+          publicKey,
+          timestamp: new Date().toISOString(),
+        },
+      );
     } catch (error) {
       if (error instanceof SupabaseUniqueConstraintError) {
         throw new UsernameConflictError(normalized);

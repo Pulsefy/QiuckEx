@@ -15,7 +15,7 @@ describe('UsernamesService', () => {
   let configMaxPerWallet: number | undefined;
 
   const mockSupabaseService = {
-    insertUsername: jest.fn(),
+    claimUsernameWithOutbox: jest.fn(),
     countUsernamesByPublicKey: jest.fn(),
     listUsernamesByPublicKey: jest.fn(),
     searchPublicUsernames: jest.fn(),
@@ -109,26 +109,30 @@ describe('UsernamesService', () => {
 
   describe('create', () => {
     it('creates username and returns ok', async () => {
-      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
+      mockSupabaseService.claimUsernameWithOutbox.mockResolvedValueOnce(undefined);
       const result = await service.create('alice_123', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
       expect(result).toEqual({ ok: true });
-      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+      expect(mockSupabaseService.claimUsernameWithOutbox).toHaveBeenCalledWith(
         'alice_123',
         'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        expect.any(String),
+        expect.objectContaining({ username: 'alice_123', publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR' }),
       );
     });
 
     it('normalizes username to lowercase before insert', async () => {
-      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
+      mockSupabaseService.claimUsernameWithOutbox.mockResolvedValueOnce(undefined);
       await service.create('Alice_99', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
-      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+      expect(mockSupabaseService.claimUsernameWithOutbox).toHaveBeenCalledWith(
         'alice_99',
         expect.any(String),
+        expect.any(String),
+        expect.any(Object),
       );
     });
 
     it('throws UsernameConflictError on unique violation (SupabaseUniqueConstraintError)', async () => {
-      mockSupabaseService.insertUsername.mockRejectedValueOnce(
+      mockSupabaseService.claimUsernameWithOutbox.mockRejectedValueOnce(
         new SupabaseUniqueConstraintError('duplicate key')
       );
 
@@ -138,7 +142,7 @@ describe('UsernamesService', () => {
     });
 
     it('conflict error message mentions username is already taken', async () => {
-      mockSupabaseService.insertUsername.mockRejectedValueOnce(
+      mockSupabaseService.claimUsernameWithOutbox.mockRejectedValueOnce(
         new SupabaseUniqueConstraintError('duplicate key')
       );
       try {

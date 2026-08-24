@@ -28,6 +28,10 @@ import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
 
 import { resolveDeepLink, type DeepLinkRoute } from "@/utils/deep-link-routing";
+import { initializeCrashMonitoring } from "../services/crash-monitoring";
+
+// Initialize crash monitoring as early as possible to catch boot exceptions
+initializeCrashMonitoring();
 import {
   routeFromNotificationResponse,
   parsePushNotificationPayload,
