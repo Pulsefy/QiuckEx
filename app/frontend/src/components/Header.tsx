@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
+import { SearchBar } from "@/components/SearchBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "@/lib/i18n";
 import { useTranslation } from "react-i18next";
@@ -85,12 +86,20 @@ export function Header() {
           </Link>
         </div>
 
+        <div className="hidden min-w-0 flex-1 justify-center px-4 md:flex">
+          <SearchBar />
+        </div>
+
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <NotificationBell />
           <LocaleSwitcher />
         </div>
       </nav>
+
+      <div className="container mx-auto px-6 pb-3 md:hidden">
+        <SearchBar />
+      </div>
     </header>
   );
 }
