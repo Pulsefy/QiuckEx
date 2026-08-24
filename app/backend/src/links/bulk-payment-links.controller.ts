@@ -8,9 +8,13 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiConsumes, ApiHeader } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BulkPaymentLinksService } from './bulk-payment-links.service';
+import {
+  IdempotencyInterceptor,
+  IDEMPOTENCY_KEY_HEADER,
+} from '../common/idempotency/idempotency.interceptor';
 import {
   BulkPaymentLinkRequestDto,
   BulkPaymentLinkResponseDto,
@@ -22,6 +26,13 @@ interface UploadedFile {
 }
 
 @ApiTags('links')
+@ApiHeader({
+  name: IDEMPOTENCY_KEY_HEADER,
+  description:
+    'Optional. Supply a unique key to make bulk generation idempotent: retries with the same key and body return the original response; reuse with a different body is rejected.',
+  required: false,
+})
+@UseInterceptors(IdempotencyInterceptor)
 @Controller('links/bulk')
 export class BulkPaymentLinksController {
   constructor(private readonly bulkPaymentLinksService: BulkPaymentLinksService) {}

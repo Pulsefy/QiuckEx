@@ -425,8 +425,7 @@ export const envSchema = Joi.object({
     .min(1)
     .max(365)
     .default(90)
-    .description("Days to retain abuse signals before auto-pruning"),
-  ABUSE_SIGNAL_SCORE_THRESHOLD: Joi.number()
+    .description("Days to retain abuse signals before auto-pruning"),  ABUSE_SIGNAL_SCORE_THRESHOLD: Joi.number()
     .integer()
     .min(0)
     .max(100)
@@ -439,6 +438,16 @@ export const envSchema = Joi.object({
     .empty("")
     .default("default-abuse-salt")
     .description("Salt for IP/UA hashing in abuse signals"),
+
+  // ── Idempotency Keys (BE-109) ───────────────────────────────────────────
+  IDEMPOTENCY_RETENTION_HOURS: Joi.number()
+    .integer()
+    .min(1)
+    .max(168)
+    .default(24)
+    .description(
+      "How long completed Idempotency-Key records are retained before expiry",
+    ),
 
   PREVIEW_INACTIVITY_THRESHOLD_MS: Joi.number()
     .integer()
@@ -525,6 +534,7 @@ export interface EnvConfig {
   ABUSE_SIGNAL_SCORE_THRESHOLD: number;
   ABUSE_SIGNAL_GEO_ENABLED: boolean;
   ABUSE_SIGNAL_HASH_SALT: string;
+  IDEMPOTENCY_RETENTION_HOURS: number;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;
 }
