@@ -19,6 +19,12 @@ pub enum QuickexError {
     Unauthorized = 200,
     AlreadyInitialized = 201,
     InsufficientRole = 202,
+    /// No admin-transfer proposal is currently pending.
+    NoPendingAdminProposal = 203,
+    /// The proposal's timelock has not yet elapsed.
+    AdminTimelockNotElapsed = 204,
+    /// Caller does not match the address named in the pending proposal.
+    InvalidAcceptor = 205,
     // State, escrow, and commitment violations (300-399)
     ContractPaused = 300,
     PrivacyAlreadySet = 301,

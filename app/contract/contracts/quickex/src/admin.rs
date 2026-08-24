@@ -1,13 +1,14 @@
 use crate::errors::QuickexError;
 use crate::events::{
-    publish_admin_changed, publish_contract_initialized, publish_contract_migrated,
+    publish_admin_changed, publish_admin_transfer_accepted, publish_admin_transfer_cancelled,
+    publish_admin_transfer_proposed, publish_contract_initialized, publish_contract_migrated,
     publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
     publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee;
 use crate::fee_router;
 use crate::storage;
-use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
+use crate::types::{FeeConfig, PendingAdminProposal, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
 
 /// Initialize the contract with an admin address.
@@ -134,11 +135,69 @@ pub fn revoke_role(
     Ok(())
 }
 
-/// Set a new primary admin address (**Admin only**).
-pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
+// ─────────────────────────────────────────────────────────────────────────
+// Timelocked Two-Step Admin Transfer (Issue #870)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The contract previously exposed an instant, single-call `set_admin` that
+// let a compromised admin key hand over control immediately and
+// irreversibly, with no window for anyone to notice or intervene. That
+// entrypoint has been removed. Admin transfer now ALWAYS goes through this
+// propose -> (wait out the timelock) -> accept flow, with cancellation
+// available to the current admin at any point before acceptance. There is
+// no faster path left that bypasses the delay.
+
+/// Propose a new admin, subject to a caller-chosen timelock (**Admin only**).
+///
+/// `delay_secs` must be at least [`storage::MIN_ADMIN_TRANSFER_DELAY`]; shorter
+/// values are rejected so the timelock can't be trivially bypassed. Overwrites
+/// any existing pending proposal. Emits `AdminTransferProposed`.
+pub fn propose_admin_transfer(
+    env: &Env,
+    caller: Address,
+    new_admin: Address,
+    delay_secs: u64,
+) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 
-    let old_admin = storage::get_admin(env).unwrap();
+    if delay_secs < storage::MIN_ADMIN_TRANSFER_DELAY {
+        return Err(QuickexError::InvalidTimeout);
+    }
+
+    let eligible_at = env.ledger().timestamp().saturating_add(delay_secs);
+    let proposal = PendingAdminProposal {
+        proposed_admin: new_admin.clone(),
+        proposed_by: caller.clone(),
+        eligible_at,
+    };
+    storage::set_pending_admin_proposal(env, &proposal);
+
+    publish_admin_transfer_proposed(env, caller, new_admin, eligible_at);
+    Ok(())
+}
+
+/// Accept a pending admin-transfer proposal once its timelock has elapsed.
+///
+/// Must be called by the exact address named in the proposal. Performs the
+/// admin/role handover in a single atomic step and clears the proposal.
+/// Emits `AdminTransferAccepted`.
+pub fn accept_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexError> {
+    caller.require_auth();
+
+    let proposal = storage::get_pending_admin_proposal(env)
+        .ok_or(QuickexError::NoPendingAdminProposal)?;
+
+    if proposal.proposed_admin != caller {
+        return Err(QuickexError::InvalidAcceptor);
+    }
+
+    if env.ledger().timestamp() < proposal.eligible_at {
+        return Err(QuickexError::AdminTimelockNotElapsed);
+    }
+
+    let old_admin = storage::get_admin(env).ok_or(QuickexError::Unauthorized)?;
+    let new_admin = proposal.proposed_admin;
+
     storage::set_admin(env, &new_admin);
 
     // Revoke Admin role from old admin.
@@ -158,8 +217,35 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
         storage::set_roles(env, &new_admin, &roles);
     }
 
+    storage::clear_pending_admin_proposal(env);
+
+    publish_admin_transfer_accepted(env, old_admin.clone(), new_admin.clone());
+    // Also emit the general AdminChanged event so existing indexers built
+    // around `set_admin` keep working for this path too.
     publish_admin_changed(env, old_admin, new_admin);
     Ok(())
+}
+
+/// Cancel a pending admin-transfer proposal (**current Admin only**).
+///
+/// Any admin may cancel, not just the original proposer — this matters if
+/// role membership changed since the proposal was made. Emits
+/// `AdminTransferCancelled`.
+pub fn cancel_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexError> {
+    require_admin(env, &caller)?;
+
+    let proposal = storage::get_pending_admin_proposal(env)
+        .ok_or(QuickexError::NoPendingAdminProposal)?;
+
+    storage::clear_pending_admin_proposal(env);
+
+    publish_admin_transfer_cancelled(env, caller, proposal.proposed_admin);
+    Ok(())
+}
+
+/// Get the currently pending admin-transfer proposal, if any.
+pub fn get_pending_admin_transfer(env: &Env) -> Option<PendingAdminProposal> {
+    storage::get_pending_admin_proposal(env)
 }
 
 /// Set the paused state (**Admin or Operator only**).
