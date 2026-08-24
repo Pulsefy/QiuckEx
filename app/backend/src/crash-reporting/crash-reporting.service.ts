@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RedactionService } from './redaction.service';
 import { CrashReportingRepository } from './crash-reporting.repository';
 import { CrashReport, LogExport, CrashReportingSettings } from './types';
+import { SubmitIssueReportDto } from './dto/submit-issue-report.dto';
 
 /**
  * Service for capturing crash reports and logs with strict redaction.
@@ -172,5 +173,36 @@ export class CrashReportingService {
    */
   getLogBufferSize(): number {
     return this.logBuffer.length;
+  }
+
+  /**
+   * Submit a crash/issue report from client-side integration
+   * @param dto - The issue report payload
+   * @returns The created crash report ID
+   */
+  async submitIssueReport(dto: SubmitIssueReportDto): Promise<string> {
+    const redactedMessage = this.redactionService.redact(dto.userMessage || 'Unhandled Error');
+    const redactedDetails = dto.errorDetails ? this.redactionService.redact(dto.errorDetails) : undefined;
+    const redactedEnvironment = dto.environment ? this.redactionService.redact(dto.environment) : undefined;
+    const redactedRoute = dto.route ? this.redactionService.redact(dto.route) : undefined;
+
+    const crashReport: Omit<CrashReport, 'id' | 'createdAt'> = {
+      userId: undefined,
+      error: {
+        name: 'UnhandledException',
+        message: redactedMessage,
+        stack: redactedDetails,
+      },
+      context: {
+        environment: redactedEnvironment,
+        route: redactedRoute,
+      },
+      logLines: [],
+      timestamp: new Date(),
+    };
+
+    const reportId = await this.repository.createCrashReport(crashReport);
+    this.logger.log(`Crash report captured via intake endpoint: ${reportId}`);
+    return reportId;
   }
 }

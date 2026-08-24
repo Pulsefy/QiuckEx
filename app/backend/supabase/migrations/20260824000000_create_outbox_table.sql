@@ -53,5 +53,17 @@ begin
 end;
 $$;
 
-grant execute on function public.claim_username_with_outbox(text, text, text, jsonb)
-  to authenticated, service_role;
+do $$
+declare
+  role_name text;
+begin
+  foreach role_name in array array['authenticated', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = role_name) then
+      execute format(
+        'grant execute on function public.claim_username_with_outbox(text, text, text, jsonb) to %I',
+        role_name
+      );
+    end if;
+  end loop;
+end
+$$;
