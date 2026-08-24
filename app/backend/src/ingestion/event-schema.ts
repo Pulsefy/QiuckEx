@@ -6,6 +6,7 @@ export const QUICKEX_EVENT_TOPICS = {
   escrow: "TOPIC_ESCROW",
   privacy: "TOPIC_PRIVACY",
   stealth: "TOPIC_STEALTH",
+  hook: "TOPIC_HOOK",
 } as const;
 
 export type QuickExEventTopic =
@@ -107,6 +108,14 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
     compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
   },
+  HookInvocationFailed: {
+    topic: QUICKEX_EVENT_TOPICS.hook,
+    eventName: "HookInvocationFailed",
+    indexedFields: ["hook_contract", "escrow_id"],
+    payloadKeys: ["reason", "schema_version", "timestamp"],
+    schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
+    compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
+  },
 } as const satisfies Record<string, EventSchemaContract>;
 
 export const QUICKEX_EVENT_COMPATIBILITY = Object.fromEntries(
@@ -128,3 +137,4 @@ export const QUICKEX_EVENT_COMPATIBILITY = Object.fromEntries(
     canonicalTopic: QuickExEventTopic;
   }
 >;
+

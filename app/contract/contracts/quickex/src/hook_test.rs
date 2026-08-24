@@ -76,6 +76,24 @@ impl MaliciousHookContract {
 }
 
 #[contract]
+pub struct PanickingHookContract;
+
+#[contractimpl]
+impl PanickingHookContract {
+    pub fn on_escrow_event(
+        _env: Env,
+        _event_kind: u32,
+        _escrow_id: BytesN<32>,
+        _owner: Address,
+        _token: Address,
+        _amount: i128,
+        _fee: i128,
+    ) {
+        panic!("I am a panicking hook!");
+    }
+}
+
+#[contract]
 pub struct MockOracleContract;
 
 #[contractimpl]
@@ -177,6 +195,76 @@ fn test_reentrant_hook_does_not_break_primary_transaction() {
     client.withdraw(&token_id, &1000i128, &commitment, &owner, &salt);
 
     assert_eq!(token_client.balance(&owner), 9999);
+}
+
+#[test]
+fn test_failing_hook_emits_failure_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _platform_wallet, owner, _) = setup(&env);
+
+    let hook_contract_id = env.register(MaliciousHookContract, ());
+    let hook_client = MaliciousHookContractClient::new(&env, &hook_contract_id);
+    hook_client.init(&client.address);
+    client.register_hook(&hook_contract_id);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::Client::new(&env, &token_id);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    token_admin_client.mint(&owner, &10000);
+
+    let salt = Bytes::from_array(&env, &[2; 32]);
+    let commitment = client.deposit(&token_id, &1000i128, &owner, &salt, &3600, &None);
+    client.withdraw(&token_id, &1000i128, &commitment, &owner, &salt);
+
+    let events = env.events().all();
+    let mut failure_emitted = false;
+    for event in events.iter() {
+        if event.1.contains(&soroban_sdk::IntoVal::into_val(
+            &soroban_sdk::Symbol::new(&env, "HookInvocationFailed"),
+            &env,
+        )) {
+            failure_emitted = true;
+        }
+    }
+    assert!(failure_emitted);
+}
+
+#[test]
+fn test_panicking_hook_emits_failure_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _platform_wallet, owner, _) = setup(&env);
+
+    let hook_contract_id = env.register(PanickingHookContract, ());
+    client.register_hook(&hook_contract_id);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_client = token::Client::new(&env, &token_id);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    token_admin_client.mint(&owner, &10000);
+
+    let salt = Bytes::from_array(&env, &[3; 32]);
+    let commitment = client.deposit(&token_id, &1000i128, &owner, &salt, &3600, &None);
+    client.withdraw(&token_id, &1000i128, &commitment, &owner, &salt);
+
+    let events = env.events().all();
+    let mut failure_emitted = false;
+    for event in events.iter() {
+        if event.1.contains(&soroban_sdk::IntoVal::into_val(
+            &soroban_sdk::Symbol::new(&env, "HookInvocationFailed"),
+            &env,
+        )) {
+            failure_emitted = true;
+        }
+    }
+    assert!(failure_emitted);
 }
 
 #[test]

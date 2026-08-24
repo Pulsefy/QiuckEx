@@ -261,6 +261,17 @@ pub enum HookEventKind {
     Refund = 3,
 }
 
+/// Hook failure reason codes.
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum HookFailureReason {
+    /// Hook invocation reverted or panicked.
+    Reverted = 1,
+    /// The hook returned an unexpected value or failed otherwise.
+    Other = 2,
+}
+
 /// Privileged roles for contract governance and operations.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

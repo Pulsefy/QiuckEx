@@ -1,4 +1,4 @@
-use crate::{errors::QuickexError, storage, types::HookEventKind};
+use crate::{errors::QuickexError, storage, types::{HookEventKind, HookFailureReason}, events};
 use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
@@ -68,12 +68,35 @@ pub fn invoke_hooks(
             amount.into_val(env),
             fee.into_val(env),
         ];
-        // Swallow result — a failing hook must never abort the primary transaction.
-        let _ = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
+        let res = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Val>(
             &hook,
             &Symbol::new(env, "on_escrow_event"),
             args,
         );
+        
+        match res {
+            Ok(Ok(_)) => {
+                // Success, do nothing
+            }
+            Ok(Err(_)) => {
+                // Hook returned a custom error
+                events::publish_hook_invocation_failed(
+                    env,
+                    hook.clone(),
+                    escrow_id.clone(),
+                    HookFailureReason::Other as u32,
+                );
+            }
+            Err(_) => {
+                // Hook panicked or aborted
+                events::publish_hook_invocation_failed(
+                    env,
+                    hook.clone(),
+                    escrow_id.clone(),
+                    HookFailureReason::Reverted as u32,
+                );
+            }
+        }
     }
     storage::set_reentrancy_guard(env, &false);
 }

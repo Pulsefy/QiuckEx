@@ -25,6 +25,8 @@ pub const EVENT_TOPIC_PRIVACY: &str = "TOPIC_PRIVACY";
 pub const EVENT_TOPIC_STEALTH: &str = "TOPIC_STEALTH";
 #[allow(dead_code)]
 pub const EVENT_TOPIC_ORACLE: &str = "TOPIC_ORACLE";
+#[allow(dead_code)]
+pub const EVENT_TOPIC_HOOK: &str = "TOPIC_HOOK";
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -282,6 +284,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         name: "HookAllowlistChanged",
         topics: &[EVENT_TOPIC_ADMIN, "HookAllowlistChanged", "hook_contract"],
         payload_keys: &["allowed", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "HookInvocationFailed",
+        topics: &[EVENT_TOPIC_HOOK, "HookInvocationFailed", "hook_contract", "escrow_id"],
+        payload_keys: &["reason", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
 ];
@@ -1171,6 +1179,36 @@ pub(crate) fn publish_hook_allowlist_changed(env: &Env, hook_contract: Address, 
         hook_contract,
         schema_version: EVENT_SCHEMA_VERSION,
         allowed,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_HOOK", "HookInvocationFailed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HookInvocationFailedEvent {
+    #[topic]
+    pub hook_contract: Address,
+
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    pub schema_version: u32,
+    pub reason: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_hook_invocation_failed(
+    env: &Env,
+    hook_contract: Address,
+    escrow_id: BytesN<32>,
+    reason: u32,
+) {
+    HookInvocationFailedEvent {
+        hook_contract,
+        escrow_id,
+        schema_version: EVENT_SCHEMA_VERSION,
+        reason,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
