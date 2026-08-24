@@ -15,8 +15,8 @@ export class ReadyCheckDto {
   @ApiProperty({ example: "supabase" })
   name!: string;
 
-  @ApiProperty({ enum: ["up", "down"] })
-  status!: "up" | "down";
+  @ApiProperty({ enum: ["up", "degraded", "down"] })
+  status!: "up" | "degraded" | "down";
 
   @ApiProperty({ example: "125ms", required: false })
   latency?: string;
@@ -37,6 +37,13 @@ export class ReadyCheckDto {
 export class ReadyResponseDto {
   @ApiProperty({ example: true })
   ready!: boolean;
+
+  @ApiProperty({
+    example: false,
+    description:
+      "True when a critical dependency is degraded (e.g. timed out) but none have hard-failed",
+  })
+  degraded!: boolean;
 
   @ApiProperty({ example: "2024-01-01T00:00:00.000Z", description: "Timestamp of the readiness check" })
   timestamp!: string;
