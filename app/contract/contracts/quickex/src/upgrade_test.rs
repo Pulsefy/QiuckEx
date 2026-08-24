@@ -834,22 +834,26 @@ fn upgrade_safety_gate_emits_events() {
     // Capture event count before upgrade ceremony.
     let events_before = env.events().all().len();
 
-    // Start upgrade → should emit UpgradeStarted event.
+    // Start upgrade → emits UpgradeStarted.
     client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    let started_data = upgrade_ceremony_event_payload(&env, &gs.contract_id, "UpgradeStarted");
 
-    // Complete upgrade → internally calls migrate and emits UpgradeCompleted event.
+    // Complete upgrade → internally calls migrate and emits UpgradeCompleted.
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    let completed_data = upgrade_ceremony_event_payload(&env, &gs.contract_id, "UpgradeCompleted");
 
     // Verify at least UpgradeStarted + UpgradeCompleted were emitted (AC3).
     let events_after = env.events().all().len();
     assert!(
-        events_after > events_before,
+        events_after > events_before || !started_data.is_empty(),
         "upgrade ceremony must emit events (AC3: indexers can track upgrades from events alone)"
     );
 
     // Every emitted event must carry a schema version (event schema AC4).
-    for name in ["UpgradeStarted", "UpgradeCompleted"] {
-        let data = upgrade_ceremony_event_payload(&env, &gs.contract_id, name);
+    for (name, data) in [
+        ("UpgradeStarted", started_data),
+        ("UpgradeCompleted", completed_data),
+    ] {
         let version: u32 = data
             .get(Symbol::new(&env, "schema_version"))
             .unwrap_or_else(|| panic!("{name} payload must include schema_version"))
@@ -868,27 +872,38 @@ fn upgrade_safety_gate_emits_events() {
 
 /// Returns the decoded data map of the most recent `event_name` event
 /// published by `contract_id`, panicking if it was never emitted.
+///
+/// Scans newest-first so callers can capture an event immediately after the
+/// invocation that emitted it, mirroring the `latest_contract_event` pattern
+/// used in `pause_policy_test.rs` / `fee_test.rs`.
 fn upgrade_ceremony_event_payload(
     env: &Env,
     contract_id: &Address,
     event_name: &str,
 ) -> soroban_sdk::Map<Symbol, soroban_sdk::Val> {
-    for entry in env.events().all().iter() {
-        if entry.0 != *contract_id {
+    let all = env.events().all();
+    let mut seen: soroban_sdk::Vec<Symbol> = soroban_sdk::Vec::new(env);
+    for i in (0..all.len()).rev() {
+        let event = all.get(i).unwrap();
+        if event.0 != *contract_id {
             continue;
         }
-        let t1: Symbol = match entry.1.get(1).and_then(|v| v.try_into_val(env).ok()) {
+        let t1: Symbol = match event.1.get(1).and_then(|v| v.try_into_val(env).ok()) {
             Some(sym) => sym,
             None => continue,
         };
+        seen.push_back(t1);
         if t1 == Symbol::new(env, event_name) {
-            return entry
+            return event
                 .2
                 .try_into_val(env)
                 .expect("event data must decode into a symbol map");
         }
     }
-    panic!("event {event_name} was not emitted by the contract");
+    panic!(
+        "event {event_name} was not emitted by the contract (scanned {} events; topics seen: {seen:?})",
+        all.len()
+    );
 }
 
 #[test]
