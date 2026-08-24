@@ -80,22 +80,29 @@ function isValidPin(pin: string) {
   return /^\d{4,6}$/.test(pin);
 }
 
-async function checkBiometricAvailability() {
-  if (Platform.OS === "web") return false;
+type BiometricStatus = "available" | "no_hardware" | "not_enrolled" | "unsupported";
+
+async function checkBiometricAvailability(): Promise<BiometricStatus> {
+  if (Platform.OS === "web") return "unsupported";
 
   try {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    if (!hasHardware) return "no_hardware";
+
     const enrolled = await LocalAuthentication.isEnrolledAsync();
-    return hasHardware && enrolled;
+    if (!enrolled) return "not_enrolled";
+
+    return "available";
   } catch {
-    return false;
+    return "unsupported";
   }
 }
 
 export function SecurityProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SecuritySettings>(DEFAULT_SETTINGS);
   const [isReady, setIsReady] = useState(false);
-  const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus>("unsupported");
+  const isBiometricAvailable = biometricStatus === "available";
   const [hasPinConfigured, setHasPinConfigured] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
 
@@ -119,7 +126,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       ]);
 
     setSettings(storedSettings);
-    setIsBiometricAvailable(biometricAvailable);
+    setBiometricStatus(biometricAvailable);
     setHasPinConfigured(pinConfigured);
     setIsAppLocked(storedSettings.biometricLockEnabled);
     setIsReady(true);
@@ -149,10 +156,13 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [settings.biometricLockEnabled]);
 
-  const openPinPrompt = useCallback((reason: SecurityAuthReason) => {
+  const openPinPrompt = useCallback((reason: SecurityAuthReason, fallbackReason?: string) => {
     return new Promise<boolean>((resolve) => {
       pinResolverRef.current = resolve;
-      setPinPromptDescription(PIN_DESCRIPTION_BY_REASON[reason]);
+      const defaultDesc = PIN_DESCRIPTION_BY_REASON[reason];
+      setPinPromptDescription(
+        fallbackReason ? `${fallbackReason}\n\n${defaultDesc}` : defaultDesc,
+      );
       setPinInput("");
       setPinError(null);
       setPinPromptVisible(true);
@@ -170,9 +180,29 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const tryBiometricAuth = useCallback(
-    async (reason: SecurityAuthReason) => {
-      if (!settings.biometricLockEnabled || !isBiometricAvailable) {
-        return false;
+    async (
+      reason: SecurityAuthReason,
+    ): Promise<{ success: boolean; fallbackReason?: string }> => {
+      if (!settings.biometricLockEnabled) {
+        return { success: false, fallbackReason: "Biometric lock is disabled." };
+      }
+
+      if (biometricStatus === "no_hardware") {
+        return {
+          success: false,
+          fallbackReason: "Biometric hardware is not available on this device.",
+        };
+      }
+
+      if (biometricStatus === "not_enrolled") {
+        return {
+          success: false,
+          fallbackReason: "No biometrics are enrolled on this device.",
+        };
+      }
+
+      if (biometricStatus === "unsupported") {
+        return { success: false };
       }
 
       const promptMessage =
@@ -191,12 +221,30 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
           cancelLabel: "Use PIN",
         });
 
-        return result.success;
+        if (result.success) {
+          return { success: true };
+        }
+
+        if (result.error === "lockout") {
+          return {
+            success: false,
+            fallbackReason: "Biometric authentication is locked out due to too many attempts.",
+          };
+        }
+
+        if (result.error === "not_enrolled") {
+          return {
+            success: false,
+            fallbackReason: "No biometrics are enrolled on this device.",
+          };
+        }
+
+        return { success: false };
       } catch {
-        return false;
+        return { success: false };
       }
     },
-    [isBiometricAvailable, settings.biometricLockEnabled],
+    [biometricStatus, settings.biometricLockEnabled],
   );
 
   const authenticateForSensitiveAction = useCallback(
@@ -216,16 +264,28 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
         // Session expired - force re-auth with session_expired context
       }
 
-      const biometricOk = await tryBiometricAuth(reason);
-      if (biometricOk) {
+      const biometricResult = await tryBiometricAuth(reason);
+      if (biometricResult.success) {
         // Record successful auth as new session
         await recordBiometricAuth(reason);
         return true;
       }
 
-      if (!hasPinConfigured) return false;
+      if (!hasPinConfigured) {
+        // Fallback for users permanently locked out without a PIN (e.g., legacy edge case).
+        // Since they cannot provide a PIN, we clear biometric lock to give them a path forward.
+        const nextSettings: SecuritySettings = {
+          ...settings,
+          biometricLockEnabled: false,
+        };
+        await saveSecuritySettings(nextSettings);
+        setSettings(nextSettings);
+        setIsAppLocked(false);
+        await clearBiometricSession();
+        return false; // Authentication failed, but app is now unlocked to prevent permanent lockout
+      }
 
-      return openPinPrompt(reason);
+      return openPinPrompt(reason, biometricResult.fallbackReason);
     },
     [
       hasPinConfigured,
