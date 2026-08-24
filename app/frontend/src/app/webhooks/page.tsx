@@ -421,16 +421,11 @@ export default function WebhooksPage() {
         return;
       }
 
-      const [logGroups, statPairs] = await Promise.all([
-        Promise.all(
-          loadedWebhooks.map(async (webhook) => {
-            const logs = await apiFetch<Paginated<DeliveryLogApiResponse> | DeliveryLogApiResponse[]>(
-              `/webhooks/${encodeURIComponent(publicKey)}/${encodeURIComponent(webhook.id)}/logs?limit=50`,
-              apiKey,
-            );
-            return normalizeDeliveryLogs(logs, webhook);
-          }),
-        ),
+      const [historyResponse, statPairs] = await Promise.all([
+        apiFetch<Paginated<DeliveryLogApiResponse> | DeliveryLogApiResponse[]>(
+          `/webhooks/${encodeURIComponent(publicKey)}/history?limit=50`,
+          apiKey,
+        ).catch(() => null),
         Promise.all(
           loadedWebhooks.map(async (webhook) => {
             try {
@@ -446,7 +441,31 @@ export default function WebhooksPage() {
         ),
       ]);
 
-      const loadedDeliveries = logGroups.flat().sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      let loadedDeliveries: DeliveryLog[] = [];
+      if (historyResponse) {
+        const rows = Array.isArray(historyResponse) ? historyResponse : historyResponse.data;
+        loadedDeliveries = rows.map((row) => {
+          const matchingWebhook = loadedWebhooks.find((w) => w.id === row.webhookId) ?? loadedWebhooks[0];
+          return {
+            ...row,
+            webhookId: row.webhookId ?? matchingWebhook?.id ?? '',
+            endpointUrl: row.endpointUrl ?? matchingWebhook?.url ?? '',
+          };
+        });
+      } else {
+        const logGroups = await Promise.all(
+          loadedWebhooks.map(async (webhook) => {
+            const logs = await apiFetch<Paginated<DeliveryLogApiResponse> | DeliveryLogApiResponse[]>(
+              `/webhooks/${encodeURIComponent(publicKey)}/${encodeURIComponent(webhook.id)}/logs?limit=50`,
+              apiKey,
+            );
+            return normalizeDeliveryLogs(logs, webhook);
+          }),
+        );
+        loadedDeliveries = logGroups.flat();
+      }
+
+      loadedDeliveries.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
       setDeliveries(loadedDeliveries);
       setStats(
         Object.fromEntries(statPairs.filter((entry): entry is readonly [string, Stats] => Boolean(entry[1]))),
@@ -480,9 +499,14 @@ export default function WebhooksPage() {
 
     Promise.all([
       apiFetch<DeliveryStatusDetail>(
-        `/webhooks/${encodeURIComponent(publicKey)}/${encodeURIComponent(selectedWebhook.id)}/deliveries/${encodeURIComponent(selectedDelivery.eventType)}/${encodeURIComponent(selectedDelivery.eventId)}`,
+        `/webhooks/${encodeURIComponent(publicKey)}/deliveries/${encodeURIComponent(selectedDelivery.id)}`,
         apiKey,
-      ).catch(() => null),
+      ).catch(() =>
+        apiFetch<DeliveryStatusDetail>(
+          `/webhooks/${encodeURIComponent(publicKey)}/${encodeURIComponent(selectedWebhook.id)}/deliveries/${encodeURIComponent(selectedDelivery.eventType)}/${encodeURIComponent(selectedDelivery.eventId)}`,
+          apiKey,
+        ).catch(() => null),
+      ),
       apiFetch<ReplayLog[]>(
         `/webhooks/${encodeURIComponent(publicKey)}/${encodeURIComponent(selectedWebhook.id)}/replays?limit=20`,
         apiKey,

@@ -161,5 +161,51 @@ describe("Webhook Delivery History Query API & Redaction", () => {
       expect(detail?.attemptHistory).toHaveLength(3);
       expect(detail?.payloadMetadata?.token).toBe("••••••••");
     });
+
+    it("should return empty result when specified endpoint ID does not exist", async () => {
+      mockPrefsRepo.getWebhookById.mockResolvedValue(null);
+
+      const result = await service.getDeliveryHistory(PUBLIC_KEY_1, {
+        endpoint: "non-existent-endpoint",
+      });
+
+      expect(result.data).toEqual([]);
+      expect(result.next_cursor).toBeNull();
+      expect(result.has_more).toBe(false);
+      expect(mockLogRepo.getWebhookDeliveryLogsPaginated).not.toHaveBeenCalled();
+    });
+
+    it("should support cursor pagination in delivery history query", async () => {
+      mockLogRepo.getWebhookDeliveryLogsPaginated.mockResolvedValue({
+        data: [
+          {
+            id: "log-2",
+            eventType: "payment.received",
+            eventId: "tx-2",
+            status: "sent",
+            attempts: 1,
+            createdAt: "2026-08-24T08:00:00Z",
+            updatedAt: "2026-08-24T08:00:01Z",
+          },
+        ],
+        next_cursor: "eyJwayI6IjIwMjYtMDgtMjRUMDg6MDA6MDBaIiwiaWQiOiJsb2ctMiJ9",
+        has_more: true,
+      });
+
+      const result = await service.getDeliveryHistory(PUBLIC_KEY_1, {
+        cursor: "previous-cursor",
+        limit: 5,
+      });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.next_cursor).toBe("eyJwayI6IjIwMjYtMDgtMjRUMDg6MDA6MDBaIiwiaWQiOiJsb2ctMiJ9");
+      expect(result.has_more).toBe(true);
+      expect(mockLogRepo.getWebhookDeliveryLogsPaginated).toHaveBeenCalledWith(
+        PUBLIC_KEY_1,
+        5,
+        "previous-cursor",
+        { status: undefined, eventType: undefined },
+      );
+    });
   });
 });

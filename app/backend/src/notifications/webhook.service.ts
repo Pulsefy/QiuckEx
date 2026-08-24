@@ -5,6 +5,10 @@ import { NotificationPreferencesRepository } from "./notification-preferences.re
 import { NotificationLogRepository } from "./notification-log.repository";
 import { WebhookReplayService } from "./webhook-replay.service";
 import type { NotificationPreference } from "./types/notification.types";
+import {
+  redactSensitiveText,
+  redactPayloadMetadata,
+} from "./utils/redaction.util";
 import type {
   CreateWebhookDto,
   UpdateWebhookDto,
@@ -143,13 +147,13 @@ export class WebhookService {
         eventId: log.eventId,
         status: log.status,
         attempts: log.attempts,
-        lastError: log.lastError,
+        lastError: log.lastError ? redactSensitiveText(log.lastError) : undefined,
         httpStatus: log.httpStatus,
-        responseBody: log.responseBody,
+        responseBody: log.responseBody ? redactSensitiveText(log.responseBody) : undefined,
         createdAt: log.createdAt,
         updatedAt: log.updatedAt,
         deliveredAt: log.deliveredAt,
-        payloadMetadata: log.payloadMetadata,
+        payloadMetadata: log.payloadMetadata ? redactPayloadMetadata(log.payloadMetadata) : undefined,
       })),
       next_cursor: result.next_cursor,
       has_more: result.has_more,
@@ -167,11 +171,9 @@ export class WebhookService {
 
     if (query.endpoint) {
       const webhook = await this.prefsRepo.getWebhookById(query.endpoint);
-      if (webhook) {
-        if (webhook.publicKey !== publicKey) {
-          // Cross-tenant access attempt
-          return { data: [], next_cursor: null, has_more: false };
-        }
+      if (!webhook || webhook.publicKey !== publicKey) {
+        // Cross-tenant or non-existent endpoint access attempt
+        return { data: [], next_cursor: null, has_more: false };
       }
     }
 
@@ -198,14 +200,18 @@ export class WebhookService {
     const attemptHistory = Array.from({ length: attempts }, (_, index) => {
       const attemptNumber = index + 1;
       const isLast = attemptNumber === attempts;
+      const rawError = isLast ? log.lastError : undefined;
       return {
         attemptNumber,
         status: isLast ? log.status : "retried",
         httpStatus: isLast ? log.httpStatus : undefined,
-        error: isLast ? log.lastError : undefined,
+        error: rawError ? redactSensitiveText(rawError) : undefined,
         timestamp: isLast ? (log.deliveredAt ?? log.updatedAt) : log.createdAt,
       };
     });
+
+    const redactedLastError = log.lastError ? redactSensitiveText(log.lastError) : undefined;
+    const redactedResponseBody = log.responseBody ? redactSensitiveText(log.responseBody) : undefined;
 
     return {
       id: log.id,
@@ -216,14 +222,14 @@ export class WebhookService {
       status: log.status,
       attempts: log.attempts,
       maxAttempts: 3,
-      lastError: log.lastError,
-      dlqReason: log.status === "dlq" ? (log.lastError ?? "Exhausted retries") : undefined,
+      lastError: redactedLastError,
+      dlqReason: log.status === "dlq" ? (redactedLastError ?? "Exhausted retries") : undefined,
       httpStatus: log.httpStatus,
-      responseBody: log.responseBody,
+      responseBody: redactedResponseBody,
       createdAt: log.createdAt,
       updatedAt: log.updatedAt,
       deliveredAt: log.deliveredAt,
-      payloadMetadata: log.payloadMetadata,
+      payloadMetadata: log.payloadMetadata ? redactPayloadMetadata(log.payloadMetadata) : undefined,
       attemptHistory,
     };
   }
