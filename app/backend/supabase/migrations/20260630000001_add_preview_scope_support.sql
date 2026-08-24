@@ -56,62 +56,54 @@ COMMENT ON COLUMN preview_scopes.scope_id IS 'Unique scope identifier sent via X
 
 
 -- ─── Add preview_scope columns to all scoped tables ──────────────────────────
+-- Each ALTER is guarded so migrations succeed even if the target table
+-- was not created (e.g. in_app_notifications has no CREATE TABLE migration).
 
--- payment_links
-ALTER TABLE payment_links
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+DO $$
+BEGIN
+  -- payment_links
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='payment_links') THEN
+    ALTER TABLE payment_links ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_payment_links_preview_scope ON payment_links (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
-CREATE INDEX IF NOT EXISTS idx_payment_links_preview_scope
-  ON payment_links (preview_scope)
-  WHERE preview_scope IS NOT NULL;
+  -- recurring_payment_links
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='recurring_payment_links') THEN
+    ALTER TABLE recurring_payment_links ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_recurring_links_preview_scope ON recurring_payment_links (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
--- recurring_payment_links
-ALTER TABLE recurring_payment_links
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+  -- recurring_payment_executions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='recurring_payment_executions') THEN
+    ALTER TABLE recurring_payment_executions ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_recurring_executions_preview_scope ON recurring_payment_executions (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
-CREATE INDEX IF NOT EXISTS idx_recurring_links_preview_scope
-  ON recurring_payment_links (preview_scope)
-  WHERE preview_scope IS NOT NULL;
+  -- in_app_notifications
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='in_app_notifications') THEN
+    ALTER TABLE in_app_notifications ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_in_app_notifications_preview_scope ON in_app_notifications (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
--- recurring_payment_executions
-ALTER TABLE recurring_payment_executions
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+  -- notification_log
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='notification_log') THEN
+    ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_notification_log_preview_scope ON notification_log (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
-CREATE INDEX IF NOT EXISTS idx_recurring_executions_preview_scope
-  ON recurring_payment_executions (preview_scope)
-  WHERE preview_scope IS NOT NULL;
+  -- transaction_receipts
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='transaction_receipts') THEN
+    ALTER TABLE transaction_receipts ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_tx_receipts_preview_scope ON transaction_receipts (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
 
--- in_app_notifications
-ALTER TABLE in_app_notifications
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_in_app_notifications_preview_scope
-  ON in_app_notifications (preview_scope)
-  WHERE preview_scope IS NOT NULL;
-
--- notification_log
-ALTER TABLE notification_log
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_notification_log_preview_scope
-  ON notification_log (preview_scope)
-  WHERE preview_scope IS NOT NULL;
-
--- transaction_receipts
-ALTER TABLE transaction_receipts
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_tx_receipts_preview_scope
-  ON transaction_receipts (preview_scope)
-  WHERE preview_scope IS NOT NULL;
-
--- unmatched_transactions
-ALTER TABLE unmatched_transactions
-  ADD COLUMN IF NOT EXISTS preview_scope TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_unmatched_tx_preview_scope
-  ON unmatched_transactions (preview_scope)
-  WHERE preview_scope IS NOT NULL;
+  -- unmatched_transactions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='unmatched_transactions') THEN
+    ALTER TABLE unmatched_transactions ADD COLUMN IF NOT EXISTS preview_scope TEXT;
+    CREATE INDEX IF NOT EXISTS idx_unmatched_tx_preview_scope ON unmatched_transactions (preview_scope) WHERE preview_scope IS NOT NULL;
+  END IF;
+END;
+$$;
 
 
 -- ─── Helper: scope-aware RLS-friendly filtering ─────────────────────────────
