@@ -224,6 +224,12 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "FeesWithdrawn",
+        topics: &[EVENT_TOPIC_ADMIN, "FeesWithdrawn", "token", "recipient"],
+        payload_keys: &["actor", "amount", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "PartialPayment",
         topics: &[EVENT_TOPIC_ESCROW, "PartialPayment", "escrow_id", "payer"],
         payload_keys: &[
@@ -1072,6 +1078,44 @@ pub(crate) fn publish_dispute_resolved(
         total_votes,
         threshold,
         amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+// ---- Fee withdrawal events -----
+
+#[contractevent(topics = ["TOPIC_ADMIN", "FeesWithdrawn"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeesWithdrawnEvent {
+    /// Token contract address (asset) whose accrued fees were withdrawn.
+    #[topic]
+    pub token: Address,
+
+    /// Designated recipient of the withdrawn fees.
+    #[topic]
+    pub recipient: Address,
+
+    pub schema_version: u32,
+    pub amount: i128,
+    /// Admin actor who authorized the withdrawal.
+    pub actor: Address,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_fees_withdrawn(
+    env: &Env,
+    token: Address,
+    recipient: Address,
+    amount: i128,
+    actor: Address,
+) {
+    FeesWithdrawnEvent {
+        token,
+        recipient,
+        schema_version: EVENT_SCHEMA_VERSION,
+        amount,
+        actor,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);

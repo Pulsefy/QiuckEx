@@ -59,6 +59,8 @@ pub enum QuickexError {
     InsufficientVotes = 321,
     /// Hook contract is not allowed.
     HookNotAllowed = 322,
+    /// Withdrawal amount exceeds the accrued protocol fee balance for the asset.
+    InsufficientFees = 323,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

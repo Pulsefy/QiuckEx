@@ -25,6 +25,8 @@ mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
 #[cfg(test)]
+mod fee_withdrawal_test;
+#[cfg(test)]
 mod fuzz_test;
 mod hook;
 #[cfg(test)]
@@ -1094,6 +1096,48 @@ impl QuickexContract {
     /// Read current active fee collector (rotation-aware).
     pub fn get_active_fee_collector(env: Env) -> Option<Address> {
         fee_router::active_collector(&env)
+    }
+
+    /// Withdraw accrued protocol fees for `token` to `recipient` (**Admin only**).
+    ///
+    /// Transfers up to the accrued-fee balance — fees that accumulated in the
+    /// contract because no collector/arbiter was configured at routing time —
+    /// to `recipient`. The withdrawal is capped by the per-asset accrued-fee
+    /// ledger, so escrowed principal is never touched. Emits a `FeesWithdrawn`
+    /// event carrying the asset, amount, recipient, and acting admin.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Admin address authorizing the withdrawal
+    /// * `token` - Token contract address whose accrued fees are withdrawn
+    /// * `amount` - Amount to withdraw; must be positive and ≤ accrued balance
+    /// * `recipient` - Address that receives the withdrawn fees
+    ///
+    /// # Errors
+    /// * `ContractPaused` / `OperationPaused` - Pause or emergency mode policy
+    /// * `InsufficientRole` - Caller is not the admin
+    /// * `InvalidAmount` - Amount is zero or negative
+    /// * `InsufficientFees` - Amount exceeds the accrued fee balance for `token`
+    pub fn withdraw_fees(
+        env: Env,
+        caller: Address,
+        token: Address,
+        amount: i128,
+        recipient: Address,
+    ) -> Result<i128, QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::WithdrawFees)?;
+        hook::assert_not_reentrant(&env)?;
+        admin::require_admin(&env, &caller)?;
+        fee_router::withdraw_accrued_fees(&env, &token, amount, &recipient, &caller)
+    }
+
+    /// Get the accrued protocol fee balance for `token` (read-only).
+    ///
+    /// Returns the amount of fees that have accumulated in the contract for
+    /// this asset and are withdrawable by the admin via
+    /// [`withdraw_fees`](QuickexContract::withdraw_fees).
+    pub fn get_accrued_fees(env: Env, token: Address) -> i128 {
+        storage::get_accrued_fee(&env, &token)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).

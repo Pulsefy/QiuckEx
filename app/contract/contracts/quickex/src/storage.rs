@@ -61,6 +61,7 @@ pub enum RecordType {
     FeeConfig,
     StealthEscrow,
     EscrowIdMap,
+    AccruedFee,
 }
 
 /// TTL policy configuration.
@@ -92,6 +93,10 @@ fn get_ttl_policy(record_type: RecordType) -> TtlPolicy {
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
         RecordType::EscrowIdMap => TtlPolicy {
+            threshold: LEDGER_THRESHOLD,
+            ttl: SIX_MONTHS_IN_LEDGERS,
+        },
+        RecordType::AccruedFee => TtlPolicy {
             threshold: LEDGER_THRESHOLD,
             ttl: SIX_MONTHS_IN_LEDGERS,
         },
@@ -207,6 +212,10 @@ pub enum DataKey {
     DisputeVote(Bytes, Address),
     /// Tracks whether a hook contract is on the allowlist.
     HookAllowlist(Address),
+    /// Accrued protocol fee balance per token that remains in the contract
+    /// (fees that could not be routed to a collector/arbiter) and is
+    /// withdrawable by the admin via `withdraw_fees`. Keyed by token address.
+    AccruedFee(Address),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -906,6 +915,49 @@ pub fn set_roles(env: &Env, address: &Address, roles: &Vec<Role>) {
 // -----------------------------------------------------------------------------
 // Escrow-id map helpers (Issue #304)
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Accrued fee helpers (admin-withdrawable protocol fees)
+// -----------------------------------------------------------------------------
+
+/// Get the accrued protocol fee balance for `token` (default `0`).
+pub fn get_accrued_fee(env: &Env, token: &Address) -> i128 {
+    let key = DataKey::AccruedFee(token.clone());
+    let result = env.storage().persistent().get(&key);
+    if result.is_some() {
+        set_or_extend_ttl(env, &key, RecordType::AccruedFee);
+    }
+    result.unwrap_or(0)
+}
+
+/// Credit `amount` to the accrued protocol fee balance for `token`.
+///
+/// No-op for non-positive amounts. Kept in sync with the actual token balance
+/// that remains in the contract (see [`crate::fee_router`]).
+pub fn add_accrued_fee(env: &Env, token: &Address, amount: i128) {
+    if amount <= 0 {
+        return;
+    }
+    let key = DataKey::AccruedFee(token.clone());
+    let current = env.storage().persistent().get::<_, i128>(&key).unwrap_or(0);
+    env.storage()
+        .persistent()
+        .set(&key, &current.saturating_add(amount));
+    set_or_extend_ttl(env, &key, RecordType::AccruedFee);
+}
+
+/// Set the accrued protocol fee balance for `token`.
+///
+/// A value of `0` removes the key so a zero balance costs no storage rent.
+pub fn set_accrued_fee(env: &Env, token: &Address, amount: i128) {
+    let key = DataKey::AccruedFee(token.clone());
+    if amount <= 0 {
+        env.storage().persistent().remove(&key);
+    } else {
+        env.storage().persistent().set(&key, &amount);
+        set_or_extend_ttl(env, &key, RecordType::AccruedFee);
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Fee Router v2 helpers (Issue #305)

@@ -136,14 +136,23 @@ pub fn route_payout(
         let platform_fee = total_fee.saturating_sub(arbiter_fee);
 
         if arbiter_fee > 0 {
-            if let Some(arb) = arbiter {
-                token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
+            match arbiter {
+                Some(arb) => {
+                    token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
+                }
+                // No arbiter provided — the arbiter share stays in the contract and is
+                // tracked as accrued protocol fees (admin-withdrawable).
+                None => storage::add_accrued_fee(env, token, arbiter_fee),
             }
         }
 
         if platform_fee > 0 {
             if let Some(collector) = active_collector(env) {
                 token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
+            } else {
+                // No collector configured — the fee stays in the contract and is
+                // tracked as accrued protocol fees (admin-withdrawable).
+                storage::add_accrued_fee(env, token, platform_fee);
             }
         }
     }
@@ -189,17 +198,72 @@ pub fn route_payout_price_aware(
         let platform_fee = total_fee.saturating_sub(arbiter_fee);
 
         if arbiter_fee > 0 {
-            if let Some(arb) = arbiter {
-                token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
+            match arbiter {
+                Some(arb) => {
+                    token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
+                }
+                // No arbiter provided — the arbiter share stays in the contract and is
+                // tracked as accrued protocol fees (admin-withdrawable).
+                None => storage::add_accrued_fee(env, token, arbiter_fee),
             }
         }
 
         if platform_fee > 0 {
             if let Some(collector) = active_collector(env) {
                 token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
+            } else {
+                // No collector configured — the fee stays in the contract and is
+                // tracked as accrued protocol fees (admin-withdrawable).
+                storage::add_accrued_fee(env, token, platform_fee);
             }
         }
     }
 
     Ok((net_payout, total_fee))
+}
+
+// ---------------------------------------------------------------------------
+// Accrued fee withdrawal
+// ---------------------------------------------------------------------------
+
+/// Withdraw accrued protocol fees for `token` to `recipient`.
+///
+/// Transfers `amount` of `token` from the contract to `recipient`, debiting
+/// the per-asset accrued-fee ledger so escrowed principal can never be touched.
+/// The caller is recorded as the `actor` in the emitted `FeesWithdrawn` event.
+///
+/// **Caller is responsible for authorization** — call only from admin entry points.
+///
+/// # Errors
+/// * [`QuickexError::InvalidAmount`] — `amount <= 0`.
+/// * [`QuickexError::InsufficientFees`] — `amount` exceeds the accrued balance.
+pub fn withdraw_accrued_fees(
+    env: &Env,
+    token: &Address,
+    amount: i128,
+    recipient: &Address,
+    actor: &Address,
+) -> Result<i128, crate::errors::QuickexError> {
+    if amount <= 0 {
+        return Err(crate::errors::QuickexError::InvalidAmount);
+    }
+
+    let accrued = storage::get_accrued_fee(env, token);
+    if amount > accrued {
+        return Err(crate::errors::QuickexError::InsufficientFees);
+    }
+
+    let token_client = token::Client::new(env, token);
+    token_client.transfer(&env.current_contract_address(), recipient, &amount);
+
+    storage::set_accrued_fee(env, token, accrued.saturating_sub(amount));
+    crate::events::publish_fees_withdrawn(
+        env,
+        token.clone(),
+        recipient.clone(),
+        amount,
+        actor.clone(),
+    );
+
+    Ok(amount)
 }
