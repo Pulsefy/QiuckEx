@@ -8,6 +8,8 @@ import { JobRepository } from "../job-queue/job.repository";
 import { CursorRepository } from "../ingestion/cursor.repository";
 import { SorobanRpcService } from "../transactions/soroban-rpc.service";
 
+export type DependencyStatus = "up" | "degraded" | "down";
+
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
@@ -24,11 +26,15 @@ export class HealthService {
     private readonly sorobanRpcService: SorobanRpcService,
   ) {}
 
+  private isTimeoutError(err: unknown): boolean {
+    return err instanceof Error && err.message === "Timeout";
+  }
+
   /**
    * Performs a simple ping to Supabase to verify connectivity.
    */
   async checkSupabase(): Promise<{
-    status: "up" | "down";
+    status: DependencyStatus;
     latency?: number;
     details?: string;
     lastSuccess?: string;
@@ -63,7 +69,10 @@ export class HealthService {
       this.logger.warn(
         `Supabase health check failed or timed out: ${safeMessage}`,
       );
-      return { status: "down", details: safeMessage };
+      return {
+        status: this.isTimeoutError(err) ? "degraded" : "down",
+        details: safeMessage,
+      };
     }
   }
 
@@ -122,7 +131,7 @@ export class HealthService {
    * Checks job queue health by verifying database connectivity and job processing.
    */
   async checkQueue(): Promise<{
-    status: "up" | "down";
+    status: DependencyStatus;
     latency?: number;
     details?: string;
     lastSuccess?: string;
@@ -151,7 +160,7 @@ export class HealthService {
       const safeMessage = sanitizeErrorMessage((err as Error).message);
       this.logger.warn(`Queue health check failed: ${safeMessage}`);
       return {
-        status: "down",
+        status: this.isTimeoutError(err) ? "degraded" : "down",
         details: safeMessage,
       };
     }
@@ -161,7 +170,7 @@ export class HealthService {
    * Checks Horizon reachability with timeout.
    */
   async checkHorizon(): Promise<{
-    status: "up" | "down";
+    status: DependencyStatus;
     latency?: number;
     details?: string;
     lastSuccess?: string;
@@ -195,7 +204,7 @@ export class HealthService {
       const safeMessage = sanitizeErrorMessage((err as Error).message);
       this.logger.warn(`Horizon health check failed: ${safeMessage}`);
       return {
-        status: "down",
+        status: this.isTimeoutError(err) ? "degraded" : "down",
         details: safeMessage,
       };
     }
@@ -205,7 +214,7 @@ export class HealthService {
    * Checks Soroban RPC reachability with timeout.
    */
   async checkSorobanRpc(): Promise<{
-    status: "up" | "down";
+    status: DependencyStatus;
     latency?: number;
     details?: string;
     lastSuccess?: string;
@@ -233,7 +242,7 @@ export class HealthService {
       const safeMessage = sanitizeErrorMessage((err as Error).message);
       this.logger.warn(`Soroban RPC health check failed: ${safeMessage}`);
       return {
-        status: "down",
+        status: this.isTimeoutError(err) ? "degraded" : "down",
         details: safeMessage,
       };
     }
@@ -359,12 +368,22 @@ export class HealthService {
         this.checkIngestionLag(),
       ]);
 
-    // Critical dependencies: database, migrations, queue, horizon
-    const criticalChecks = [supabase, migrations, queue, horizon];
-    const ready = criticalChecks.every((check) => check.status === "up");
+    // Critical dependencies: database, migrations, queue, horizon, soroban RPC.
+    // A hard failure (down) means the app cannot serve traffic safely.
+    // A degraded dependency (e.g. timed out) is reported separately so that
+    // transient slowness is distinguishable from a real outage.
+    const criticalChecks = [supabase, migrations, queue, horizon, sorobanRpc];
+    const hasHardFailure = criticalChecks.some(
+      (check) => check.status === "down",
+    );
+    const degraded = criticalChecks.some(
+      (check) => check.status === "degraded",
+    );
+    const ready = !hasHardFailure;
 
     return {
       ready,
+      degraded,
       timestamp: new Date().toISOString(),
       checks: [
         {
