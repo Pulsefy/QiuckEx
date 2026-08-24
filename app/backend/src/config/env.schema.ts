@@ -450,6 +450,24 @@ export const envSchema = Joi.object({
     .min(0)
     .default(14 * 24 * 60 * 60 * 1000)
     .description("Maximum age before branch preview auto-expiry"),
+
+  // Export artifacts storage and download configs
+  EXPORT_BUCKET: Joi.string()
+    .default("exports")
+    .description("Supabase Storage bucket name for storing exports"),
+  EXPORT_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .default(7)
+    .description("Days to retain export files in storage"),
+  EXPORT_SIGNING_SECRET: Joi.string()
+    .default("exports-signing-secret-default-value")
+    .description("Secret key for HMAC signature of export download URLs"),
+  EXPORT_LINK_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .default(3600)
+    .description("Time-to-live in seconds for export download URLs"),
 });
 
 /**
@@ -527,4 +545,8 @@ export interface EnvConfig {
   ABUSE_SIGNAL_HASH_SALT: string;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;
+  EXPORT_BUCKET: string;
+  EXPORT_RETENTION_DAYS: number;
+  EXPORT_SIGNING_SECRET: string;
+  EXPORT_LINK_TTL_SECONDS: number;
 }

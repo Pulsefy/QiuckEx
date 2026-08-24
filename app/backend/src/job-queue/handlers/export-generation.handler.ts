@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JobHandler, Job, CancellationToken } from '../types';
 import { ExportGenerationPayload } from '../types/job-payloads.types';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { ExportsService } from '../../exports/exports.service';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -36,6 +37,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
 
   constructor(
     private readonly supabase: SupabaseService,
+    private readonly exportsService: ExportsService,
   ) {}
 
   /**
@@ -75,7 +77,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
       );
 
       // Deliver export via specified method
-      await this.deliverExport(userId, exportType, exportData, format, deliveryMethod, cancellationToken);
+      await this.deliverExport(userId, exportType, exportData, format, deliveryMethod, cancellationToken, job.id);
 
       this.logger.log(
         `Export delivered successfully via ${deliveryMethod} (jobId: ${job.id})`,
@@ -236,6 +238,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * @param format - Export format
    * @param deliveryMethod - How to deliver the export
    * @param cancellationToken - Token to check for cancellation
+   * @param jobId - The job ID
    */
   private async deliverExport(
     userId: string,
@@ -244,6 +247,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     format: string,
     deliveryMethod: 'webhook' | 'email' | 'download',
     cancellationToken: CancellationToken,
+    jobId: string,
   ): Promise<void> {
     cancellationToken.throwIfCancelled();
 
@@ -261,9 +265,22 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         break;
 
       case 'download':
-        // TODO: Implement download link generation (store in S3/Supabase Storage)
-        // For now, just log
-        this.logger.log(`Download link generation not yet implemented for user ${userId}`);
+        // Persist export artifact to Supabase Storage
+        await this.exportsService.uploadExportArtifact(
+          userId,
+          jobId,
+          exportData,
+          format as 'csv' | 'json',
+        );
+
+        // Generate short-lived, scoped signed download link
+        const downloadUrl = this.exportsService.generateSignedDownloadUrl(
+          userId,
+          jobId,
+          format as 'csv' | 'json',
+        );
+
+        this.logger.log(`Export download link generated for user ${userId}: ${downloadUrl}`);
         break;
 
       default:

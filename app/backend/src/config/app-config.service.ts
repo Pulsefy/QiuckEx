@@ -395,4 +395,32 @@ export class AppConfigService {
         : "Public Global Stellar Network ; September 2015")
     );
   }
+
+  /**
+   * Get the Supabase Storage bucket name for exports
+   */
+  get exportBucket(): string {
+    return this.configService.get("EXPORT_BUCKET", { infer: true });
+  }
+
+  /**
+   * Get the number of days to retain export files in storage
+   */
+  get exportRetentionDays(): number {
+    return this.configService.get("EXPORT_RETENTION_DAYS", { infer: true });
+  }
+
+  /**
+   * Get the secret key for signing download URLs
+   */
+  get exportSigningSecret(): string {
+    return this.configService.get("EXPORT_SIGNING_SECRET", { infer: true });
+  }
+
+  /**
+   * Get the link TTL in seconds for signed download URLs
+   */
+  get exportLinkTtlSeconds(): number {
+    return this.configService.get("EXPORT_LINK_TTL_SECONDS", { infer: true });
+  }
 }

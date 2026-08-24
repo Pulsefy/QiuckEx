@@ -72,6 +72,7 @@ export class ApiKeyGuard implements CanActivate {
       scopes: record.scopes,
       rateLimit: throttlerConfig.groups.authenticated.sustained.limit,
       organization_id: record.organization_id,
+      owner_id: record.owner_id,
     };
 
     request.organizationContext = {

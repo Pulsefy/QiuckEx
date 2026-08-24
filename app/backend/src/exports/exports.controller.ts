@@ -7,13 +7,15 @@
  * Requirements: 9.2
  */
 
-import { Controller, Post, Body, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Req, Res, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Response, Request } from 'express';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
 import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
 import { RequestExportDto } from './dto/request-export.dto';
+import { ExportsService } from './exports.service';
 
 /**
  * Exports Controller
@@ -29,6 +31,7 @@ export class ExportsController {
 
   constructor(
     private readonly jobQueueService: JobQueueService,
+    private readonly exportsService: ExportsService,
   ) {}
 
   /**
@@ -85,5 +88,51 @@ export class ExportsController {
       jobId,
       message: `Export job enqueued successfully. Job ID: ${jobId}`,
     };
+  }
+
+  /**
+   * Download a generated export file
+   * 
+   * Validates URL signature, expiration, and checks requesting principal match.
+   */
+  @Get('download')
+  @ApiOperation({ summary: 'Download a data export file' })
+  @ApiResponse({
+    status: 200,
+    description: 'Export file download started',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Expired or invalid/tampered signature',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Unauthorized access (mismatched requesting principal)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Export file not found in storage',
+  })
+  async downloadExport(
+    @Query('userId') userId: string,
+    @Query('jobId') jobId: string,
+    @Query('format') format: 'csv' | 'json',
+    @Query('expiresAt') expiresAt: string,
+    @Query('signature') signature: string,
+    @Req() req: Request & { apiKey?: { owner_id?: string; organization_id?: string; id?: string } },
+    @Res() res: Response,
+  ): Promise<void> {
+    this.logger.log(`Export download requested: userId=${userId}, jobId=${jobId}`);
+
+    const requestingPrincipal = req.apiKey?.owner_id || req.apiKey?.organization_id || req.apiKey?.id;
+
+    const { data, contentType } = await this.exportsService.verifyAndRetrieveArtifact(
+      { userId, jobId, format, expiresAt, signature },
+      requestingPrincipal,
+    );
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="export-${jobId}.${format}"`);
+    res.send(data);
   }
 }

@@ -23,6 +23,7 @@ import { IngestionModule } from "../ingestion/ingestion.module";
 import { AuthModule } from "../auth/auth.module";
 import { MetricsModule } from "../metrics/metrics.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
+import { ExportsModule } from "../exports/exports.module";
 import {
   WebhookDeliveryHandler,
   RecurringPaymentHandler,
@@ -59,6 +60,7 @@ import {
     forwardRef(() => LinksModule),
     forwardRef(() => ReconciliationModule),
     forwardRef(() => IngestionModule),
+    forwardRef(() => ExportsModule),
   ],
   controllers: [JobAdminController],
   providers: [
