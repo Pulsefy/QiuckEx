@@ -33,7 +33,7 @@ use crate::{
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Events, Ledger},
-    token, Address, Bytes, BytesN, Env, Symbol,
+    token, Address, Bytes, BytesN, Env, Symbol, TryIntoVal,
 };
 
 // ============================================================================
