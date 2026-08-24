@@ -39,9 +39,17 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER preview_scopes_updated_at
-  BEFORE UPDATE ON preview_scopes
-  FOR EACH ROW EXECUTE FUNCTION trigger_preview_scopes_set_updated_at();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'preview_scopes_updated_at'
+  ) THEN
+    CREATE TRIGGER preview_scopes_updated_at
+      BEFORE UPDATE ON preview_scopes
+      FOR EACH ROW EXECUTE FUNCTION trigger_preview_scopes_set_updated_at();
+  END IF;
+END
+$$;
 
 COMMENT ON TABLE  preview_scopes         IS 'Active preview branch/workspace scopes with TTL';
 COMMENT ON COLUMN preview_scopes.scope_id IS 'Unique scope identifier sent via X-Preview-Scope header';
