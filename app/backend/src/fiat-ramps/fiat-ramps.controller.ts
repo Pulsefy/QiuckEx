@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { FiatRampsService } from './fiat-ramps.service';
+import { FiatRampsService, Sep24FlowRequestDto } from './fiat-ramps.service';
 
 @ApiTags('fiat-ramps')
 @Controller('fiat-ramps')
@@ -17,14 +17,14 @@ export class FiatRampsController {
   @Post('deposit')
   @ApiOperation({ summary: 'Initiate SEP-24 hosted deposit flow' })
   @ApiResponse({ status: 201, description: 'Deposit flow initiated' })
-  async initiateDeposit(@Body() depositDto: { assetCode: string; amount: number; userAccount: string; anchorDomain: string }) {
+  async initiateDeposit(@Body() depositDto: Sep24FlowRequestDto) {
     return this.fiatRampsService.initiateDeposit(depositDto);
   }
 
   @Post('withdraw')
   @ApiOperation({ summary: 'Initiate SEP-24 hosted withdrawal flow' })
   @ApiResponse({ status: 201, description: 'Withdrawal flow initiated' })
-  async initiateWithdrawal(@Body() withdrawalDto: { assetCode: string; amount: number; userAccount: string; anchorDomain: string }) {
+  async initiateWithdrawal(@Body() withdrawalDto: Sep24FlowRequestDto) {
     return this.fiatRampsService.initiateWithdrawal(withdrawalDto);
   }
 
