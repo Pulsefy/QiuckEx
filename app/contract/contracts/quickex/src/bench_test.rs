@@ -73,6 +73,7 @@ fn seed_escrow(
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
     env.as_contract(contract_id, || {
         let key: Bytes = commitment.into();
@@ -272,6 +273,7 @@ fn expected_escrow_entry(
         arbiter,
         arbiters: Vec::new(env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     }
 }
 
@@ -793,6 +795,7 @@ fn bench_common_escrow_storage_footprint() {
         arbiter: None,
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     let legacy_bytes = legacy_escrow_storage_footprint_bytes(&env, &commitment, &entry);
@@ -820,6 +823,7 @@ fn bench_arbiter_escrow_storage_footprint() {
         arbiter: Some(Address::generate(&env)),
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     let legacy_bytes = legacy_escrow_storage_footprint_bytes(&env, &commitment, &entry);

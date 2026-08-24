@@ -21,6 +21,7 @@ fn test_ttl_auto_extend_on_activity() {
             arbiter: None,
             arbiters: Vec::new(&env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         };
         put_escrow(&env, &commitment, &entry);
 
@@ -55,6 +56,7 @@ fn test_ttl_expiry_of_inactive_record() {
             arbiter: None,
             arbiters: Vec::new(&env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         };
         put_escrow(&env, &commitment, &entry);
 
@@ -87,6 +89,7 @@ fn test_cleanup_does_not_remove_active_escrow() {
             arbiter: None,
             arbiters: Vec::new(&env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         };
         put_escrow(&env, &commitment, &entry);
         // Attempt cleanup (should not remove active escrow)
@@ -125,6 +128,7 @@ fn test_escrow_storage() {
             arbiter: None,
             arbiters: Vec::new(&env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         };
 
         // Test put_escrow
@@ -171,6 +175,7 @@ fn test_escrow_status_update() {
             arbiter: None,
             arbiters: Vec::new(&env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         };
 
         put_escrow(&env, &commitment, &entry);

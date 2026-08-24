@@ -87,6 +87,7 @@ fn setup_withdrawable_escrow(
         arbiter: None,
         arbiters: soroban_sdk::Vec::new(env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
     env.as_contract(&client.address, || {
         crate::storage::put_escrow(env, &commitment.clone().into(), &entry);

@@ -122,6 +122,7 @@ fn setup_escrow(
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     env.as_contract(contract_id, || {
@@ -157,6 +158,7 @@ fn setup_escrow_with_owner(
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
     env.as_contract(contract_id, || {
         let storage_commitment: Bytes = commitment.into();
@@ -1520,6 +1522,7 @@ fn test_get_commitment_state_spent() {
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     env.as_contract(&client.address, || {
@@ -1671,6 +1674,7 @@ fn test_verify_proof_view_spent_commitment() {
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     let escrow_key = soroban_sdk::Symbol::new(&env, "escrow");
@@ -1770,6 +1774,7 @@ fn test_get_escrow_details_spent_status() {
         #[allow(clippy::needless_borrow)]
         arbiters: Vec::new(&env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     env.as_contract(&client.address, || {
@@ -3305,6 +3310,7 @@ mod tests {
                 #[allow(clippy::needless_borrow)]
                 arbiters: Vec::new(&env),
                 arbiter_threshold: 0,
+                dispute_deadline: 0,
             }
         }
 
@@ -3392,6 +3398,7 @@ mod tests {
                 #[allow(clippy::needless_borrow)]
                 arbiters: Vec::new(&env),
                 arbiter_threshold: 0,
+                dispute_deadline: 0,
             }
         }
 

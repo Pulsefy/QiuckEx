@@ -81,4 +81,10 @@ pub enum QuickexError {
     NonceAlreadyUsed = 500,
     /// The signature's valid_until timestamp has passed; signature expired.
     SignatureExpired = 501,
+    /// An arbiter vote has passed its expiry timestamp and cannot be counted.
+    VoteExpired = 323,
+    /// The dispute resolution deadline has passed; quorum can no longer be reached.
+    DisputeDeadlineExpired = 324,
+    /// Proposed quorum size falls outside the configured hard bounds.
+    QuorumOutOfBounds = 325,
 }

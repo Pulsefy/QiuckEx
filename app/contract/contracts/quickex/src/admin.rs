@@ -7,7 +7,7 @@ use crate::events::{
 use crate::fee;
 use crate::fee_router;
 use crate::storage;
-use crate::types::{FeeConfig, PerAssetFeeConfig, Role};
+use crate::types::{DisputeQuorumConfig, FeeConfig, PerAssetFeeConfig, Role};
 use soroban_sdk::{Address, Env, Vec};
 
 /// Initialize the contract with an admin address.
@@ -455,4 +455,46 @@ pub fn set_hook_allowed(
     storage::set_hook_allowed(env, &hook_contract, allowed);
     crate::events::publish_hook_allowlist_changed(env, hook_contract, allowed);
     Ok(())
+}
+
+/// Set the global dispute quorum configuration (**Admin only**).
+///
+/// Hard bounds enforced:
+/// - `min_quorum` ∈ [1, MAX_QUORUM_BOUND]
+/// - `max_quorum` ∈ [min_quorum, MAX_QUORUM_BOUND]
+/// - `vote_expiry_secs` ∈ [0, MAX_VOTE_EXPIRY_SECS]
+/// - `dispute_deadline_secs` ∈ [0, MAX_DISPUTE_DEADLINE_SECS]
+///
+/// This setting is global and applies to new votes/disputes going forward.
+/// It does NOT retroactively change in-flight dispute thresholds (those are
+/// stored per-escrow at dispute-creation time).
+pub fn set_dispute_quorum_config(
+    env: &Env,
+    caller: &Address,
+    config: DisputeQuorumConfig,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    // Validate hard bounds
+    if config.min_quorum == 0
+        || config.min_quorum > storage::MAX_QUORUM_BOUND
+        || config.max_quorum == 0
+        || config.max_quorum > storage::MAX_QUORUM_BOUND
+        || config.min_quorum > config.max_quorum
+    {
+        return Err(QuickexError::QuorumOutOfBounds);
+    }
+    if config.vote_expiry_secs > storage::MAX_VOTE_EXPIRY_SECS
+        || config.dispute_deadline_secs > storage::MAX_DISPUTE_DEADLINE_SECS
+    {
+        return Err(QuickexError::QuorumOutOfBounds);
+    }
+
+    storage::set_dispute_quorum_config(env, &config);
+    Ok(())
+}
+
+/// Get the current dispute quorum configuration.
+pub fn get_dispute_quorum_config(env: &Env) -> DisputeQuorumConfig {
+    storage::get_dispute_quorum_config(env)
 }

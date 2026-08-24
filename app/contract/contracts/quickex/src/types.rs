@@ -57,6 +57,10 @@ pub struct EscrowEntry {
     /// A value of 0 means single-arbiter mode (uses `arbiter` field).
     /// A value > 0 means multi-sig mode (uses `arbiters` array).
     pub arbiter_threshold: u32,
+    /// Ledger timestamp after which no new votes may be cast and quorum cannot be
+    /// reached. Set to 0 when the escrow is created; populated when dispute() is
+    /// called. A value of 0 means no deadline (fallback to legacy behaviour).
+    pub dispute_deadline: u64,
 }
 
 /// Privacy-aware view of an escrow entry.
@@ -110,6 +114,32 @@ pub struct DisputeVote {
     pub resolve_for_owner: bool,
     /// Ledger timestamp when the vote was cast.
     pub voted_at: u64,
+    /// Ledger timestamp after which this vote must not be counted. 0 = no expiry.
+    pub expires_at: u64,
+}
+
+/// Global configuration for multi-sig dispute resolution.
+///
+/// Stored as a singleton under [`DataKey::DisputeQuorumConfig`].
+/// Hard bounds:
+///   - `min_quorum` ∈ [1, MAX_QUORUM_BOUND]
+///   - `max_quorum` ∈ [1, MAX_QUORUM_BOUND]
+///   - `min_quorum` ≤ `max_quorum`
+///   - `vote_expiry_secs` ∈ [0, MAX_VOTE_EXPIRY_SECS]  (0 = no expiry)
+///   - `dispute_deadline_secs` ∈ [0, MAX_DISPUTE_DEADLINE_SECS]  (0 = no deadline)
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DisputeQuorumConfig {
+    /// Minimum quorum the admin may set.
+    pub min_quorum: u32,
+    /// Maximum quorum the admin may set.
+    pub max_quorum: u32,
+    /// Seconds after a vote is cast until that individual vote expires.
+    /// 0 disables vote expiry.
+    pub vote_expiry_secs: u64,
+    /// Seconds after `dispute()` is called within which quorum must be reached.
+    /// 0 disables the dispute deadline.
+    pub dispute_deadline_secs: u64,
 }
 
 /// Parameters for registering an ephemeral key (stealth deposit).

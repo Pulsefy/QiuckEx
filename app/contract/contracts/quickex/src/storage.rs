@@ -50,7 +50,8 @@ use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
 use soroban_sdk::xdr::ToXdr;
 
 use crate::types::{
-    CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry,
+    CachedOraclePrice, DisputeQuorumConfig, DisputeVote, EscrowEntry, FeeConfig, Role,
+    StealthEscrowEntry,
 };
 
 /// Record type for TTL policy selection.
@@ -207,6 +208,8 @@ pub enum DataKey {
     DisputeVote(Bytes, Address),
     /// Tracks whether a hook contract is on the allowlist.
     HookAllowlist(Address),
+    /// Global dispute quorum configuration (singleton).
+    DisputeQuorumConfig,
 }
 
 /// Compact escrow record stored on the hot path.
@@ -250,6 +253,7 @@ impl CompactEscrowEntry {
             arbiter: dispute.arbiter,
             arbiters: dispute.arbiters,
             arbiter_threshold: dispute.arbiter_threshold,
+            dispute_deadline: dispute.dispute_deadline,
         }
     }
 }
@@ -261,6 +265,7 @@ struct EscrowDisputeConfig {
     arbiter: Option<Address>,
     arbiters: Vec<Address>,
     arbiter_threshold: u32,
+    dispute_deadline: u64,
 }
 
 impl EscrowDisputeConfig {
@@ -269,6 +274,7 @@ impl EscrowDisputeConfig {
             arbiter: None,
             arbiters: Vec::new(env),
             arbiter_threshold: 0,
+            dispute_deadline: 0,
         }
     }
 
@@ -281,11 +287,15 @@ impl EscrowDisputeConfig {
                 entry.arbiters.clone()
             },
             arbiter_threshold: entry.arbiter_threshold,
+            dispute_deadline: entry.dispute_deadline,
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.arbiter.is_none() && self.arbiters.is_empty() && self.arbiter_threshold == 0
+        self.arbiter.is_none()
+            && self.arbiters.is_empty()
+            && self.arbiter_threshold == 0
+            && self.dispute_deadline == 0
     }
 }
 
@@ -1005,6 +1015,59 @@ pub fn count_dispute_votes(env: &Env, commitment: &Bytes, arbiters: &Vec<Address
     for arbiter in arbiters.iter() {
         if has_dispute_vote(env, commitment, &arbiter) {
             count += 1;
+        }
+    }
+    count
+}
+
+// ---------------------------------------------------------------------------
+// Hard bounds for DisputeQuorumConfig
+// ---------------------------------------------------------------------------
+
+/// Maximum allowed quorum bound (admin cannot set max_quorum above this).
+pub const MAX_QUORUM_BOUND: u32 = 20;
+/// Maximum vote expiry in seconds (~30 days).
+pub const MAX_VOTE_EXPIRY_SECS: u64 = 30 * 24 * 3600;
+/// Maximum dispute deadline in seconds (~90 days).
+pub const MAX_DISPUTE_DEADLINE_SECS: u64 = 90 * 24 * 3600;
+
+/// Get the global dispute quorum configuration.
+/// Returns a sensible default (no expiry, no deadline, quorum bounds 1–20) if not set.
+pub fn get_dispute_quorum_config(env: &Env) -> DisputeQuorumConfig {
+    env.storage()
+        .persistent()
+        .get(&DataKey::DisputeQuorumConfig)
+        .unwrap_or(DisputeQuorumConfig {
+            min_quorum: 1,
+            max_quorum: MAX_QUORUM_BOUND,
+            vote_expiry_secs: 0,
+            dispute_deadline_secs: 0,
+        })
+}
+
+/// Persist the global dispute quorum configuration.
+pub fn set_dispute_quorum_config(env: &Env, config: &DisputeQuorumConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::DisputeQuorumConfig, config);
+    set_or_extend_ttl(env, &DataKey::DisputeQuorumConfig, RecordType::Escrow);
+}
+
+/// Count non-expired votes, returning only those that were cast before `now`.
+/// A vote with `expires_at == 0` never expires.
+pub fn count_valid_dispute_votes(
+    env: &Env,
+    commitment: &Bytes,
+    arbiters: &Vec<Address>,
+    now: u64,
+) -> u32 {
+    let mut count = 0;
+    for arbiter in arbiters.iter() {
+        if let Some(vote) = get_dispute_vote(env, commitment, &arbiter) {
+            let is_valid = vote.expires_at == 0 || vote.expires_at > now;
+            if is_valid {
+                count += 1;
+            }
         }
     }
     count

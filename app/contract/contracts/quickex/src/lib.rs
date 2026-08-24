@@ -12,8 +12,9 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
-mod errors;
-mod escrow;
+#[cfg(test)]
+mod dispute_quorum_test;
+mod errors;mod escrow;
 mod escrow_id;
 #[cfg(test)]
 mod escrow_id_test;
@@ -59,8 +60,8 @@ use errors::QuickexError;
 use pause_policy::{EntryPoint, PauseChangeReason};
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
-    PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, DisputeQuorumConfig, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
+    PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -740,7 +741,7 @@ impl QuickexContract {
     /// Resolve a disputed escrow using multi-sig arbitration.
     ///
     /// Can be called by anyone once the threshold is met. The outcome is determined
-    /// by majority vote among the votes cast.
+    /// by majority vote among the **non-expired** votes cast.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -759,6 +760,65 @@ impl QuickexContract {
         pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
         hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute_multi_sig(&env, commitment, recipient)
+    }
+
+    /// Admin fallback resolution for disputes that cannot reach quorum.
+    ///
+    /// Only callable by an Admin. Allowed when:
+    /// - The dispute deadline has passed, **or**
+    /// - Quorum is provably unreachable (all votes expired, valid < threshold).
+    ///
+    /// This is the documented path for stalled disputes where funds would otherwise
+    /// be locked indefinitely.
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `InsufficientRole` - Caller is not an Admin
+    /// * `InsufficientVotes` - Quorum is still reachable; use the normal path
+    pub fn admin_resolve_dispute_fallback(
+        env: Env,
+        caller: Address,
+        commitment: BytesN<32>,
+        recipient: Address,
+        resolve_for_owner: bool,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
+        hook::assert_not_reentrant(&env)?;
+        escrow::admin_resolve_dispute_fallback(
+            &env,
+            caller,
+            commitment,
+            recipient,
+            resolve_for_owner,
+        )
+    }
+
+    /// Set global dispute quorum configuration (**Admin only**).
+    ///
+    /// Hard bounds (enforced on-chain):
+    /// - `min_quorum` ∈ [1, 20]
+    /// - `max_quorum` ∈ [min_quorum, 20]
+    /// - `vote_expiry_secs` ∈ [0, 2_592_000] (30 days; 0 = no expiry)
+    /// - `dispute_deadline_secs` ∈ [0, 7_776_000] (90 days; 0 = no deadline)
+    ///
+    /// Changes apply to **new** disputes only; in-flight disputes retain their
+    /// per-escrow `arbiter_threshold` and `dispute_deadline` unchanged.
+    ///
+    /// # Errors
+    /// * `InsufficientRole` - Caller is not an Admin
+    /// * `QuorumOutOfBounds` - Proposed values exceed hard bounds
+    pub fn set_dispute_quorum_config(
+        env: Env,
+        caller: Address,
+        config: DisputeQuorumConfig,
+    ) -> Result<(), QuickexError> {
+        admin::set_dispute_quorum_config(&env, &caller, config)
+    }
+
+    /// Get the current global dispute quorum configuration.
+    pub fn get_dispute_quorum_config(env: Env) -> DisputeQuorumConfig {
+        admin::get_dispute_quorum_config(&env)
     }
 
     /// Initialize the contract with an admin address (one-time only).

@@ -68,9 +68,10 @@ use crate::{
     escrow_id, events, fee_router, hook,
     nonce::{self, ActionType},
     storage::{
-        count_dispute_votes, extend_escrow_storage_ttl, get_dispute_vote, get_escrow,
-        get_escrow_id_mapping, has_dispute_vote, has_escrow, put_dispute_vote, put_escrow,
-        put_escrow_id_mapping, remove_escrow,
+        count_valid_dispute_votes, extend_escrow_storage_ttl,
+        get_dispute_quorum_config, get_dispute_vote, get_escrow, get_escrow_id_mapping,
+        has_dispute_vote, has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping,
+        remove_escrow,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
@@ -203,6 +204,7 @@ pub fn deposit(
         arbiter,
         arbiters: Vec::new(env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
@@ -299,6 +301,7 @@ pub fn deposit_with_commitment(
         arbiter,
         arbiters: Vec::new(env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
@@ -391,6 +394,7 @@ pub fn deposit_partial(
         arbiter,
         arbiters: Vec::new(env),
         arbiter_threshold: 0,
+        dispute_deadline: 0,
     };
 
     put_escrow(env, &commitment_bytes, &entry);
@@ -847,7 +851,8 @@ pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexEr
 /// - Any participant can call this function.
 /// - Requires an assigned arbiter.
 /// - Escrow must be in `Pending` status.
-/// - Changes status to `Disputed`, locking funds until resolution(INV4)
+/// - Changes status to `Disputed`, locking funds until resolution(INV4).
+/// - For multi-sig mode, sets `dispute_deadline` from the global quorum config.
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
@@ -858,8 +863,17 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    // Guard: must have an arbiter assigned
-    let arbiter = entry.arbiter.as_ref().ok_or(QuickexError::NoArbiter)?;
+    // Guard: must have an arbiter assigned (single-sig or multi-sig)
+    let arbiter = if entry.arbiter_threshold > 0 {
+        // multi-sig: use first arbiter for the event, or fall back to entry.arbiter
+        entry
+            .arbiters
+            .get(0)
+            .or_else(|| entry.arbiter.clone())
+            .ok_or(QuickexError::NoArbiter)?
+    } else {
+        entry.arbiter.clone().ok_or(QuickexError::NoArbiter)?
+    };
 
     // Guard: escrow must be in Pending state
     if entry.status != EscrowStatus::Pending {
@@ -868,9 +882,20 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 
     let mut updated = entry.clone();
     updated.status = EscrowStatus::Disputed;
+
+    // Set dispute_deadline for multi-sig disputes based on global config
+    if updated.arbiter_threshold > 0 {
+        let quorum_config = get_dispute_quorum_config(env);
+        if quorum_config.dispute_deadline_secs > 0 {
+            let now = env.ledger().timestamp();
+            updated.dispute_deadline =
+                now.saturating_add(quorum_config.dispute_deadline_secs);
+        }
+    }
+
     put_escrow(env, &commitment_bytes, &updated);
 
-    events::publish_escrow_disputed(env, commitment, arbiter.clone());
+    events::publish_escrow_disputed(env, commitment, arbiter);
 
     Ok(())
 }
@@ -1015,6 +1040,9 @@ pub fn resolve_dispute(
 /// - Only callable by one of the assigned arbiters.
 /// - Escrow must be in `Disputed` status.
 /// - Each arbiter can only vote once per dispute.
+/// - Rejects votes cast after the dispute deadline (if set).
+/// - The recorded vote carries an `expires_at` timestamp derived from the
+///   global `DisputeQuorumConfig.vote_expiry_secs`.
 /// - Does not resolve the dispute immediately; only records the vote.
 /// - When the threshold is reached, the dispute can be resolved via `resolve_dispute_multi_sig`.
 ///
@@ -1028,6 +1056,7 @@ pub fn resolve_dispute(
 /// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
 /// - [`NotAnArbiter`] – caller is not one of the assigned arbiters.
 /// - [`ArbiterAlreadyVoted`] – caller has already voted on this dispute.
+/// - [`DisputeDeadlineExpired`] – the dispute deadline has passed.
 pub fn vote_for_dispute(
     env: &Env,
     caller: Address,
@@ -1060,6 +1089,13 @@ pub fn vote_for_dispute(
         return Err(QuickexError::NoArbiter);
     }
 
+    let now = env.ledger().timestamp();
+
+    // Guard: dispute deadline must not have passed
+    if entry.dispute_deadline > 0 && now >= entry.dispute_deadline {
+        return Err(QuickexError::DisputeDeadlineExpired);
+    }
+
     // Guard: caller must be one of the assigned arbiters
     let mut is_arbiter = false;
     for arbiter in entry.arbiters.iter() {
@@ -1083,17 +1119,26 @@ pub fn vote_for_dispute(
         return Err(QuickexError::ArbiterAlreadyVoted);
     }
 
+    // Compute vote expiry from global config
+    let quorum_config = get_dispute_quorum_config(env);
+    let vote_expires_at = if quorum_config.vote_expiry_secs > 0 {
+        now.saturating_add(quorum_config.vote_expiry_secs)
+    } else {
+        0
+    };
+
     // Record the vote
     let vote = DisputeVote {
         arbiter: caller.clone(),
         resolve_for_owner,
-        voted_at: env.ledger().timestamp(),
+        voted_at: now,
+        expires_at: vote_expires_at,
     };
 
     put_dispute_vote(env, &commitment_bytes, &caller, &vote);
 
-    // Count current votes
-    let vote_count = count_dispute_votes(env, &commitment_bytes, &entry.arbiters);
+    // Count current non-expired votes
+    let vote_count = count_valid_dispute_votes(env, &commitment_bytes, &entry.arbiters, now);
 
     // Emit vote cast event
     events::publish_arbiter_vote_cast(
@@ -1116,8 +1161,11 @@ pub fn vote_for_dispute(
 ///
 /// - Can be called by anyone once the threshold is met.
 /// - Escrow must be in `Disputed` status.
-/// - Requires that the number of votes >= threshold.
-/// - Determines the outcome based on majority vote among the votes cast.
+/// - Requires that the number of **non-expired** votes >= threshold.
+/// - Changing the global quorum config after a dispute is raised does NOT
+///   retroactively alter the per-escrow `arbiter_threshold`; only the vote
+///   validity check uses the current timestamp.
+/// - Determines the outcome based on majority vote among the valid votes cast.
 ///
 /// # Arguments
 /// - `commitment`: The escrow commitment hash
@@ -1146,20 +1194,28 @@ pub fn resolve_dispute_multi_sig(
         return Err(QuickexError::NoArbiter);
     }
 
-    // Count votes
-    let vote_count = count_dispute_votes(env, &commitment_bytes, &entry.arbiters);
+    let now = env.ledger().timestamp();
+
+    // Count only non-expired votes — expired votes are silently ignored here.
+    // The threshold stored on the escrow at dispute time is authoritative;
+    // mid-dispute quorum reconfiguration cannot retroactively resolve the dispute.
+    let vote_count = count_valid_dispute_votes(env, &commitment_bytes, &entry.arbiters, now);
 
     // Guard: threshold must be met
     if vote_count < entry.arbiter_threshold {
         return Err(QuickexError::InsufficientVotes);
     }
 
-    // Count votes for each side
+    // Count valid votes for each side
     let mut votes_for_owner: u32 = 0;
     let mut votes_for_recipient: u32 = 0;
 
     for arbiter in entry.arbiters.iter() {
         if let Some(vote) = get_dispute_vote(env, &commitment_bytes, &arbiter) {
+            // Skip expired votes
+            if vote.expires_at > 0 && vote.expires_at <= now {
+                continue;
+            }
             if vote.resolve_for_owner {
                 votes_for_owner += 1;
             } else {
@@ -1206,6 +1262,151 @@ pub fn resolve_dispute_multi_sig(
         commitment.clone(),
         resolve_for_owner,
         vote_count,
+        entry.arbiter_threshold,
+        entry.amount_paid,
+    );
+
+    if resolve_for_owner {
+        events::publish_escrow_refunded(
+            env,
+            entry.owner.clone(),
+            commitment.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Refund,
+            &commitment,
+            entry.owner.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            0,
+        );
+    } else {
+        events::publish_escrow_withdrawn(
+            env,
+            commitment.clone(),
+            recipient_address.clone(),
+            entry.token.clone(),
+            entry.amount_paid,
+            fee_amount,
+        );
+        hook::invoke_hooks(
+            env,
+            HookEventKind::Settle,
+            &commitment,
+            entry.owner.clone(),
+            entry.token,
+            entry.amount_paid,
+            fee_amount,
+        );
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// admin_resolve_dispute_fallback
+// ---------------------------------------------------------------------------
+
+/// Fallback resolution for disputes that cannot reach quorum before the deadline.
+///
+/// **Admin only.** May only be called once the dispute deadline has passed and
+/// quorum was not reached (i.e., `resolve_dispute_multi_sig` would fail with
+/// `InsufficientVotes`). The admin supplies the outcome directly.
+///
+/// This is the documented fallback path when an in-flight dispute stalls
+/// (e.g., arbiters are unreachable, keys are lost, or votes expired).
+///
+/// Changing the global quorum config mid-dispute does NOT affect this path;
+/// the deadline check uses the per-escrow `dispute_deadline` field.
+///
+/// # Arguments
+/// - `caller`: Must be an Admin.
+/// - `commitment`: The escrow commitment hash.
+/// - `recipient`: Address to receive funds when `resolve_for_owner == false`.
+/// - `resolve_for_owner`: `true` refunds to owner, `false` pays recipient.
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`InsufficientRole`] – caller is not an Admin.
+/// - [`InsufficientVotes`] – quorum was actually reached; use the normal path.
+/// - [`DisputeDeadlineExpired`] error is NOT returned here — this function is
+///   only callable AFTER the deadline has passed OR if there is no deadline but
+///   quorum cannot ever be reached (all votes expired).
+pub fn admin_resolve_dispute_fallback(
+    env: &Env,
+    caller: Address,
+    commitment: BytesN<32>,
+    recipient: Address,
+    resolve_for_owner: bool,
+) -> Result<(), QuickexError> {
+    admin::require_admin(env, &caller)?;
+
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let entry: EscrowEntry =
+        get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: escrow must be in Disputed state
+    if entry.status != EscrowStatus::Disputed {
+        return Err(QuickexError::InvalidDisputeState);
+    }
+
+    let now = env.ledger().timestamp();
+
+    // Guard: deadline must have passed (or no deadline — treated as always eligible for fallback
+    // when quorum is provably unreachable i.e., valid votes < threshold).
+    let deadline_passed =
+        entry.dispute_deadline > 0 && now >= entry.dispute_deadline;
+
+    let valid_votes =
+        count_valid_dispute_votes(env, &commitment_bytes, &entry.arbiters, now);
+
+    let quorum_reachable = valid_votes >= entry.arbiter_threshold;
+
+    // Only allow the fallback if the deadline has passed OR quorum is already unreachable.
+    if !deadline_passed && quorum_reachable {
+        // Quorum is still possible; direct the caller to the normal path.
+        return Err(QuickexError::InsufficientVotes);
+    }
+
+    let (final_status, recipient_address) = if resolve_for_owner {
+        (EscrowStatus::Refunded, entry.owner.clone())
+    } else {
+        (EscrowStatus::Spent, recipient)
+    };
+
+    let mut updated = entry.clone();
+    updated.status = final_status;
+    put_escrow(env, &commitment_bytes, &updated);
+
+    let fee_amount = if final_status == EscrowStatus::Spent {
+        let (_payout_amount, fee) = fee_router::route_payout_price_aware(
+            env,
+            &entry.token,
+            &recipient_address,
+            entry.amount_paid,
+            None,
+        )?;
+        fee
+    } else {
+        let token_client = token::Client::new(env, &entry.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient_address,
+            &entry.amount_paid,
+        );
+        0
+    };
+
+    // Emit dispute resolved event (vote_count = valid_votes at resolution time)
+    events::publish_dispute_resolved(
+        env,
+        commitment.clone(),
+        resolve_for_owner,
+        valid_votes,
         entry.arbiter_threshold,
         entry.amount_paid,
     );
