@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Readiness check
-         * @description Returns readiness status including dependency checks (Supabase, environment). Used for readiness probes.
+         * @description Returns readiness status including dependency checks (database, Horizon, Soroban RPC) with per-check timeouts. Used for readiness probes. Returns 503 when a critical dependency has hard-failed; degraded dependencies (e.g. timed out) are reported per-dependency and surface via the `degraded` flag while the service stays ready.
          */
         get: operations["getReadiness"];
         put?: never;
@@ -1578,9 +1578,35 @@ export interface components {
             /** Format: date-time */
             timestamp?: string;
         };
+        ReadyCheck: {
+            /** @example horizon */
+            name?: string;
+            /**
+             * @example up
+             * @enum {string}
+             */
+            status?: "up" | "degraded" | "down";
+            /** @example 125ms */
+            latency?: string;
+            details?: string[];
+            /** Format: date-time */
+            lastSuccess?: string;
+            /** @example Connection timeout */
+            error?: string;
+            /** @example 5 */
+            lagSeconds?: number;
+        };
         ReadyResponse: {
+            /** @example true */
             ready?: boolean;
-            checks?: Record<string, never>;
+            /**
+             * @description True when a critical dependency is degraded but none have hard-failed
+             * @example false
+             */
+            degraded?: boolean;
+            /** Format: date-time */
+            timestamp?: string;
+            checks?: components["schemas"]["ReadyCheck"][];
         };
         PublicStatusComponent: {
             /** @example horizon */
