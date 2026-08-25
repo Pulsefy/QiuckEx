@@ -17,9 +17,8 @@ import { v4 as uuidv4 } from "uuid";
 import { ActivityIndicator } from "react-native";
 import { useContractRegistry } from "../hooks/useContractRegistry";
 import { ErrorState } from "@/components/resilience/error-state";
-
-// List of assets to attempt swaps from (hardcoded whitelist matching backend)
-const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
+import { useSession } from "../contexts/SessionContext";
+import { resolveSwappableAssets } from "../services/swappable-assets";
 
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
@@ -57,6 +56,16 @@ export default function PaymentConfirmationScreen() {
   const [selectedSwapPath, setSelectedSwapPath] = React.useState<PathPreviewRow | null>(null);
   const [slippageTolerance, setSlippageTolerance] = React.useState(1.0); // 1.0% default
 
+  // Swap asset whitelist sourced from the runtime config bootstrap, with a
+  // conservative built-in default when config is unavailable (see
+  // services/swappable-assets). This keeps the app in sync with the backend
+  // without requiring an app store release.
+  const { data: sessionData } = useSession();
+  const swappableAssets = React.useMemo(
+    () => resolveSwappableAssets(sessionData?.swappableAssets),
+    [sessionData?.swappableAssets],
+  );
+
   // Fetch swap options from backend (only if we have a valid destination asset)
   const {
     swapOptions,
@@ -65,7 +74,7 @@ export default function PaymentConfirmationScreen() {
     timeRemaining,
     isExpired,
     refetch,
-  } = useSwapOptions(username || "", numAmount, asset || "", SWAPPABLE_ASSETS);
+  } = useSwapOptions(username || "", numAmount, asset || "", swappableAssets);
 
   // Filter swap options to exclude the destination asset itself
   const availableSwapOptions = (swapOptions || []).filter(
@@ -136,7 +145,7 @@ export default function PaymentConfirmationScreen() {
 
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
-        <ErrorState 
+        <ErrorState
           title={isMissingDefinition ? "Contract definition missing" : "Contract registry unavailable"}
           message={
             isMissingDefinition
@@ -146,8 +155,14 @@ export default function PaymentConfirmationScreen() {
           onRetry={() => void refreshRegistry()}
           retryLabel={registryRefreshing ? "Refreshing..." : "Refresh Registry"}
         />
-        <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
+        <Pressable
+          style={styles.secondaryBtn}
+          onPress={() => router.back()}
+          accessibilityLabel="Go back from contract registry error screen"
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to navigate back to the previous screen"
+        >
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Go Back</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -156,11 +171,15 @@ export default function PaymentConfirmationScreen() {
   if (!isReady) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 10 }}>
+        <ActivityIndicator
+          size="large"
+          color={theme.primary}
+          accessibilityLabel={`${registryRefreshing ? "Refreshing contract registry" : "Verifying secure contracts"} in progress`}
+        />
+        <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 10 }} accessibilityRole="status">
           {registryRefreshing ? "Refreshing contract registry..." : "Verifying secure contracts..."}
         </Text>
-        <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6 }}>
+        <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6 }} accessibilityElementsHidden={true} importantForAccessibility="no">
           {lastUpdatedLabel}
         </Text>
       </SafeAreaView>
@@ -171,10 +190,14 @@ export default function PaymentConfirmationScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={[styles.content, { justifyContent: "center", flex: 1 }]}>
-          <View style={[styles.errorCard, { backgroundColor: theme.status.errorBg }]}>
-            <Text style={[styles.errorIcon, { color: theme.status.error, backgroundColor: theme.status.errorBg }]}>!</Text>
-            <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>Invalid Payment Link</Text>
-            <Text style={[styles.errorBody, { color: theme.textSecondary }]}>
+          <View
+            style={[styles.errorCard, { backgroundColor: theme.status.errorBg }]}
+            accessibilityLabel="Invalid Payment Link. Error: This payment link is missing required information. Please try scanning again or check the link."
+            accessibilityRole="alert"
+          >
+            <Text style={[styles.errorIcon, { color: theme.status.error, backgroundColor: theme.status.errorBg }]} accessibilityElementsHidden={true} importantForAccessibility="no">!</Text>
+            <Text style={[styles.errorTitle, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Invalid Payment Link</Text>
+            <Text style={[styles.errorBody, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
               This payment link is missing required information. Please try
               scanning again or check the link.
             </Text>
@@ -182,8 +205,11 @@ export default function PaymentConfirmationScreen() {
           <Pressable
             style={styles.secondaryBtn}
             onPress={() => router.replace("/")}
+            accessibilityLabel="Go back to home screen from invalid payment link error"
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to return to the home screen"
           >
-            <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
+            <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -220,8 +246,11 @@ export default function PaymentConfirmationScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={[styles.heading, { color: theme.textPrimary }]}>Confirm Payment</Text>
-          <Text style={[styles.subheading, { color: theme.textSecondary }]}>
+          <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">Confirm Payment</Text>
+          <Text
+            style={[styles.subheading, { color: theme.textSecondary }]}
+            accessibilityRole="status"
+          >
             {isConnected === false ? "Read-only mode: payment is disabled" : "Review the details below before paying"}
           </Text>
 
@@ -235,8 +264,9 @@ export default function PaymentConfirmationScreen() {
                   registryStatus === "stale" ? theme.status.warning : theme.divider,
               },
             ]}
+            accessibilityLabel={`Contract registry status: ${registryStatus === "stale" ? "stale, warning displayed." : registryFetchSource === "cache" ? "loaded from cache." : "verified, up to date."} ${lastUpdatedLabel}.`}
           >
-            <View style={styles.registryTextGroup}>
+            <View style={styles.registryTextGroup} accessibilityElementsHidden={true} importantForAccessibility="no">
               <Text style={[styles.registryTitle, { color: theme.textPrimary }]}>
                 Registry {registryStatus === "stale" ? "stale" : registryFetchSource === "cache" ? "cached" : "verified"}
               </Text>
@@ -252,8 +282,11 @@ export default function PaymentConfirmationScreen() {
               ]}
               onPress={() => void refreshRegistry()}
               disabled={registryRefreshing}
+              accessibilityLabel={`Refresh contract registry. ${registryRefreshing ? 'Currently refreshing, button disabled.' : 'Tap to refresh registry status.'}`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: registryRefreshing }}
             >
-              <Text style={[styles.registryRefreshText, { color: theme.buttonPrimaryBg }]}>
+              <Text style={[styles.registryRefreshText, { color: theme.buttonPrimaryBg }]} accessibilityElementsHidden={true} importantForAccessibility="no">
                 {registryRefreshing ? "Refreshing" : "Refresh"}
               </Text>
             </Pressable>
@@ -261,17 +294,17 @@ export default function PaymentConfirmationScreen() {
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <Row label="Recipient" value={`@${username}`} />
-            <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+            <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
             <Row label="Amount" value={`${amount} ${asset}`} highlight />
             {memo ? (
               <>
-                <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+                <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
                 <Row label="Memo" value={memo} />
               </>
             ) : null}
             {isPrivate ? (
               <>
-                <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+                <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
                 <Row label="Privacy" value="X-Ray enabled" />
               </>
             ) : null}
@@ -281,11 +314,24 @@ export default function PaymentConfirmationScreen() {
           {(availableSwapOptions.length > 0 || swapError) && (
             <View style={styles.swapSection}>
               {swapError ? (
-                <View style={[styles.errorBanner, { backgroundColor: theme.status.errorBg }]}>
-                  <Text style={[styles.errorBannerText, { color: theme.status.error }]}>⚠ {swapError}</Text>
+                <View
+                  style={[styles.errorBanner, { backgroundColor: theme.status.errorBg }]}
+                  accessibilityLabel={`Swap error alert: ${swapError}. ${swapError.includes('Liquidity') ? 'Tap Retry Search button to retry liquidity lookup.' : ''}`}
+                  accessibilityRole="alert"
+                >
+                  <Text style={[styles.errorBannerText, { color: theme.status.error }]} accessibilityElementsHidden={true} importantForAccessibility="no">⚠ {swapError}</Text>
                   {swapError.includes('Liquidity') && (
-                    <Pressable style={{ marginTop: 8 }} onPress={() => void refetch()}>
-                      <Text style={{ color: theme.buttonPrimaryBg, fontWeight: '700', fontSize: 13 }}>Retry Search</Text>
+                    <Pressable
+                      style={{ marginTop: 8 }}
+                      onPress={() => void refetch()}
+                      accessibilityLabel="Retry swap search. Liquidity error recovery."
+                      accessibilityRole="button"
+                    >
+                      <Text
+                        style={{ color: theme.buttonPrimaryBg, fontWeight: '700', fontSize: 13 }}
+                        accessibilityElementsHidden={true}
+                        importantForAccessibility="no"
+                      >Retry Search</Text>
                     </Pressable>
                   )}
                 </View>
@@ -309,24 +355,33 @@ export default function PaymentConfirmationScreen() {
           {selectedSwapPath && (
             <>
               <View style={[styles.costComparisonCard, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.costComparisonTitle, { color: theme.textPrimary }]}>Payment Summary</Text>
-                <View style={styles.costRow}>
-                  <Text style={[styles.costLabel, { color: theme.textSecondary }]}>You pay:</Text>
-                  <Text style={[styles.costValue, { color: theme.textPrimary }]}>
+                <Text style={[styles.costComparisonTitle, { color: theme.textPrimary }]} accessibilityRole="header">Payment Summary</Text>
+                <View
+                  style={styles.costRow}
+                  accessibilityLabel={`You pay: ${selectedSwapPath.sourceAmount} ${selectedSwapPath.sourceAsset}. Total source amount before fees.`}
+                >
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">You pay:</Text>
+                  <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
                     {selectedSwapPath.sourceAmount} {selectedSwapPath.sourceAsset}
                   </Text>
                 </View>
-                <View style={[styles.costDivider, { backgroundColor: theme.divider }]} />
-                <View style={styles.costRow}>
-                  <Text style={[styles.costLabel, { color: theme.textSecondary }]}>Exchange rate:</Text>
-                  <Text style={[styles.costValue, { color: theme.textPrimary }]}>{selectedSwapPath.rateDescription}</Text>
+                <View style={[styles.costDivider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
+                <View
+                  style={styles.costRow}
+                  accessibilityLabel={`Exchange rate: ${selectedSwapPath.rateDescription}.`}
+                >
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Exchange rate:</Text>
+                  <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{selectedSwapPath.rateDescription}</Text>
                 </View>
                 {selectedSwapPath.hopCount > 0 && (
                   <>
-                    <View style={[styles.costDivider, { backgroundColor: theme.divider }]} />
-                    <View style={styles.costRow}>
-                      <Text style={[styles.costLabel, { color: theme.textSecondary }]}>Path:</Text>
-                      <Text style={[styles.costValue, { color: theme.textPrimary }]}>
+                    <View style={[styles.costDivider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
+                    <View
+                      style={styles.costRow}
+                      accessibilityLabel={`Payment route: ${selectedSwapPath.hopCount === 1 ? "1 intermediary hop." : `${selectedSwapPath.hopCount} intermediary hops.`} Via Stellar path payment.`}
+                    >
+                      <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Path:</Text>
+                      <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
                         {selectedSwapPath.hopCount === 1
                           ? "1 intermediary"
                           : `${selectedSwapPath.hopCount} intermediaries`}
@@ -353,31 +408,51 @@ export default function PaymentConfirmationScreen() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable 
+        <Pressable
           style={[
-            styles.primaryBtn, 
+            styles.primaryBtn,
             { backgroundColor: theme.buttonPrimaryBg },
             isConnected === false && { opacity: 0.5 }
-          ]} 
+          ]}
           onPress={handlePayWithWallet}
           disabled={isConnected === false}
+          accessibilityLabel={
+            isConnected === false
+              ? "Payment is disabled. You are currently offline. Connect to the internet to pay."
+              : `Pay ${amount} ${asset}${isPrivate ? ' with X-Ray privacy shield' : ''} to @${username} using your connected Stellar wallet.`
+          }
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isConnected === false }}
+          accessibilityHint="Double-tap to authenticate and launch your wallet with the payment URI"
         >
-          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]} accessibilityElementsHidden={true} importantForAccessibility="no">
             {isConnected === false ? "Offline: Payment Disabled" : "Pay with Wallet"}
           </Text>
         </Pressable>
         <Pressable
           style={styles.secondaryBtn}
           onPress={() => router.replace("/")}
+          accessibilityLabel="Cancel this payment and return to the home screen"
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to go back to the home screen without paying"
         >
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Cancel</Text>
         </Pressable>
         <Pressable
           style={[styles.secondaryBtn, { marginTop: 8 }]}
           onPress={handleSaveContact}
           disabled={savingContact || isConnected === false}
+          accessibilityLabel={
+            savingContact
+              ? `Saving recipient @${username} to your contacts. Please wait...`
+              : isConnected === false
+                ? "Save recipient as contact is disabled while offline. Connect to internet to save."
+                : `Save recipient @${username} to your address book contacts.`
+          }
+          accessibilityRole="button"
+          accessibilityState={{ disabled: savingContact || isConnected === false }}
         >
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }, isConnected === false && { opacity: 0.5 }]}>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }, isConnected === false && { opacity: 0.5 }]} accessibilityElementsHidden={true} importantForAccessibility="no">
             {savingContact ? "Saving..." : "Save Recipient as Contact"}
           </Text>
         </Pressable>
@@ -397,9 +472,12 @@ function Row({
 }) {
   const { theme } = useTheme();
   return (
-    <View style={styles.row}>
-      <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>{label}</Text>
-      <Text style={[styles.rowValue, { color: theme.textPrimary }, highlight && styles.rowValueHighlight]}>
+    <View
+      style={styles.row}
+      accessibilityLabel={`${label}: ${value}.${highlight ? ' Important value highlighted.' : ''}`}
+    >
+      <Text style={[styles.rowLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{label}</Text>
+      <Text style={[styles.rowValue, { color: theme.textPrimary }, highlight && styles.rowValueHighlight]} accessibilityElementsHidden={true} importantForAccessibility="no">
         {value}
       </Text>
     </View>
@@ -468,6 +546,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 14,
+    minHeight: 52,
   },
   rowLabel: { fontSize: 15 },
   rowValue: {
@@ -523,14 +602,18 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   primaryBtn: {
+    minHeight: 56,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
   primaryBtnText: { fontSize: 18, fontWeight: "700" },
   secondaryBtn: {
+    minHeight: 48,
     paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
   secondaryBtnText: { fontSize: 16, fontWeight: "500" },
   errorCard: {

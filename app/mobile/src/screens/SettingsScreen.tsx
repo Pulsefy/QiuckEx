@@ -34,7 +34,7 @@ export function SettingsScreen() {
     <ScrollView style={styles.container}>
       {/* Theme Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Appearance</Text>
         <View style={styles.themeSelector}>
           {THEME_OPTIONS.map((option) => (
             <TouchableOpacity
@@ -45,18 +45,24 @@ export function SettingsScreen() {
               ]}
               onPress={() => setMode(option.value)}
               activeOpacity={0.8}
+              accessibilityLabel={`Appearance theme: ${option.label}. ${mode === option.value ? 'Currently selected.' : 'Not selected.'}.`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === option.value }}
+              accessibilityHint={`Double-tap to set theme to ${option.label} mode`}
             >
-              <Text style={styles.themeIcon}>{option.icon}</Text>
+              <Text style={styles.themeIcon} accessibilityElementsHidden={true} importantForAccessibility="no">{option.icon}</Text>
               <Text
                 style={[
                   styles.themeLabel,
                   mode === option.value && styles.themeLabelActive,
                 ]}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
               >
                 {option.label}
               </Text>
               {mode === option.value && (
-                <View style={styles.checkmark}>
+                <View style={styles.checkmark} accessibilityElementsHidden={true} importantForAccessibility="no">
                   <Text style={styles.checkmarkText}>✓</Text>
                 </View>
               )}
@@ -67,7 +73,7 @@ export function SettingsScreen() {
 
       {/* Preferences Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Preferences</Text>
         
         <ToggleRow
           label="Push Notifications"
@@ -76,7 +82,7 @@ export function SettingsScreen() {
           onValueChange={setNotifications}
         />
         
-        <View style={styles.divider} />
+        <View style={styles.divider} accessibilityElementsHidden={true} importantForAccessibility="no" />
         
         <ToggleRow
           label="X-Ray by Default"
@@ -88,19 +94,24 @@ export function SettingsScreen() {
 
       {/* Account Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Account</Text>
         
         <ActionRow label="Connected Wallet" value="G...ABC123" />
-        <View style={styles.divider} />
+        <View style={styles.divider} accessibilityElementsHidden={true} importantForAccessibility="no" />
         <ActionRow label="Username" value="@yourname" />
-        <View style={styles.divider} />
+        <View style={styles.divider} accessibilityElementsHidden={true} importantForAccessibility="no" />
         <ActionRow label="Network" value="Mainnet" />
       </View>
 
       {/* Danger Zone */}
       <View style={styles.dangerSection}>
-        <TouchableOpacity style={styles.dangerButton}>
-          <Text style={styles.dangerText}>Disconnect Wallet</Text>
+        <TouchableOpacity
+          style={styles.dangerButton}
+          accessibilityLabel="Disconnect Wallet. Destructive action. Signs you out and removes wallet connection."
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to disconnect your wallet"
+        >
+          <Text style={styles.dangerText} accessibilityElementsHidden={true} importantForAccessibility="no">Disconnect Wallet</Text>
         </TouchableOpacity>
       </View>
 
@@ -126,8 +137,12 @@ function ToggleRow({
   const { color, tokens } = useTheme();
   
   return (
-    <View style={toggleStyles.row}>
-      <View style={toggleStyles.text}>
+    <View
+      style={toggleStyles.row}
+      accessibilityLabel={`${label}. ${value ? 'Enabled' : 'Disabled'}. ${description}.`}
+      accessibilityRole="none"
+    >
+      <View style={toggleStyles.text} accessibilityElementsHidden={true} importantForAccessibility="no">
         <Text style={[toggleStyles.label, { color: color(tokens.text.primary) }]}>
           {label}
         </Text>
@@ -144,6 +159,9 @@ function ToggleRow({
         }}
         thumbColor={color(tokens.surface)}
         ios_backgroundColor={color(tokens.border.default)}
+        accessibilityLabel={`${label} toggle, currently ${value ? 'on' : 'off'}`}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value }}
       />
     </View>
   );
@@ -174,11 +192,21 @@ function ActionRow({ label, value }: { label: string; value: string }) {
   const { color, tokens } = useTheme();
   
   return (
-    <TouchableOpacity style={actionStyles.row} activeOpacity={0.7}>
-      <Text style={[actionStyles.label, { color: color(tokens.text.primary) }]}>
+    <TouchableOpacity
+      style={actionStyles.row}
+      activeOpacity={0.7}
+      accessibilityLabel={`${label}. Current value: ${value}.`}
+      accessibilityRole="link"
+      accessibilityHint={`Double-tap to open ${label} details`}
+    >
+      <Text
+        style={[actionStyles.label, { color: color(tokens.text.primary) }]}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no"
+      >
         {label}
       </Text>
-      <View style={actionStyles.right}>
+      <View style={actionStyles.right} accessibilityElementsHidden={true} importantForAccessibility="no">
         <Text
           style={[actionStyles.value, { color: color(tokens.text.secondary) }]}
           numberOfLines={1}
@@ -199,6 +227,7 @@ const actionStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 14,
+    minHeight: 56,
   },
   label: {
     fontSize: 16,
@@ -300,6 +329,8 @@ function themedStyles({ color, isDark, tokens }: {
       borderRadius: 16,
       backgroundColor: color(tokens.state.error),
       alignItems: 'center',
+      minHeight: 56,
+      justifyContent: 'center',
     },
     dangerText: {
       fontSize: 16,

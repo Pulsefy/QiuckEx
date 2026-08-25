@@ -29,7 +29,7 @@ export class HealthController {
   @ApiOperation({
     summary: "Readiness check",
     description:
-      "Returns application readiness status including dependency checks (Supabase, environment). Used for readiness probes.",
+      "Returns readiness status including dependency checks (database, Horizon, Soroban RPC) with per-check timeouts. Used for readiness probes. Returns 503 when a critical dependency has hard-failed.",
   })
   @ApiResponse({ status: 200, type: ReadyResponseDto })
   @ApiResponse({
