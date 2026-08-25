@@ -10,7 +10,18 @@ import {
 } from "../services/notifications";
 import type { Notification } from "../types/notification";
 
-const API_BASE = "http://localhost:3000";
+jest.mock("../src/config/build", () => ({
+  API_URL: "http://localhost:4000",
+  APP_VERSION: "1.0.0",
+  BUILD_NUMBER: "1",
+  BUILD_METADATA: "1.0.0+1",
+  BUILD_TAG: "",
+  APP_ENVIRONMENT: "dev",
+  STELLAR_NETWORK: "testnet",
+  IS_DEBUG_BUILD: true,
+}));
+
+const API_BASE = "http://localhost:4000";
 
 describe("in-app notifications API client", () => {
   const fetchMock = jest.fn();
