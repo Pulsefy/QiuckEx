@@ -41,6 +41,8 @@ mod pause_policy_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
+#[cfg(test)]
+mod smoke_test;
 mod stealth;
 #[cfg(test)]
 mod stealth_test;
