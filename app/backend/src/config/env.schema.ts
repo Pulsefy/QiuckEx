@@ -23,6 +23,37 @@ export const envSchema = Joi.object({
     .optional()
     .description("Application release version string"),
 
+  MOBILE_MIN_SUPPORTED_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Minimum mobile app version allowed to use the API"),
+
+  MOBILE_RECOMMENDED_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Mobile app version that should trigger a soft upgrade prompt"),
+
+  MOBILE_LATEST_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Latest mobile app version available in stores"),
+
+  MOBILE_IOS_STORE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .default("https://apps.apple.com/app/quickex")
+    .description("iOS App Store URL for mobile upgrades"),
+
+  MOBILE_ANDROID_STORE_URL: Joi.string()
+    .empty("")
+    .default("market://details?id=com.pulsefy.quickex")
+    .description("Android Play Store URL for mobile upgrades"),
+
+  MOBILE_RELEASE_NOTES: Joi.string()
+    .empty("")
+    .default("")
+    .description("Pipe-separated mobile release notes for upgrade prompts"),
+
   ROUTER_CONTRACT_ID: Joi.string()
     .empty("")
     .optional()
@@ -468,6 +499,12 @@ export interface EnvConfig {
   PORT: number;
   API_BASE_URL?: string;
   APP_VERSION?: string;
+  MOBILE_MIN_SUPPORTED_VERSION: string;
+  MOBILE_RECOMMENDED_VERSION: string;
+  MOBILE_LATEST_VERSION: string;
+  MOBILE_IOS_STORE_URL: string;
+  MOBILE_ANDROID_STORE_URL: string;
+  MOBILE_RELEASE_NOTES: string;
   ROUTER_CONTRACT_ID?: string;
   ALLOWED_TOKENS?: string;
   STELLAR_NETWORK_PASSPHRASE?: string;

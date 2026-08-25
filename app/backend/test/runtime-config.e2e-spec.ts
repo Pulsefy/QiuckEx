@@ -26,7 +26,15 @@ describe('Runtime Config Endpoints', () => {
     },
     apiUrl: 'https://testnet-api.quickex.to',
     appVersion: '0.1.0',
-    minAppVersion: '0.1.0',
+    minAppVersion: '1.2.0',
+    mobileVersionPolicy: {
+      minSupportedVersion: '1.2.0',
+      recommendedVersion: '1.3.0',
+      latestVersion: '1.3.1',
+      iosStoreUrl: 'https://apps.apple.com/app/quickex',
+      androidStoreUrl: 'market://details?id=com.pulsefy.quickex',
+      releaseNotes: ['Security fixes'],
+    },
     contracts: {},
     featureFlags: [
       {
@@ -126,7 +134,11 @@ describe('Runtime Config Endpoints', () => {
         expect.objectContaining({ key: 'testnet.contract_writes' }),
       ]),
       appVersion: '0.1.0',
-      minAppVersion: '0.1.0',
+      minAppVersion: '1.2.0',
+      mobileVersionPolicy: expect.objectContaining({
+        minSupportedVersion: '1.2.0',
+        recommendedVersion: '1.3.0',
+      }),
     });
   });
 
