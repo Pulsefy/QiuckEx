@@ -134,16 +134,37 @@ export function useTransactions(
           void saveTransactionsToCache(accountId, data);
         }
 
-        setState((prev: UseTransactionsState) => ({
-          transactions: reset
-            ? withDirection(data.items, accountId)
-            : [...prev.transactions, ...withDirection(data.items, accountId)],
-          loading: false,
-          refreshing: false,
-          error: null,
-          hasMore: !!data.nextCursor,
-          staleCache: false,
-        }));
+        setState((prev: UseTransactionsState) => {
+          const incoming = withDirection(data.items, accountId);
+
+          if (reset) {
+            return {
+              transactions: incoming,
+              loading: false,
+              refreshing: false,
+              error: null,
+              hasMore: !!data.nextCursor,
+              staleCache: false,
+            };
+          }
+
+          // Dedup by pagingToken so overlapping pages from live feeds/refresh
+          // never accumulate duplicates, keeping memory bounded as history grows.
+          const seen = new Set(prev.transactions.map((t) => t.pagingToken));
+          const merged = [
+            ...prev.transactions,
+            ...incoming.filter((t) => !seen.has(t.pagingToken)),
+          ];
+
+          return {
+            transactions: merged,
+            loading: false,
+            refreshing: false,
+            error: null,
+            hasMore: !!data.nextCursor,
+            staleCache: false,
+          };
+        });
       } catch (err) {
         // If fetching fails, try to fall back to cache for the first page
         if (reset) {
