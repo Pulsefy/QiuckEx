@@ -11,7 +11,10 @@
 
 #[cfg(test)]
 mod tests {
-    use soroban_sdk::testutils::{Address as _, Ledger};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger},
+        Bytes,
+    };
 
     use crate::{
         errors::QuickexError,
@@ -110,7 +113,8 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw).unwrap();
-            let result = verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
+            let result =
+                verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -173,7 +177,8 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
+            let result =
+                verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::SignatureExpired));
         });
     }
@@ -186,7 +191,8 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
+            let result =
+                verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
             assert!(result.is_ok());
         });
     }
@@ -231,8 +237,6 @@ mod tests {
             );
         });
     }
-
-    use soroban_sdk::Bytes;
 
     #[test]
     fn canonical_payload_is_deterministic() {
@@ -413,7 +417,8 @@ mod tests {
 
         // Still available on B
         ctx.env.as_contract(&contract_b, || {
-            let result = verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
+            let result =
+                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
             assert!(
                 result.is_ok(),
                 "nonce should be scoped per-contract — contract B must accept"
@@ -422,7 +427,8 @@ mod tests {
 
         // Replay on A must still fail
         ctx.env.as_contract(&contract_a, || {
-            let result = verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
+            let result =
+                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -455,8 +461,8 @@ mod tests {
 
     // ── Adversarial replay matrix ─────────────────────────────────────────────
 
-    /// Replaying an expired nonce must be rejected for expiry, not leak a used-nonce
-    /// signal when it was never consumed.
+    /// Replaying an expired nonce must be rejected for expiry, not leak a
+    /// used-nonce signal when it was never consumed.
     #[test]
     fn replay_expired_nonce_returns_signature_expired_not_nonce_reused() {
         let ctx = TestContext::new();
@@ -504,7 +510,8 @@ mod tests {
             );
             // Nonce 999 (gap) is still available.
             assert!(
-                verify_and_consume(&ctx.env, &signer, 999, 2_000_000, ActionType::Withdraw).is_ok()
+                verify_and_consume(&ctx.env, &signer, 999, 2_000_000, ActionType::Withdraw)
+                    .is_ok()
             );
         });
     }
@@ -555,7 +562,12 @@ mod tests {
 
             // 0 and u64::MAX are stored independently.
             assert!(is_nonce_used(&ctx.env, &signer, 0, ActionType::Withdraw));
-            assert!(is_nonce_used(&ctx.env, &signer, u64::MAX, ActionType::Withdraw));
+            assert!(is_nonce_used(
+                &ctx.env,
+                &signer,
+                u64::MAX,
+                ActionType::Withdraw
+            ));
             assert!(!is_nonce_used(&ctx.env, &signer, 1, ActionType::Withdraw));
         });
     }
@@ -647,11 +659,7 @@ mod tests {
         });
     }
 
-    /// Signer domain separation: the canonical payload hash changes when the
-    /// signer changes (via the action/nonce combination bound to different
-    /// storage keys).
-    ///
-    /// More concretely: consuming a nonce for signer A must not affect
+    /// Signer domain separation: consuming a nonce for signer A must not affect
     /// `is_nonce_used` for signer B, even when all other parameters are
     /// identical — confirming that storage is keyed on the signer address.
     #[test]
@@ -678,7 +686,7 @@ mod tests {
     /// Interaction between nonce consumption and signer domain separation:
     /// a v2 canonical payload signed for action X cannot satisfy action Y's
     /// verify_and_consume because the storage key includes the action type.
-    /// This test directly asserts the domain-separation invariant.
+    /// Asserts pairwise hash uniqueness across all 14 ActionType variants.
     #[test]
     fn domain_separation_payload_hash_differs_per_action() {
         let ctx = TestContext::new();
@@ -703,20 +711,16 @@ mod tests {
                 ActionType::Upgrade,
             ];
 
-            // Build all hashes and assert pairwise uniqueness.
-            let hashes: soroban_sdk::Vec<_> = {
-                let mut v = soroban_sdk::Vec::new(&ctx.env);
-                for &action in &actions {
-                    v.push_back(hash_canonical_payload(&ctx.env, action, 1, 2_000_000));
-                }
-                v
-            };
+            // Collect all hashes into a plain Vec for pairwise comparison.
+            let hashes: std::vec::Vec<_> = actions
+                .iter()
+                .map(|&action| hash_canonical_payload(&ctx.env, action, 1, 2_000_000))
+                .collect();
 
             for i in 0..hashes.len() {
                 for j in (i + 1)..hashes.len() {
                     assert_ne!(
-                        hashes.get(i).unwrap(),
-                        hashes.get(j).unwrap(),
+                        hashes[i], hashes[j],
                         "action[{i}] and action[{j}] must produce distinct payload hashes"
                     );
                 }
@@ -730,8 +734,8 @@ mod tests {
     /// NEVER accepted a second time regardless of how many other nonces are
     /// consumed in between.
     ///
-    /// This is a deterministic exhaustive sweep over a representative cross-
-    /// product of inputs, making it a property test without external crates.
+    /// Deterministic exhaustive sweep over a representative cross-product of
+    /// inputs — a property test without external crates.
     #[test]
     fn property_consumed_nonce_never_accepted_twice() {
         let ctx = TestContext::new();
@@ -799,7 +803,8 @@ mod tests {
             for &action in &actions {
                 for &nonce in nonces {
                     // valid_until is in the past.
-                    let result = verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
+                    let result =
+                        verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
                     assert_eq!(result, Err(QuickexError::SignatureExpired));
 
                     // Nothing was written — nonce is still fresh.
@@ -833,7 +838,8 @@ mod tests {
         // Different signer, same everything else → not blocked.
         ctx.env.as_contract(&contract_a, || {
             assert!(
-                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw).is_ok()
+                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw)
+                    .is_ok()
             );
         });
 
@@ -847,7 +853,8 @@ mod tests {
         // Same signer, same action, different contract → not blocked.
         ctx.env.as_contract(&contract_b, || {
             assert!(
-                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok()
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw)
+                    .is_ok()
             );
         });
 
