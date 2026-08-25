@@ -33,6 +33,8 @@ mod fee_test;
 mod fuzz_test;
 mod hook;
 #[cfg(test)]
+mod hook_reentrancy_test;
+#[cfg(test)]
 mod metadata_test;
 pub mod nonce;
 #[cfg(test)]
@@ -605,6 +607,7 @@ impl QuickexContract {
     pub fn cleanup_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         admin::require_initialized(&env)?;
         pause_policy::require_entry_allowed(&env, EntryPoint::CleanupEscrow)?;
+        hook::assert_not_reentrant(&env)?;
         escrow::cleanup_escrow(&env, commitment)
     }
 
@@ -1055,6 +1058,7 @@ impl QuickexContract {
         allowed: bool,
     ) -> Result<(), QuickexError> {
         pause_policy::require_admin_entry_allowed(&env)?;
+        hook::assert_not_reentrant(&env)?;
         admin::set_hook_allowed(&env, &caller, hook_contract, allowed)
     }
 
@@ -1342,6 +1346,7 @@ impl QuickexContract {
         valid_until: u64,
     ) -> Result<bool, QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::StealthWithdraw)?;
+        hook::assert_not_reentrant(&env)?;
         stealth::stealth_withdraw(
             &env,
             recipient,
