@@ -368,6 +368,15 @@ export class AppConfigService {
     });
   }
 
+  /**
+   * Overlap window (hours) for key rotation grace period (BE-118)
+   */
+  get apiKeyRotationOverlapHours(): number {
+    return this.configService.get("API_KEY_ROTATION_OVERLAP_HOURS", {
+      infer: true,
+    });
+  }
+
   // ====================================================================
   // NEW ACCESSORS FOR BOOTSTRAP PAYLOAD
   // ====================================================================
