@@ -406,30 +406,30 @@ mod tests {
     fn nonce_scoped_per_contract() {
         let ctx = TestContext::new();
         ctx.env.ledger().set_timestamp(1_000_000);
-        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let signer_a = soroban_sdk::Address::generate(&ctx.env);
         let contract_a = ctx.client.address.clone();
         let contract_b = ctx.env.register(crate::QuickexContract, ());
 
         // Consume on A
         ctx.env.as_contract(&contract_a, || {
-            verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw).unwrap();
+            verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).unwrap();
         });
 
         // Still available on B
         ctx.env.as_contract(&contract_b, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
             assert!(
-                result.is_ok(),
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw)
+                    .is_ok(),
                 "nonce should be scoped per-contract — contract B must accept"
             );
         });
 
         // Replay on A must still fail
         ctx.env.as_contract(&contract_a, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw);
-            assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
         });
     }
 
