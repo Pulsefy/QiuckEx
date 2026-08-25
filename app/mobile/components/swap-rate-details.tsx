@@ -60,8 +60,15 @@ export function SwapRateDetails({
   return (
     <View style={styles.container}>
       {/* Quote Expiry & Refresh */}
-      <View style={[styles.expiryContainer, { backgroundColor: isExpired ? theme.status.errorBg : theme.surfaceElevated }]}>
-        <View style={styles.expiryInfo}>
+      <View
+        style={[styles.expiryContainer, { backgroundColor: isExpired ? theme.status.errorBg : theme.surfaceElevated }]}
+        accessibilityLabel={
+          isExpired
+            ? "Quote has expired. Please refresh the exchange rate quote before paying."
+            : `Quote expires in ${Math.floor(timeRemaining / 60)} minutes and ${timeRemaining % 60} seconds. ${timeRemaining < 10 ? 'Warning: less than 10 seconds remaining.' : ''}`
+        }
+      >
+        <View style={styles.expiryInfo} accessibilityElementsHidden={true} importantForAccessibility="no">
           <Text style={[styles.expiryLabel, { color: theme.textSecondary }]}>
             {isExpired ? 'Quote expired' : 'Quote expires in:'}
           </Text>
@@ -71,53 +78,81 @@ export function SwapRateDetails({
             </Text>
           )}
         </View>
-        <TouchableOpacity 
-          style={[styles.refreshButton, { backgroundColor: theme.buttonPrimaryBg }]} 
+        <TouchableOpacity
+          style={[styles.refreshButton, { backgroundColor: theme.buttonPrimaryBg }]}
           onPress={onRefresh}
+          accessibilityLabel={`Refresh exchange rate quote. Quote ${isExpired ? 'has expired' : `expires in ${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, '0')}`}. Double-tap to request a fresh quote from the liquidity service.`}
+          accessibilityRole="button"
+          accessibilityHint="Refetches available liquidity and recalculates best rate"
         >
-          <Text style={[styles.refreshButtonText, { color: theme.buttonPrimaryText }]}>Refresh Quote</Text>
+          <Text style={[styles.refreshButtonText, { color: theme.buttonPrimaryText }]} accessibilityElementsHidden={true} importantForAccessibility="no">Refresh Quote</Text>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.surface }]}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Exchange Details</Text>
-          <View style={[styles.badge, { backgroundColor: theme.status.successBg }]}>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]} accessibilityRole="header">Exchange Details</Text>
+          <View
+            style={[styles.badge, { backgroundColor: theme.status.successBg }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             <Text style={[styles.badgeText, { color: theme.status.success }]}>Best Rate</Text>
           </View>
         </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>You pay (Max):</Text>
-          <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+
+        <View
+          style={styles.detailRow}
+          accessibilityLabel={`You pay maximum of ${swapPath.sourceAmount} ${swapPath.sourceAsset}. This includes slippage tolerance.`}
+        >
+          <Text style={[styles.detailLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">You pay (Max):</Text>
+          <Text style={[styles.detailValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
             {swapPath.sourceAmount} {swapPath.sourceAsset}
           </Text>
         </View>
 
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>They receive:</Text>
-          <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+        <View
+          style={styles.detailRow}
+          accessibilityLabel={`They receive: exactly ${destinationAmount} ${destinationAsset}. Guaranteed final amount to recipient.`}
+        >
+          <Text style={[styles.detailLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">They receive:</Text>
+          <Text style={[styles.detailValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
             {destinationAmount} {destinationAsset}
           </Text>
         </View>
 
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Network Fee:</Text>
-          <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{feeEstimate}</Text>
+        <View
+          style={styles.detailRow}
+          accessibilityLabel={`Stellar network fee estimate: ${feeEstimate}. Very small base fee for distributed ledger transaction.`}
+        >
+          <Text style={[styles.detailLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Network Fee:</Text>
+          <Text style={[styles.detailValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{feeEstimate}</Text>
         </View>
 
-        <View style={[styles.detailRow, styles.detailRowHighlight, { backgroundColor: theme.surfaceElevated }]}>
-          <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Rate:</Text>
-          <Text style={[styles.rateValue, { color: theme.textPrimary }]}>{swapPath.rateDescription}</Text>
+        <View
+          style={[styles.detailRow, styles.detailRowHighlight, { backgroundColor: theme.surfaceElevated }]}
+          accessibilityLabel={`Exchange rate: ${swapPath.rateDescription}. Rate quote from liquidity orderbooks.`}
+        >
+          <Text style={[styles.detailLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Rate:</Text>
+          <Text style={[styles.rateValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{swapPath.rateDescription}</Text>
         </View>
       </View>
 
       {/* Slippage Settings */}
       <View style={[styles.section, { backgroundColor: theme.surface }]}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Slippage Tolerance</Text>
-          <TouchableOpacity onPress={() => setShowSlippageInput(!showSlippageInput)}>
-            <Text style={[styles.settingsLink, { color: theme.buttonPrimaryBg }]}>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]} accessibilityRole="header">Slippage Tolerance</Text>
+          <TouchableOpacity
+            onPress={() => setShowSlippageInput(!showSlippageInput)}
+            accessibilityLabel={`${showSlippageInput ? 'Done adjusting slippage. Collapse advanced slippage controls.' : 'Adjust slippage tolerance. Show presets and custom input field.'}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSlippageInput }}
+          >
+            <Text
+              style={[styles.settingsLink, { color: theme.buttonPrimaryBg }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               {showSlippageInput ? 'Done' : 'Adjust'}
             </Text>
           </TouchableOpacity>
@@ -134,11 +169,18 @@ export function SwapRateDetails({
                   { borderColor: theme.border }
                 ]}
                 onPress={() => handleToleranceChange(val)}
+                accessibilityLabel={`Set slippage tolerance to ${val} percent. ${String(slippageTolerance) === val ? 'Currently selected.' : 'Not selected.'}.`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: String(slippageTolerance) === val }}
               >
-                <Text style={[
-                  styles.presetText,
-                  { color: String(slippageTolerance) === val ? theme.buttonPrimaryText : theme.textPrimary }
-                ]}>
+                <Text
+                  style={[
+                    styles.presetText,
+                    { color: String(slippageTolerance) === val ? theme.buttonPrimaryText : theme.textPrimary }
+                  ]}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >
                   {val}%
                 </Text>
               </TouchableOpacity>
@@ -150,11 +192,17 @@ export function SwapRateDetails({
               keyboardType="decimal-pad"
               placeholder="Custom"
               placeholderTextColor={theme.textMuted}
+              accessibilityLabel={`Custom slippage tolerance percent entry. Current value: ${localTolerance} percent.`}
+              accessibilityHint="Enter a number to set a custom slippage tolerance percentage. High values reduce failure rate but cost more."
+              accessibilityValue={{ text: `${localTolerance} percent` }}
             />
           </View>
         ) : (
-          <View style={styles.slippageSummary}>
-            <View style={[styles.slippageBar, { backgroundColor: theme.border }]}>
+          <View
+            style={styles.slippageSummary}
+            accessibilityLabel={`Estimated slippage: ~${slippagePercentage}%. Current tolerance: ${slippageTolerance}%. ${isSlippageHigh ? 'Warning: estimate exceeds tolerance. Tap Adjust to increase tolerance.' : 'Within acceptable tolerance.'}`}
+          >
+            <View style={[styles.slippageBar, { backgroundColor: theme.border }]} accessibilityElementsHidden={true} importantForAccessibility="no">
               <View
                 style={[
                   styles.slippageFill,
@@ -165,7 +213,7 @@ export function SwapRateDetails({
                 ]}
               />
             </View>
-            <View style={styles.slippageTextRow}>
+            <View style={styles.slippageTextRow} accessibilityElementsHidden={true} importantForAccessibility="no">
               <Text style={[styles.slippageText, { color: theme.textSecondary }]}>
                 Est. Slippage: <Text style={{ fontWeight: '700' }}>~{slippagePercentage}%</Text>
               </Text>
@@ -177,12 +225,16 @@ export function SwapRateDetails({
         )}
 
         {isSlippageHigh && (
-          <View style={[styles.warningContainer, { backgroundColor: theme.status.warningBg, marginTop: 12 }]}>
-            <Text style={styles.warningIcon}>⚠</Text>
-            <View style={styles.warningContent}>
+          <View
+            style={[styles.warningContainer, { backgroundColor: theme.status.warningBg, marginTop: 12 }]}
+            accessibilityLabel={`Slippage warning alert. Estimated slippage ${slippagePercentage} percent exceeds tolerance ${slippageTolerance} percent. Transaction may fail or result in poor rate. Consider tapping Adjust to increase tolerance.`}
+            accessibilityRole="alert"
+          >
+            <Text style={styles.warningIcon} accessibilityElementsHidden={true} importantForAccessibility="no">⚠</Text>
+            <View style={styles.warningContent} accessibilityElementsHidden={true} importantForAccessibility="no">
               <Text style={[styles.warningTitle, { color: theme.status.warning }]}>Slippage Warning</Text>
               <Text style={[styles.warningText, { color: theme.status.warning }]}>
-                Estimated slippage ({slippagePercentage}%) exceeds your tolerance ({slippageTolerance}%). 
+                Estimated slippage ({slippagePercentage}%) exceeds your tolerance ({slippageTolerance}%).
                 The transaction may fail or result in a poor rate.
               </Text>
             </View>
@@ -192,16 +244,23 @@ export function SwapRateDetails({
 
       {/* Path Breakdown */}
       <View style={[styles.section, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Route Breakdown</Text>
-        <View style={[styles.pathContainer, { backgroundColor: theme.surfaceElevated }]}>
+        <Text style={[styles.sectionLabel, { color: theme.textMuted }]} accessibilityRole="header">Route Breakdown</Text>
+        <View
+          style={[styles.pathContainer, { backgroundColor: theme.surfaceElevated }]}
+          accessibilityLabel={`Payment route: ${[swapPath.sourceAsset, ...swapPath.pathHops, destinationAsset].join(' → ')}. ${swapPath.hopCount === 0 ? 'Direct orderbook swap with no intermediaries.' : `${swapPath.hopCount} hop${swapPath.hopCount > 1 ? 's' : ''} through Stellar decentralized exchange.`}`}
+        >
           <PathVisualization
             hops={swapPath.pathHops}
             sourceAsset={swapPath.sourceAsset}
             destinationAsset={destinationAsset}
           />
         </View>
-        <Text style={[styles.pathInfo, { color: theme.textMuted }]}>
-          {swapPath.hopCount === 0 
+        <Text
+          style={[styles.pathInfo, { color: theme.textMuted }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
+          {swapPath.hopCount === 0
             ? 'Direct swap via orderbook'
             : `Optimized route through ${swapPath.hopCount} intermediary asset${swapPath.hopCount > 1 ? 's' : ''}`}
         </Text>
@@ -223,7 +282,7 @@ function PathVisualization({
   const fullPath = [sourceAsset, ...hops, destinationAsset];
 
   return (
-    <View style={styles.pathVisual}>
+    <View style={styles.pathVisual} accessibilityElementsHidden={true} importantForAccessibility="no">
       {fullPath.map((asset, index) => (
         <React.Fragment key={`${asset}-${index}`}>
           <View style={[styles.pathStep, { backgroundColor: theme.background }]}>
@@ -249,6 +308,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
+    minHeight: 56,
   },
   expiryInfo: {
     flexDirection: 'row',
@@ -268,6 +328,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    minHeight: 36,
+    minWidth: 104,
+    justifyContent: "center",
   },
   refreshButtonText: {
     fontSize: 12,
@@ -391,6 +454,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
     alignItems: 'flex-start',
+    minHeight: 56,
   },
   warningIcon: {
     fontSize: 18,
