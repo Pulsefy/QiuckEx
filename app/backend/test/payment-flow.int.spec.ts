@@ -15,7 +15,10 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import { PaymentLinkService } from "../src/links/payment-link.service";
 import { HorizonService } from "../src/transactions/horizon.service";
-import { SupabaseService } from "../src/supabase/supabase.service";
+import {
+  PAYMENT_LINKS_REPOSITORY,
+  type PaymentLinksRepository,
+} from "../src/links/payment-links.repository";
 import { LinksService } from "../src/links/links.service";
 import { LinkState } from "../src/links/link-state-machine";
 import { PaymentLinkExpiryService } from "../src/links/payment-link-expiry.service";
@@ -26,7 +29,7 @@ describe("Payment Flow Integration", () => {
   let paymentLinkService: PaymentLinkService;
   let expiryService: PaymentLinkExpiryService;
   let horizonService: jest.Mocked<HorizonService>;
-  let supabaseService: jest.Mocked<SupabaseService>;
+  let paymentLinksRepository: jest.Mocked<PaymentLinksRepository>;
   let linksService: jest.Mocked<LinksService>;
   let auditService: jest.Mocked<AuditService>;
   let events: EventEmitter2;
@@ -53,17 +56,11 @@ describe("Payment Flow Integration", () => {
   };
 
   beforeEach(async () => {
-    // Supabase chainable mock
-    const supabaseBuilder = {
-      from: jest.fn().mockReturnThis(),
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn(),
-      update: jest.fn().mockReturnThis(),
-      not: jest.fn().mockReturnThis(),
-      lte: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockResolvedValue({ data: [], error: null }),
-    };
+    paymentLinksRepository = {
+      getPublicKeyByUsername: jest.fn(),
+      markExpiredLinks: jest.fn().mockResolvedValue([]),
+      insertExpiryAudit: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<PaymentLinksRepository>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -74,10 +71,8 @@ describe("Payment Flow Integration", () => {
           useValue: { getPayments: jest.fn() },
         },
         {
-          provide: SupabaseService,
-          useValue: {
-            getClient: jest.fn().mockReturnValue(supabaseBuilder),
-          },
+          provide: PAYMENT_LINKS_REPOSITORY,
+          useValue: paymentLinksRepository,
         },
         {
           provide: LinksService,
@@ -97,7 +92,6 @@ describe("Payment Flow Integration", () => {
     paymentLinkService = module.get(PaymentLinkService);
     expiryService = module.get(PaymentLinkExpiryService);
     horizonService = module.get(HorizonService);
-    supabaseService = module.get(SupabaseService);
     linksService = module.get(LinksService);
     auditService = module.get(AuditService);
     events = module.get(EventEmitter2);
@@ -109,17 +103,9 @@ describe("Payment Flow Integration", () => {
   describe("Scenario 1: Payment link created then paid", () => {
     it("should transition from ACTIVE to PAID when matching payment arrives", async () => {
       // Step 1: Username lookup succeeds
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { public_key: DEST_PUBLIC_KEY },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        DEST_PUBLIC_KEY,
+      );
 
       // Step 2: Metadata generated
       linksService.generateMetadata.mockResolvedValue(baseMetadata);
@@ -184,17 +170,9 @@ describe("Payment Flow Integration", () => {
         expiresAt: new Date(Date.now() - 86400000), // Yesterday
       };
 
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { public_key: DEST_PUBLIC_KEY },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        DEST_PUBLIC_KEY,
+      );
 
       linksService.generateMetadata.mockResolvedValue(expiredMetadata);
 
@@ -219,17 +197,7 @@ describe("Payment Flow Integration", () => {
   // -------------------------------------------------------------------------
   describe("Scenario 3: Username not found", () => {
     it("should throw NotFoundException for unknown username", async () => {
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: new Error("Not found"),
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(null);
 
       await expect(
         paymentLinkService.getPaymentLinkStatus({
@@ -245,17 +213,9 @@ describe("Payment Flow Integration", () => {
   // -------------------------------------------------------------------------
   describe("Scenario 4: Payment amount mismatch", () => {
     it("should remain ACTIVE when payment amount does not match", async () => {
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { public_key: DEST_PUBLIC_KEY },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        DEST_PUBLIC_KEY,
+      );
 
       linksService.generateMetadata.mockResolvedValue(baseMetadata);
 
@@ -294,17 +254,9 @@ describe("Payment Flow Integration", () => {
   // -------------------------------------------------------------------------
   describe("Scenario 5: Payment asset mismatch", () => {
     it("should remain ACTIVE when payment asset does not match", async () => {
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { public_key: DEST_PUBLIC_KEY },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        DEST_PUBLIC_KEY,
+      );
 
       linksService.generateMetadata.mockResolvedValue(baseMetadata);
 
@@ -355,24 +307,16 @@ describe("Payment Flow Integration", () => {
         matched_at: null,
       };
 
-      const client = supabaseService.getClient();
-      // The builder chain ends at select() and insert()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (client as any).select = jest.fn().mockResolvedValue({
-        data: [expiredRow],
-        error: null,
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (client as any).insert = jest.fn().mockResolvedValue({
-        data: [{ id: "audit-1" }],
-        error: null,
-      });
+      paymentLinksRepository.markExpiredLinks.mockResolvedValue([expiredRow]);
 
       const emitSpy = jest.spyOn(events, "emit");
 
       const count = await expiryService.runExpirySweep("sweep-run-1");
 
       expect(count).toBe(1);
+      expect(paymentLinksRepository.insertExpiryAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ linkId: "link-uuid-1" }),
+      );
       expect(auditService.log).toHaveBeenCalledWith(
         "system:expiry-worker",
         "payment_link.expired",
@@ -391,17 +335,9 @@ describe("Payment Flow Integration", () => {
   // -------------------------------------------------------------------------
   describe("Scenario 7: Horizon failure handled gracefully", () => {
     it("should return ACTIVE when Horizon is unavailable", async () => {
-      const client = supabaseService.getClient();
-      (client.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { public_key: DEST_PUBLIC_KEY },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        DEST_PUBLIC_KEY,
+      );
 
       linksService.generateMetadata.mockResolvedValue(baseMetadata);
 

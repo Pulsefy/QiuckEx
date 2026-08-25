@@ -1,18 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
-import { SupabaseService } from '../supabase/supabase.service';
+import { USERNAMES_REPOSITORY } from './usernames.repository';
 import { AppConfigService } from '../config';
 import { DiscoveryCacheService } from './cache/discovery-cache.service';
 import { UsernameValidationError } from './errors';
 
 describe('UsernamesService - Cache Invalidation', () => {
   let service: UsernamesService;
-  let supabaseMock: jest.Mocked<Partial<SupabaseService>>;
+  let usernamesRepositoryMock: Record<string, jest.Mock>;
   let cacheMock: jest.Mocked<Partial<DiscoveryCacheService>>;
   let configMock: Partial<AppConfigService>;
 
   beforeEach(async () => {
-    supabaseMock = {
+    usernamesRepositoryMock = {
       searchPublicUsernames: jest.fn(),
       getTrendingCreators: jest.fn(),
       getRecentlyActiveUsers: jest.fn(),
@@ -41,12 +41,12 @@ describe('UsernamesService - Cache Invalidation', () => {
 
     configMock = { maxUsernamesPerWallet: 5 };
 
-    supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
+    usernamesRepositoryMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsernamesService,
-        { provide: SupabaseService, useValue: supabaseMock },
+        { provide: USERNAMES_REPOSITORY, useValue: usernamesRepositoryMock },
         { provide: AppConfigService, useValue: configMock },
         { provide: DiscoveryCacheService, useValue: cacheMock },
       ],
@@ -61,10 +61,10 @@ describe('UsernamesService - Cache Invalidation', () => {
 
   describe('togglePublicProfile invalidation', () => {
     it('calls invalidateForUsername after successful toggle', async () => {
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue([
+      usernamesRepositoryMock.listUsernamesByPublicKey!.mockResolvedValue([
         { id: '1', username: 'alice', public_key: 'pk1', created_at: '' },
       ]);
-      supabaseMock.togglePublicProfile!.mockResolvedValue();
+      usernamesRepositoryMock.togglePublicProfile!.mockResolvedValue(undefined);
 
       await service.togglePublicProfile('alice', 'pk1', true);
 
@@ -72,10 +72,10 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('normalizes username before invalidation', async () => {
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue([
+      usernamesRepositoryMock.listUsernamesByPublicKey!.mockResolvedValue([
         { id: '1', username: 'alice', public_key: 'pk1', created_at: '' },
       ]);
-      supabaseMock.togglePublicProfile!.mockResolvedValue();
+      usernamesRepositoryMock.togglePublicProfile!.mockResolvedValue(undefined);
 
       await service.togglePublicProfile('Alice', 'pk1', false);
 
@@ -83,7 +83,7 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('does not invalidate cache when username not found', async () => {
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue([]);
+      usernamesRepositoryMock.listUsernamesByPublicKey!.mockResolvedValue([]);
 
       await expect(
         service.togglePublicProfile('ghost', 'pk1', true),
@@ -93,13 +93,13 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('does not call Supabase toggle when username not found', async () => {
-      supabaseMock.listUsernamesByPublicKey!.mockResolvedValue([]);
+      usernamesRepositoryMock.listUsernamesByPublicKey!.mockResolvedValue([]);
 
       await expect(
         service.togglePublicProfile('ghost', 'pk1', true),
       ).rejects.toThrow();
 
-      expect(supabaseMock.togglePublicProfile).not.toHaveBeenCalled();
+      expect(usernamesRepositoryMock.togglePublicProfile).not.toHaveBeenCalled();
     });
   });
 
@@ -119,22 +119,22 @@ describe('UsernamesService - Cache Invalidation', () => {
       const result = await service.getPublicProfile('alice');
 
       expect(result).toEqual(profile);
-      expect(supabaseMock.getPublicProfile).not.toHaveBeenCalled();
+      expect(usernamesRepositoryMock.getPublicProfile).not.toHaveBeenCalled();
       expect(cacheMock.setProfile).not.toHaveBeenCalled();
     });
 
     it('fetches from Supabase and caches on miss', async () => {
-      supabaseMock.getPublicProfile!.mockResolvedValue(profile);
+      usernamesRepositoryMock.getPublicProfile!.mockResolvedValue(profile);
 
       const result = await service.getPublicProfile('alice');
 
       expect(result).toEqual(profile);
-      expect(supabaseMock.getPublicProfile).toHaveBeenCalledWith('alice');
+      expect(usernamesRepositoryMock.getPublicProfile).toHaveBeenCalledWith('alice');
       expect(cacheMock.setProfile).toHaveBeenCalledWith('alice', profile);
     });
 
     it('does not cache null profiles', async () => {
-      supabaseMock.getPublicProfile!.mockResolvedValue(null);
+      usernamesRepositoryMock.getPublicProfile!.mockResolvedValue(null);
 
       const result = await service.getPublicProfile('ghost');
 
@@ -143,12 +143,12 @@ describe('UsernamesService - Cache Invalidation', () => {
     });
 
     it('normalizes username before lookup', async () => {
-      supabaseMock.getPublicProfile!.mockResolvedValue(profile);
+      usernamesRepositoryMock.getPublicProfile!.mockResolvedValue(profile);
 
       await service.getPublicProfile('Alice');
 
       expect(cacheMock.getProfile).toHaveBeenCalledWith('alice');
-      expect(supabaseMock.getPublicProfile).toHaveBeenCalledWith('alice');
+      expect(usernamesRepositoryMock.getPublicProfile).toHaveBeenCalledWith('alice');
     });
   });
 
@@ -158,25 +158,25 @@ describe('UsernamesService - Cache Invalidation', () => {
         { id: '1', username: 'alice', public_key: 'pk', created_at: '', last_active_at: null, is_public: true },
       ];
       cacheMock.getSearchResults!.mockReturnValue(cached);
-      supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
+      usernamesRepositoryMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       const result = await service.searchPublicUsernames('alice', 10);
 
       expect(result.data).toEqual(cached);
-      expect(supabaseMock.searchPublicUsernames).not.toHaveBeenCalled();
+      expect(usernamesRepositoryMock.searchPublicUsernames).not.toHaveBeenCalled();
     });
 
     it('fetches from Supabase and caches on miss', async () => {
       const fresh = [
         { id: '1', username: 'alice', public_key: 'pk', created_at: '', last_active_at: null, is_public: true },
       ];
-      supabaseMock.searchPublicUsernames!.mockResolvedValue(fresh);
-      supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
-      supabaseMock.updateUsernameActivity!.mockResolvedValue(undefined);
+      usernamesRepositoryMock.searchPublicUsernames!.mockResolvedValue(fresh);
+      usernamesRepositoryMock.updateUsernameActivity!.mockResolvedValue(undefined);
+      usernamesRepositoryMock.updateUsernameActivity!.mockResolvedValue(undefined);
 
       await service.searchPublicUsernames('alice', 10);
 
-      expect(supabaseMock.searchPublicUsernames).toHaveBeenCalled();
+      expect(usernamesRepositoryMock.searchPublicUsernames).toHaveBeenCalled();
       expect(cacheMock.setSearchResults).toHaveBeenCalled();
     });
   });
@@ -188,7 +188,7 @@ describe('UsernamesService - Cache Invalidation', () => {
       const result = await service.getTrendingCreators(24, 10);
 
       expect(result.data).toEqual([]);
-      expect(supabaseMock.getTrendingCreators).not.toHaveBeenCalled();
+      expect(usernamesRepositoryMock.getTrendingCreators).not.toHaveBeenCalled();
     });
   });
 
@@ -199,7 +199,7 @@ describe('UsernamesService - Cache Invalidation', () => {
       const result = await service.getRecentlyActiveUsers(24, 10);
 
       expect(result.data).toEqual([]);
-      expect(supabaseMock.getRecentlyActiveUsers).not.toHaveBeenCalled();
+      expect(usernamesRepositoryMock.getRecentlyActiveUsers).not.toHaveBeenCalled();
     });
   });
 });

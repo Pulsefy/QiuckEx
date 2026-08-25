@@ -12,6 +12,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -19,22 +20,33 @@ import {
   HorizonOperation,
   HorizonTransaction,
   SorobanRpcResult,
-  IndexerMetadata,
 } from './normalizers/receipt.normalizer';
 import { NormalizedReceipt } from './schemas/receipt.schema';
 import { GetReceiptByTxDto, GetReceiptsByAddressDto } from './dto/receipt.dto';
+import {
+  RECEIPT_METADATA_REPOSITORY,
+  type IndexerMetadata,
+  type ReceiptMetadataRepository,
+} from './receipt-metadata.repository';
 
 @Injectable()
 export class ReceiptsService {
   private readonly logger = new Logger(ReceiptsService.name);
   private readonly horizonUrl: string;
   private readonly sorobanRpcUrl: string;
+  private readonly network: 'testnet' | 'mainnet';
 
   constructor(
     private readonly normalizer: ReceiptNormalizer,
     private readonly config: ConfigService,
+    @Inject(RECEIPT_METADATA_REPOSITORY)
+    private readonly receiptMetadataRepository: ReceiptMetadataRepository,
   ) {
-    const network = this.config.get<string>('STELLAR_NETWORK', 'testnet');
+    const network = this.config.get<'testnet' | 'mainnet'>(
+      'STELLAR_NETWORK',
+      'testnet',
+    );
+    this.network = network;
     this.horizonUrl =
       network === 'mainnet'
         ? 'https://horizon.stellar.org'
@@ -199,17 +211,13 @@ export class ReceiptsService {
   }
 
   /**
-   * Fetches from the QuickEx indexer/database.
-   * Falls back to defaults if the tx isn't yet indexed (e.g. new submission).
+   * Fetches from the QuickEx indexer/database via the receipt metadata
+   * repository. Falls back to defaults if the tx isn't yet indexed (e.g. new
+   * submission).
    */
-  private async fetchIndexerMetadata(txHash: string): Promise<IndexerMetadata> {
-    // TODO: replace with actual Supabase/database call
-    // e.g. await this.supabase.from('receipts').select('*').eq('tx_hash', txHash).single()
-    const network = this.config.get<'testnet' | 'mainnet'>('STELLAR_NETWORK', 'testnet');
-    return {
-      txHash,
-      submittedAt: new Date().toISOString(),
-      network,
-    };
+  private async fetchIndexerMetadata(
+    txHash: string,
+  ): Promise<IndexerMetadata> {
+    return this.receiptMetadataRepository.getIndexerMetadata(txHash, this.network);
   }
 }
