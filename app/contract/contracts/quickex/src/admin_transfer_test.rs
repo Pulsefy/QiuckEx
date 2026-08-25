@@ -7,7 +7,7 @@
 //! - only the proposed address may accept
 
 use crate::{errors::QuickexError, storage::MIN_ADMIN_TRANSFER_DELAY, test_context::TestContext};
-use soroban_sdk::testutils::Address as _;
+use soroban_sdk::testutils::{Address as _, Events};
 use soroban_sdk::Address;
 
 #[test]
