@@ -498,6 +498,27 @@ export const envSchema = Joi.object({
     .min(0)
     .default(14 * 24 * 60 * 60 * 1000)
     .description("Maximum age before branch preview auto-expiry"),
+
+  // ── SEP-24 Polling ────────────────────────────────────────────────────────
+  SEP24_STUCK_THRESHOLD_MS: Joi.number()
+    .integer()
+    .min(60000)
+    .default(3600000)
+    .description("Age (ms) after which an in-flight SEP-24 transaction is flagged as stuck (default: 1 hour)"),
+
+  SEP24_MAX_POLL_FAILURES: Joi.number()
+    .integer()
+    .min(1)
+    .max(20)
+    .default(5)
+    .description("Max consecutive poll failures before removing a transaction from the poll queue"),
+
+  SEP24_POLL_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(200)
+    .default(50)
+    .description("Max SEP-24 transactions to process per poll cycle"),
 });
 
 /**
