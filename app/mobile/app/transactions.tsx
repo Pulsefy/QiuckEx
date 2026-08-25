@@ -221,8 +221,15 @@ export default function TransactionsScreen() {
 
   const shortAccount = `${accountId.slice(0, 6)}…${accountId.slice(-4)}`;
 
-  const renderItem = ({ item }: any) => (
-    <TransactionItem item={item} accountId={accountId} />
+  const renderItem = React.useCallback(
+    ({ item }: ListRenderItemInfo<TransactionItemType>) => (
+      <TransactionItem
+        item={item}
+        accountId={accountId}
+        testID="transaction-row"
+      />
+    ),
+    [accountId],
   );
 
   const handleExport = React.useCallback(async () => {
@@ -589,6 +596,10 @@ export default function TransactionsScreen() {
         }
         onEndReached={loadMore}
         onEndReachedThreshold={0.8}
+        maintainVisibleContentPosition={{
+          autoscrollToTopThreshold: 100,
+          minIndexForVisible: 0,
+        }}
         estimatedItemSize={88}
         contentContainerStyle={
           (filteredTransactions.length === 0 || error) && !loading

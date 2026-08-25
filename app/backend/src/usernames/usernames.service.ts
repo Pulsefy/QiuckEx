@@ -1,13 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import {
-  SupabaseService,
-  SearchProfileResult,
-  TrendingCreatorResult,
-  FeaturedProfileResult,
-  MarketplaceListing,
-} from "../supabase/supabase.service";
+import { Inject, Injectable } from "@nestjs/common";
 import { decodeCursor } from "../common/pagination/cursor.util";
-import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
 import { AppConfigService } from "../config";
 import { DiscoveryCacheService } from "./cache/discovery-cache.service";
 import { buildDeterministicEventId } from "../events/outbox/outbox.types";
@@ -17,23 +9,25 @@ import {
   USERNAME_PATTERN,
 } from "./constants";
 import {
-  UsernameConflictError,
   UsernameLimitExceededError,
   UsernameValidationError,
   UsernameErrorCode,
 } from "./errors";
-
-export interface UsernameRow {
-  id: string;
-  username: string;
-  public_key: string;
-  created_at: string;
-}
+import {
+  USERNAMES_REPOSITORY,
+  type UsernamesRepository,
+  type SearchProfileResult,
+  type TrendingCreatorResult,
+  type FeaturedProfileResult,
+  type MarketplaceListing,
+  type UsernameRow,
+} from "./usernames.repository";
 
 @Injectable()
 export class UsernamesService {
   constructor(
-    private readonly supabase: SupabaseService,
+    @Inject(USERNAMES_REPOSITORY)
+    private readonly usernamesRepository: UsernamesRepository,
     private readonly config: AppConfigService,
     private readonly cache: DiscoveryCacheService,
   ) {}
@@ -81,23 +75,16 @@ export class UsernamesService {
       }
     }
 
-    try {
-      await this.supabase.claimUsernameWithOutbox(
-        normalized,
+    await this.usernamesRepository.claimUsernameWithOutbox(
+      normalized,
+      publicKey,
+      buildDeterministicEventId("username.claimed", normalized),
+      {
+        username: normalized,
         publicKey,
-        buildDeterministicEventId("username.claimed", normalized),
-        {
-          username: normalized,
-          publicKey,
-          timestamp: new Date().toISOString(),
-        },
-      );
-    } catch (error) {
-      if (error instanceof SupabaseUniqueConstraintError) {
-        throw new UsernameConflictError(normalized);
-      }
-      throw error;
-    }
+        timestamp: new Date().toISOString(),
+      },
+    );
 
     return { ok: true };
   }
@@ -106,16 +93,14 @@ export class UsernamesService {
    * Count usernames registered for a wallet (for limit enforcement).
    */
   async countByPublicKey(publicKey: string): Promise<number> {
-    return this.supabase.countUsernamesByPublicKey(publicKey);
+    return this.usernamesRepository.countUsernamesByPublicKey(publicKey);
   }
 
   /**
    * List usernames for a wallet.
    */
   async listByPublicKey(publicKey: string): Promise<UsernameRow[]> {
-    return this.supabase.listUsernamesByPublicKey(publicKey) as Promise<
-      UsernameRow[]
-    >;
+    return this.usernamesRepository.listUsernamesByPublicKey(publicKey);
   }
 
   async searchDiscovery(
@@ -140,8 +125,8 @@ export class UsernamesService {
     const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
 
     const [profilesResult, listingsResult] = await Promise.all([
-      this.supabase.searchPublicUsernames(normalizedQuery, fetchWindow),
-      this.supabase.searchActiveListings(normalizedQuery, fetchWindow),
+      this.usernamesRepository.searchPublicUsernames(normalizedQuery, fetchWindow),
+      this.usernamesRepository.searchActiveListings(normalizedQuery, fetchWindow),
     ]);
 
     const profileResults = profilesResult.map((profile) => ({
@@ -226,7 +211,7 @@ export class UsernamesService {
     if (cachedResults) {
       results = cachedResults;
     } else {
-      results = await this.supabase.searchPublicUsernames(
+      results = await this.usernamesRepository.searchPublicUsernames(
         normalizedQuery,
         fetchWindow,
       );
@@ -265,7 +250,7 @@ export class UsernamesService {
 
     // Update activity timestamp for clicked results (async, non-blocking)
     if (data.length > 0) {
-      this.supabase.updateUsernameActivity(data[0].username).catch(() => {
+      this.usernamesRepository.updateUsernameActivity(data[0].username).catch(() => {
         // Ignore errors - activity tracking is best-effort
       });
     }
@@ -300,7 +285,7 @@ export class UsernamesService {
     if (cachedResults) {
       results = cachedResults;
     } else {
-      results = await this.supabase.getTrendingCreators(
+      results = await this.usernamesRepository.getTrendingCreators(
         timeWindowHours,
         fetchWindow,
       );
@@ -370,7 +355,7 @@ export class UsernamesService {
     if (cachedResults) {
       results = cachedResults;
     } else {
-      results = await this.supabase.getRecentlyActiveUsers(
+      results = await this.usernamesRepository.getRecentlyActiveUsers(
         timeWindowHours,
         fetchWindow,
       );
@@ -429,7 +414,7 @@ export class UsernamesService {
 
     const effectiveLimit = Math.min(100, Math.max(1, limit));
     const fetchWindow = decodedCursor ? 100 : effectiveLimit + 1;
-    const results = await this.supabase.getFeaturedUsernames(fetchWindow);
+    const results = await this.usernamesRepository.getFeaturedUsernames(fetchWindow);
 
     let windowed = results;
     if (decodedCursor) {
@@ -482,7 +467,7 @@ export class UsernamesService {
     const cached = this.cache.getProfile(normalized);
     if (cached) return cached;
 
-    const profile = await this.supabase.getPublicProfile(normalized);
+    const profile = await this.usernamesRepository.getPublicProfile(normalized);
     if (profile) {
       this.cache.setProfile(normalized, profile);
     }
@@ -511,7 +496,7 @@ export class UsernamesService {
       );
     }
 
-    await this.supabase.togglePublicProfile(normalized, isPublic);
+    await this.usernamesRepository.togglePublicProfile(normalized, isPublic);
 
     // Invalidate all caches that may contain this username so visibility
     // changes are reflected immediately on subsequent reads.
@@ -522,7 +507,7 @@ export class UsernamesService {
     const normalized = this.normalizeUsername(username);
     this.validateFormat(normalized);
 
-    const result = await this.supabase.getUsername(normalized);
+    const result = await this.usernamesRepository.getUsername(normalized);
     if (!result) {
       throw new UsernameValidationError(
         UsernameErrorCode.NOT_FOUND,

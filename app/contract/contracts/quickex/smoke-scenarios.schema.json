@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quickex.to/schemas/smoke-scenarios-v1.json",
+  "title": "QuickEx Contract Smoke Scenarios",
+  "description": "Canonical smoke scenarios for the QuickEx Soroban contract. Every contract release ships this artifact so that backend deploy tooling, CI, and contributors all validate contract behavior against the same expected outcomes.",
+  "type": "object",
+  "required": ["kind", "version", "contract", "description", "scenarios"],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "description": "Artifact type discriminator. Bump the suffix when the shape changes.",
+      "pattern": "^quickex-smoke-scenarios-v[0-9]+$",
+      "examples": ["quickex-smoke-scenarios-v1"]
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this artifact.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "examples": ["1.0.0"]
+    },
+    "contract": {
+      "type": "string",
+      "description": "Canonical contract name matching the Cargo package name.",
+      "pattern": "^[a-z0-9_-]+$",
+      "examples": ["quickex"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of the artifact's purpose."
+    },
+    "scenarios": {
+      "type": "array",
+      "description": "Ordered list of canonical smoke scenarios. IDs are stable and unique.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "entry_point",
+          "inputs",
+          "expected_outcome",
+          "expected_error"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable, unique scenario identifier.",
+            "pattern": "^SMOKE-[0-9]{3}$",
+            "examples": ["SMOKE-001"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Short snake_case scenario name.",
+            "pattern": "^[a-z0-9_]+$",
+            "examples": ["deposit_success"]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the scenario verifies and what outcome is expected."
+          },
+          "category": {
+            "type": "string",
+            "description": "Functional area the scenario exercises.",
+            "enum": [
+              "readiness",
+              "metadata",
+              "admin",
+              "commitment",
+              "escrow",
+              "dispute",
+              "privacy"
+            ],
+            "examples": ["escrow"]
+          },
+          "entry_point": {
+            "type": "string",
+            "description": "Contract method the scenario invokes.",
+            "examples": ["deposit"]
+          },
+          "inputs": {
+            "type": "object",
+            "description": "Sample inputs for the scenario. Symbolic placeholders (e.g. ALICE_ADDRESS, TOKEN_ADDRESS) are resolved by the runner.",
+            "additionalProperties": true
+          },
+          "expected_outcome": {
+            "type": "string",
+            "description": "Whether the invocation is expected to succeed or be rejected.",
+            "enum": ["success", "rejection"],
+            "examples": ["success"]
+          },
+          "expected_result": {
+            "description": "Expected return value when expected_outcome is 'success'. Null when the call returns nothing or the scenario is a rejection.",
+            "type": ["object", "string", "boolean", "integer", "null"]
+          },
+          "expected_error": {
+            "type": ["object", "null"],
+            "description": "Expected contract error when expected_outcome is 'rejection'. Null otherwise.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "QuickexError variant name.",
+                "examples": ["InvalidAmount"]
+              },
+              "code": {
+                "type": "integer",
+                "description": "Canonical error code (see errors.rs).",
+                "minimum": 100
+              }
+            },
+            "required": ["name", "code"]
+          }
+        }
+      }
+    }
+  }
+}

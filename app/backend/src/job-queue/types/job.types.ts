@@ -14,6 +14,8 @@ export enum JobType {
   EXPORT_GENERATION = 'export_generation',
   RECONCILIATION = 'reconciliation',
   STELLAR_RECONNECT = 'stellar_reconnect',
+  /** SEP-24 anchor transaction status poll cycle. */
+  SEP24_STATUS_POLL = 'sep24_status_poll',
 }
 
 /**
