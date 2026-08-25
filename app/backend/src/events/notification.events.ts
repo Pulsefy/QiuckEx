@@ -10,6 +10,14 @@ export enum NotificationEvent {
   RecurringLinkCompleted = 'recurring.link.completed',
   RecurringPaymentExecuted = 'recurring.payment.executed',
   RecurringPaymentFailed = 'recurring.payment.failed',
+
+  // ── SEP-24 fiat-ramp lifecycle events ─────────────────────────────────────
+  /** Emitted when an anchor transaction reaches a terminal state. */
+  Sep24TransactionTerminal = 'sep24.transaction.terminal',
+  /** Emitted when a completed SEP-24 transaction is matched on-chain. */
+  Sep24TransactionReconciled = 'sep24.transaction.reconciled',
+  /** Emitted when a transaction is stuck past the configured threshold. */
+  Sep24TransactionStuck = 'sep24.transaction.stuck',
 }
 
 export class PaymentReceivedEvent {
@@ -98,5 +106,77 @@ export class AutoReconciliationSucceededEvent {
     public readonly assetCode: string,
     public readonly confidence: number,
     public readonly matchedAt: string,
+  ) {}
+}
+
+// ── SEP-24 event classes ───────────────────────────────────────────────────────
+
+/**
+ * Emitted when a SEP-24 anchor transaction reaches a terminal state
+ * (completed, refunded, expired, or error).
+ *
+ * Listeners (e.g. NotificationService) use this to dispatch in-app and push
+ * notifications to the initiating user.
+ */
+export class Sep24TransactionTerminalEvent {
+  constructor(
+    /** Internal UUID of the sep24_transactions row. */
+    public readonly transactionId: string,
+    /** Anchor-assigned transaction ID. */
+    public readonly anchorTransactionId: string,
+    /** Anchor domain (e.g. "moneygram.stellar.org"). */
+    public readonly anchorDomain: string,
+    /** Whether this was a deposit or withdrawal. */
+    public readonly type: 'deposit' | 'withdrawal',
+    /** Raw anchor status that triggered the terminal transition. */
+    public readonly anchorStatus: string,
+    /** Resolved internal status. */
+    public readonly internalStatus: string,
+    /** On-chain Stellar tx hash, if available. */
+    public readonly stellarTxHash: string | null,
+    /** Amount as a decimal string. */
+    public readonly amount: string,
+    /** Asset code (e.g. "USDC"). */
+    public readonly assetCode: string,
+    /** Stellar account of the user who initiated the flow. */
+    public readonly userAccount: string,
+  ) {}
+}
+
+/**
+ * Emitted when a completed SEP-24 transaction is verified on-chain and
+ * surfaced to the reconciliation module.
+ */
+export class Sep24TransactionReconciledEvent {
+  constructor(
+    public readonly transactionId: string,
+    public readonly anchorTransactionId: string,
+    public readonly anchorDomain: string,
+    public readonly type: 'deposit' | 'withdrawal',
+    public readonly stellarTxHash: string,
+    public readonly amount: string,
+    public readonly assetCode: string,
+    public readonly userAccount: string,
+    public readonly reconciledAt: string,
+  ) {}
+}
+
+/**
+ * Emitted when a SEP-24 transaction is detected as stuck — pending longer
+ * than the configured `SEP24_STUCK_THRESHOLD_MS` without reaching a terminal
+ * state.
+ *
+ * Operator tooling listens for this event and surfaces it for manual review.
+ */
+export class Sep24TransactionStuckEvent {
+  constructor(
+    public readonly transactionId: string,
+    public readonly anchorTransactionId: string,
+    public readonly anchorDomain: string,
+    public readonly type: 'deposit' | 'withdrawal',
+    public readonly amount: string,
+    public readonly assetCode: string,
+    public readonly userAccount: string,
+    public readonly reason: string,
   ) {}
 }
