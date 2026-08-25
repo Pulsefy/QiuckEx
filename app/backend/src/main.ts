@@ -76,6 +76,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger(winstonConfig),
+    rawBody: true, // Required for GitHub webhook HMAC signature verification
   });
 
   const configService = app.get(AppConfigService);

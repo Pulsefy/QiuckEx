@@ -54,10 +54,17 @@ export function SwapAssetSelector({
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
+        <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">Select Payment Asset</Text>
         <View style={[styles.loadingContainer, { backgroundColor: theme.surface }]}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Calculating exchange rates...</Text>
+          <ActivityIndicator
+            size="large"
+            color={theme.primary}
+            accessibilityLabel="Calculating exchange rates in progress"
+          />
+          <Text
+            style={[styles.loadingText, { color: theme.textSecondary }]}
+            accessibilityRole="status"
+          >Calculating exchange rates...</Text>
         </View>
       </View>
     );
@@ -66,9 +73,12 @@ export function SwapAssetSelector({
   if (!bestPaths || bestPaths.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
-        <View style={[styles.emptyContainer, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+        <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">Select Payment Asset</Text>
+        <View
+          style={[styles.emptyContainer, { backgroundColor: theme.surface }]}
+          accessibilityLabel={`No alternate payment assets available. Only direct payment with ${destinationAsset} is available.`}
+        >
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
             Only direct payment with {destinationAsset} is available
           </Text>
         </View>
@@ -78,8 +88,11 @@ export function SwapAssetSelector({
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.heading, { color: theme.textPrimary }]}>Select Payment Asset</Text>
-      <Text style={[styles.subheading, { color: theme.textSecondary }]}>
+      <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">Select Payment Asset</Text>
+      <Text
+        style={[styles.subheading, { color: theme.textSecondary }]}
+        accessibilityValue={{ text: `${destinationAmount} ${destinationAsset}` }}
+      >
         You receive {destinationAmount} {destinationAsset}
       </Text>
 
@@ -93,10 +106,10 @@ export function SwapAssetSelector({
             const isSelected = selectedSourceAsset === path.sourceAsset;
             const hopLabel =
               path.hopCount === 0
-                ? 'Direct'
+                ? 'Direct orderbook swap'
                 : path.hopCount === 1
-                  ? '1 intermediary'
-                  : `${path.hopCount} intermediaries`;
+                  ? 'Route through 1 intermediary'
+                  : `Route through ${path.hopCount} intermediaries`;
 
             return (
               <Pressable
@@ -107,8 +120,12 @@ export function SwapAssetSelector({
                   isSelected && { borderColor: theme.primary, backgroundColor: theme.surfaceElevated },
                 ]}
                 onPress={() => onSelectSourceAsset(path.sourceAsset, path)}
+                accessibilityLabel={`Pay ${path.sourceAmount} ${path.sourceAsset} to receive ${destinationAmount} ${destinationAsset}. ${hopLabel}. Exchange rate: ${path.rateDescription}. ${isSelected ? 'Option currently selected.' : 'Not currently selected.'}.`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityHint={`Double-tap to select ${path.sourceAsset} as the payment source asset`}
               >
-                <View style={styles.optionHeader}>
+                <View style={styles.optionHeader} accessibilityElementsHidden={true} importantForAccessibility="no">
                   <View style={styles.assetInfo}>
                     <Text style={[styles.optionAsset, { color: theme.textPrimary }]}>{path.sourceAsset}</Text>
                     <Text style={[styles.optionHops, { color: theme.textMuted }]}>{hopLabel}</Text>
@@ -123,13 +140,17 @@ export function SwapAssetSelector({
                   </View>
                 </View>
 
-                <View style={styles.rateContainer}>
+                <View style={styles.rateContainer} accessibilityElementsHidden={true} importantForAccessibility="no">
                   <Text style={[styles.rateLabel, { color: theme.textMuted }]}>Rate:</Text>
                   <Text style={[styles.rateValue, { color: theme.textPrimary }]}>{path.rateDescription}</Text>
                 </View>
 
                 {isSelected && (
-                  <View style={[styles.selectedCheckmark, { backgroundColor: theme.primary }]}>
+                  <View
+                    style={[styles.selectedCheckmark, { backgroundColor: theme.primary }]}
+                    accessibilityElementsHidden={true}
+                    importantForAccessibility="no"
+                  >
                     <Text style={[styles.checkmarkText, { color: theme.primaryForeground }]}>✓</Text>
                   </View>
                 )}
@@ -184,6 +205,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
+    minHeight: 104,
+    justifyContent: "center",
   },
   optionHeader: {
     flexDirection: 'row',

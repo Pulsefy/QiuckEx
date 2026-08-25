@@ -18,8 +18,6 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import { EventEmitter2 } from "@nestjs/event-emitter";
-
 import {
   CreateUsernameDto,
   CreateUsernameResponseDto,
@@ -48,7 +46,6 @@ import {
 export class UsernamesController {
   constructor(
     private readonly usernamesService: UsernamesService,
-    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post()
@@ -113,12 +110,9 @@ export class UsernamesController {
       throw err;
     }
 
-    this.eventEmitter.emit("username.claimed", {
-      username: body.username,
-      publicKey: body.publicKey,
-      timestamp: new Date().toISOString(),
-    });
-
+    // The `username.claimed` event is now written to the transactional outbox
+    // inside the claim transaction and dispatched at-least-once by the outbox
+    // dispatcher, guaranteeing delivery even if this process dies before emit.
     return { ok: true };
   }
 

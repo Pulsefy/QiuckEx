@@ -78,7 +78,11 @@ export default function ScanToPayScreen() {
   if (!permission) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator
+          size="large"
+          color={theme.primary}
+          accessibilityLabel="Loading camera permission status"
+        />
       </SafeAreaView>
     );
   }
@@ -86,14 +90,31 @@ export default function ScanToPayScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Camera Permission Required</Text>
+        <Text
+          style={[styles.permTitle, { color: theme.textPrimary }]}
+          accessibilityRole="header"
+        >
+          Camera Permission Required
+        </Text>
         <Text style={[styles.permBody, { color: theme.textSecondary }]}>
           QuickEx needs camera access to scan QR payment codes.
         </Text>
-        <Pressable style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]} onPress={requestPermission}>
+        <Pressable
+          style={[styles.primaryBtn, { backgroundColor: theme.buttonPrimaryBg }]}
+          onPress={requestPermission}
+          accessibilityLabel="Grant camera permission access"
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to allow QuickEx to use the camera for scanning QR codes"
+        >
           <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]}>Grant Access</Text>
         </Pressable>
-        <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.secondaryBtn}
+          onPress={() => router.back()}
+          accessibilityLabel="Go back to previous screen"
+          accessibilityRole="button"
+          accessibilityHint="Return to the previous screen without granting camera permission"
+        >
           <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>Go Back</Text>
         </Pressable>
       </SafeAreaView>
@@ -114,23 +135,53 @@ export default function ScanToPayScreen() {
 
       {/* Overlay — intentionally uses white-on-transparent for camera readability */}
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
-        <Text style={styles.title}>Scan to Pay</Text>
+        <Text
+          style={styles.title}
+          accessibilityRole="header"
+        >
+          Scan to Pay
+        </Text>
         <Text style={styles.hint}>
           Point your camera at a QuickEx QR code
         </Text>
 
         {/* Viewfinder */}
-        <View style={styles.viewfinder}>
-          <View style={[styles.corner, styles.topLeft]} />
-          <View style={[styles.corner, styles.topRight]} />
-          <View style={[styles.corner, styles.bottomLeft]} />
-          <View style={[styles.corner, styles.bottomRight]} />
+        <View
+          style={styles.viewfinder}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no-hide-descendants"
+        >
+          <View
+            style={[styles.corner, styles.topLeft]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
+          <View
+            style={[styles.corner, styles.topRight]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
+          <View
+            style={[styles.corner, styles.bottomLeft]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
+          <View
+            style={[styles.corner, styles.bottomRight]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
         </View>
 
         <View style={styles.controls}>
   <Pressable
     onPress={() => setFlashEnabled((prev) => !prev)}
     style={styles.controlButton}
+    accessibilityLabel={`${flashEnabled ? 'Turn camera flash off' : 'Turn camera flash on'}. Flash is currently ${flashEnabled ? 'on' : 'off'}`}
+    accessibilityRole="button"
+    accessibilityState={{ checked: flashEnabled }}
+    accessibilityHint="Double-tap to toggle the camera flash on or off"
+    hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
   >
     <Ionicons
       name={flashEnabled ? 'flash' : 'flash-off'}
@@ -142,14 +193,26 @@ export default function ScanToPayScreen() {
 
         {/* Error banner */}
         {error && (
-          <Pressable style={styles.errorBanner} onPress={dismissError}>
+          <Pressable
+            style={styles.errorBanner}
+            onPress={dismissError}
+            accessibilityLabel={`Error: ${error}. Tap to dismiss this error message`}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="assertive"
+          >
             <Text style={styles.errorBannerText}>{error}</Text>
             <Text style={styles.errorDismiss}>Tap to dismiss</Text>
           </Pressable>
         )}
 
         <View style={styles.footer}>
-          <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+          <Pressable
+            style={styles.closeBtn}
+            onPress={() => router.back()}
+            accessibilityLabel="Close QR scanner and return to previous screen"
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to exit the scan to pay screen"
+          >
             <Text style={styles.closeBtnText}>Close</Text>
           </Pressable>
         </View>
@@ -205,10 +268,12 @@ const styles = StyleSheet.create({
   errorBanner: {
     marginTop: 32,
     backgroundColor: 'rgba(255,59,48,0.9)',
+    minHeight: 48,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     maxWidth: 320,
   },
   errorBannerText: { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
@@ -221,20 +286,26 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     backgroundColor: 'rgba(255,255,255,0.2)',
+    minHeight: 48,
+    minWidth: 160,
     paddingVertical: 14,
     paddingHorizontal: 48,
     borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   permTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
   permBody: { fontSize: 16, textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   primaryBtn: {
+    minHeight: 52,
     paddingVertical: 14,
     paddingHorizontal: 36,
     borderRadius: 10,
     marginBottom: 12,
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   controls: {
     position: 'absolute',
@@ -244,10 +315,19 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     backgroundColor: 'rgba(0,0,0,0.6)',
+    minHeight: 48,
+    minWidth: 48,
     padding: 12,
     borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryBtnText: { fontSize: 17, fontWeight: '600' },
-  secondaryBtn: { padding: 14 },
+  secondaryBtn: {
+    minHeight: 48,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   secondaryBtnText: { fontSize: 16 },
 });

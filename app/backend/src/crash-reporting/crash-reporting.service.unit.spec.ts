@@ -319,4 +319,36 @@ describe('CrashReportingService', () => {
       expect(repository.getCrashReportsByUser).not.toHaveBeenCalled();
     });
   });
+
+  describe('submitIssueReport', () => {
+    it('should redact sensitive details and create crash report', async () => {
+      repository.createCrashReport.mockResolvedValue('report-456');
+
+      const secretKey = 'SBZVMB74Z76QZ3ZOY3XRXEPNQN754WKRGMAG4OQIPOOB6QMHIDCNVYKY';
+      const dto = {
+        userMessage: `Failed due to secret key ${secretKey}`,
+        errorDetails: `Stack trace showing secret ${secretKey}`,
+        environment: 'AppVersion: 1.0.0, OS: iOS',
+        route: '/payment',
+      };
+
+      const result = await service.submitIssueReport(dto);
+
+      expect(result).toBe('report-456');
+      expect(repository.createCrashReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: undefined,
+          error: expect.objectContaining({
+            name: 'UnhandledException',
+            message: expect.not.stringContaining(secretKey),
+            stack: expect.not.stringContaining(secretKey),
+          }),
+          context: expect.objectContaining({
+            environment: 'AppVersion: 1.0.0, OS: iOS',
+            route: '/payment',
+          }),
+        })
+      );
+    });
+  });
 });

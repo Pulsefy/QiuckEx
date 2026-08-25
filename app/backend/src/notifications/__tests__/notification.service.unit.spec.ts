@@ -6,9 +6,12 @@ import { NotificationLogRepository } from "../notification-log.repository";
 import { InAppNotificationRepository } from "../in-app-notification.repository";
 import { TemplateVersionService } from "../template-versioning/template-version.service";
 import { NOTIFICATION_PROVIDERS } from "../providers/notification-provider.interface";
+// Real renderer used so template variable substitution is exercised end-to-end
+const realRenderer = new TemplateVersionService(null as never);
 import type {
   NotificationPreference,
   NotificationPayload,
+  ExportCompletedPayload,
 } from "../types/notification.types";
 import type { EscrowDepositedEvent } from "../../ingestion/types/contract-event.types";
 
@@ -67,6 +70,24 @@ function makePayload(
     sender: "GSENDER",
     ...overrides,
   } as NotificationPayload;
+}
+
+function makeExportPayload(
+  overrides: Partial<ExportCompletedPayload> = {},
+): ExportCompletedPayload {
+  return {
+    eventType: "export.completed",
+    eventId: "export:job-1",
+    recipientPublicKey: PUBLIC_KEY,
+    title: "Your transactions export is ready",
+    body: "Your CSV export of 42 records has been generated.",
+    occurredAt: new Date().toISOString(),
+    exportType: "transactions",
+    format: "csv",
+    recordCount: 42,
+    jobId: "job-1",
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -421,6 +442,142 @@ describe("NotificationService", () => {
 
       await service.retryFailedNotifications();
       expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // deliverExportEmail (BE-101)
+  // -------------------------------------------------------------------------
+
+  describe("deliverExportEmail", () => {
+    beforeEach(() => {
+      service.rateLimiter.reset();
+      logRepo.isAlreadySent.mockResolvedValue(false);
+      templateService.renderActiveTemplateForEventType.mockImplementation(
+        async (_eventType: string, data: Record<string, unknown>) => ({
+          title: realRenderer.render(
+            "Export ready: {{exportType}} ({{recordCount}} records)",
+            data,
+          ),
+          body: realRenderer.render("Rendered export body for {{format}}", data),
+          templateVersionId: "tpl-version-7",
+        }),
+      );
+      prefsRepo.getEnabledPreferences.mockResolvedValue([makeEmailPref()]);
+    });
+
+    it("renders the active versioned template and sends it via the email provider", async () => {
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(
+        templateService.renderActiveTemplateForEventType,
+      ).toHaveBeenCalledWith(
+        "export.completed",
+        expect.objectContaining({ recipientPublicKey: PUBLIC_KEY, jobId: "job-1" }),
+      );
+
+      // The provider must receive the rendered template output, not the inline strings
+      expect(emailProvider.send).toHaveBeenCalledWith(
+        makeEmailPref(),
+        expect.objectContaining({
+          title: "Export ready: transactions (42 records)",
+          body: "Rendered export body for csv",
+        }),
+      );
+
+      expect(result).toEqual({
+        delivered: true,
+        templateVersionId: "tpl-version-7",
+        error: undefined,
+      });
+
+      // Template version id is persisted on the notification log
+      expect(logRepo.createPending).toHaveBeenCalledWith(
+        PUBLIC_KEY,
+        "email",
+        "export.completed",
+        "export:job-1",
+        "tpl-version-7",
+      );
+      expect(logRepo.markSent).toHaveBeenCalled();
+    });
+
+    it("falls back to inline title/body when no active template version exists", async () => {
+      templateService.renderActiveTemplateForEventType.mockResolvedValue(null);
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(true);
+      expect(result.templateVersionId).toBeUndefined();
+      expect(emailProvider.send).toHaveBeenCalledWith(
+        makeEmailPref(),
+        expect.objectContaining({
+          title: "Your transactions export is ready",
+          body: "Your CSV export of 42 records has been generated.",
+        }),
+      );
+    });
+
+    it("returns delivered:false and records failure when the provider rejects", async () => {
+      emailProvider.send.mockRejectedValue(new Error("SendGrid 500"));
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(false);
+      expect(result.error).toContain("SendGrid 500");
+      expect(logRepo.markFailed).toHaveBeenCalledWith(
+        PUBLIC_KEY,
+        "email",
+        "export.completed",
+        "export:job-1",
+        "SendGrid 500",
+      );
+      expect(logRepo.markSent).not.toHaveBeenCalled();
+    });
+
+    it("returns delivered:false when the user has no enabled email preference", async () => {
+      prefsRepo.getEnabledPreferences.mockResolvedValue([]);
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(false);
+      expect(result.error).toMatch(/No enabled email channel preference/i);
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it("returns delivered:false when an email preference exists without an address", async () => {
+      prefsRepo.getEnabledPreferences.mockResolvedValue([
+        makeEmailPref({ email: undefined }),
+      ]);
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(false);
+      expect(result.error).toMatch(/No enabled email channel preference/i);
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it("returns delivered:false when preferences cannot be loaded", async () => {
+      prefsRepo.getEnabledPreferences.mockRejectedValue(new Error("DB down"));
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(false);
+      expect(result.error).toContain("DB down");
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it("uses only the email channel even when other channels are enabled", async () => {
+      prefsRepo.getEnabledPreferences.mockResolvedValue([
+        makeEmailPref(),
+        makeEmailPref({ id: "pref-2", channel: "in_app" }),
+      ]);
+
+      const result = await service.deliverExportEmail(makeExportPayload());
+
+      expect(result.delivered).toBe(true);
+      expect(inAppRepo.create).not.toHaveBeenCalled();
+      expect(emailProvider.send).toHaveBeenCalledTimes(1);
     });
   });
 });

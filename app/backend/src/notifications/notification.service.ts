@@ -20,6 +20,7 @@ import type {
   UsernameClaimedPayload,
   AutoReconciliationSucceededNotificationPayload,
   PaymentLinkExpiredPayload,
+  ExportCompletedPayload,
 } from "./types/notification.types";
 
 import {
@@ -43,6 +44,23 @@ import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { TemplateVersionService } from "./template-versioning/template-version.service";
 
 const MAX_ATTEMPTS = 3;
+
+/** Outcome of a single channel delivery attempt. */
+export interface ChannelDeliveryResult {
+  /** Whether the notification reached (or was already delivered to) the channel. */
+  ok: boolean;
+  /** Populated when the delivery did not succeed. */
+  error?: string;
+  /** Provider message id when available. */
+  messageId?: string;
+}
+
+/** Outcome of an export email delivery request. */
+export interface ExportEmailDeliveryResult {
+  delivered: boolean;
+  templateVersionId?: string;
+  error?: string;
+}
 
 @Injectable()
 export class NotificationService implements OnModuleInit {
@@ -288,7 +306,7 @@ export class NotificationService implements OnModuleInit {
     pref: NotificationPreference,
     payload: NotificationPayload,
     templateVersionId?: string,
-  ): Promise<void> {
+  ): Promise<ChannelDeliveryResult> {
     const { publicKey, channel } = pref;
     const { eventType, eventId } = payload;
 
@@ -299,9 +317,14 @@ export class NotificationService implements OnModuleInit {
       eventId,
     );
 
-    if (alreadySent) return;
+    if (alreadySent) return { ok: true };
 
-    if (!this.rateLimiter.allow(publicKey, channel)) return;
+    if (!this.rateLimiter.allow(publicKey, channel)) {
+      return {
+        ok: false,
+        error: `Rate limit exceeded for ${publicKey} on channel ${channel}`,
+      };
+    }
 
     // ✅ IN-APP CHANNEL
     if (channel === "in_app") {
@@ -320,27 +343,30 @@ export class NotificationService implements OnModuleInit {
         });
 
         await this.logRepo.markSent(publicKey, channel, eventType, eventId);
+        return { ok: true };
       } catch (err) {
+        const message = (err as Error).message;
         await this.logRepo.markFailed(
           publicKey,
           channel,
           eventType,
           eventId,
-          (err as Error).message,
+          message,
         );
+        return { ok: false, error: message };
       }
-
-      return;
     }
 
     // webhook async handling
     if (channel === "webhook" && this.jobQueueService) {
       await this.enqueueWebhookJob(pref, payload, templateVersionId);
-      return;
+      return { ok: true };
     }
 
     const provider = this.providerMap.get(channel);
-    if (!provider) return;
+    if (!provider) {
+      return { ok: false, error: `No provider registered for channel ${channel}` };
+    }
 
     await this.logRepo.createPending(publicKey, channel, eventType, eventId, templateVersionId);
     await this.logRepo.createPending(publicKey, channel, eventType, eventId, payload.previewScope);
@@ -357,15 +383,80 @@ export class NotificationService implements OnModuleInit {
         result.httpStatus,
         result.responseBody,
       );
+
+      return { ok: true, messageId: result.messageId };
     } catch (err) {
+      const message = (err as Error).message;
       await this.logRepo.markFailed(
         publicKey,
         channel,
         eventType,
         eventId,
-        (err as Error).message,
+        message,
       );
+      return { ok: false, error: message };
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // EXPORT EMAIL DELIVERY (BE-101)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Deliver a completed-export notification email.
+   *
+   * Routes through the existing notifications pipeline: the recipient's enabled
+   * email preference is resolved, the active versioned template for
+   * `export.completed` is rendered, and the configured email provider sends it.
+   *
+   * Unlike {@link dispatch}, this returns the delivery outcome so callers
+   * (e.g. the export generation job handler) can surface failures instead of
+   * having them swallowed.
+   */
+  async deliverExportEmail(
+    payload: ExportCompletedPayload,
+  ): Promise<ExportEmailDeliveryResult> {
+    let emailPref: NotificationPreference | undefined;
+
+    try {
+      const preferences = await this.prefsRepo.getEnabledPreferences(
+        payload.recipientPublicKey,
+      );
+      emailPref = preferences.find((pref) => pref.channel === "email");
+    } catch (err) {
+      const message = `Failed to load notification preferences: ${(err as Error).message}`;
+      this.logger.error(message);
+      return { delivered: false, error: message };
+    }
+
+    if (!emailPref || !emailPref.email) {
+      return {
+        delivered: false,
+        error: `No enabled email channel preference with an email address found for ${payload.recipientPublicKey}`,
+      };
+    }
+
+    const renderedTemplate =
+      await this.templateVersionService.renderActiveTemplateForEventType(
+        payload.eventType,
+        payload as unknown as Record<string, unknown>,
+      );
+
+    const templatedPayload: ExportCompletedPayload = renderedTemplate
+      ? { ...payload, title: renderedTemplate.title, body: renderedTemplate.body }
+      : payload;
+
+    const result = await this.sendToChannel(
+      emailPref,
+      templatedPayload,
+      renderedTemplate?.templateVersionId,
+    );
+
+    return {
+      delivered: result.ok,
+      templateVersionId: renderedTemplate?.templateVersionId,
+      error: result.error,
+    };
   }
 
   // ---------------------------------------------------------------------------

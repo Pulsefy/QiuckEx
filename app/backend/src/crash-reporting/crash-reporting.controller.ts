@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Put,
+  Post,
   Body,
   Param,
   HttpCode,
@@ -14,6 +15,7 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { CrashReportDto } from './dto/crash-report.dto';
 import { LogExportDto } from './dto/log-export.dto';
 import { SettingsDto } from './dto/settings.dto';
+import { SubmitIssueReportDto } from './dto/submit-issue-report.dto';
 
 /**
  * Controller for crash reporting and log export endpoints
@@ -126,5 +128,22 @@ export class CrashReportingController {
       timestamp: report.timestamp,
       createdAt: report.createdAt,
     }));
+  }
+
+  /**
+   * Submit a crash or issue report
+   */
+  @Post('submit')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Submit a crash or issue report' })
+  @ApiResponse({
+    status: 201,
+    description: 'Crash report submitted successfully',
+  })
+  async submitReport(
+    @Body() dto: SubmitIssueReportDto,
+  ): Promise<{ id: string }> {
+    const reportId = await this.crashReportingService.submitIssueReport(dto);
+    return { id: reportId };
   }
 }

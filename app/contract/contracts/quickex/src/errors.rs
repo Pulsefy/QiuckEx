@@ -15,6 +15,8 @@ pub enum QuickexError {
     InvalidAmount = 100,
     InvalidSalt = 101,
     InvalidPrivacyLevel = 102,
+    /// Batch size exceeds the maximum allowed limit.
+    BatchSizeExceeded = 103,
     // Auth/admin failures (200-299)
     Unauthorized = 200,
     AlreadyInitialized = 201,
@@ -59,6 +61,13 @@ pub enum QuickexError {
     InsufficientVotes = 321,
     /// Hook contract is not allowed.
     HookNotAllowed = 322,
+    /// Escrow entry was not found in live storage; it may have been archived by
+    /// the ledger after its TTL expired.  Call `restore_archived_escrow` once
+    /// the entry has been restored on-chain, then retry the operation.
+    EscrowArchived = 323,
+    /// The requested TTL value violates the configured policy bounds
+    /// (either below the minimum or above the maximum allowed ledgers).
+    TtlOutOfBounds = 324,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,
