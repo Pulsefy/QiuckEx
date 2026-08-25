@@ -122,6 +122,25 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "UpgradeStarted",
+        topics: &[EVENT_TOPIC_ADMIN, "UpgradeStarted", "admin"],
+        payload_keys: &[
+            "new_version",
+            "old_version",
+            "schema_version",
+            "timestamp",
+            "window_end",
+            "window_start",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "UpgradeCompleted",
+        topics: &[EVENT_TOPIC_ADMIN, "UpgradeCompleted", "admin"],
+        payload_keys: &["new_version", "old_version", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "DisputeResolved",
         topics: &[
             EVENT_TOPIC_DISPUTE,

@@ -102,8 +102,11 @@ paths:
       operationId: getReadiness
       summary: Readiness check
       description: >
-        Returns readiness status including dependency checks (Supabase, environment).
-        Used for readiness probes.
+        Returns readiness status including dependency checks (database, Horizon,
+        Soroban RPC) with per-check timeouts. Used for readiness probes.
+        Returns 503 when a critical dependency has hard-failed; degraded
+        dependencies (e.g. timed out) are reported per-dependency and surface
+        via the `degraded` flag while the service stays ready.
       security: []
       responses:
         "200":
@@ -2389,13 +2392,50 @@ components:
           type: string
           format: date-time
 
+    ReadyCheck:
+      type: object
+      properties:
+        name:
+          type: string
+          example: horizon
+        status:
+          type: string
+          enum: [up, degraded, down]
+          example: up
+        latency:
+          type: string
+          example: "125ms"
+        details:
+          type: array
+          items:
+            type: string
+        lastSuccess:
+          type: string
+          format: date-time
+        error:
+          type: string
+          example: Connection timeout
+        lagSeconds:
+          type: integer
+          example: 5
+
     ReadyResponse:
       type: object
       properties:
         ready:
           type: boolean
+          example: true
+        degraded:
+          type: boolean
+          example: false
+          description: True when a critical dependency is degraded but none have hard-failed
+        timestamp:
+          type: string
+          format: date-time
         checks:
-          type: object
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadyCheck"
 
     PublicStatusComponent:
       type: object

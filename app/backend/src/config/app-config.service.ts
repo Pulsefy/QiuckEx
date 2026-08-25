@@ -351,6 +351,15 @@ export class AppConfigService {
     return this.configService.get("ABUSE_SIGNAL_HASH_SALT", { infer: true });
   }
 
+  /**
+   * Retention window (hours) for completed idempotency key records (BE-109)
+   */
+  get idempotencyRetentionHours(): number {
+    return this.configService.get("IDEMPOTENCY_RETENTION_HOURS", {
+      infer: true,
+    });
+  }
+
   // ====================================================================
   // NEW ACCESSORS FOR BOOTSTRAP PAYLOAD
   // ====================================================================

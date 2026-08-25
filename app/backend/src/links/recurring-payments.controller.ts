@@ -8,9 +8,14 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import { RecurringPaymentsService } from './recurring-payments.service';
+import {
+  IdempotencyInterceptor,
+  IDEMPOTENCY_KEY_HEADER,
+} from '../common/idempotency/idempotency.interceptor';
 import {
   CreateRecurringPaymentLinkDto,
   UpdateRecurringPaymentLinkDto,
@@ -22,6 +27,13 @@ import {
 } from './dto/recurring-payment.dto';
 
 @ApiTags('recurring-payments')
+@ApiHeader({
+  name: IDEMPOTENCY_KEY_HEADER,
+  description:
+    'Optional. Supply a unique key to make create/update/execute mutations idempotent: retries with the same key and body return the original response; reuse with a different body is rejected.',
+  required: false,
+})
+@UseInterceptors(IdempotencyInterceptor)
 @Controller('links/recurring')
 export class RecurringPaymentsController {
   constructor(private readonly service: RecurringPaymentsService) {}

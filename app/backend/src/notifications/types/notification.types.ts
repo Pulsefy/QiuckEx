@@ -29,7 +29,8 @@ export type NotificationEventType =
   | "recurring.link.resumed"
   | "recurring.link.completed"
   | "auto_reconciliation.succeeded"
-  | "payment.link.expired";
+  | "payment.link.expired"
+  | "export.completed";
 
 export type PaymentLinkExpiredEvent = "payment.link.expired";
 
@@ -154,6 +155,18 @@ export interface AutoReconciliationSucceededNotificationPayload extends BaseNoti
   confidence: number;
 }
 
+export interface ExportCompletedPayload extends BaseNotificationPayload {
+  eventType: "export.completed";
+  /** Type of data contained in the export (transactions, links, payments). */
+  exportType: string;
+  /** Export file format (csv or json). */
+  format: string;
+  /** Number of records included in the export. */
+  recordCount: number;
+  /** ID of the export generation job this notification belongs to. */
+  jobId: string;
+}
+
 export type NotificationPayload =
   | EscrowDepositedPayload
   | EscrowWithdrawnPayload
@@ -165,7 +178,8 @@ export type NotificationPayload =
   | RecurringPaymentFailedPayload
   | RecurringLinkStatusPayload
   | AutoReconciliationSucceededNotificationPayload
-  | PaymentLinkExpiredPayload;
+  | PaymentLinkExpiredPayload
+  | ExportCompletedPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences

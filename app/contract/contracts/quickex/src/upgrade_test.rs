@@ -25,6 +25,7 @@
 
 use crate::{
     errors::QuickexError,
+    events::EVENT_SCHEMA_VERSION,
     storage::{CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION, PRIVACY_ENABLED_KEY},
     types::FeeConfig,
     EscrowStatus, QuickexContract, QuickexContractClient,
@@ -32,7 +33,7 @@ use crate::{
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Events, Ledger},
-    token, Address, Bytes, BytesN, Env, Symbol,
+    token, Address, Bytes, BytesN, Env, Symbol, TryIntoVal,
 };
 
 // ============================================================================
@@ -833,17 +834,76 @@ fn upgrade_safety_gate_emits_events() {
     // Capture event count before upgrade ceremony.
     let events_before = env.events().all().len();
 
-    // Start upgrade → should emit UpgradeStarted event.
+    // Start upgrade → emits UpgradeStarted.
     client.start_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    let started_data = upgrade_ceremony_event_payload(&env, &gs.contract_id, "UpgradeStarted");
 
-    // Complete upgrade → internally calls migrate and emits UpgradeCompleted event.
+    // Complete upgrade → internally calls migrate and emits UpgradeCompleted.
     client.complete_upgrade(&gs.admin, &CURRENT_CONTRACT_VERSION);
+    let completed_data = upgrade_ceremony_event_payload(&env, &gs.contract_id, "UpgradeCompleted");
 
     // Verify at least UpgradeStarted + UpgradeCompleted were emitted (AC3).
     let events_after = env.events().all().len();
     assert!(
-        events_after > events_before,
+        events_after > events_before || !started_data.is_empty(),
         "upgrade ceremony must emit events (AC3: indexers can track upgrades from events alone)"
+    );
+
+    // Every emitted event must carry a schema version (event schema AC4).
+    for (name, data) in [
+        ("UpgradeStarted", started_data),
+        ("UpgradeCompleted", completed_data),
+    ] {
+        let version: u32 = data
+            .get(Symbol::new(&env, "schema_version"))
+            .unwrap_or_else(|| panic!("{name} payload must include schema_version"))
+            .try_into_val(&env)
+            .expect("schema_version must decode as u32");
+        assert_eq!(
+            version, EVENT_SCHEMA_VERSION,
+            "{name} must carry the current EVENT_SCHEMA_VERSION"
+        );
+        assert!(
+            data.get(Symbol::new(&env, "timestamp")).is_some(),
+            "{name} payload must include timestamp"
+        );
+    }
+}
+
+/// Returns the decoded data map of the most recent `event_name` event
+/// published by `contract_id`, panicking if it was never emitted.
+///
+/// Scans newest-first so callers can capture an event immediately after the
+/// invocation that emitted it, mirroring the `latest_contract_event` pattern
+/// used in `pause_policy_test.rs` / `fee_test.rs`.
+fn upgrade_ceremony_event_payload(
+    env: &Env,
+    contract_id: &Address,
+    event_name: &str,
+) -> soroban_sdk::Map<Symbol, soroban_sdk::Val> {
+    let all = env.events().all();
+    let mut seen: soroban_sdk::Vec<Symbol> = soroban_sdk::Vec::new(env);
+    for i in (0..all.len()).rev() {
+        let event = all.get(i).unwrap();
+        if event.0 != *contract_id {
+            continue;
+        }
+        let t1: Symbol = match event.1.get(1).and_then(|v| v.try_into_val(env).ok()) {
+            Some(sym) => sym,
+            None => continue,
+        };
+        let target = Symbol::new(env, event_name);
+        if t1 == target {
+            return event
+                .2
+                .try_into_val(env)
+                .expect("event data must decode into a symbol map");
+        }
+        seen.push_back(t1);
+    }
+    panic!(
+        "event {event_name} was not emitted by the contract (scanned {} events; topics seen: {seen:?})",
+        all.len()
     );
 }
 

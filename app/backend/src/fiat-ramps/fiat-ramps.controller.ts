@@ -1,8 +1,22 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { FiatRampsService, Sep24FlowRequestDto } from './fiat-ramps.service';
+import { Controller, Get, Post, Body, Query, UseInterceptors } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
+import { FiatRampsService } from './fiat-ramps.service';
+import {
+  IdempotencyInterceptor,
+  IDEMPOTENCY_KEY_HEADER,
+} from '../common/idempotency/idempotency.interceptor';
 
 @ApiTags('fiat-ramps')
+@ApiHeader({
+  name: IDEMPOTENCY_KEY_HEADER,
+  description:
+    'Optional. Supply a unique key to make deposit/withdraw mutations idempotent: retries with the same key and body return the original response; reuse with a different body is rejected.',
+  required: false,
+})
+@UseInterceptors(IdempotencyInterceptor)
 @Controller('fiat-ramps')
 export class FiatRampsController {
   constructor(private readonly fiatRampsService: FiatRampsService) {}
