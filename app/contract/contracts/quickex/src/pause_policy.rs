@@ -63,15 +63,37 @@ impl EntryPoint {
     }
 
     /// Whether this entry point is on the emergency-mode allowlist.
+    /// 
+    /// Rationale for classification:
+    /// - **Allowed (true)**: Fund-recovery paths (`Withdraw`, `Refund`, `StealthWithdraw`) 
+    ///   must remain accessible so users can retrieve assets even if the protocol is compromised.
+    ///   Maintenance paths (`CleanupEscrow`, `ExtendEscrowTtl`) are neutral and safe to keep running.
+    /// - **Disallowed (false)**: State-changing paths that create new liabilities (`Deposit`, 
+    ///   `DepositWithCommitment`, `DepositPartial`, `PartialPayment`, `StealthDeposit`), 
+    ///   mutate privacy settings (`SetPrivacy`), or interact with the dispute resolution 
+    ///   process (`Dispute`, `ResolveDispute`, `VoteForDispute`, `ResolveDisputeMultiSig`) 
+    ///   are blocked to contain potential exploits and freeze contract state.
     pub fn is_emergency_safe(self) -> bool {
-        matches!(
-            self,
+        match self {
+            // Fund-recovery and maintenance operations are allowed.
             EntryPoint::Withdraw
-                | EntryPoint::Refund
-                | EntryPoint::StealthWithdraw
-                | EntryPoint::CleanupEscrow
-                | EntryPoint::ExtendEscrowTtl
-        )
+            | EntryPoint::Refund
+            | EntryPoint::StealthWithdraw
+            | EntryPoint::CleanupEscrow
+            | EntryPoint::ExtendEscrowTtl => true,
+
+            // All other state-changing operations are blocked.
+            EntryPoint::Deposit
+            | EntryPoint::DepositWithCommitment
+            | EntryPoint::DepositPartial
+            | EntryPoint::PartialPayment
+            | EntryPoint::StealthDeposit
+            | EntryPoint::Dispute
+            | EntryPoint::ResolveDispute
+            | EntryPoint::VoteForDispute
+            | EntryPoint::ResolveDisputeMultiSig
+            | EntryPoint::SetPrivacy => false,
+        }
     }
 }
 

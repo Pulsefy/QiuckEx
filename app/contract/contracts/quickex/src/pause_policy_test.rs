@@ -96,15 +96,56 @@ fn setup_withdrawable_escrow(
 }
 
 #[test]
-fn test_emergency_allowlist_includes_fund_recovery_paths() {
+fn test_all_entrypoints_classified() {
     let (_env, client) = setup();
 
-    assert!(client.is_entry_allowed_in_emergency(&EntryPoint::Withdraw));
-    assert!(client.is_entry_allowed_in_emergency(&EntryPoint::Refund));
-    assert!(client.is_entry_allowed_in_emergency(&EntryPoint::StealthWithdraw));
-    assert!(client.is_entry_allowed_in_emergency(&EntryPoint::CleanupEscrow));
-    assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::Deposit));
-    assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::DepositWithCommitment));
+    let allowed = [
+        EntryPoint::Withdraw,
+        EntryPoint::Refund,
+        EntryPoint::StealthWithdraw,
+        EntryPoint::CleanupEscrow,
+        EntryPoint::ExtendEscrowTtl,
+    ];
+    let disallowed = [
+        EntryPoint::Deposit,
+        EntryPoint::DepositWithCommitment,
+        EntryPoint::DepositPartial,
+        EntryPoint::PartialPayment,
+        EntryPoint::StealthDeposit,
+        EntryPoint::Dispute,
+        EntryPoint::ResolveDispute,
+        EntryPoint::VoteForDispute,
+        EntryPoint::ResolveDisputeMultiSig,
+        EntryPoint::SetPrivacy,
+    ];
+
+    let check_exhaustive = |e: EntryPoint| match e {
+        EntryPoint::Deposit
+        | EntryPoint::DepositWithCommitment
+        | EntryPoint::DepositPartial
+        | EntryPoint::PartialPayment
+        | EntryPoint::StealthDeposit
+        | EntryPoint::Withdraw
+        | EntryPoint::Refund
+        | EntryPoint::StealthWithdraw
+        | EntryPoint::Dispute
+        | EntryPoint::ResolveDispute
+        | EntryPoint::VoteForDispute
+        | EntryPoint::ResolveDisputeMultiSig
+        | EntryPoint::SetPrivacy
+        | EntryPoint::CleanupEscrow
+        | EntryPoint::ExtendEscrowTtl => {}
+    };
+
+    for a in allowed {
+        check_exhaustive(a);
+        assert!(client.is_entry_allowed_in_emergency(&a));
+    }
+
+    for d in disallowed {
+        check_exhaustive(d);
+        assert!(!client.is_entry_allowed_in_emergency(&d));
+    }
 }
 
 #[test]
@@ -173,6 +214,36 @@ fn test_risky_entry_points_blocked_in_emergency_mode() {
 
     assert_contract_error(
         client.try_dispute(&commitment),
+        QuickexError::ContractPaused,
+    );
+
+    assert_contract_error(
+        client.try_resolve_dispute(&commitment, &true, &100),
+        QuickexError::ContractPaused,
+    );
+
+    assert_contract_error(
+        client.try_vote_for_dispute(&commitment, &user, &true),
+        QuickexError::ContractPaused,
+    );
+
+    assert_contract_error(
+        client.try_resolve_dispute_multi_sig(&commitment, &true),
+        QuickexError::ContractPaused,
+    );
+
+    let stealth_params = StealthDepositParams {
+        sender: user.clone(),
+        token: token.clone(),
+        amount_due: amount,
+        amount_paid: amount,
+        eph_pub: BytesN::from_array(&env, &[1; 32]),
+        spend_pub: BytesN::from_array(&env, &[2; 32]),
+        stealth_address: commitment.clone(),
+        timeout_secs: 0,
+    };
+    assert_contract_error(
+        client.try_register_ephemeral_key(&stealth_params, &0, &u64::MAX),
         QuickexError::ContractPaused,
     );
 
