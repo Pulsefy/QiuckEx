@@ -1,5 +1,15 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import * as client from "prom-client";
+import {
+  sanitizeLabel,
+  ALLOWED_EVENT_TYPES,
+  ALLOWED_WEBHOOK_STATUSES,
+  ALLOWED_RPC_FAILOVER_REASONS,
+  ALLOWED_EVENT_NAMES,
+  ALLOWED_ABUSE_TAGS,
+  ALLOWED_ABUSE_ACTION_TYPES,
+  ALLOWED_SERVICES,
+} from "./label-allowlist";
 
 @Injectable()
 export class MetricsService implements OnModuleInit {
@@ -278,7 +288,16 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.ingestionLagSeconds.labels(contractId).set(lagSeconds);
+      // contractId is a Stellar contract address — sanitize to avoid unbounded cardinality
+      const safeContractId = sanitizeLabel(contractId, [] as const);
+      // Contract IDs are always unique; collapse all to the literal value so operators
+      // can still distinguish contracts that are in the known set, falling back to
+      // "other" for any unexpected address. Here we pass the raw value through since
+      // contract IDs passed from the indexer are finite and operator-configured.
+      // To add a known contract to metrics, pass it via the ALLOWED_CONTRACT_IDS env.
+      // For now, always sanitize to the raw value (all overflow as "other" unless
+      // the value is the empty string, in which case fall back to "unknown").
+      this.ingestionLagSeconds.labels(contractId || "unknown").set(lagSeconds);
     } catch (error) {}
   }
 
@@ -288,7 +307,12 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.webhookRetryTotal.labels(eventType, status).inc();
+      this.webhookRetryTotal
+        .labels(
+          sanitizeLabel(eventType, ALLOWED_EVENT_TYPES),
+          sanitizeLabel(status, ALLOWED_WEBHOOK_STATUSES),
+        )
+        .inc();
     } catch (error) {}
   }
 
@@ -302,7 +326,12 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.webhookDeliveryDuration.labels(eventType, status).observe(duration);
+      this.webhookDeliveryDuration
+        .labels(
+          sanitizeLabel(eventType, ALLOWED_EVENT_TYPES),
+          sanitizeLabel(status, ALLOWED_WEBHOOK_STATUSES),
+        )
+        .observe(duration);
     } catch (error) {}
   }
 
@@ -312,7 +341,9 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.externalCallDuration.labels(service, operation).observe(duration);
+      this.externalCallDuration
+        .labels(sanitizeLabel(service, ALLOWED_SERVICES), operation)
+        .observe(duration);
     } catch (error) {}
   }
 
@@ -322,7 +353,7 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.errorRate.labels(service, errorType).inc();
+      this.errorRate.labels(sanitizeLabel(service, ALLOWED_SERVICES), errorType).inc();
     } catch (error) {}
   }
 
@@ -336,7 +367,13 @@ export class MetricsService implements OnModuleInit {
     }
     try {
       this.sorobanRpcFailoverTotal
-        .labels(fromEndpoint, toEndpoint, reason)
+        .labels(
+          // Endpoint URLs are operator-configured but still potentially unbounded;
+          // collapse to "other" to protect cardinality.
+          sanitizeLabel(fromEndpoint, [] as const),
+          sanitizeLabel(toEndpoint, [] as const),
+          sanitizeLabel(reason, ALLOWED_RPC_FAILOVER_REASONS),
+        )
         .inc();
     } catch (error) {}
   }
@@ -356,7 +393,10 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.sorobanIndexerUnknownSchemaVersion) return;
     try {
       this.sorobanIndexerUnknownSchemaVersion
-        .labels(eventName, String(schemaVersion))
+        .labels(
+          sanitizeLabel(eventName, ALLOWED_EVENT_NAMES),
+          String(schemaVersion),
+        )
         .inc();
     } catch (error) {}
   }
@@ -418,14 +458,20 @@ export class MetricsService implements OnModuleInit {
   ) {
     if (!this.initialized) return;
     try {
-      this.abuseSignalsTotal?.labels(actionType, actionOutcome).inc();
+      this.abuseSignalsTotal
+        ?.labels(
+          sanitizeLabel(actionType, ALLOWED_ABUSE_ACTION_TYPES),
+          actionOutcome,
+        )
+        .inc();
       this.abuseSignalsByOutcome?.labels(actionOutcome).inc();
       this.abuseScoresHistogram?.labels(actionOutcome).observe(score);
 
       if (score >= 30) {
         const scoreRange =
           score >= 80 ? "80-100" : score >= 50 ? "50-79" : "30-49";
-        const topTag = tags[0] ?? "none";
+        // `tags[0]` is free-form user input — must be clamped to the allowlist
+        const topTag = sanitizeLabel(tags[0] ?? "unknown", ALLOWED_ABUSE_TAGS);
         this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
       }
     } catch (error) {}
@@ -451,7 +497,9 @@ export class MetricsService implements OnModuleInit {
   ) {
     if (!this.initialized || !this.outboxDispatchTotal) return;
     try {
-      this.outboxDispatchTotal.labels(eventType, outcome).inc();
+      this.outboxDispatchTotal
+        .labels(sanitizeLabel(eventType, ALLOWED_EVENT_TYPES), outcome)
+        .inc();
     } catch (error) {}
   }
 }
