@@ -15,6 +15,8 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
+#[cfg(test)]
+mod error_codes_test;
 mod errors;
 mod escrow;
 mod escrow_id;
