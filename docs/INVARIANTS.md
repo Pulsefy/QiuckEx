@@ -39,3 +39,12 @@ Zero-amount payments follow the same state machine but MUST NOT resultin any tok
 INV-10: Fee Ceiling
 
 Protocol fees collected per payment MUST NOT exceed the configuredmaximum fee percentage of the payment amount.
+INV-11: Partial Payment Accounting
+
+For every escrow, the accounting equation is:
+
+    settled + refunded + outstanding + fees == paid_deposit
+
+paid_deposit is the cumulative principal transferred into the escrow contract. While a partial escrow is pending, all paid principal is outstanding in the contract and mount_paid must never exceed mount_due. On settlement, the paid principal is split into recipient payout plus protocol fees. On refund or timeout finalization, the paid principal returns to the owner and no fee is charged.
+
+Fee rounding is floor-based at final settlement (ee_from_bps_floor) and is applied once to the settled escrow amount, not incrementally on every partial payment. This keeps repeated partial operations from leaking value in either direction.

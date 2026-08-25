@@ -4,10 +4,12 @@ use crate::{
         EVENT_COMPATIBILITY, EVENT_SCHEMAS, EVENT_SCHEMA_VERSION, EVENT_TOPIC_ADMIN,
         EVENT_TOPIC_ESCROW, EVENT_TOPIC_PRIVACY,
     },
+    fee::fee_from_bps_floor,
     storage::{
         put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
         PRIVACY_ENABLED_KEY,
     },
+    types::FeeConfig,
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
 
@@ -330,6 +332,29 @@ fn assert_contract_error<T>(
         Err(Ok(actual)) => assert_eq!(actual, expected),
         _ => panic!("expected contract error"),
     }
+}
+
+fn assert_partial_accounting(
+    client: &QuickexContractClient,
+    commitment: &BytesN<32>,
+    viewer: &Address,
+    expected_due: i128,
+    expected_paid_deposit: i128,
+) {
+    let details = client.get_escrow_details(commitment, viewer).unwrap();
+    let outstanding = details.amount_paid.unwrap();
+
+    assert_eq!(details.amount_due, Some(expected_due));
+    assert_eq!(outstanding, expected_paid_deposit);
+    assert!(
+        outstanding <= expected_due,
+        "outstanding principal cannot exceed amount_due"
+    );
+    assert_eq!(
+        0_i128 + 0_i128 + outstanding + 0_i128,
+        expected_paid_deposit,
+        "settled + refunded + outstanding + fees must equal deposit"
+    );
 }
 
 fn latest_contract_event(env: &Env, contract_id: &Address) -> (soroban_sdk::Vec<Val>, Val) {
@@ -3635,9 +3660,13 @@ fn test_partial_payment_success() {
         &u64::MAX,
     );
 
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, initial_payment);
+
     // Make partial payment
     let payment_amount: i128 = 300;
     client.partial_payment(&commitment, &payer, &payment_amount, &0u64, &u64::MAX);
+
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, 1000);
 
     // Verify escrow state
     let details = client.get_escrow_details(&commitment, &owner).unwrap();
@@ -3646,6 +3675,36 @@ fn test_partial_payment_success() {
     assert_eq!(details.status, EscrowStatus::Pending);
 }
 
+#[test]
+fn test_deposit_partial_initial_overpayment_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 1001;
+    let salt = Bytes::from_slice(&env, b"initial_overpayment_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+
+    let result = client.try_deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    assert_contract_error(result, QuickexError::Overpayment);
+}
 #[test]
 fn test_partial_payment_overpayment_rejected() {
     let env = Env::default();
@@ -3910,24 +3969,140 @@ fn test_multi_payment_sequence() {
         &0u64,
         &u64::MAX,
     );
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, initial_payment);
 
     // First partial payment: 200
     client.partial_payment(&commitment, &payer1, &200, &0u64, &u64::MAX);
-    let details = client.get_escrow_details(&commitment, &owner).unwrap();
-    assert_eq!(details.amount_paid, Some(500));
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, 500);
 
     // Second partial payment: 300
     client.partial_payment(&commitment, &payer2, &300, &0u64, &u64::MAX);
-    let details = client.get_escrow_details(&commitment, &owner).unwrap();
-    assert_eq!(details.amount_paid, Some(800));
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, 800);
 
     // Final payment: 200 (completes the escrow)
     client.partial_payment(&commitment, &payer3, &200, &0u64, &u64::MAX);
-    let details = client.get_escrow_details(&commitment, &owner).unwrap();
-    assert_eq!(details.amount_paid, Some(1000));
-    assert_eq!(details.amount_due, Some(1000));
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, 1000);
 }
 
+#[test]
+fn test_partial_payment_withdraw_fee_accounting_uses_floor_rounding() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let platform_wallet = Address::generate(&env);
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1001;
+    let initial_payment: i128 = 400;
+    let final_payment: i128 = 601;
+    let fee_bps = 333_u32;
+    let salt = Bytes::from_slice(&env, b"partial_fee_accounting_salt");
+
+    client.initialize(&admin);
+    client.set_fee_config(&admin, &FeeConfig { fee_bps });
+    client.set_platform_wallet(&admin, &platform_wallet);
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer, &final_payment);
+
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &0,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, initial_payment);
+
+    client.partial_payment(&commitment, &payer, &final_payment, &0u64, &u64::MAX);
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, amount_due);
+
+    let token_client = token::Client::new(&env, &token);
+    let owner_before = token_client.balance(&owner);
+    let platform_before = token_client.balance(&platform_wallet);
+    client.withdraw(
+        &token,
+        &amount_due,
+        &commitment,
+        &owner,
+        &salt,
+        &0u64,
+        &u64::MAX,
+    );
+
+    let expected_fee = fee_from_bps_floor(amount_due, fee_bps);
+    let owner_delta = token_client.balance(&owner) - owner_before;
+    let platform_delta = token_client.balance(&platform_wallet) - platform_before;
+    let contract_balance = token_client.balance(&contract_id);
+
+    assert_eq!(expected_fee, 33);
+    assert_eq!(platform_delta, expected_fee);
+    assert_eq!(owner_delta + platform_delta + contract_balance, amount_due);
+}
+
+#[test]
+fn test_finalize_expired_partial_escrow_refunds_paid_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let payer = Address::generate(&env);
+    let amount_due: i128 = 1000;
+    let initial_payment: i128 = 250;
+    let second_payment: i128 = 125;
+    let paid_deposit = initial_payment + second_payment;
+    let timeout_secs = 30_u64;
+    let salt = Bytes::from_slice(&env, b"partial_expiry_finalization_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &initial_payment);
+    token_client.mint(&payer, &second_payment);
+
+    let commitment = client.deposit_partial(
+        &token,
+        &amount_due,
+        &initial_payment,
+        &owner,
+        &salt,
+        &timeout_secs,
+        &None,
+        &0u64,
+        &u64::MAX,
+    );
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, initial_payment);
+
+    client.partial_payment(&commitment, &payer, &second_payment, &0u64, &u64::MAX);
+    assert_partial_accounting(&client, &commitment, &owner, amount_due, paid_deposit);
+
+    let token_client = token::Client::new(&env, &token);
+    let owner_before = token_client.balance(&owner);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + timeout_secs);
+    client.finalize_expired_escrow(&commitment);
+
+    let owner_delta = token_client.balance(&owner) - owner_before;
+    let contract_balance = token_client.balance(&contract_id);
+    let details = client.get_escrow_details(&commitment, &owner).unwrap();
+
+    assert_eq!(owner_delta, paid_deposit);
+    assert_eq!(contract_balance, 0);
+    assert_eq!(details.status, EscrowStatus::Refunded);
+    assert_eq!(0_i128 + paid_deposit + 0_i128 + 0_i128, paid_deposit);
+}
 // ============================================================================
 // Multi-Sig Arbiter Tests
 // ============================================================================

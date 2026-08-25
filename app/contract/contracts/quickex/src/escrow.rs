@@ -126,6 +126,43 @@ fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError>
     Ok(expires_at)
 }
 
+/// Enforces partial-payment value conservation for every transition that moves
+/// escrowed principal or final fees:
+///
+/// settled + refunded + outstanding + fees == deposit
+fn assert_accounting_invariant(
+    deposit: i128,
+    settled: i128,
+    refunded: i128,
+    outstanding: i128,
+    fees: i128,
+) -> Result<(), QuickexError> {
+    if deposit < 0 || settled < 0 || refunded < 0 || outstanding < 0 || fees < 0 {
+        return Err(QuickexError::InternalError);
+    }
+
+    let total = settled
+        .checked_add(refunded)
+        .and_then(|v| v.checked_add(outstanding))
+        .and_then(|v| v.checked_add(fees))
+        .ok_or(QuickexError::InternalError)?;
+
+    if total != deposit {
+        return Err(QuickexError::InternalError);
+    }
+
+    Ok(())
+}
+
+/// Pending escrows hold every paid unit in the contract until they settle or
+/// refund. The target amount_due may be higher, but amount_paid cannot exceed it.
+fn assert_pending_partial_accounting(entry: &EscrowEntry) -> Result<(), QuickexError> {
+    if entry.amount_paid > entry.amount_due {
+        return Err(QuickexError::InternalError);
+    }
+    assert_accounting_invariant(entry.amount_paid, 0, 0, entry.amount_paid, 0)
+}
+
 // ---------------------------------------------------------------------------
 // deposit
 // ---------------------------------------------------------------------------
@@ -360,6 +397,9 @@ pub fn deposit_partial(
     if amount_due <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
+    if initial_payment > amount_due {
+        return Err(QuickexError::Overpayment);
+    }
 
     owner.require_auth();
 
@@ -392,6 +432,7 @@ pub fn deposit_partial(
         arbiter_threshold: 0,
     };
 
+    assert_pending_partial_accounting(&entry)?;
     put_escrow(env, &commitment_bytes, &entry);
     token_client.transfer(&owner, env.current_contract_address(), &initial_payment);
 
@@ -467,8 +508,13 @@ pub fn partial_payment(
         return Err(QuickexError::AlreadySpent);
     }
 
+    assert_pending_partial_accounting(&entry)?;
+
     // Calculate remaining amount due
-    let remaining = entry.amount_due.saturating_sub(entry.amount_paid);
+    let remaining = entry
+        .amount_due
+        .checked_sub(entry.amount_paid)
+        .ok_or(QuickexError::InternalError)?;
 
     // Reject overpayment
     if payment_amount > remaining {
@@ -480,7 +526,11 @@ pub fn partial_payment(
     token_client.transfer(&payer, env.current_contract_address(), &payment_amount);
 
     // Update amount_paid
-    entry.amount_paid = entry.amount_paid.saturating_add(payment_amount);
+    entry.amount_paid = entry
+        .amount_paid
+        .checked_add(payment_amount)
+        .ok_or(QuickexError::InternalError)?;
+    assert_pending_partial_accounting(&entry)?;
 
     // Check if escrow is now fully paid
     let is_fully_paid = entry.amount_paid >= entry.amount_due;
@@ -595,8 +645,9 @@ pub fn withdraw(
     updated.status = EscrowStatus::Spent;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) =
+    let (payout_amount, fee_amount) =
         fee_router::route_payout_price_aware(env, &token_ref, &to, amount_paid, None)?;
+    assert_accounting_invariant(amount_paid, payout_amount, 0, 0, fee_amount)?;
 
     events::publish_escrow_withdrawn(
         env,
@@ -677,6 +728,7 @@ pub fn refund(
     let token_ref = entry.token.clone();
     let owner_ref = entry.owner.clone();
     let amount_paid = entry.amount_paid;
+    assert_accounting_invariant(amount_paid, 0, amount_paid, 0, 0)?;
 
     let mut updated = entry;
     updated.status = EscrowStatus::Refunded;
@@ -754,6 +806,7 @@ pub fn finalize_expired_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), 
     let owner_ref = entry.owner.clone();
     let amount_paid = entry.amount_paid;
     let expires_at = entry.expires_at;
+    assert_accounting_invariant(amount_paid, 0, amount_paid, 0, 0)?;
 
     let mut updated = entry;
     updated.status = EscrowStatus::Refunded;

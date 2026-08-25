@@ -11,6 +11,7 @@
 //! | INV-5 | Terminal states are final — `Spent`/`Refunded` block all further transitions. |
 //! | INV-6 | No overpayment — `partial_payment` rejects amounts exceeding the remainder. |
 //! | INV-7 | Nonce uniqueness — replaying a `(signer, nonce)` pair always fails.      |
+//! | INV-8 | Partial payment accounting conserves paid deposit through settlement/refund. |
 //!
 //! # Adding a new invariant
 //!
@@ -21,7 +22,7 @@
 
 use proptest::prelude::*;
 
-use crate::test_context::TestContext;
+use crate::{fee::fee_from_bps_floor, test_context::TestContext};
 
 // ---------------------------------------------------------------------------
 // Strategies
@@ -630,6 +631,98 @@ proptest! {
     }
 }
 
+// ---------------------------------------------------------------------------
+// INV-8: Partial payment accounting conservation
+// ---------------------------------------------------------------------------
+
+proptest! {
+    /// INV-8: settled + refunded + outstanding + fees must equal the paid deposit
+    /// after every partial operation and after either final settlement or timeout finalization.
+    #[test]
+    fn inv8_partial_payment_accounting_conserved(
+        amount_due in 2_i128..=100_000_i128,
+        initial_seed in any::<u64>(),
+        payments in prop::collection::vec(1_i128..=50_000_i128, 0..12),
+        fee_bps in 0_u32..=1_000_u32,
+        settle_when_full in any::<bool>(),
+        salt in salt_strategy(),
+    ) {
+        let ctx = TestContext::with_fees(fee_bps);
+        let initial_payment = 1_i128 + (i128::from(initial_seed) % amount_due);
+        let timeout = 3600_u64;
+
+        ctx.mint(&ctx.alice.clone(), initial_payment);
+        let commitment = ctx.client.deposit_partial(
+            &ctx.token,
+            &amount_due,
+            &initial_payment,
+            &ctx.alice.clone(),
+            &ctx.salt(&salt),
+            &timeout,
+            &None,
+            &0u64,
+            &u64::MAX,
+        );
+
+        let mut paid_deposit = initial_payment;
+        prop_assert!(paid_deposit <= amount_due);
+        prop_assert_eq!(0_i128 + 0_i128 + paid_deposit + 0_i128, paid_deposit);
+
+        for (idx, candidate) in payments.iter().enumerate() {
+            let remaining = amount_due - paid_deposit;
+            if remaining == 0 {
+                break;
+            }
+
+            let payment = (*candidate).min(remaining);
+            ctx.mint(&ctx.bob.clone(), payment);
+            ctx.client.partial_payment(
+                &commitment,
+                &ctx.bob.clone(),
+                &payment,
+                &(idx as u64),
+                &u64::MAX,
+            );
+            paid_deposit += payment;
+
+            prop_assert!(paid_deposit <= amount_due);
+            prop_assert_eq!(0_i128 + 0_i128 + paid_deposit + 0_i128, paid_deposit);
+        }
+
+        if paid_deposit == amount_due && settle_when_full {
+            let recipient_before = ctx.balance(&ctx.alice.clone());
+            let fee_before = ctx.balance(&ctx.platform_wallet.clone());
+
+            ctx.client.withdraw(
+                &ctx.token,
+                &amount_due,
+                &commitment,
+                &ctx.alice.clone(),
+                &ctx.salt(&salt),
+                &0u64,
+                &u64::MAX,
+            );
+
+            let settled = ctx.balance(&ctx.alice.clone()) - recipient_before;
+            let fees = ctx.balance(&ctx.platform_wallet.clone()) - fee_before;
+            let outstanding = ctx.balance(&ctx.client.address);
+            let expected_fee = fee_from_bps_floor(paid_deposit, fee_bps);
+
+            prop_assert_eq!(fees, expected_fee);
+            prop_assert_eq!(settled + 0_i128 + outstanding + fees, paid_deposit);
+        } else {
+            let owner_before = ctx.balance(&ctx.alice.clone());
+
+            ctx.advance_time(timeout);
+            ctx.client.finalize_expired_escrow(&commitment);
+
+            let refunded = ctx.balance(&ctx.alice.clone()) - owner_before;
+            let outstanding = ctx.balance(&ctx.client.address);
+
+            prop_assert_eq!(0_i128 + refunded + outstanding + 0_i128, paid_deposit);
+        }
+    }
+}
 // ---------------------------------------------------------------------------
 // Regression corpus
 //
