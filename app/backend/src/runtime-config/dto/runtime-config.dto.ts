@@ -65,6 +65,26 @@ export class PreviewMetadataDto {
   valid: boolean;
 }
 
+export class MobileVersionPolicyDto {
+  @ApiProperty({ example: '1.2.0' })
+  minSupportedVersion: string;
+
+  @ApiProperty({ example: '1.3.0' })
+  recommendedVersion: string;
+
+  @ApiProperty({ example: '1.3.1' })
+  latestVersion: string;
+
+  @ApiProperty({ example: 'https://apps.apple.com/app/quickex' })
+  iosStoreUrl: string;
+
+  @ApiProperty({ example: 'market://details?id=com.pulsefy.quickex' })
+  androidStoreUrl: string;
+
+  @ApiProperty({ example: ['Security fixes', 'Contract registry compatibility'] })
+  releaseNotes: string[];
+}
+
 export class RuntimeConfigResponseDto {
   @ApiProperty({ example: 'production', enum: ['development', 'staging', 'production', 'test'] })
   environment: string;
@@ -80,6 +100,9 @@ export class RuntimeConfigResponseDto {
 
   @ApiProperty({ example: '0.1.0' })
   minAppVersion: string;
+
+  @ApiProperty({ type: MobileVersionPolicyDto })
+  mobileVersionPolicy: MobileVersionPolicyDto;
 
   @ApiProperty({
     type: 'object',

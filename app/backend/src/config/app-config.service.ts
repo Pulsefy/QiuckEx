@@ -386,6 +386,31 @@ export class AppConfigService {
     return this.configService.get("APP_VERSION", { infer: true }) || process.env.npm_package_version || "1.0.0";
   }
 
+  get mobileMinSupportedVersion(): string {
+    return this.configService.get("MOBILE_MIN_SUPPORTED_VERSION", { infer: true });
+  }
+
+  get mobileRecommendedVersion(): string {
+    return this.configService.get("MOBILE_RECOMMENDED_VERSION", { infer: true });
+  }
+
+  get mobileLatestVersion(): string {
+    return this.configService.get("MOBILE_LATEST_VERSION", { infer: true });
+  }
+
+  get mobileIosStoreUrl(): string {
+    return this.configService.get("MOBILE_IOS_STORE_URL", { infer: true });
+  }
+
+  get mobileAndroidStoreUrl(): string {
+    return this.configService.get("MOBILE_ANDROID_STORE_URL", { infer: true });
+  }
+
+  get mobileReleaseNotes(): string[] {
+    const raw = this.configService.get("MOBILE_RELEASE_NOTES", { infer: true });
+    return raw ? raw.split("|").map((note) => note.trim()).filter(Boolean) : [];
+  }
+
   /**
    * Get the Router Contract ID
    */
