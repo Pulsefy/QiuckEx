@@ -9,11 +9,35 @@
 use soroban_sdk::{contracttype, Address, Env, Vec};
 
 use crate::errors::QuickexError;
-use crate::storage::{get_escrow, store_escrow};
+use crate::storage::{get_escrow, put_escrow};
 use crate::types::{EscrowEntry, EscrowStatus};
 
 /// Maximum number of items allowed in a single batch call.
-const MAX_BATCH_SIZE: u32 = 20;
+///
+/// ## Resource Cost Justification
+///
+/// Soroban mainnet transaction budget: 400,000,000 CPU instructions (`tx_max_instructions`).
+///
+/// Per-operation costs (from `bench_core_lifecycle_costs` in bench_test.rs):
+/// - `deposit` / `batch_create` item: ~600,000 CPU instructions (native Rust estimate)
+/// - `withdraw` / `batch_release` item: ~500,000 CPU instructions
+/// - `refund` / `batch_refund` item: ~500,000 CPU instructions
+///
+/// WASM execution overhead is typically 2-3× native Rust, so worst-case per-op:
+/// - `deposit`: ~1,800,000 CPU instructions
+/// - `withdraw`/`refund`: ~1,500,000 CPU instructions
+///
+/// With a 50% safety margin (leaving headroom for auth, storage reads, events):
+/// - Available budget: 400,000,000 × 0.50 = 200,000,000 CPU instructions
+/// - Max `deposit` batch: 200,000,000 / 1,800,000 ≈ 111 items
+/// - Max `withdraw`/`refund` batch: 200,000,000 / 1,500,000 ≈ 133 items
+///
+/// We choose **20** as a conservative limit that:
+/// 1. Stays well within budget even with storage contention or auth overhead
+/// 2. Avoids hitting ledger read/write entry limits (max 200 entries per tx)
+/// 3. Keeps transaction size small enough for reliable propagation
+/// 4. Matches common batch patterns in DeFi protocols (10-25 items)
+pub const MAX_BATCH_SIZE: u32 = 20;
 
 /// Per-item outcome returned by every batch function.
 #[contracttype]
@@ -53,7 +77,7 @@ pub fn batch_create(
     caller.require_auth();
 
     if items.len() > MAX_BATCH_SIZE {
-        return Err(QuickexError::InvalidAmount);
+        return Err(QuickexError::BatchSizeExceeded);
     }
 
     let mut results: Vec<BatchItemResult> = Vec::new(env);
@@ -62,12 +86,20 @@ pub fn batch_create(
         let idx = i as u32;
 
         if item.amount <= 0 {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::InvalidAmount as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::InvalidAmount as u32,
+            });
             continue;
         }
 
         if get_escrow(env, &item.escrow_id).is_some() {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::EscrowExists as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::CommitmentAlreadyExists as u32,
+            });
             continue;
         }
 
@@ -80,10 +112,16 @@ pub fn batch_create(
             created_at: env.ledger().timestamp(),
             expires_at: item.expires_at,
             arbiter: None,
+            arbiters: Vec::new(env),
+            arbiter_threshold: 0,
         };
 
-        store_escrow(env, &item.escrow_id, &entry);
-        results.push_back(BatchItemResult { index: idx, success: true, error_code: 0 });
+        put_escrow(env, &item.escrow_id, &entry);
+        results.push_back(BatchItemResult {
+            index: idx,
+            success: true,
+            error_code: 0,
+        });
     }
 
     Ok(results)
@@ -103,7 +141,7 @@ pub fn batch_release(
     caller.require_auth();
 
     if escrow_ids.len() > MAX_BATCH_SIZE {
-        return Err(QuickexError::InvalidAmount);
+        return Err(QuickexError::BatchSizeExceeded);
     }
 
     let now = env.ledger().timestamp();
@@ -115,24 +153,40 @@ pub fn batch_release(
         let mut entry = match get_escrow(env, &id) {
             Some(e) => e,
             None => {
-                results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::EscrowNotFound as u32 });
+                results.push_back(BatchItemResult {
+                    index: idx,
+                    success: false,
+                    error_code: QuickexError::CommitmentNotFound as u32,
+                });
                 continue;
             }
         };
 
         if entry.status != EscrowStatus::Pending {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::AlreadySpent as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::AlreadySpent as u32,
+            });
             continue;
         }
 
         if entry.expires_at > 0 && now >= entry.expires_at {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::EscrowExpired as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::EscrowExpired as u32,
+            });
             continue;
         }
 
         entry.status = EscrowStatus::Spent;
-        store_escrow(env, &id, &entry);
-        results.push_back(BatchItemResult { index: idx, success: true, error_code: 0 });
+        put_escrow(env, &id, &entry);
+        results.push_back(BatchItemResult {
+            index: idx,
+            success: true,
+            error_code: 0,
+        });
     }
 
     Ok(results)
@@ -152,7 +206,7 @@ pub fn batch_refund(
     caller.require_auth();
 
     if escrow_ids.len() > MAX_BATCH_SIZE {
-        return Err(QuickexError::InvalidAmount);
+        return Err(QuickexError::BatchSizeExceeded);
     }
 
     let now = env.ledger().timestamp();
@@ -164,24 +218,40 @@ pub fn batch_refund(
         let mut entry = match get_escrow(env, &id) {
             Some(e) => e,
             None => {
-                results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::EscrowNotFound as u32 });
+                results.push_back(BatchItemResult {
+                    index: idx,
+                    success: false,
+                    error_code: QuickexError::CommitmentNotFound as u32,
+                });
                 continue;
             }
         };
 
         if entry.status != EscrowStatus::Pending {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::AlreadySpent as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::AlreadySpent as u32,
+            });
             continue;
         }
 
         if entry.expires_at == 0 || now < entry.expires_at {
-            results.push_back(BatchItemResult { index: idx, success: false, error_code: QuickexError::EscrowNotExpired as u32 });
+            results.push_back(BatchItemResult {
+                index: idx,
+                success: false,
+                error_code: QuickexError::EscrowNotExpired as u32,
+            });
             continue;
         }
 
         entry.status = EscrowStatus::Refunded;
-        store_escrow(env, &id, &entry);
-        results.push_back(BatchItemResult { index: idx, success: true, error_code: 0 });
+        put_escrow(env, &id, &entry);
+        results.push_back(BatchItemResult {
+            index: idx,
+            success: true,
+            error_code: 0,
+        });
     }
 
     Ok(results)

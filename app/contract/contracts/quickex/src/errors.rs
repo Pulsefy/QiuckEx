@@ -15,6 +15,8 @@ pub enum QuickexError {
     InvalidAmount = 100,
     InvalidSalt = 101,
     InvalidPrivacyLevel = 102,
+    /// Batch size exceeds the maximum allowed limit.
+    BatchSizeExceeded = 103,
     // Auth/admin failures (200-299)
     Unauthorized = 200,
     AlreadyInitialized = 201,
