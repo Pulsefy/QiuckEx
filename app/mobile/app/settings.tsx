@@ -29,6 +29,7 @@ import {
   APP_VERSION,
   BUILD_METADATA,
   BUILD_TAG,
+  IS_DEBUG_BUILD,
   STELLAR_NETWORK,
 } from "../src/config/build";
 
@@ -434,7 +435,7 @@ export default function SettingsScreen() {
 
         <EnvironmentSwitcher />
 
-        {Platform.OS !== "web" ? (
+        {Platform.OS !== "web" && IS_DEBUG_BUILD ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
               Debug
