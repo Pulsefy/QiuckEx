@@ -23,6 +23,37 @@ export const envSchema = Joi.object({
     .optional()
     .description("Application release version string"),
 
+  MOBILE_MIN_SUPPORTED_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Minimum mobile app version allowed to use the API"),
+
+  MOBILE_RECOMMENDED_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Mobile app version that should trigger a soft upgrade prompt"),
+
+  MOBILE_LATEST_VERSION: Joi.string()
+    .empty("")
+    .default("1.0.0")
+    .description("Latest mobile app version available in stores"),
+
+  MOBILE_IOS_STORE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .default("https://apps.apple.com/app/quickex")
+    .description("iOS App Store URL for mobile upgrades"),
+
+  MOBILE_ANDROID_STORE_URL: Joi.string()
+    .empty("")
+    .default("market://details?id=com.pulsefy.quickex")
+    .description("Android Play Store URL for mobile upgrades"),
+
+  MOBILE_RELEASE_NOTES: Joi.string()
+    .empty("")
+    .default("")
+    .description("Pipe-separated mobile release notes for upgrade prompts"),
+
   ROUTER_CONTRACT_ID: Joi.string()
     .empty("")
     .optional()
@@ -179,6 +210,14 @@ export const envSchema = Joi.object({
     .uri({ scheme: ["http", "https"] })
     .default("https://app.quickex.io")
     .description("Fallback frontend URL for unknown branches"),
+
+  // GitHub branch/PR deployment metadata sync (BE-60)
+  GITHUB_WEBHOOK_SECRET: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Secret used to verify GitHub webhook signatures (X-Hub-Signature-256). When unset, the deployment webhook endpoint returns 503.",
+    ),
 
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
@@ -489,6 +528,12 @@ export interface EnvConfig {
   PORT: number;
   API_BASE_URL?: string;
   APP_VERSION?: string;
+  MOBILE_MIN_SUPPORTED_VERSION: string;
+  MOBILE_RECOMMENDED_VERSION: string;
+  MOBILE_LATEST_VERSION: string;
+  MOBILE_IOS_STORE_URL: string;
+  MOBILE_ANDROID_STORE_URL: string;
+  MOBILE_RELEASE_NOTES: string;
   ROUTER_CONTRACT_ID?: string;
   ALLOWED_TOKENS?: string;
   STELLAR_NETWORK_PASSPHRASE?: string;
@@ -511,6 +556,7 @@ export interface EnvConfig {
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
+  GITHUB_WEBHOOK_SECRET?: string;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
   FEATURE_FLAGS_CACHE_TTL_MS: number;
@@ -558,9 +604,4 @@ export interface EnvConfig {
   IDEMPOTENCY_RETENTION_HOURS: number;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;
-
-  // SEP-24 Polling
-  SEP24_STUCK_THRESHOLD_MS: number;
-  SEP24_MAX_POLL_FAILURES: number;
-  SEP24_POLL_BATCH_SIZE: number;
 }

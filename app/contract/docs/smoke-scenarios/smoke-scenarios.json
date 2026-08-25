@@ -1,0 +1,292 @@
+{
+  "kind": "quickex-smoke-scenarios-v1",
+  "version": "1.0.0",
+  "contract": "quickex",
+  "description": "Canonical post-deploy smoke scenarios covering core QuickEx contract entry points and validation rules. Deploy tooling and contributors run these scenarios after testnet deploys to validate contract behavior consistently. The artifact is machine-readable: backend/test tooling can consume it without custom translation.",
+  "scenarios": [
+    {
+      "id": "SMOKE-001",
+      "name": "health_check",
+      "description": "Verify the contract health check view returns true.",
+      "category": "readiness",
+      "entry_point": "health_check",
+      "inputs": {},
+      "expected_outcome": "success",
+      "expected_result": true,
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-002",
+      "name": "get_deployment_metadata",
+      "description": "Verify the deployment metadata view reports the active schema and event schema versions.",
+      "category": "metadata",
+      "entry_point": "get_deployment_metadata",
+      "inputs": {},
+      "expected_outcome": "success",
+      "expected_result": {
+        "contract_version": 1,
+        "event_schema_version": 2
+      },
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-003",
+      "name": "initialize_already_initialized",
+      "description": "Rejection path: initializing an already initialized contract fails with AlreadyInitialized.",
+      "category": "admin",
+      "entry_point": "initialize",
+      "inputs": {
+        "admin": "CONTRACT_ADMIN_ADDRESS"
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "AlreadyInitialized",
+        "code": 201
+      }
+    },
+    {
+      "id": "SMOKE-004",
+      "name": "create_amount_commitment_success",
+      "description": "Compute the deterministic KECCAK256 commitment hash for a valid owner, amount, and salt.",
+      "category": "commitment",
+      "entry_point": "create_amount_commitment",
+      "inputs": {
+        "owner": "ALICE_ADDRESS",
+        "amount": 1000,
+        "salt": "smoke_salt_001"
+      },
+      "expected_outcome": "success",
+      "expected_result": "32_BYTE_HASH",
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-005",
+      "name": "create_amount_commitment_negative_amount",
+      "description": "Rejection path: creating a commitment with a negative amount fails with InvalidAmount.",
+      "category": "commitment",
+      "entry_point": "create_amount_commitment",
+      "inputs": {
+        "owner": "ALICE_ADDRESS",
+        "amount": -500,
+        "salt": "smoke_salt_001"
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "InvalidAmount",
+        "code": 100
+      }
+    },
+    {
+      "id": "SMOKE-006",
+      "name": "deposit_success",
+      "description": "Deposit funds into escrow and create a pending commitment entry.",
+      "category": "escrow",
+      "entry_point": "deposit",
+      "inputs": {
+        "token": "TOKEN_ADDRESS",
+        "amount": 1000,
+        "owner": "ALICE_ADDRESS",
+        "salt": "smoke_salt_deposit_1",
+        "timeout_secs": 0,
+        "arbiter": null,
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "success",
+      "expected_result": "32_BYTE_COMMITMENT_HASH",
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-007",
+      "name": "deposit_zero_amount",
+      "description": "Rejection path: depositing a zero amount fails with InvalidAmount.",
+      "category": "escrow",
+      "entry_point": "deposit",
+      "inputs": {
+        "token": "TOKEN_ADDRESS",
+        "amount": 0,
+        "owner": "ALICE_ADDRESS",
+        "salt": "smoke_salt_deposit_zero",
+        "timeout_secs": 0,
+        "arbiter": null,
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "InvalidAmount",
+        "code": 100
+      }
+    },
+    {
+      "id": "SMOKE-008",
+      "name": "deposit_duplicate_commitment",
+      "description": "Rejection path: depositing with an existing pending commitment fails with CommitmentAlreadyExists.",
+      "category": "escrow",
+      "entry_point": "deposit",
+      "inputs": {
+        "token": "TOKEN_ADDRESS",
+        "amount": 1000,
+        "owner": "ALICE_ADDRESS",
+        "salt": "smoke_salt_deposit_1",
+        "timeout_secs": 0,
+        "arbiter": null,
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "CommitmentAlreadyExists",
+        "code": 303
+      }
+    },
+    {
+      "id": "SMOKE-009",
+      "name": "withdraw_success",
+      "description": "Withdraw a pending escrow by providing the matching owner, amount, and salt.",
+      "category": "escrow",
+      "entry_point": "withdraw",
+      "inputs": {
+        "token": "TOKEN_ADDRESS",
+        "amount": 1000,
+        "commitment": "PENDING_COMMITMENT_HASH",
+        "to": "ALICE_ADDRESS",
+        "salt": "smoke_salt_deposit_1",
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "success",
+      "expected_result": true,
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-010",
+      "name": "withdraw_already_spent",
+      "description": "Rejection path: withdrawing from an already spent escrow fails with AlreadySpent.",
+      "category": "escrow",
+      "entry_point": "withdraw",
+      "inputs": {
+        "token": "TOKEN_ADDRESS",
+        "amount": 1000,
+        "commitment": "SPENT_COMMITMENT_HASH",
+        "to": "ALICE_ADDRESS",
+        "salt": "smoke_salt_deposit_1",
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "AlreadySpent",
+        "code": 304
+      }
+    },
+    {
+      "id": "SMOKE-011",
+      "name": "refund_before_expiry",
+      "description": "Rejection path: refunding a pending escrow before its timeout expires fails with EscrowNotExpired.",
+      "category": "escrow",
+      "entry_point": "refund",
+      "inputs": {
+        "commitment": "UNEXPIRED_COMMITMENT_HASH",
+        "caller": "ALICE_ADDRESS",
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "EscrowNotExpired",
+        "code": 308
+      }
+    },
+    {
+      "id": "SMOKE-012",
+      "name": "refund_after_expiry",
+      "description": "Refund an expired escrow back to the original depositor once the timeout has elapsed.",
+      "category": "escrow",
+      "entry_point": "refund",
+      "inputs": {
+        "commitment": "EXPIRED_COMMITMENT_HASH",
+        "caller": "ALICE_ADDRESS",
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "success",
+      "expected_result": null,
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-013",
+      "name": "dispute_without_arbiter",
+      "description": "Rejection path: disputing an escrow without an assigned arbiter fails with NoArbiter.",
+      "category": "dispute",
+      "entry_point": "dispute",
+      "inputs": {
+        "commitment": "NO_ARBITER_COMMITMENT_HASH"
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "NoArbiter",
+        "code": 310
+      }
+    },
+    {
+      "id": "SMOKE-014",
+      "name": "resolve_dispute_by_non_arbiter",
+      "description": "Rejection path: a non-arbiter attempting to resolve a dispute fails with NotArbiter.",
+      "category": "dispute",
+      "entry_point": "resolve_dispute",
+      "inputs": {
+        "caller": "NON_ARBITER_ADDRESS",
+        "commitment": "DISPUTED_COMMITMENT_HASH",
+        "resolve_for_owner": true,
+        "recipient": "BOB_ADDRESS",
+        "nonce": 0,
+        "valid_until": 18446744073709551615
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "NotArbiter",
+        "code": 312
+      }
+    },
+    {
+      "id": "SMOKE-015",
+      "name": "set_privacy_success",
+      "description": "Enable privacy for an account successfully.",
+      "category": "privacy",
+      "entry_point": "set_privacy",
+      "inputs": {
+        "owner": "ALICE_ADDRESS",
+        "enabled": true
+      },
+      "expected_outcome": "success",
+      "expected_result": null,
+      "expected_error": null
+    },
+    {
+      "id": "SMOKE-016",
+      "name": "set_privacy_already_set",
+      "description": "Rejection path: setting privacy when already at the target value fails with PrivacyAlreadySet.",
+      "category": "privacy",
+      "entry_point": "set_privacy",
+      "inputs": {
+        "owner": "ALICE_ADDRESS",
+        "enabled": true
+      },
+      "expected_outcome": "rejection",
+      "expected_result": null,
+      "expected_error": {
+        "name": "PrivacyAlreadySet",
+        "code": 301
+      }
+    }
+  ]
+}

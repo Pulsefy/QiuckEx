@@ -194,6 +194,60 @@ describe("useTransactions", () => {
     expect(mockedSaveCache).toHaveBeenCalledTimes(1);
   });
 
+  it("loadMore deduplicates overlapping pages by pagingToken (stable memory)", async () => {
+    // First page
+    mockedFetchTransactions.mockResolvedValueOnce({
+      items: mockItems,
+      nextCursor: "99-1-0",
+    });
+
+    const { result } = await renderHook(() => useTransactions(ACCOUNT_ID));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(result.current.transactions).toHaveLength(2);
+
+    // Second page overlaps with the tail of the first page ("99-1-0").
+    const page2Items = [
+      {
+        amount: "10.0000000",
+        asset: "XLM",
+        timestamp: "2026-05-31T08:00:00Z",
+        source: OTHER_ACCOUNT,
+        destination: ACCOUNT_ID,
+        status: "Success" as const,
+        txHash: "ghi789",
+        pagingToken: "99-1-0",
+      },
+      {
+        amount: "5.0000000",
+        asset: "XLM",
+        timestamp: "2026-05-30T08:00:00Z",
+        source: OTHER_ACCOUNT,
+        destination: ACCOUNT_ID,
+        status: "Success" as const,
+        txHash: "jkl012",
+        pagingToken: "98-1-0",
+      },
+    ];
+    mockedFetchTransactions.mockResolvedValueOnce({
+      items: page2Items,
+      nextCursor: undefined,
+    });
+
+    await act(async () => {
+      result.current.loadMore();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // 2 + 2 with one overlap => 3 unique items, never 4.
+    expect(result.current.transactions).toHaveLength(3);
+    const tokens = result.current.transactions.map((t) => t.pagingToken);
+    expect(new Set(tokens).size).toBe(3);
+  });
+
   it("refresh resets data and fetches from the beginning", async () => {
     // Initial load
     mockedFetchTransactions.mockResolvedValueOnce({
