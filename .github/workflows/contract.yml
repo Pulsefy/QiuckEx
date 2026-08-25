@@ -41,3 +41,9 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+      - name: Build WASM
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Check WASM Size
+        run: python scripts/check_wasm_size.py
