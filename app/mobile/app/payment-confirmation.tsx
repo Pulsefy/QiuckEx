@@ -17,9 +17,8 @@ import { v4 as uuidv4 } from "uuid";
 import { ActivityIndicator } from "react-native";
 import { useContractRegistry } from "../hooks/useContractRegistry";
 import { ErrorState } from "@/components/resilience/error-state";
-
-// List of assets to attempt swaps from (hardcoded whitelist matching backend)
-const SWAPPABLE_ASSETS = ["XLM", "USDC", "AQUA", "yXLM"];
+import { useSession } from "../contexts/SessionContext";
+import { resolveSwappableAssets } from "../services/swappable-assets";
 
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
@@ -57,6 +56,16 @@ export default function PaymentConfirmationScreen() {
   const [selectedSwapPath, setSelectedSwapPath] = React.useState<PathPreviewRow | null>(null);
   const [slippageTolerance, setSlippageTolerance] = React.useState(1.0); // 1.0% default
 
+  // Swap asset whitelist sourced from the runtime config bootstrap, with a
+  // conservative built-in default when config is unavailable (see
+  // services/swappable-assets). This keeps the app in sync with the backend
+  // without requiring an app store release.
+  const { data: sessionData } = useSession();
+  const swappableAssets = React.useMemo(
+    () => resolveSwappableAssets(sessionData?.swappableAssets),
+    [sessionData?.swappableAssets],
+  );
+
   // Fetch swap options from backend (only if we have a valid destination asset)
   const {
     swapOptions,
@@ -65,7 +74,7 @@ export default function PaymentConfirmationScreen() {
     timeRemaining,
     isExpired,
     refetch,
-  } = useSwapOptions(username || "", numAmount, asset || "", SWAPPABLE_ASSETS);
+  } = useSwapOptions(username || "", numAmount, asset || "", swappableAssets);
 
   // Filter swap options to exclude the destination asset itself
   const availableSwapOptions = (swapOptions || []).filter(
