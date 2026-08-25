@@ -23,7 +23,7 @@ fn create_test_token(env: &Env) -> Address {
 /// Test: batch exactly at MAX_BATCH_SIZE succeeds normally.
 #[test]
 fn test_batch_create_at_limit_succeeds() {
-    let (env, _client) = setup();
+    let (env, client) = setup();
     let token = create_test_token(&env);
     let owner = Address::generate(&env);
 
@@ -47,7 +47,9 @@ fn test_batch_create_at_limit_succeeds() {
         });
     }
 
-    let results = batch_create(&env, &owner, items).unwrap();
+    let results = env
+        .as_contract(&client.address, || batch_create(&env, &owner, items))
+        .unwrap();
     assert_eq!(results.len(), MAX_BATCH_SIZE);
     for i in 0..MAX_BATCH_SIZE {
         let result = results.get(i).unwrap();
@@ -84,7 +86,7 @@ fn test_batch_create_over_limit_rejects_immediately() {
         });
     }
 
-    let result = batch_create(&env, &owner, items);
+    let result = env.as_contract(&client.address, || batch_create(&env, &owner, items));
     assert_eq!(result, Err(QuickexError::BatchSizeExceeded));
 
     // Verify zero operations were executed
@@ -169,7 +171,9 @@ fn test_batch_create_mid_batch_failure_partial_success() {
         });
     }
 
-    let results = batch_create(&env, &owner, items).unwrap();
+    let results = env
+        .as_contract(&client.address, || batch_create(&env, &owner, items))
+        .unwrap();
     assert_eq!(results.len(), 5);
 
     // Items 0-2: success
