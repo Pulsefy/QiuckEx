@@ -200,6 +200,14 @@ export class AppConfigService {
   }
 
   /**
+   * GitHub webhook secret (optional). When unset, the deployment webhook
+   * endpoint is unavailable and returns 503.
+   */
+  get githubWebhookSecret(): string | undefined {
+    return this.configService.get("GITHUB_WEBHOOK_SECRET", { infer: true });
+  }
+
+  /**
    * Max usernames per wallet (optional). When not set, returns undefined (no limit).
    */
   get maxUsernamesPerWallet(): number | undefined {

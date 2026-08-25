@@ -180,6 +180,14 @@ export const envSchema = Joi.object({
     .default("https://app.quickex.io")
     .description("Fallback frontend URL for unknown branches"),
 
+  // GitHub branch/PR deployment metadata sync (BE-60)
+  GITHUB_WEBHOOK_SECRET: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Secret used to verify GitHub webhook signatures (X-Hub-Signature-256). When unset, the deployment webhook endpoint returns 503.",
+    ),
+
   FEATURE_FLAGS_BOOTSTRAP_JSON: Joi.string()
     .empty("")
     .optional()
@@ -490,6 +498,7 @@ export interface EnvConfig {
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;
+  GITHUB_WEBHOOK_SECRET?: string;
   CACHE_MAX_ITEMS: number;
   CACHE_TTL_MS: number;
   FEATURE_FLAGS_CACHE_TTL_MS: number;

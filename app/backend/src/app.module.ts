@@ -61,6 +61,7 @@ import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
 import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 import { OutboxModule } from "./events/outbox/outbox.module";
+import { DeploymentSyncModule } from "./deployment-sync/deployment-sync.module";
 
 type AppImport =
 | Type<unknown>
@@ -114,6 +115,7 @@ OperationsModule,
     TransactionTimelineModule,
     DashboardFeedModule,
     OutboxModule,
+    DeploymentSyncModule,
     ];
 
     try {
