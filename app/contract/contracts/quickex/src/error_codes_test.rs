@@ -25,7 +25,9 @@ fn quickex_error_codes_match_snapshot() {
         };
         let name = name.trim();
         let value = value.trim().trim_end_matches(',').trim();
-        if name.chars().all(|character| character.is_ascii_alphanumeric() || character == '_')
+        if name
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
             && value.parse::<u32>().is_ok()
         {
             writeln!(actual, "{name}={value}").expect("writing to a String cannot fail");
