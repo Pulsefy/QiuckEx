@@ -1,5 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { HorizonService } from '../transactions/horizon.service';
 import type {
   TimelineItem,
@@ -9,13 +8,18 @@ import type {
   WebhookTimelineDetail,
 } from './transaction-timeline.types';
 import type { GetTimelineQueryDto } from './dto/get-timeline.dto';
+import {
+  TRANSACTION_TIMELINE_REPOSITORY,
+  type TransactionTimelineRepository,
+} from './transaction-timeline.repository';
 
 @Injectable()
 export class TransactionTimelineService {
   private readonly logger = new Logger(TransactionTimelineService.name);
 
   constructor(
-    private readonly supabase: SupabaseService,
+    @Inject(TRANSACTION_TIMELINE_REPOSITORY)
+    private readonly timelineRepository: TransactionTimelineRepository,
     private readonly horizonService: HorizonService,
   ) {}
 
@@ -133,18 +137,12 @@ export class TransactionTimelineService {
     });
   }
 
-  /** Fallback: read payment_records from Supabase when no address is provided. */
+  /** Fallback: read payment_records from the repository when no address is provided. */
   private async collectPaymentItemsFromDb(txHash: string): Promise<TimelineItem[]> {
-    const client = this.supabase.getClient();
-    const { data, error } = await client
-      .from('payment_records')
-      .select('id, status, created_at, amount, asset_code, sender_address, receiver_address')
-      .eq('tx_hash', txHash);
+    const data = await this.timelineRepository.getPaymentRecordsByTxHash(txHash);
+    if (data.length === 0) return [];
 
-    if (error) throw error;
-    if (!data || data.length === 0) return [];
-
-    return (data as Record<string, unknown>[]).map<TimelineItem>((row, idx) => {
+    return data.map<TimelineItem>((row, idx) => {
       const detail: PaymentTimelineDetail = {
         txHash,
         amount: String(row.amount ?? '0'),
@@ -181,20 +179,12 @@ export class TransactionTimelineService {
   // ── Refund source ─────────────────────────────────────────────────────────
 
   private async collectRefundItems(txHash: string): Promise<TimelineItem[]> {
-    const client = this.supabase.getClient();
-
     // Refunds are correlated via entity_id (which is either a payment/link ID)
-    // or via notes/correlation stored on the record. We join on tx_hash where
-    // possible (column may not exist yet; fall back gracefully).
-    const { data, error } = await client
-      .from('refund_attempts')
-      .select('id, entity_type, entity_id, reason_code, status, actor_id, created_at')
-      .or(`entity_id.eq.${txHash},id.eq.${txHash}`);
+    // or via notes/correlation stored on the record.
+    const data = await this.timelineRepository.getRefundAttempts(txHash);
+    if (data.length === 0) return [];
 
-    if (error) throw error;
-    if (!data || data.length === 0) return [];
-
-    return (data as Record<string, unknown>[]).map<TimelineItem>((row) => {
+    return data.map<TimelineItem>((row) => {
       const detail: RefundTimelineDetail = {
         refundId: String(row.id),
         entityType: String(row.entity_type),
@@ -234,23 +224,14 @@ export class TransactionTimelineService {
     txHash: string,
     address: string,
   ): Promise<TimelineItem[]> {
-    const client = this.supabase.getClient();
-
     // Webhook logs are keyed by event_id. For payment events the event_id is
     // typically the tx hash or a derivative. We do a best-effort match.
-    const { data, error } = await client
-      .from('notification_log')
-      .select(
-        'id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_delivered_at, created_at',
-      )
-      .eq('public_key', address)
-      .eq('channel', 'webhook')
-      .ilike('event_id', `%${txHash}%`)
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) throw error;
-    if (!data || data.length === 0) return [];
+    const data = await this.timelineRepository.getNotificationLogs(
+      txHash,
+      address,
+      50,
+    );
+    if (data.length === 0) return [];
 
     const statusMap: Record<string, TimelineItem['status']> = {
       sent: 'success',
@@ -259,7 +240,7 @@ export class TransactionTimelineService {
       dlq: 'dlq',
     };
 
-    return (data as Record<string, unknown>[]).map<TimelineItem>((row) => {
+    return data.map<TimelineItem>((row) => {
       const detail: WebhookTimelineDetail = {
         webhookLogId: String(row.id),
         eventType: String(row.event_type),
@@ -293,27 +274,14 @@ export class TransactionTimelineService {
   // ── Contract event source ─────────────────────────────────────────────────
 
   private async collectContractItems(txHash: string): Promise<TimelineItem[]> {
-    const client = this.supabase.getClient();
-
     // Contract change webhooks don't store tx_hash natively; we pull
     // recent enabled webhooks as a best-effort signal.
     // A real production query would join through an event log table.
-    const { data, error } = await client
-      .from('contract_change_webhooks')
-      .select('id, webhook_url, enabled, created_at, updated_at')
-      .eq('enabled', true)
-      .order('updated_at', { ascending: false })
-      .limit(10);
+    const data = await this.timelineRepository.getEnabledContractWebhooks(10);
 
-    if (error) {
-      // Table may not exist yet in all environments — degrade gracefully
-      this.logger.debug(`contract_change_webhooks query failed: ${error.message}`);
-      return [];
-    }
+    if (data.length === 0) return [];
 
-    if (!data || data.length === 0) return [];
-
-    return (data as Record<string, unknown>[]).map<TimelineItem>((row) => ({
+    return data.map<TimelineItem>((row) => ({
       id: `ctr_${row.id as string}_${txHash}`,
       kind: 'contract_event',
       timestamp: String(row.updated_at ?? row.created_at),
