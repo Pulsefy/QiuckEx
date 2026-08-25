@@ -25,6 +25,7 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
 import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
+import { CursorPaginationQueryDto, paginatedResponse } from '../dto/pagination/pagination.dto';
 
 interface ApiKeyRequest extends Request {
   apiKey: { id: string };
