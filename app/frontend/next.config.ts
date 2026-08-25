@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const CSP_HEADER_VALUE = [
   "default-src 'self'",
@@ -11,6 +12,15 @@ const CSP_HEADER_VALUE = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Transpile the local workspace package so webpack resolves its deps
+  // (e.g. openapi-fetch) from the frontend's own node_modules rather than
+  // relying on hoisting that is absent in the flat `npm ci` CI install.
+  transpilePackages: ["@quickex/api-client"],
+
+  // Point Next.js at the monorepo root so it can trace shared packages
+  // (e.g. packages/api-client) correctly and suppress the lockfile warning.
+  outputFileTracingRoot: path.join(__dirname, "../../"),
+
   // Enforce HTTPS and Content-Security-Policy in production
   async headers() {
     return [
