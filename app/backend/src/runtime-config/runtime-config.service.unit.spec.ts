@@ -29,6 +29,12 @@ describe("RuntimeConfigService", () => {
       isMainnet: false,
       isStaging: false,
       publicApiUrl: undefined,
+      mobileMinSupportedVersion: "1.2.0",
+      mobileRecommendedVersion: "1.3.0",
+      mobileLatestVersion: "1.3.1",
+      mobileIosStoreUrl: "https://apps.apple.com/app/quickex",
+      mobileAndroidStoreUrl: "market://details?id=com.pulsefy.quickex",
+      mobileReleaseNotes: ["Security fixes", "Contract registry compatibility"],
     };
 
     mockFeatureFlagsService = {
@@ -159,7 +165,15 @@ describe("RuntimeConfigService", () => {
     expect(config.featureFlags[0].enabled).toBe(true);
 
     expect(config.appVersion).toBe("0.1.0");
-    expect(config.minAppVersion).toBe("0.1.0");
+    expect(config.minAppVersion).toBe("1.2.0");
+    expect(config.mobileVersionPolicy).toEqual({
+      minSupportedVersion: "1.2.0",
+      recommendedVersion: "1.3.0",
+      latestVersion: "1.3.1",
+      iosStoreUrl: "https://apps.apple.com/app/quickex",
+      androidStoreUrl: "market://details?id=com.pulsefy.quickex",
+      releaseNotes: ["Security fixes", "Contract registry compatibility"],
+    });
     expect(config.generatedAt).toBeDefined();
     expect(config.etag).toMatch(/^W\/"runtime-config-/);
   });

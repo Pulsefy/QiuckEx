@@ -11,6 +11,10 @@ import { RecurringPaymentProcessor } from "../stellar/recurring-payment-processo
 import { PaymentLinkController } from "./payment-link.controller";
 import { PaymentLinkService } from "./payment-link.service";
 import { PaymentLinkExpiryService } from './payment-link-expiry.service';
+import {
+  PAYMENT_LINKS_REPOSITORY,
+  SupabasePaymentLinksRepository,
+} from "./payment-links.repository";
 import { SupabaseModule } from "../supabase/supabase.module";
 import { StellarModule } from "../stellar/stellar.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
@@ -38,6 +42,10 @@ import { IdempotencyModule } from "../common/idempotency/idempotency.module";
     RecurringPaymentsRepository,
     RecurringPaymentProcessor,
     PaymentLinkService,
+    {
+      provide: PAYMENT_LINKS_REPOSITORY,
+      useClass: SupabasePaymentLinksRepository,
+    },
   ],
   exports: [
     LinksService,

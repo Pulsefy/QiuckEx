@@ -12,6 +12,7 @@ import {
   ContractEntryDto,
   FeatureFlagEntryDto,
   PreviewMetadataDto,
+  MobileVersionPolicyDto,
 } from './dto/runtime-config.dto';
 
 @Injectable()
@@ -46,14 +47,17 @@ export class RuntimeConfigService {
 
     const contractsConfig = contracts ?? {};
 
-    const etag = this.buildEtag(network, contractsConfig, featureFlags, preview);
+    const mobileVersionPolicy = this.buildMobileVersionPolicy();
+
+    const etag = this.buildEtag(network, contractsConfig, featureFlags, preview, mobileVersionPolicy);
 
     return {
       environment,
       network,
       apiUrl: this.resolveApiUrl(),
       appVersion: '0.1.0',
-      minAppVersion: '0.1.0',
+      minAppVersion: mobileVersionPolicy.minSupportedVersion,
+      mobileVersionPolicy,
       contracts: contractsConfig,
       featureFlags,
       preview,
@@ -143,17 +147,30 @@ export class RuntimeConfigService {
     return 'https://testnet-api.quickex.to';
   }
 
+  private buildMobileVersionPolicy(): MobileVersionPolicyDto {
+    return {
+      minSupportedVersion: this.appConfigService.mobileMinSupportedVersion,
+      recommendedVersion: this.appConfigService.mobileRecommendedVersion,
+      latestVersion: this.appConfigService.mobileLatestVersion,
+      iosStoreUrl: this.appConfigService.mobileIosStoreUrl,
+      androidStoreUrl: this.appConfigService.mobileAndroidStoreUrl,
+      releaseNotes: this.appConfigService.mobileReleaseNotes,
+    };
+  }
+
   private buildEtag(
     network: NetworkConfigDto,
     contracts: Record<string, ContractEntryDto>,
     flags: FeatureFlagEntryDto[],
     preview: PreviewMetadataDto | undefined,
+    mobileVersionPolicy: MobileVersionPolicyDto,
   ): string {
     const stable = JSON.stringify({
       n: network.network,
       c: Object.keys(contracts).sort().map((k) => `${k}:${contracts[k].contractId}`).join(','),
       f: flags.map((f) => `${f.key}:${f.enabled}`).sort().join(','),
       p: preview?.scopeId,
+      v: `${mobileVersionPolicy.minSupportedVersion}:${mobileVersionPolicy.recommendedVersion}:${mobileVersionPolicy.latestVersion}`,
     });
     const hash = createHash('sha256').update(stable).digest('hex').slice(0, 16);
     return `W/"runtime-config-${hash}"`;

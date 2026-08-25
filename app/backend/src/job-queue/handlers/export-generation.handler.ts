@@ -373,13 +373,27 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * **Validates: Requirements 9.5**
    */
   async onFailure(job: Job<ExportGenerationPayload>, error: Error): Promise<void> {
-    const { userId, exportType } = job.payload;
+    const { userId, exportType, format } = job.payload;
 
     this.logger.error(
       `Export generation permanently failed for user ${userId} (type: ${exportType}, jobId: ${job.id}): ${error.message}`,
       error.stack,
     );
 
-    // TODO: Notify user of export failure via notification system
+    // Derive a user-safe reason: use only the error message (never the stack
+    // trace) and fall back to a generic phrase so internal details are never
+    // surfaced to the end user.
+    const safeReason =
+      error instanceof Error && error.message
+        ? error.message.replace(/\s*\n[\s\S]*$/, '') // strip any embedded newlines / stack frames
+        : 'An unexpected error occurred';
+
+    await this.notificationService.notifyExportFailed(
+      userId,
+      job.id,
+      exportType,
+      format,
+      safeReason,
+    );
   }
 }

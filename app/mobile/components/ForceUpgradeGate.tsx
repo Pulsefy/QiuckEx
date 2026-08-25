@@ -37,7 +37,8 @@ export function ForceUpgradeGate({ children }: ForceUpgradeGateProps) {
         <View style={styles.content}>
           <Text style={styles.title}>Update Required</Text>
           <Text style={styles.description}>
-            You are using an unsupported version of the app. Please update to the latest version to continue using our services securely.
+            {versionInfo.message ??
+              'You are using an unsupported version of the app. Please update to the latest version to continue using our services securely.'}
           </Text>
           <TouchableOpacity style={styles.button} onPress={handleUpdate}>
             <Text style={styles.buttonText}>Update Now</Text>

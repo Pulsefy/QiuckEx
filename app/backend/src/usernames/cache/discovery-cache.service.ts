@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LRUCache } from 'lru-cache';
-import { SearchProfileResult, TrendingCreatorResult } from '../../supabase/supabase.service';
+import {
+  SearchProfileResult,
+  TrendingCreatorResult,
+} from '../usernames.repository';
 
 interface CachedSearchResult {
   results: SearchProfileResult[];
