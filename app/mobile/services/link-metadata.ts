@@ -1,14 +1,13 @@
-import Constants from 'expo-constants';
+import { API_URL } from '../src/config/build';
 
 /**
  * Base URL for the QuickEx backend.
- * Set EXPO_PUBLIC_API_URL in your .env file.
- * Falls back to localhost for local development.
+ *
+ * Resolved from the shared {@link API_URL} constant in `src/config/build`,
+ * which is set at build time from app.config.ts and falls back to
+ * `EXPO_PUBLIC_API_URL` or `http://localhost:4000` for local dev.
  */
-const API_BASE_URL =
-    (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-    process.env['EXPO_PUBLIC_API_URL'] ??
-    'http://localhost:3000';
+const API_BASE_URL = API_URL;
 
 export interface PathPreviewRow {
   sourceAmount: string;

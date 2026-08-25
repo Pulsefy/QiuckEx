@@ -1,0 +1,30 @@
+# MOB-71: End-to-End Flow for Scan-to-Pay
+# Injects a deterministic QR payload via deep link and verifies receipt reference.
+
+appId: com.pulsefy.quickex
+---
+# Start from a clean app state
+- clearState
+
+# Launch the app
+- launchApp:
+    clearState: true
+
+# Simulate scanning a QR code with a known payload.
+# The deep link carries a payment reference that must appear on the receipt.
+- openLink: "quickex://pay/testuser/50?asset=USDC&memo=CI-TEST&reference=REF-2026-001"
+
+# Confirm the payment details are shown
+- assertVisible: "Confirm Payment"
+- assertVisible: "50"
+- assertVisible: "USDC"
+- assertVisible: "CI-TEST"
+
+# Execute the payment
+- tapOn: "Confirm"
+
+# Wait for the receipt screen
+- assertVisible: "Payment Successful"
+
+# Verify the receipt reference matches the initiated payment reference
+- assertVisible: "REF-2026-001"

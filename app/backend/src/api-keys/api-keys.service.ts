@@ -15,6 +15,8 @@ import {
 } from './api-keys.types';
 import { decodeCursor, clampLimit } from '../common/pagination/cursor.util';
 import { PaginationMetaDto } from '../dto/pagination/pagination.dto';
+import { AppConfigService } from '../config/app-config.service';
+import { AuditService } from '../audit/audit.service';
 
 const BCRYPT_ROUNDS = 10;
 const DEFAULT_QUOTA = 10_000;
@@ -24,13 +26,17 @@ const KEY_PREFIX_LENGTH = 8; // chars used for prefix display / lookup
 export class ApiKeysService {
   private readonly logger = new Logger(ApiKeysService.name);
 
-  constructor(private readonly repo: ApiKeysRepository) {}
+  constructor(
+    private readonly repo: ApiKeysRepository,
+    private readonly configService: AppConfigService,
+    private readonly auditService: AuditService,
+  ) {}
 
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
-  async create(dto: CreateApiKeyDto): Promise<ApiKeyCreated> {
+  async create(dto: CreateApiKeyDto, actor = 'system'): Promise<ApiKeyCreated> {
     const rawKey = this.generateRawKey();
     const prefix = rawKey.slice(0, KEY_PREFIX_LENGTH + 3); // "qx_" + 8 chars
     const hash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
@@ -46,6 +52,18 @@ export class ApiKeysService {
     });
 
     this.logger.log(`API key created: id=${record.id} name="${record.name}"`);
+
+    await this.auditService.log(
+      actor,
+      'api_key.created',
+      record.id,
+      {
+        name: record.name,
+        scopes: record.scopes,
+        owner_id: record.owner_id,
+        organization_id: record.organization_id,
+      },
+    );
 
     return { ...this.toPublic(record), key: rawKey };
   }
@@ -79,15 +97,27 @@ export class ApiKeysService {
     };
   }
 
-  async revoke(id: string): Promise<void> {
+  async revoke(id: string, actor = 'system'): Promise<void> {
     const record = await this.repo.findById(id);
     if (!record) throw new NotFoundException('API key not found');
 
     await this.repo.revoke(id);
     this.logger.log(`API key revoked: id=${id}`);
+
+    await this.auditService.log(
+      actor,
+      'api_key.revoked',
+      id,
+      {
+        name: record.name,
+        scopes: record.scopes,
+        owner_id: record.owner_id,
+        organization_id: record.organization_id,
+      },
+    );
   }
 
-  async rotate(id: string): Promise<ApiKeyCreated> {
+  async rotate(id: string, actor = 'system'): Promise<ApiKeyCreated> {
     const record = await this.repo.findById(id);
     if (!record) throw new NotFoundException('API key not found');
 
@@ -102,10 +132,22 @@ export class ApiKeysService {
 
     this.logger.log(`API key rotated: id=${id}`);
 
+    await this.auditService.log(
+      actor,
+      'api_key.rotated',
+      id,
+      {
+        name: updated.name,
+        scopes: updated.scopes,
+        owner_id: updated.owner_id,
+        organization_id: updated.organization_id,
+      },
+    );
+
     return { ...this.toPublic(updated), key: rawKey };
   }
 
-  async emergencyRotate(id: string): Promise<ApiKeyCreated> {
+  async emergencyRotate(id: string, actor = 'system'): Promise<ApiKeyCreated> {
     const record = await this.repo.findById(id);
     if (!record) throw new NotFoundException('API key not found');
 
@@ -119,6 +161,18 @@ export class ApiKeysService {
     });
 
     this.logger.log(`API key emergency-rotated: id=${id}`);
+
+    await this.auditService.log(
+      actor,
+      'api_key.emergency_rotated',
+      id,
+      {
+        name: updated.name,
+        scopes: updated.scopes,
+        owner_id: updated.owner_id,
+        organization_id: updated.organization_id,
+      },
+    );
 
     return { ...this.toPublic(updated), key: rawKey };
   }
@@ -136,6 +190,8 @@ export class ApiKeysService {
   ): Promise<{ record: ApiKeyRecord; hasScope: (s: ApiKeyScope) => boolean } | null> {
     const prefix = rawKey.slice(0, KEY_PREFIX_LENGTH + 3);
     const candidates = await this.repo.findByPrefix(prefix);
+    const overlapHours = this.configService?.apiKeyRotationOverlapHours ?? 24;
+    const overlapMs = overlapHours * 60 * 60 * 1000;
 
     for (const record of candidates) {
       const isCurrentMatch = await bcrypt.compare(rawKey, record.key_hash);
@@ -144,7 +200,6 @@ export class ApiKeysService {
       if (!isCurrentMatch && record.key_hash_old && record.rotated_at) {
         const rotatedAt = new Date(record.rotated_at).getTime();
         const now = Date.now();
-        const overlapMs = 24 * 60 * 60 * 1000; // 24 hours
 
         if (now - rotatedAt < overlapMs) {
           isOldMatch = await bcrypt.compare(rawKey, record.key_hash_old);

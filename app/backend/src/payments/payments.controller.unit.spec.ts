@@ -1,26 +1,26 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { PaymentsController } from "./payments.controller";
-import { HorizonService } from "../transactions/horizon.service";
+import { PaymentsService } from "./payments.service";
 
 describe("PaymentsController", () => {
   let controller: PaymentsController;
-  let horizonService: jest.Mocked<HorizonService>;
+  let paymentsService: jest.Mocked<PaymentsService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
         {
-          provide: HorizonService,
+          provide: PaymentsService,
           useValue: {
-            getPayments: jest.fn(),
+            getRecentPayments: jest.fn(),
           },
         },
       ],
     }).compile();
 
     controller = module.get<PaymentsController>(PaymentsController);
-    horizonService = module.get(HorizonService);
+    paymentsService = module.get(PaymentsService);
   });
 
   it("should be defined", () => {
@@ -28,7 +28,7 @@ describe("PaymentsController", () => {
   });
 
   describe("recent()", () => {
-    const mockPayments = {
+    const mockResult = {
       items: [
         {
           amount: "50.0000000",
@@ -41,120 +41,48 @@ describe("PaymentsController", () => {
           status: "Success" as const,
           pagingToken: "tok1",
         },
-        {
-          amount: "100.0000000",
-          asset: "XLM",
-          memo: "Invoice 2",
-          timestamp: "2026-06-15T10:00:00Z",
-          txHash: "tx_bbb",
-          source: "GSOURCE2",
-          destination: "GDEST1",
-          status: "Success" as const,
-          pagingToken: "tok2",
-        },
-        {
-          amount: "25.0000000",
-          asset: "USDC",
-          memo: null,
-          timestamp: "2026-07-01T08:00:00Z",
-          txHash: "tx_ccc",
-          source: "GSOURCE3",
-          destination: "GDEST1",
-          status: "Success" as const,
-          pagingToken: "tok3",
-        },
       ],
-      nextCursor: "tok3",
     };
 
-    it("should return empty items when address is not provided", async () => {
-      const result = await controller.recent({ address: "" });
-      expect(result).toEqual({ items: [] });
-      expect(horizonService.getPayments).not.toHaveBeenCalled();
-    });
-
-    it("should return all payments when no since filter is given", async () => {
-      horizonService.getPayments.mockResolvedValue(mockPayments);
+    it("should delegate to PaymentsService.getRecentPayments", async () => {
+      paymentsService.getRecentPayments.mockResolvedValue(mockResult);
 
       const result = await controller.recent({
         address: "GDEST1",
-        limit: 20,
+        since: "2026-06-01T00:00:00Z",
+        limit: 10,
       });
 
-      expect(result.items).toHaveLength(3);
-      expect(horizonService.getPayments).toHaveBeenCalledWith(
-        "GDEST1",
-        undefined,
-        20,
-      );
-    });
-
-    it("should filter payments by ISO since timestamp", async () => {
-      horizonService.getPayments.mockResolvedValue(mockPayments);
-
-      const result = await controller.recent({
+      expect(paymentsService.getRecentPayments).toHaveBeenCalledWith({
         address: "GDEST1",
-        since: "2026-06-10T00:00:00Z",
-        limit: 20,
+        since: "2026-06-01T00:00:00Z",
+        limit: 10,
       });
-
-      // Only payments after 2026-06-10 should be returned
-      expect(result.items).toHaveLength(2);
-      expect(result.items[0].txHash).toBe("tx_bbb");
-      expect(result.items[1].txHash).toBe("tx_ccc");
+      expect(result).toEqual(mockResult);
     });
 
-    it("should filter payments by epoch-ms since timestamp", async () => {
-      horizonService.getPayments.mockResolvedValue(mockPayments);
-
-      // 2026-06-10T00:00:00Z in epoch ms
-      const sinceMs = new Date("2026-06-10T00:00:00Z").getTime().toString();
-
-      const result = await controller.recent({
-        address: "GDEST1",
-        since: sinceMs,
-        limit: 20,
-      });
-
-      expect(result.items).toHaveLength(2);
-    });
-
-    it("should default limit to 20 when not specified", async () => {
-      horizonService.getPayments.mockResolvedValue({
-        items: [],
-        nextCursor: undefined,
-      });
+    it("should pass undefined limit when not provided", async () => {
+      paymentsService.getRecentPayments.mockResolvedValue({ items: [] });
 
       await controller.recent({ address: "GDEST1" });
 
-      expect(horizonService.getPayments).toHaveBeenCalledWith(
-        "GDEST1",
-        undefined,
-        20,
-      );
-    });
-
-    it("should return empty items when horizon returns no results", async () => {
-      horizonService.getPayments.mockResolvedValue({
-        items: [],
-        nextCursor: undefined,
-      });
-
-      const result = await controller.recent({ address: "GDEST1" });
-      expect(result.items).toHaveLength(0);
-    });
-
-    it("should handle invalid since value gracefully (return all)", async () => {
-      horizonService.getPayments.mockResolvedValue(mockPayments);
-
-      const result = await controller.recent({
+      expect(paymentsService.getRecentPayments).toHaveBeenCalledWith({
         address: "GDEST1",
-        since: "not-a-date",
-        limit: 20,
+        since: undefined,
+        limit: undefined,
       });
+    });
 
-      // parseSince returns undefined for invalid values → no filtering
-      expect(result.items).toHaveLength(3);
+    it("should convert limit string to number", async () => {
+      paymentsService.getRecentPayments.mockResolvedValue({ items: [] });
+
+      await controller.recent({ address: "GDEST1", limit: 50 });
+
+      expect(paymentsService.getRecentPayments).toHaveBeenCalledWith({
+        address: "GDEST1",
+        since: undefined,
+        limit: 50,
+      });
     });
   });
 });

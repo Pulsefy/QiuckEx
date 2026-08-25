@@ -21,6 +21,7 @@ import type {
   AutoReconciliationSucceededNotificationPayload,
   PaymentLinkExpiredPayload,
   ExportCompletedPayload,
+  ExportFailedPayload,
 } from "./types/notification.types";
 
 import {
@@ -457,6 +458,44 @@ export class NotificationService implements OnModuleInit {
       templateVersionId: renderedTemplate?.templateVersionId,
       error: result.error,
     };
+  }
+
+  /**
+   * Notify the requesting user that their export job has permanently failed.
+   *
+   * Dispatches an `export.failed` notification through the standard
+   * multi-channel pipeline so user preferences (email, in-app, etc.) are
+   * respected.  The `failureReason` field is sanitised by the caller and must
+   * never contain raw stack traces or internal error messages.
+   *
+   * @param userId - Stellar public key of the user who requested the export.
+   * @param jobId - ID of the failed export generation job.
+   * @param exportType - The type of data (transactions, links, payments).
+   * @param format - The requested output format (csv or json).
+   * @param failureReason - A user-safe description of why the export failed.
+   */
+  async notifyExportFailed(
+    userId: string,
+    jobId: string,
+    exportType: string,
+    format: string,
+    failureReason: string,
+  ): Promise<void> {
+    const payload: ExportFailedPayload = {
+      eventType: "export.failed",
+      eventId: `export-failed:${jobId}`,
+      recipientPublicKey: userId,
+      title: `Your ${exportType} export failed`,
+      body: `We were unable to generate your ${format.toUpperCase()} export. ${failureReason}`,
+      occurredAt: new Date().toISOString(),
+      exportType,
+      format,
+      jobId,
+      failureReason,
+      metadata: { jobId, exportType, format, failureReason },
+    };
+
+    await this.dispatch(payload);
   }
 
   // ---------------------------------------------------------------------------

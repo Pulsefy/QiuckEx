@@ -19,9 +19,12 @@ import { useContractRegistry } from "../hooks/useContractRegistry";
 import { ErrorState } from "@/components/resilience/error-state";
 import { useSession } from "../contexts/SessionContext";
 import { resolveSwappableAssets } from "../services/swappable-assets";
+import { NetworkMismatchGuard } from "@/components/wallet/NetworkMismatchGuard";
+import { WalletSwitchHelpModal } from "@/components/wallet/WalletSwitchHelpModal";
 
 export default function PaymentConfirmationScreen() {
   const router = useRouter();
+  const [showHelpModal, setShowHelpModal] = React.useState(false);
   const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
@@ -408,27 +411,29 @@ export default function PaymentConfirmationScreen() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable
-          style={[
-            styles.primaryBtn,
-            { backgroundColor: theme.buttonPrimaryBg },
-            isConnected === false && { opacity: 0.5 }
-          ]}
-          onPress={handlePayWithWallet}
-          disabled={isConnected === false}
-          accessibilityLabel={
-            isConnected === false
-              ? "Payment is disabled. You are currently offline. Connect to the internet to pay."
-              : `Pay ${amount} ${asset}${isPrivate ? ' with X-Ray privacy shield' : ''} to @${username} using your connected Stellar wallet.`
-          }
-          accessibilityRole="button"
-          accessibilityState={{ disabled: isConnected === false }}
-          accessibilityHint="Double-tap to authenticate and launch your wallet with the payment URI"
-        >
-          <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]} accessibilityElementsHidden={true} importantForAccessibility="no">
-            {isConnected === false ? "Offline: Payment Disabled" : "Pay with Wallet"}
-          </Text>
-        </Pressable>
+        <NetworkMismatchGuard onBlocked={() => setShowHelpModal(true)}>
+          <Pressable
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: theme.buttonPrimaryBg },
+              isConnected === false && { opacity: 0.5 }
+            ]}
+            onPress={handlePayWithWallet}
+            disabled={isConnected === false}
+            accessibilityLabel={
+              isConnected === false
+                ? "Payment is disabled. You are currently offline. Connect to the internet to pay."
+                : `Pay ${amount} ${asset}${isPrivate ? ' with X-Ray privacy shield' : ''} to @${username} using your connected Stellar wallet.`
+            }
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isConnected === false }}
+            accessibilityHint="Double-tap to authenticate and launch your wallet with the payment URI"
+          >
+            <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]} accessibilityElementsHidden={true} importantForAccessibility="no">
+              {isConnected === false ? "Offline: Payment Disabled" : "Pay with Wallet"}
+            </Text>
+          </Pressable>
+        </NetworkMismatchGuard>
         <Pressable
           style={styles.secondaryBtn}
           onPress={() => router.replace("/")}
