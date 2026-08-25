@@ -23,6 +23,8 @@ mod escrow_id;
 #[cfg(test)]
 mod escrow_id_test;
 mod events;
+#[cfg(test)]
+mod receipt_reference_test;
 mod fee;
 mod fee_router;
 #[cfg(test)]

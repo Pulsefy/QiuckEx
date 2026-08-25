@@ -1,4 +1,21 @@
-use soroban_sdk::{contractevent, Address, BytesN, Env};
+use soroban_sdk::{contractevent, Address, Bytes, BytesN, Env};
+
+/// Generate a deterministic receipt reference for off-chain receipt generation (SC-W7-07).
+///
+/// This function creates a stable, deterministic 32-byte hash that can be used by
+/// off-chain systems to generate receipts that align with on-chain outcomes.
+///
+/// The receipt reference is derived from the escrow_id and action type to ensure
+/// that the same escrow action always produces the same receipt reference.
+#[allow(dead_code)]
+pub(crate) fn generate_receipt_reference(env: &Env, escrow_id: &BytesN<32>, action: &str) -> BytesN<32> {
+    let mut payload = Bytes::new(env);
+    let escrow_bytes: Bytes = escrow_id.into();
+    payload.append(&escrow_bytes);
+    let action_bytes: Bytes = Bytes::from_slice(env, action.as_bytes());
+    payload.append(&action_bytes);
+    env.crypto().sha256(&payload).into()
+}
 
 /// Canonical event schema version.
 ///
@@ -9,8 +26,9 @@ use soroban_sdk::{contractevent, Address, BytesN, Env};
 ///
 /// History:
 ///   v1 – original schema (no version field)
-///   v2 – added `schema_version` to every event payload (this release)
-pub const EVENT_SCHEMA_VERSION: u32 = 2;
+///   v2 – added `schema_version` to every event payload
+///   v3 – added receipt reference fields to escrow events (SC-W7-07)
+pub const EVENT_SCHEMA_VERSION: u32 = 3;
 
 /// Testnet event topic namespace used as topic[0] for every QuickEx event.
 #[allow(dead_code)]
@@ -188,6 +206,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
             "amount_due",
             "amount_paid",
             "expires_at",
+            "receipt_reference",
             "schema_version",
             "timestamp",
             "token",
@@ -203,13 +222,13 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "EscrowFinalized",
         topics: &[EVENT_TOPIC_ESCROW, "EscrowFinalized", "escrow_id", "owner"],
-        payload_keys: &["schema_version", "timestamp", "token", "total_amount"],
+        payload_keys: &["receipt_reference", "schema_version", "timestamp", "token", "total_amount"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
         name: "EscrowRefunded",
         topics: &[EVENT_TOPIC_ESCROW, "EscrowRefunded", "escrow_id", "owner"],
-        payload_keys: &["amount", "schema_version", "timestamp", "token"],
+        payload_keys: &["amount", "receipt_reference", "schema_version", "timestamp", "token"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -218,6 +237,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         payload_keys: &[
             "amount",
             "expires_at",
+            "receipt_reference",
             "schema_version",
             "timestamp",
             "token",
@@ -227,7 +247,7 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
     EventSchema {
         name: "EscrowWithdrawn",
         topics: &[EVENT_TOPIC_ESCROW, "EscrowWithdrawn", "escrow_id", "owner"],
-        payload_keys: &["amount", "fee", "schema_version", "timestamp", "token"],
+        payload_keys: &["amount", "fee", "receipt_reference", "schema_version", "timestamp", "token"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -310,32 +330,42 @@ pub const EVENT_COMPATIBILITY: &[EventCompatibility] = &[
     EventCompatibility {
         name: "AdminChanged",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+        compatible_versions: &[1, 2, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
         name: "EscrowDeposited",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+        compatible_versions: &[1, 2, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
         name: "EscrowRefunded",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+        compatible_versions: &[1, 2, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
         name: "EscrowWithdrawn",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+        compatible_versions: &[1, 2, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "EscrowFinalized",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[2, EVENT_SCHEMA_VERSION],
+    },
+    EventCompatibility {
+        name: "RefundFinalized",
+        current_version: EVENT_SCHEMA_VERSION,
+        compatible_versions: &[2, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
         name: "PrivacyToggled",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[1, EVENT_SCHEMA_VERSION],
+        compatible_versions: &[1, 2, EVENT_SCHEMA_VERSION],
     },
     EventCompatibility {
         name: "PauseFlagsChanged",
         current_version: EVENT_SCHEMA_VERSION,
-        compatible_versions: &[EVENT_SCHEMA_VERSION],
+        compatible_versions: &[2, EVENT_SCHEMA_VERSION],
     },
 ];
 
@@ -382,6 +412,8 @@ pub struct EscrowWithdrawnEvent {
     pub amount: i128,
     pub fee: i128,
     pub timestamp: u64,
+    /// Receipt reference for deterministic off-chain receipt generation (SC-W7-07)
+    pub receipt_reference: BytesN<32>,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "EscrowDeposited"])]
@@ -399,6 +431,8 @@ pub struct EscrowDepositedEvent {
     pub amount_paid: i128,
     pub expires_at: u64,
     pub timestamp: u64,
+    /// Receipt reference for deterministic off-chain receipt generation (SC-W7-07)
+    pub receipt_reference: BytesN<32>,
 }
 
 pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) {
@@ -705,6 +739,7 @@ pub(crate) fn publish_escrow_withdrawn(
     amount: i128,
     fee: i128,
 ) {
+    let receipt_reference = generate_receipt_reference(env, &commitment, "withdraw");
     EscrowWithdrawnEvent {
         escrow_id: commitment,
         owner,
@@ -713,6 +748,7 @@ pub(crate) fn publish_escrow_withdrawn(
         amount,
         fee,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }
@@ -726,6 +762,7 @@ pub(crate) fn publish_escrow_deposited(
     amount_paid: i128,
     expires_at: u64,
 ) {
+    let receipt_reference = generate_receipt_reference(env, &commitment, "deposit");
     EscrowDepositedEvent {
         escrow_id: commitment,
         owner,
@@ -735,6 +772,7 @@ pub(crate) fn publish_escrow_deposited(
         amount_paid,
         expires_at,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }
@@ -752,6 +790,8 @@ pub struct EscrowRefundedEvent {
     pub token: Address,
     pub amount: i128,
     pub timestamp: u64,
+    /// Receipt reference for deterministic off-chain receipt generation (SC-W7-07)
+    pub receipt_reference: BytesN<32>,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "RefundFinalized"])]
@@ -768,6 +808,8 @@ pub struct RefundFinalizedEvent {
     pub amount: i128,
     pub expires_at: u64,
     pub timestamp: u64,
+    /// Receipt reference for deterministic off-chain receipt generation (SC-W7-07)
+    pub receipt_reference: BytesN<32>,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "PartialPayment"])]
@@ -800,6 +842,8 @@ pub struct EscrowFinalizedEvent {
     pub token: Address,
     pub total_amount: i128,
     pub timestamp: u64,
+    /// Receipt reference for deterministic off-chain receipt generation (SC-W7-07)
+    pub receipt_reference: BytesN<32>,
 }
 
 #[contractevent(topics = ["TOPIC_ESCROW", "EscrowDisputed"])]
@@ -832,6 +876,7 @@ pub(crate) fn publish_escrow_refunded(
     token: Address,
     amount: i128,
 ) {
+    let receipt_reference = generate_receipt_reference(env, &commitment, "refund");
     EscrowRefundedEvent {
         escrow_id: commitment,
         owner,
@@ -839,6 +884,7 @@ pub(crate) fn publish_escrow_refunded(
         token,
         amount,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }
@@ -851,6 +897,7 @@ pub(crate) fn publish_refund_finalized(
     amount: i128,
     expires_at: u64,
 ) {
+    let receipt_reference = generate_receipt_reference(env, &commitment, "refund_finalized");
     RefundFinalizedEvent {
         escrow_id: commitment,
         owner,
@@ -859,6 +906,7 @@ pub(crate) fn publish_refund_finalized(
         amount,
         expires_at,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }
@@ -892,6 +940,7 @@ pub(crate) fn publish_escrow_finalized(
     token: Address,
     total_amount: i128,
 ) {
+    let receipt_reference = generate_receipt_reference(env, &commitment, "finalized");
     EscrowFinalizedEvent {
         escrow_id: commitment,
         owner,
@@ -899,6 +948,7 @@ pub(crate) fn publish_escrow_finalized(
         token,
         total_amount,
         timestamp: env.ledger().timestamp(),
+        receipt_reference,
     }
     .publish(env);
 }

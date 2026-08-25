@@ -74,6 +74,8 @@ export interface SorobanRpcResult {
   errorCode?: string;
   errorMessage?: string;
   resourceFee?: string;
+  /** Receipt reference from contract events (SC-W7-07) */
+  receiptReference?: string;
 }
 
 export interface IndexerMetadata {
@@ -289,6 +291,7 @@ export class ReceiptNormalizer {
       functionName: soroban.functionName ?? op.function ?? "unknown",
       args: soroban.args ?? {},
       returnValue: soroban.returnValue ?? null,
+      receiptReference: soroban.receiptReference,
       resources:
         soroban.cpuInstructions != null
           ? {

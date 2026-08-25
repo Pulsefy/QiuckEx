@@ -190,6 +190,38 @@ export class ReceiptsService {
         return { status: 'NOT_FOUND', txHash };
       }
 
+      // Extract receipt reference from contract events (SC-W7-07)
+      let receiptReference: string | undefined;
+      if (rpcResult.events && Array.isArray(rpcResult.events)) {
+        // Look for receipt reference in escrow-related events
+        const receiptRefEvent = rpcResult.events.find((event: any) => {
+          const topics = event.topics || [];
+          const topicStr = topics[0];
+          // Check for escrow events that contain receipt_reference
+          return (
+            topicStr === 'TOPIC_ESCROW' &&
+            (topics[1] === 'EscrowDeposited' ||
+             topics[1] === 'EscrowWithdrawn' ||
+             topics[1] === 'EscrowRefunded' ||
+             topics[1] === 'RefundFinalized' ||
+             topics[1] === 'EscrowFinalized')
+          );
+        });
+
+        if (receiptRefEvent && receiptRefEvent.value) {
+          // Extract receipt_reference from event payload
+          // The payload structure depends on Soroban event encoding
+          try {
+            const eventData = receiptRefEvent.value;
+            if (eventData.receipt_reference) {
+              receiptReference = eventData.receipt_reference;
+            }
+          } catch (decodeErr) {
+            this.logger.debug(`Failed to decode receipt reference from event: ${decodeErr}`);
+          }
+        }
+      }
+
       return {
         status: rpcResult.status,
         txHash,
@@ -203,6 +235,7 @@ export class ReceiptsService {
         errorCode: rpcResult.errorCode,
         errorMessage: rpcResult.errorMessage,
         resourceFee: rpcResult.feeCharged,
+        receiptReference,
       };
     } catch (err) {
       this.logger.warn(`fetchSorobanResult(${txHash}): ${err}. Proceeding without Soroban data.`);

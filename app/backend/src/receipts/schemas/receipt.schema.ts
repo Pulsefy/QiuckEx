@@ -56,6 +56,8 @@ export interface ContractMeta {
     ledgerReads: number;
     ledgerWrites: number;
   } | null;
+  /** Receipt reference from contract event for deterministic receipt generation (SC-W7-07) */
+  receiptReference?: string;
 }
 
 export interface DiagnosticMeta {
