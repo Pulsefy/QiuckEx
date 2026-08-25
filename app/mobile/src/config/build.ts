@@ -23,6 +23,17 @@ export const STELLAR_NETWORK = String(extra.stellarNetwork ?? 'mainnet');
  */
 export const IS_DEBUG_BUILD = APP_ENVIRONMENT !== 'production';
 export const BUILD_METADATA = `${APP_VERSION}+${BUILD_NUMBER}`;
+/**
+ * Backend base URL for this build.
+ *
+ * Resolution order (first truthy value wins):
+ *   1. `extra.apiUrl`  — injected by app.config.ts at build time
+ *   2. `EXPO_PUBLIC_API_URL` — developer-supplied .env override
+ *   3. `http://localhost:4000` — safe local fallback (matches backend default PORT=4000)
+ *
+ * Services should import this constant rather than deriving their own URL,
+ * so there is a single, auditable source of truth for the backend base URL.
+ */
 export const API_URL = String(
-  extra.apiUrl ?? process.env['EXPO_PUBLIC_API_URL'] ?? 'http://localhost:3000'
+  extra.apiUrl ?? process.env['EXPO_PUBLIC_API_URL'] ?? 'http://localhost:4000'
 );
