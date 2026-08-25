@@ -87,6 +87,7 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
           provide: NotificationService,
           useValue: {
             deliverExportEmail: jest.fn(),
+            notifyExportFailed: jest.fn(),
           },
         },
       ],
@@ -217,8 +218,56 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
     });
   });
 
-  describe("onFailure", () => {
+  describe("onFailure – notification emission (BE-103)", () => {
+    it("emits a failure notification to the requesting user on permanent job failure", async () => {
+      const job = makeJob();
+      const error = new Error("database connection refused");
+
+      await handler.onFailure(job, error);
+
+      expect(notificationService.notifyExportFailed).toHaveBeenCalledTimes(1);
+      expect(notificationService.notifyExportFailed).toHaveBeenCalledWith(
+        "GUSER123",   // userId
+        "job-42",     // jobId
+        "transactions", // exportType
+        "csv",        // format
+        "database connection refused", // safe reason (single-line message)
+      );
+    });
+
+    it("strips embedded newlines / stack frames from the failure reason before notifying the user", async () => {
+      const job = makeJob();
+      const error = new Error("query failed\n    at Object.<anonymous> (/src/db.ts:42:7)\n    at processTicksAndRejections");
+
+      await handler.onFailure(job, error);
+
+      expect(notificationService.notifyExportFailed).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        "query failed", // only the first line — no stack frames
+      );
+    });
+
+    it("falls back to a generic safe reason when the error has no message", async () => {
+      const job = makeJob();
+      const error = new Error("");
+
+      await handler.onFailure(job, error);
+
+      expect(notificationService.notifyExportFailed).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        "An unexpected error occurred",
+      );
+    });
+
     it("does not throw after permanent failure", async () => {
+      notificationService.notifyExportFailed.mockResolvedValue(undefined);
+
       await expect(
         handler.onFailure(makeJob(), new Error("exhausted")),
       ).resolves.toBeUndefined();
