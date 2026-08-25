@@ -168,6 +168,7 @@ export class WebhookService {
     query: WebhookHistoryQueryDto,
   ): Promise<{ data: WebhookDeliveryLogDto[]; next_cursor: string | null; has_more: boolean }> {
     let targetPublicKey = publicKey;
+    let endpointWebhook: NotificationPreference | null = null;
 
     if (query.endpoint) {
       const webhook = await this.prefsRepo.getWebhookById(query.endpoint);
@@ -175,12 +176,26 @@ export class WebhookService {
         // Cross-tenant or non-existent endpoint access attempt
         return { data: [], next_cursor: null, has_more: false };
       }
+      endpointWebhook = webhook;
     }
 
-    return this.getDeliveryLogs(targetPublicKey, query.limit, query.cursor, {
+    const result = await this.getDeliveryLogs(targetPublicKey, query.limit, query.cursor, {
       status: query.status,
       eventType: query.eventType,
     });
+
+    if (endpointWebhook) {
+      return {
+        ...result,
+        data: result.data.map((log) => ({
+          ...log,
+          webhookId: endpointWebhook!.id,
+          endpointUrl: endpointWebhook!.webhookUrl,
+        })),
+      };
+    }
+
+    return result;
   }
 
   /**

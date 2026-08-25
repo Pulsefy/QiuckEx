@@ -30,6 +30,8 @@ describe("WebhooksController (e2e)", () => {
       deleteWebhook: jest.fn().mockResolvedValue(false),
       regenerateSecret: jest.fn().mockResolvedValue(null),
       getDeliveryLogs: jest.fn().mockResolvedValue([]),
+      getDeliveryHistory: jest.fn().mockResolvedValue({ data: [], next_cursor: null, has_more: false }),
+      getDeliveryDetail: jest.fn().mockResolvedValue(null),
       getStats: jest.fn().mockResolvedValue({
         totalSent: 0,
         totalFailed: 0,
@@ -367,6 +369,106 @@ describe("WebhooksController (e2e)", () => {
           expect(res.body).toHaveLength(1);
           expect(res.body[0].status).toBe("succeeded");
         });
+    });
+  });
+
+  describe("GET /webhooks/:publicKey/history and /deliveries", () => {
+    it("should return delivery history with status and eventType filters", () => {
+      (mockWebhookService.getDeliveryHistory as jest.Mock).mockResolvedValueOnce({
+        data: [
+          {
+            id: "log-1",
+            webhookId: WEBHOOK_ID,
+            endpointUrl: "https://example.com/webhook",
+            eventType: "payment.received",
+            eventId: "tx-100",
+            status: "failed",
+            attempts: 2,
+            lastError: "HTTP 500 whsec_••••••••",
+            createdAt: "2024-01-15T10:00:00Z",
+            payloadMetadata: { event_id: "tx-100", secret: "••••••••" },
+          },
+        ],
+        next_cursor: "cursor-token",
+        has_more: true,
+      });
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/history?status=failed&eventType=payment.received&limit=10`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data).toHaveLength(1);
+          expect(res.body.data[0].status).toBe("failed");
+          expect(res.body.data[0].lastError).toContain("whsec_••••••••");
+          expect(res.body.next_cursor).toBe("cursor-token");
+          expect(res.body.has_more).toBe(true);
+        });
+    });
+
+    it("should support /deliveries alias endpoint", () => {
+      (mockWebhookService.getDeliveryHistory as jest.Mock).mockResolvedValueOnce({
+        data: [
+          {
+            id: "log-2",
+            eventType: "EscrowDeposited",
+            eventId: "escrow-200",
+            status: "sent",
+            attempts: 1,
+            createdAt: "2024-01-15T11:00:00Z",
+          },
+        ],
+        next_cursor: null,
+        has_more: false,
+      });
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/deliveries`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data).toHaveLength(1);
+          expect(res.body.data[0].status).toBe("sent");
+          expect(res.body.has_more).toBe(false);
+        });
+    });
+  });
+
+  describe("GET /webhooks/:publicKey/deliveries/:logId", () => {
+    it("should return detailed delivery attempt log", () => {
+      (mockWebhookService.getDeliveryDetail as jest.Mock).mockResolvedValueOnce({
+        id: "log-1",
+        webhookId: WEBHOOK_ID,
+        endpointUrl: "https://example.com/webhook",
+        eventType: "payment.received",
+        eventId: "tx-100",
+        status: "dlq",
+        attempts: 3,
+        maxAttempts: 3,
+        lastError: "HTTP 503 Service Unavailable",
+        dlqReason: "HTTP 503 Service Unavailable",
+        createdAt: "2024-01-15T10:00:00Z",
+        attemptHistory: [
+          { attemptNumber: 1, status: "retried", timestamp: "2024-01-15T10:00:00Z" },
+          { attemptNumber: 2, status: "retried", timestamp: "2024-01-15T10:01:00Z" },
+          { attemptNumber: 3, status: "dlq", error: "HTTP 503 Service Unavailable", timestamp: "2024-01-15T10:05:00Z" },
+        ],
+      });
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/deliveries/log-1`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.id).toBe("log-1");
+          expect(res.body.status).toBe("dlq");
+          expect(res.body.attemptHistory).toHaveLength(3);
+        });
+    });
+
+    it("should return 404 for non-existent delivery log ID", () => {
+      (mockWebhookService.getDeliveryDetail as jest.Mock).mockResolvedValueOnce(null);
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/deliveries/non-existent-log`)
+        .expect(404);
     });
   });
 });
