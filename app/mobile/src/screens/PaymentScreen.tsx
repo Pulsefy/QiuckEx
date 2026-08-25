@@ -8,6 +8,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { themeTokens } from '../theme/tokens';
@@ -17,6 +18,7 @@ export function PaymentScreen() {
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [asset, setAsset] = useState<'USDC' | 'XLM'>('USDC');
+  const [xrayEnabled, setXrayEnabled] = useState(false);
 
   const styles = themedStyles({ color, isDark, tokens });
 
@@ -32,7 +34,12 @@ export function PaymentScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Create Payment Link</Text>
+          <Text
+            style={styles.headerTitle}
+            accessibilityRole="header"
+          >
+            Create Payment Link
+          </Text>
           <Text style={styles.headerSubtitle}>
             Generate an instant payment request
           </Text>
@@ -40,7 +47,12 @@ export function PaymentScreen() {
 
         {/* Amount Input */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount</Text>
+          <Text
+            style={styles.label}
+            accessibilityRole="header"
+          >
+            Amount
+          </Text>
           <View style={styles.amountContainer}>
             <View style={styles.assetSelector}>
               <TouchableOpacity
@@ -49,6 +61,10 @@ export function PaymentScreen() {
                   asset === 'USDC' && styles.assetButtonActive,
                 ]}
                 onPress={() => setAsset('USDC')}
+                accessibilityLabel={`Select USDC asset${asset === 'USDC' ? ', selected' : ''}`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: asset === 'USDC' }}
+                accessibilityHint="Tap to switch payment asset to USDC"
               >
                 <Text
                   style={[
@@ -65,6 +81,10 @@ export function PaymentScreen() {
                   asset === 'XLM' && styles.assetButtonActive,
                 ]}
                 onPress={() => setAsset('XLM')}
+                accessibilityLabel={`Select XLM asset${asset === 'XLM' ? ', selected' : ''}`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: asset === 'XLM' }}
+                accessibilityHint="Tap to switch payment asset to XLM"
               >
                 <Text
                   style={[
@@ -84,13 +104,23 @@ export function PaymentScreen() {
               placeholderTextColor={color(tokens.input.placeholder)}
               keyboardType="decimal-pad"
               selectionColor={color(tokens.action.primary)}
+              accessibilityLabel={`Amount entry, current currency ${asset}`}
+              accessibilityHint={`Enter ${asset} amount to request`}
+              accessibilityValue={{
+                text: amount ? `${amount} ${asset}` : `zero ${asset}`,
+              }}
             />
           </View>
         </View>
 
         {/* Memo Input */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Memo (optional)</Text>
+          <Text
+            style={styles.label}
+            accessibilityRole="header"
+          >
+            Memo (optional)
+          </Text>
           <TextInput
             style={styles.memoInput}
             value={memo}
@@ -100,22 +130,38 @@ export function PaymentScreen() {
             multiline
             numberOfLines={3}
             selectionColor={color(tokens.action.primary)}
+            accessibilityLabel={`Memo, optional${memo ? `, current value: ${memo}` : ''}`}
+            accessibilityHint="Add an optional note to the payment request"
           />
         </View>
 
         {/* Privacy Toggle */}
         <View style={styles.privacyRow}>
-          <View>
-            <Text style={styles.privacyTitle}>X-Ray Privacy</Text>
+          <View style={{ flex: 1, paddingRight: 16 }}>
+            <Text
+              style={styles.privacyTitle}
+              accessibilityRole="header"
+            >
+              X-Ray Privacy
+            </Text>
             <Text style={styles.privacyDesc}>
               Shield transaction details
             </Text>
           </View>
-          <View style={styles.toggle}>
-            <View style={styles.toggleTrack}>
-              <View style={styles.toggleThumb} />
-            </View>
-          </View>
+          <Switch
+            value={xrayEnabled}
+            onValueChange={setXrayEnabled}
+            accessibilityLabel={`X-Ray Privacy, ${xrayEnabled ? 'enabled' : 'disabled'}`}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: xrayEnabled }}
+            accessibilityHint="Double-tap to toggle privacy shield for transaction details"
+            trackColor={{
+              false: color(tokens.border.default),
+              true: color(tokens.action.primary),
+            }}
+            thumbColor={color(tokens.surface)}
+            ios_backgroundColor={color(tokens.border.default)}
+          />
         </View>
 
         {/* Generate Button */}
@@ -123,12 +169,20 @@ export function PaymentScreen() {
           style={styles.generateButton}
           onPress={handleGenerateLink}
           activeOpacity={0.8}
+          accessibilityLabel={`Generate payment link for ${amount || '0'} ${asset}`}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !amount }}
+          accessibilityHint={amount ? 'Double-tap to create a payment request link' : 'Enter an amount first to enable generate'}
         >
           <Text style={styles.generateButtonText}>Generate Link</Text>
         </TouchableOpacity>
 
         {/* Info Footer */}
-        <Text style={styles.footerText}>
+        <Text
+          style={styles.footerText}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no-hide-descendants"
+        >
           Payments settle in ~5 seconds on Stellar
         </Text>
       </ScrollView>
@@ -187,13 +241,15 @@ function themedStyles({ color, isDark, tokens }: {
     },
     assetButton: {
       flex: 1,
-      paddingVertical: 12,
+      minHeight: 48,
+      paddingVertical: 14,
       paddingHorizontal: 16,
       borderRadius: 12,
       backgroundColor: color(tokens.input.background),
       borderWidth: 1,
       borderColor: color(tokens.border.default),
       alignItems: 'center',
+      justifyContent: 'center',
     },
     assetButtonActive: {
       backgroundColor: color(tokens.state.selected),
@@ -213,6 +269,7 @@ function themedStyles({ color, isDark, tokens }: {
       color: color(tokens.text.primary),
       textAlign: 'center',
       paddingVertical: 16,
+      minHeight: 80,
       backgroundColor: color(tokens.input.background),
       borderRadius: 16,
       borderWidth: 2,
@@ -226,7 +283,7 @@ function themedStyles({ color, isDark, tokens }: {
       borderWidth: 1,
       borderColor: color(tokens.input.border),
       padding: 16,
-      minHeight: 80,
+      minHeight: 96,
       textAlignVertical: 'top',
     },
     privacyRow: {
@@ -250,27 +307,13 @@ function themedStyles({ color, isDark, tokens }: {
       fontSize: 13,
       color: color(tokens.text.tertiary),
     },
-    toggle: {
-      // Toggle component styles
-    },
-    toggleTrack: {
-      width: 52,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: color(tokens.border.default),
-      padding: 4,
-    },
-    toggleThumb: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: color(tokens.surface),
-    },
     generateButton: {
       backgroundColor: color(tokens.action.primary),
+      minHeight: 56,
       paddingVertical: 18,
       borderRadius: 16,
       alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 16,
       shadowColor: color(tokens.action.primary),
       shadowOffset: { width: 0, height: 4 },

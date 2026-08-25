@@ -230,8 +230,18 @@ function TimelineNode({ event, isLast }: { event: TimelineEvent; isLast: boolean
   const stepColor = STEP_COLORS[event.status];
   const isFailed = event.status === 'failed';
 
+  const statusLabel = {
+    completed: 'Completed',
+    current: 'In progress',
+    upcoming: 'Upcoming',
+    failed: 'Failed',
+  }[event.status];
+
   return (
-    <View style={timelineNodeStyles.container}>
+    <View
+      style={timelineNodeStyles.container}
+      accessibilityLabel={`Step ${event.title}. Status: ${statusLabel}. ${event.description}. Timestamp: ${event.timestamp}${event.txHash ? `. Transaction hash: ${truncateHash(event.txHash, 8, 8)}` : ''}`}
+    >
       {!isLast && (
         <View
           style={[
@@ -244,11 +254,17 @@ function TimelineNode({ event, isLast }: { event: TimelineEvent; isLast: boolean
                   : color(tokens.border),
             },
           ]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
         />
       )}
 
       <View style={timelineNodeStyles.node}>
-        <View style={[timelineNodeStyles.iconContainer, { backgroundColor: stepColor.bg }]}>
+        <View
+          style={[timelineNodeStyles.iconContainer, { backgroundColor: stepColor.bg }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
           <Text style={timelineNodeStyles.icon}>{STEP_ICONS[event.step] || '•'}</Text>
         </View>
 
@@ -262,22 +278,36 @@ function TimelineNode({ event, isLast }: { event: TimelineEvent; isLast: boolean
                   fontWeight: event.status === 'current' ? '700' : '600',
                 },
               ]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
             >
               {event.title}
             </Text>
-            <View style={[timelineNodeStyles.statusBadge, { backgroundColor: stepColor.bg }]}>
+            <View
+              style={[timelineNodeStyles.statusBadge, { backgroundColor: stepColor.bg }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               <Text style={[timelineNodeStyles.statusText, { color: stepColor.text }]}>
                 {STEP_EMOJI[event.status]}
               </Text>
             </View>
           </View>
 
-          <Text style={[timelineNodeStyles.description, { color: color(tokens.textSecondary) }]}>
+          <Text
+            style={[timelineNodeStyles.description, { color: color(tokens.textSecondary) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             {event.description}
           </Text>
 
           <View style={timelineNodeStyles.metaRow}>
-            <Text style={[timelineNodeStyles.timestamp, { color: color(tokens.textMuted) }]}>
+            <Text
+              style={[timelineNodeStyles.timestamp, { color: color(tokens.textMuted) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               {event.timestamp}
             </Text>
             {event.txHash && (
@@ -285,6 +315,8 @@ function TimelineNode({ event, isLast }: { event: TimelineEvent; isLast: boolean
                 style={[timelineNodeStyles.txHash, { color: color(tokens.textMuted) }]}
                 numberOfLines={1}
                 ellipsizeMode="middle"
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
               >
                 {truncateHash(event.txHash, 8, 8)}
               </Text>
@@ -371,9 +403,11 @@ const timelineNodeStyles = StyleSheet.create({
   },
 });
 
-function StatusTimeline({ events, status }: { events: TimelineEvent[]; status: ReceiptStatus }) {
+function StatusTimeline({ events, receipt, status }: { events: TimelineEvent[]; receipt: ReceiptData; status: ReceiptStatus }) {
   const { color, tokens } = useTheme();
   const config = STATUS_CONFIG[status];
+
+  const statusAccessibilityLabel = `Payment ${status}. Amount ${receipt.amount} ${receipt.asset}. ${config.title}. ${config.subtitle}. ${events.length} timeline steps.`;
 
   return (
     <View
@@ -381,6 +415,7 @@ function StatusTimeline({ events, status }: { events: TimelineEvent[]; status: R
         statusTimelineStyles.container,
         { backgroundColor: color(tokens.surfaceElevated), borderColor: color(tokens.border) },
       ]}
+      accessibilityLabel={statusAccessibilityLabel}
     >
       <View
         style={[
@@ -391,14 +426,27 @@ function StatusTimeline({ events, status }: { events: TimelineEvent[]; status: R
           },
         ]}
       >
-        <View style={[statusTimelineStyles.statusIcon, { backgroundColor: `${config.color}20` }]}>
+        <View
+          style={[statusTimelineStyles.statusIcon, { backgroundColor: `${config.color}20` }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
           <Text style={statusTimelineStyles.statusIconText}>{config.icon}</Text>
         </View>
         <View style={statusTimelineStyles.statusText}>
-          <Text style={[statusTimelineStyles.statusTitle, { color: config.color }]}>
+          <Text
+            style={[statusTimelineStyles.statusTitle, { color: config.color }]}
+            accessibilityRole="header"
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             {config.title}
           </Text>
-          <Text style={[statusTimelineStyles.statusSubtitle, { color: color(tokens.textSecondary) }]}>
+          <Text
+            style={[statusTimelineStyles.statusSubtitle, { color: color(tokens.textSecondary) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             {config.subtitle}
           </Text>
         </View>
@@ -410,6 +458,7 @@ function StatusTimeline({ events, status }: { events: TimelineEvent[]; status: R
             statusTimelineStyles.timelineTitle,
             { color: color(tokens.textMuted) },
           ]}
+          accessibilityRole="header"
         >
           Transaction Timeline
         </Text>
@@ -423,9 +472,18 @@ function StatusTimeline({ events, status }: { events: TimelineEvent[]; status: R
           statusTimelineStyles.supportHint,
           { backgroundColor: `${config.color}10` },
         ]}
+        accessibilityLabel="Support hint: Copy receipt details below for technical support if you are having issues with this transaction."
       >
-        <Text style={statusTimelineStyles.supportIcon}>💡</Text>
-        <Text style={[statusTimelineStyles.supportText, { color: color(tokens.textSecondary) }]}>
+        <Text
+          style={statusTimelineStyles.supportIcon}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >💡</Text>
+        <Text
+          style={[statusTimelineStyles.supportText, { color: color(tokens.textSecondary) }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
           Having issues? Copy the receipt details below for support.
         </Text>
       </View>
@@ -546,18 +604,36 @@ function MetadataSection({
         { backgroundColor: color(tokens.surfaceElevated), borderColor: color(tokens.border) },
       ]}
     >
-      <TouchableOpacity style={metaStyles.header} onPress={toggleExpand} activeOpacity={0.8}>
-        <Text style={[metaStyles.headerTitle, { color: color(tokens.textPrimary) }]}>
+      <TouchableOpacity
+        style={metaStyles.header}
+        onPress={toggleExpand}
+        activeOpacity={0.8}
+        accessibilityLabel={`Transaction details. ${expanded ? 'Currently expanded' : 'Currently collapsed'}. Double-tap to ${expanded ? 'collapse' : 'expand'} contract and network metadata.`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: expanded }}
+      >
+        <Text
+          style={[metaStyles.headerTitle, { color: color(tokens.textPrimary) }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
           Transaction Details
         </Text>
-        <Text style={[metaStyles.chevron, { color: color(tokens.textMuted) }]}>
+        <Text
+          style={[metaStyles.chevron, { color: color(tokens.textMuted) }]}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no"
+        >
           {expanded ? '▼' : '▶'}
         </Text>
       </TouchableOpacity>
 
       <View style={metaStyles.summary}>
         <View style={metaStyles.hashRow}>
-          <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
+          <Text
+            style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}
+            accessibilityRole="header"
+          >
             Receipt ID
           </Text>
           <View style={metaStyles.hashValueRow}>
@@ -566,6 +642,8 @@ function MetadataSection({
                 metaStyles.hashValue,
                 { color: color(tokens.textPrimary) },
               ]}
+              accessibilityLabel={`Receipt ID value: ${receiptId}`}
+              numberOfLines={1}
             >
               {receiptId}
             </Text>
@@ -573,21 +651,38 @@ function MetadataSection({
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => copyToClipboard(receiptId, 'Receipt ID')}
+                accessibilityLabel={`Copy Receipt ID. Value: ${receiptId}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to copy Receipt ID to clipboard"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>📋</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >📋</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => shareItem(receiptId, 'Share Receipt ID')}
+                accessibilityLabel={`Share Receipt ID. Value: ${receiptId}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to open share sheet for Receipt ID"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>⬆️</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >⬆️</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
         <View style={metaStyles.hashRow}>
-          <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
+          <Text
+            style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}
+            accessibilityRole="header"
+          >
             Receipt Hash
           </Text>
           <View style={metaStyles.hashValueRow}>
@@ -596,6 +691,8 @@ function MetadataSection({
                 metaStyles.hashValue,
                 { color: color(tokens.textPrimary) },
               ]}
+              accessibilityLabel={`Receipt Hash: ${truncateHash(receiptMetadata.receiptHash, 8, 8)}. Full hash: ${receiptMetadata.receiptHash}`}
+              numberOfLines={1}
             >
               {truncateHash(receiptMetadata.receiptHash, 8, 8)}
             </Text>
@@ -603,14 +700,28 @@ function MetadataSection({
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => copyToClipboard(receiptMetadata.receiptHash, 'Receipt hash')}
+                accessibilityLabel={`Copy Receipt Hash. Value: ${receiptMetadata.receiptHash}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to copy Receipt Hash to clipboard"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>📋</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >📋</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => shareItem(receiptMetadata.receiptHash, 'Share Receipt Hash')}
+                accessibilityLabel={`Share Receipt Hash. Value: ${receiptMetadata.receiptHash}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to open share sheet for Receipt Hash"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>⬆️</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >⬆️</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -618,7 +729,10 @@ function MetadataSection({
 
         {supportBundleReference && (
           <View style={metaStyles.hashRow}>
-            <Text style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}>
+            <Text
+              style={[metaStyles.hashLabel, { color: color(tokens.textMuted) }]}
+              accessibilityRole="header"
+            >
               Support Bundle Ref
             </Text>
             <View style={metaStyles.hashValueRow}>
@@ -627,6 +741,8 @@ function MetadataSection({
                   metaStyles.hashValue,
                   { color: color(tokens.textPrimary) },
                 ]}
+                accessibilityLabel={`Support Bundle Reference: ${redactSupportBundleReference(supportBundleReference)}`}
+                numberOfLines={1}
               >
                 {redactSupportBundleReference(supportBundleReference)}
               </Text>
@@ -634,14 +750,28 @@ function MetadataSection({
                 <TouchableOpacity
                   style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                   onPress={() => copyToClipboard(redactSupportBundleReference(supportBundleReference), 'Support bundle ref')}
+                  accessibilityLabel={`Copy Support Bundle Reference: ${redactSupportBundleReference(supportBundleReference)}`}
+                  accessibilityRole="button"
+                  accessibilityHint="Double-tap to copy to clipboard"
+                  hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
                 >
-                  <Text>📋</Text>
+                  <Text
+                    accessibilityElementsHidden={true}
+                    importantForAccessibility="no"
+                  >📋</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                   onPress={() => shareItem(redactSupportBundleReference(supportBundleReference), 'Share Support Bundle Ref')}
+                  accessibilityLabel={`Share Support Bundle Reference: ${redactSupportBundleReference(supportBundleReference)}`}
+                  accessibilityRole="button"
+                  accessibilityHint="Double-tap to open share sheet"
+                  hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
                 >
-                  <Text>⬆️</Text>
+                  <Text
+                    accessibilityElementsHidden={true}
+                    importantForAccessibility="no"
+                  >⬆️</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -651,11 +781,14 @@ function MetadataSection({
         <NetworkBadge network={network.network} ledger={network.ledger} />
 
         <View style={metaStyles.timestampRow}>
-          <Text style={[metaStyles.timestampLabel, { color: color(tokens.textMuted) }]}>
+          <Text
+            style={[metaStyles.timestampLabel, { color: color(tokens.textMuted) }]}
+          >
             Created
           </Text>
           <Text
             style={[metaStyles.timestampValue, { color: color(tokens.textSecondary) }]}
+            accessibilityLabel={`Created at: ${receiptMetadata.createdAt}`}
           >
             {receiptMetadata.createdAt}
           </Text>
@@ -664,10 +797,17 @@ function MetadataSection({
 
       {expanded && (
         <View style={metaStyles.details}>
-          <View style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]} />
+          <View
+            style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
 
           <View style={metaStyles.section}>
-            <Text style={[metaStyles.sectionTitle, { color: color(tokens.textMuted) }]}>
+            <Text
+              style={[metaStyles.sectionTitle, { color: color(tokens.textMuted) }]}
+              accessibilityRole="header"
+            >
               Contract
             </Text>
 
@@ -681,6 +821,7 @@ function MetadataSection({
                     metaStyles.value,
                     { color: color(tokens.textPrimary) },
                   ]}
+                  accessibilityLabel={`Contract ID: ${truncateHash(contract.contractId)}. Full value: ${contract.contractId}`}
                 >
                   {truncateHash(contract.contractId)}
                 </Text>
@@ -688,12 +829,23 @@ function MetadataSection({
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => copyToClipboard(contract.contractId, 'Contract ID')}
+                accessibilityLabel={`Copy Contract ID: ${contract.contractId}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to copy Contract ID to clipboard"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>📋</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >📋</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]} />
+            <View
+              style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            />
 
             <View style={metaStyles.row}>
               <View style={metaStyles.labelValue}>
@@ -705,6 +857,7 @@ function MetadataSection({
                     metaStyles.value,
                     { color: color(tokens.textPrimary) },
                   ]}
+                  accessibilityLabel={`WASM Hash: ${truncateHash(contract.wasmHash)}. Full value: ${contract.wasmHash}`}
                 >
                   {truncateHash(contract.wasmHash)}
                 </Text>
@@ -712,12 +865,23 @@ function MetadataSection({
               <TouchableOpacity
                 style={[metaStyles.copyButton, { backgroundColor: color(tokens.surface) }]}
                 onPress={() => copyToClipboard(contract.wasmHash, 'WASM hash')}
+                accessibilityLabel={`Copy WASM Hash: ${contract.wasmHash}`}
+                accessibilityRole="button"
+                accessibilityHint="Double-tap to copy WASM hash to clipboard"
+                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
               >
-                <Text>📋</Text>
+                <Text
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >📋</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]} />
+            <View
+              style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            />
 
             <View style={metaStyles.row}>
               <View style={metaStyles.labelValue}>
@@ -729,6 +893,7 @@ function MetadataSection({
                     metaStyles.value,
                     { color: color(tokens.textPrimary) },
                   ]}
+                  accessibilityLabel={`Contract deployed at: ${contract.deployedAt}`}
                 >
                   {contract.deployedAt}
                 </Text>
@@ -736,10 +901,17 @@ function MetadataSection({
             </View>
           </View>
 
-          <View style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]} />
+          <View
+            style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          />
 
           <View style={metaStyles.section}>
-            <Text style={[metaStyles.sectionTitle, { color: color(tokens.textMuted) }]}>
+            <Text
+              style={[metaStyles.sectionTitle, { color: color(tokens.textMuted) }]}
+              accessibilityRole="header"
+            >
               Network
             </Text>
             <View style={metaStyles.row}>
@@ -754,6 +926,7 @@ function MetadataSection({
                   ]}
                   numberOfLines={1}
                   ellipsizeMode="middle"
+                  accessibilityLabel={`Horizon API URL: ${network.horizonUrl}`}
                 >
                   {network.horizonUrl}
                 </Text>
@@ -769,6 +942,7 @@ function MetadataSection({
                     metaStyles.value,
                     { color: color(tokens.textPrimary) },
                   ]}
+                  accessibilityLabel={`Ledger close timestamp: ${network.ledgerCloseTime}`}
                 >
                   {network.ledgerCloseTime}
                 </Text>
@@ -786,6 +960,7 @@ function MetadataSection({
                   ]}
                   numberOfLines={1}
                   ellipsizeMode="middle"
+                  accessibilityLabel={`Network passphrase: ${contract.networkPassphrase}`}
                 >
                   {contract.networkPassphrase}
                 </Text>
@@ -795,17 +970,30 @@ function MetadataSection({
 
           {receiptMetadata.expiresAt && (
             <>
-              <View style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]} />
+              <View
+                style={[metaStyles.divider, { backgroundColor: color(tokens.border) }]}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
+              />
               <View
                 style={[
                   metaStyles.expiryRow,
                   { backgroundColor: color(tokens.state.highlight) },
                 ]}
+                accessibilityLabel={`Receipt expires at: ${receiptMetadata.expiresAt}`}
               >
-                <Text style={[metaStyles.expiryLabel, { color: color(tokens.status.warning) }]}>
+                <Text
+                  style={[metaStyles.expiryLabel, { color: color(tokens.status.warning) }]}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >
                   ⏰ Expires
                 </Text>
-                <Text style={[metaStyles.expiryValue, { color: color(tokens.textPrimary) }]}>
+                <Text
+                  style={[metaStyles.expiryValue, { color: color(tokens.textPrimary) }]}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no"
+                >
                   {receiptMetadata.expiresAt}
                 </Text>
               </View>
@@ -865,8 +1053,12 @@ const metaStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   copyButton: {
+    minHeight: 36,
+    minWidth: 36,
     padding: 6,
     borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timestampRow: {
     flexDirection: 'row',
@@ -942,12 +1134,16 @@ const metaStyles = StyleSheet.create({
 export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBack?: () => void }) {
   const { color, tokens, isDark } = useTheme();
 
+  const styles = themedStyles({ color, tokens, isDark });
+  const supportText = generateSupportText(receipt);
+  const explorerUrl = getExplorerUrl(receipt);
+
   const handleShare = async () => {
     try {
       await Share.share({
         title: `QuickEx Payment — ${receipt.amount} ${receipt.asset}`,
-        message: generateSupportText(receipt),
-        url: getExplorerUrl(receipt),
+        message: supportText,
+        url: explorerUrl,
       }, {
         dialogTitle: 'Share Receipt',
         subject: `QuickEx Payment — ${receipt.amount} ${receipt.asset}`,
@@ -958,18 +1154,18 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
   };
 
   const handleCopySupport = () => {
-    Clipboard.setString(generateSupportText(receipt));
+    Clipboard.setString(supportText);
     if (Platform.OS === 'android') {
       ToastAndroid.show('Support info copied', ToastAndroid.SHORT);
     }
   };
 
   const handleViewExplorer = () => {
-    const url = getExplorerUrl(receipt);
     // Open URL via Linking or pass to parent
   };
 
-  const styles = themedStyles({ color, tokens, isDark });
+  const verb = receipt.status === 'refund' ? 'received back' : receipt.status === 'success' ? 'sent' : 'are sending';
+  const amountA11yLabel = `Payment amount: ${receipt.amount} ${receipt.asset}. From ${receipt.sender} to ${receipt.recipient}. ${verb}${receipt.memo ? `. Memo: ${receipt.memo}` : ''}`;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -980,15 +1176,34 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: color(tokens.surfaceElevated) }]}
           onPress={onBack}
+          accessibilityLabel="Go back from receipt screen"
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to return to the previous screen"
+          hitSlop={{ top: 12, left: 12, right: 12, bottom: 12 }}
         >
-          <Text style={[styles.backIcon, { color: color(tokens.textPrimary) }]}>←</Text>
+          <Text
+            style={[styles.backIcon, { color: color(tokens.textPrimary) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >←</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: color(tokens.textPrimary) }]}>Receipt</Text>
+        <Text
+          style={[styles.headerTitle, { color: color(tokens.textPrimary) }]}
+          accessibilityRole="header"
+        >Receipt</Text>
         <TouchableOpacity
           style={[styles.shareButton, { backgroundColor: color(tokens.surfaceElevated) }]}
           onPress={handleShare}
+          accessibilityLabel={`Share receipt for ${receipt.amount} ${receipt.asset}`}
+          accessibilityRole="button"
+          accessibilityHint="Double-tap to share this receipt via the share sheet"
+          hitSlop={{ top: 12, left: 12, right: 12, bottom: 12 }}
         >
-          <Text style={styles.shareIcon}>⬆️</Text>
+          <Text
+            style={styles.shareIcon}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >⬆️</Text>
         </TouchableOpacity>
       </View>
 
@@ -1006,19 +1221,37 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
               borderColor: color(tokens.border),
             },
           ]}
+          accessibilityLabel={amountA11yLabel}
         >
-          <Text style={[styles.amountLabel, { color: color(tokens.textSecondary) }]}>
-            You {receipt.status === 'refund' ? 'received back' : receipt.status === 'success' ? 'sent' : 'are sending'}
+          <Text
+            style={[styles.amountLabel, { color: color(tokens.textSecondary) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
+            You {verb}
           </Text>
           <View style={styles.amountRow}>
-            <Text style={[styles.amountValue, { color: color(tokens.textPrimary) }]}>
+            <Text
+              style={[styles.amountValue, { color: color(tokens.textPrimary) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+              accessibilityValue={{ text: `${receipt.amount} ${receipt.asset}` }}
+            >
               {receipt.amount}
             </Text>
-            <Text style={[styles.amountAsset, { color: color(tokens.textSecondary) }]}>
+            <Text
+              style={[styles.amountAsset, { color: color(tokens.textSecondary) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               {receipt.asset}
             </Text>
           </View>
-          <View style={styles.partiesRow}>
+          <View
+            style={styles.partiesRow}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             <View style={styles.party}>
               <Text style={[styles.partyLabel, { color: color(tokens.textMuted) }]}>From</Text>
               <Text
@@ -1042,7 +1275,11 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
             </View>
           </View>
           {receipt.memo && (
-            <View style={[styles.memoRow, { borderTopColor: color(tokens.border) }]}>
+            <View
+              style={[styles.memoRow, { borderTopColor: color(tokens.border) }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               <Text style={[styles.memoLabel, { color: color(tokens.textMuted) }]}>Memo</Text>
               <Text style={[styles.memoValue, { color: color(tokens.textSecondary) }]}>
                 {receipt.memo}
@@ -1052,7 +1289,7 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
         </View>
 
         {/* Status Timeline */}
-        <StatusTimeline events={receipt.timeline} status={receipt.status} />
+        <StatusTimeline events={receipt.timeline} receipt={receipt} status={receipt.status} />
 
         {/* Metadata Section */}
         <MetadataSection
@@ -1064,7 +1301,10 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
         />
 
         {/* QR Code */}
-        <View style={styles.qrSection}>
+        <View
+          style={styles.qrSection}
+          accessibilityLabel={`QR code to verify this receipt on Stellar. Receipt ID: ${receipt.id}`}
+        >
           <View
             style={[
               styles.qrWrapper,
@@ -1074,6 +1314,8 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
                 shadowColor: color(tokens.textPrimary),
               },
             ]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
           >
             <QRCode
               value={`quickex.to/receipt/${receipt.id}`}
@@ -1095,6 +1337,9 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
             style={[styles.primaryButton, { backgroundColor: color(tokens.action.primary) }]}
             onPress={handleShare}
             activeOpacity={0.8}
+            accessibilityLabel={`Share receipt for ${receipt.amount} ${receipt.asset}. From ${receipt.sender} to ${receipt.recipient}`}
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to open share sheet and send this receipt"
           >
             <Text style={[styles.primaryButtonText, { color: color(tokens.textInverse) }]}>
               🔗 Share Receipt
@@ -1111,13 +1356,23 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
             ]}
             onPress={handleViewExplorer}
             activeOpacity={0.8}
+            accessibilityLabel={`View receipt on Stellar explorer. Receipt hash: ${receipt.metadata.receiptHash}`}
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to open the transaction on the block explorer in a browser"
           >
             <Text style={[styles.secondaryButtonText, { color: color(tokens.textPrimary) }]}>
               🔍 View on Explorer
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.tertiaryButton} onPress={handleCopySupport} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.tertiaryButton}
+            onPress={handleCopySupport}
+            activeOpacity={0.8}
+            accessibilityLabel={`Copy all receipt details for technical support. Full support bundle of ${supportText.length} characters.`}
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to copy the full receipt details (amount, hash, timeline, explorer link) to clipboard for sharing with support"
+          >
             <Text style={[styles.tertiaryButtonText, { color: color(tokens.textSecondary) }]}>
               📋 Copy for Support
             </Text>
@@ -1125,9 +1380,20 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
         </View>
 
         {/* Security Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerIcon}>🔒</Text>
-          <Text style={[styles.footerText, { color: color(tokens.textMuted) }]}>
+        <View
+          style={styles.footer}
+          accessibilityLabel="This receipt is secured by the Stellar blockchain and is cryptographically verifiable."
+        >
+          <Text
+            style={styles.footerIcon}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >🔒</Text>
+          <Text
+            style={[styles.footerText, { color: color(tokens.textMuted) }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             Secured by Stellar blockchain. This receipt is cryptographically verifiable.
           </Text>
         </View>
@@ -1155,8 +1421,12 @@ function themedStyles({ color, tokens, isDark }: {
       borderBottomWidth: 1,
     },
     backButton: {
+      minHeight: 40,
+      minWidth: 40,
       padding: 8,
       borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     backIcon: {
       fontSize: 20,
@@ -1166,8 +1436,12 @@ function themedStyles({ color, tokens, isDark }: {
       fontWeight: '700',
     },
     shareButton: {
+      minHeight: 40,
+      minWidth: 40,
       padding: 8,
       borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     shareIcon: {
       fontSize: 18,
@@ -1267,9 +1541,12 @@ function themedStyles({ color, tokens, isDark }: {
       marginTop: 8,
     },
     primaryButton: {
+      minHeight: 56,
+      minWidth: 200,
       paddingVertical: 16,
       borderRadius: 16,
       alignItems: 'center',
+      justifyContent: 'center',
       shadowColor: color(tokens.action.primary),
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: isDark ? 0.3 : 0.2,
@@ -1281,9 +1558,12 @@ function themedStyles({ color, tokens, isDark }: {
       fontWeight: '700',
     },
     secondaryButton: {
+      minHeight: 48,
+      minWidth: 200,
       paddingVertical: 16,
       borderRadius: 16,
       alignItems: 'center',
+      justifyContent: 'center',
       borderWidth: 1,
     },
     secondaryButtonText: {
@@ -1291,9 +1571,12 @@ function themedStyles({ color, tokens, isDark }: {
       fontWeight: '600',
     },
     tertiaryButton: {
+      minHeight: 48,
+      minWidth: 200,
       paddingVertical: 14,
       borderRadius: 16,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     tertiaryButtonText: {
       fontSize: 15,

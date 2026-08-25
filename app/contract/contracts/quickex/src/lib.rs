@@ -5,6 +5,9 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, V
 mod admin;
 #[cfg(test)]
 mod assert_helpers;
+pub mod batch;
+#[cfg(test)]
+mod batch_test;
 #[cfg(test)]
 mod bench_test;
 mod commitment;
@@ -12,6 +15,8 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
+#[cfg(test)]
+mod error_codes_test;
 mod errors;
 mod escrow;
 mod escrow_id;
@@ -41,6 +46,8 @@ mod pause_policy_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
+#[cfg(test)]
+mod smoke_test;
 mod stealth;
 #[cfg(test)]
 mod stealth_test;
