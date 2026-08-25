@@ -141,11 +141,8 @@ fn proposing_again_overwrites_previous_proposal() {
 
     ctx.client
         .propose_admin_transfer(&ctx.admin, &first_candidate, &MIN_ADMIN_TRANSFER_DELAY);
-    ctx.client.propose_admin_transfer(
-        &ctx.admin,
-        &second_candidate,
-        &MIN_ADMIN_TRANSFER_DELAY,
-    );
+    ctx.client
+        .propose_admin_transfer(&ctx.admin, &second_candidate, &MIN_ADMIN_TRANSFER_DELAY);
 
     let pending = ctx.client.get_pending_admin_transfer().unwrap();
     assert_eq!(pending.proposed_admin, second_candidate);

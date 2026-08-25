@@ -64,8 +64,8 @@ use errors::QuickexError;
 use pause_policy::{EntryPoint, PauseChangeReason};
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PendingAdminProposal,
-    PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
+    PendingAdminProposal, PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract

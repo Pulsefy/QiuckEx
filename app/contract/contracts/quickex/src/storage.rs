@@ -654,7 +654,9 @@ pub fn get_admin(env: &Env) -> Option<Address> {
 
 /// Get the currently pending admin-transfer proposal, if any.
 pub fn get_pending_admin_proposal(env: &Env) -> Option<PendingAdminProposal> {
-    env.storage().persistent().get(&DataKey::PendingAdminProposal)
+    env.storage()
+        .persistent()
+        .get(&DataKey::PendingAdminProposal)
 }
 
 /// Store a new (or overwrite the existing) pending admin-transfer proposal.

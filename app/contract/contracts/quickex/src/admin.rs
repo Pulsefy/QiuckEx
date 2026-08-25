@@ -184,8 +184,8 @@ pub fn propose_admin_transfer(
 pub fn accept_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexError> {
     caller.require_auth();
 
-    let proposal = storage::get_pending_admin_proposal(env)
-        .ok_or(QuickexError::NoPendingAdminProposal)?;
+    let proposal =
+        storage::get_pending_admin_proposal(env).ok_or(QuickexError::NoPendingAdminProposal)?;
 
     if proposal.proposed_admin != caller {
         return Err(QuickexError::InvalidAcceptor);
@@ -234,8 +234,8 @@ pub fn accept_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexEr
 pub fn cancel_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexError> {
     require_admin(env, &caller)?;
 
-    let proposal = storage::get_pending_admin_proposal(env)
-        .ok_or(QuickexError::NoPendingAdminProposal)?;
+    let proposal =
+        storage::get_pending_admin_proposal(env).ok_or(QuickexError::NoPendingAdminProposal)?;
 
     storage::clear_pending_admin_proposal(env);
 
