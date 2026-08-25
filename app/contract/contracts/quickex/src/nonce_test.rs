@@ -452,4 +452,411 @@ mod tests {
             assert_eq!(variant.as_bytes(), expected.as_bytes());
         }
     }
+
+    // ── Adversarial replay matrix ─────────────────────────────────────────────
+
+    /// Replaying an expired nonce must be rejected for expiry, not leak a used-nonce
+    /// signal when it was never consumed.
+    #[test]
+    fn replay_expired_nonce_returns_signature_expired_not_nonce_reused() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(2_000_000);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            // Attempt to use a nonce whose window has already closed.
+            let r1 = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
+            assert_eq!(r1, Err(QuickexError::SignatureExpired));
+
+            // A second identical call must still surface SignatureExpired, not
+            // NonceAlreadyUsed — the nonce must never have been written.
+            let r2 = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
+            assert_eq!(r2, Err(QuickexError::SignatureExpired));
+
+            // Confirm nothing was written.
+            assert!(!is_nonce_used(&ctx.env, &signer, 1, ActionType::Withdraw));
+        });
+    }
+
+    /// Out-of-order nonce consumption: later nonces do not block earlier ones.
+    #[test]
+    fn out_of_order_nonce_consumption_succeeds() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            // Consume in reverse order; none of these should block the others.
+            verify_and_consume(&ctx.env, &signer, 1000, 2_000_000, ActionType::Withdraw).unwrap();
+            verify_and_consume(&ctx.env, &signer, 500, 2_000_000, ActionType::Withdraw).unwrap();
+            verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw).unwrap();
+
+            // Replay of each must be rejected individually.
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer, 500, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer, 1, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+            // Nonce 999 (gap) is still available.
+            assert!(
+                verify_and_consume(&ctx.env, &signer, 999, 2_000_000, ActionType::Withdraw).is_ok()
+            );
+        });
+    }
+
+    /// Nonce gaps — consuming nonce N leaves all other values available.
+    #[test]
+    fn nonce_gap_does_not_pollute_adjacent_values() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            verify_and_consume(&ctx.env, &signer, 50, 2_000_000, ActionType::Deposit).unwrap();
+
+            // 49 and 51 must remain unused.
+            assert!(!is_nonce_used(&ctx.env, &signer, 49, ActionType::Deposit));
+            assert!(!is_nonce_used(&ctx.env, &signer, 51, ActionType::Deposit));
+
+            verify_and_consume(&ctx.env, &signer, 49, 2_000_000, ActionType::Deposit).unwrap();
+            verify_and_consume(&ctx.env, &signer, 51, 2_000_000, ActionType::Deposit).unwrap();
+        });
+    }
+
+    /// Boundary value: nonce 0 and u64::MAX are each valid and independently tracked.
+    #[test]
+    fn boundary_nonce_values_zero_and_max() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            // Nonce 0 is a legitimate value.
+            verify_and_consume(&ctx.env, &signer, 0, 2_000_000, ActionType::Withdraw).unwrap();
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer, 0, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+
+            // u64::MAX is a legitimate value.
+            verify_and_consume(&ctx.env, &signer, u64::MAX, 2_000_000, ActionType::Withdraw)
+                .unwrap();
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer, u64::MAX, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+
+            // 0 and u64::MAX are stored independently.
+            assert!(is_nonce_used(&ctx.env, &signer, 0, ActionType::Withdraw));
+            assert!(is_nonce_used(&ctx.env, &signer, u64::MAX, ActionType::Withdraw));
+            assert!(!is_nonce_used(&ctx.env, &signer, 1, ActionType::Withdraw));
+        });
+    }
+
+    /// valid_until overflow boundary: u64::MAX is a valid expiry timestamp and
+    /// still enforces expiry correctly once past.
+    #[test]
+    fn valid_until_max_u64_is_accepted_at_any_realistic_timestamp() {
+        let ctx = TestContext::new();
+        // Set a very large (but not overflowing) timestamp.
+        ctx.env.ledger().set_timestamp(u64::MAX - 1);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            // timestamp (MAX-1) < valid_until (MAX) → should succeed.
+            verify_and_consume(&ctx.env, &signer, 1, u64::MAX, ActionType::Withdraw).unwrap();
+        });
+    }
+
+    /// Cross-account isolation: three distinct signers each independently track
+    /// every nonce value.
+    #[test]
+    fn cross_account_nonce_isolation_three_signers() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let alice = soroban_sdk::Address::generate(&ctx.env);
+        let bob = soroban_sdk::Address::generate(&ctx.env);
+        let carol = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            // Alice consumes nonce 1.
+            verify_and_consume(&ctx.env, &alice, 1, 2_000_000, ActionType::Refund).unwrap();
+
+            // Bob and Carol can still use nonce 1 independently.
+            verify_and_consume(&ctx.env, &bob, 1, 2_000_000, ActionType::Refund).unwrap();
+            verify_and_consume(&ctx.env, &carol, 1, 2_000_000, ActionType::Refund).unwrap();
+
+            // Replay for each is blocked per-account.
+            assert_eq!(
+                verify_and_consume(&ctx.env, &alice, 1, 2_000_000, ActionType::Refund),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+            assert_eq!(
+                verify_and_consume(&ctx.env, &bob, 1, 2_000_000, ActionType::Refund),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+            assert_eq!(
+                verify_and_consume(&ctx.env, &carol, 1, 2_000_000, ActionType::Refund),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+        });
+    }
+
+    /// Cross-entrypoint nonce isolation: nonces for different action types are
+    /// tracked separately even for the same signer.
+    #[test]
+    fn cross_entrypoint_nonce_isolation() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+        let nonce = 77u64;
+
+        ctx.env.as_contract(&contract_id, || {
+            let actions = [
+                ActionType::Withdraw,
+                ActionType::Refund,
+                ActionType::Dispute,
+                ActionType::Deposit,
+                ActionType::PartialPayment,
+            ];
+
+            // Each entrypoint can consume the same nonce independently.
+            for &action in &actions {
+                verify_and_consume(&ctx.env, &signer, nonce, 2_000_000, action).unwrap();
+            }
+
+            // Replay of each entrypoint must be blocked independently.
+            for &action in &actions {
+                assert_eq!(
+                    verify_and_consume(&ctx.env, &signer, nonce, 2_000_000, action),
+                    Err(QuickexError::NonceAlreadyUsed),
+                    "replay should fail for action {:?}",
+                    action
+                );
+            }
+        });
+    }
+
+    /// Signer domain separation: the canonical payload hash changes when the
+    /// signer changes (via the action/nonce combination bound to different
+    /// storage keys).
+    ///
+    /// More concretely: consuming a nonce for signer A must not affect
+    /// `is_nonce_used` for signer B, even when all other parameters are
+    /// identical — confirming that storage is keyed on the signer address.
+    #[test]
+    fn nonce_storage_key_includes_signer_address() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer_a = soroban_sdk::Address::generate(&ctx.env);
+        let signer_b = soroban_sdk::Address::generate(&ctx.env);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            verify_and_consume(&ctx.env, &signer_a, 5, 2_000_000, ActionType::Dispute).unwrap();
+
+            // Signer B's nonce 5 is unaffected.
+            assert!(!is_nonce_used(&ctx.env, &signer_b, 5, ActionType::Dispute));
+            verify_and_consume(&ctx.env, &signer_b, 5, 2_000_000, ActionType::Dispute).unwrap();
+
+            // Both are now used independently.
+            assert!(is_nonce_used(&ctx.env, &signer_a, 5, ActionType::Dispute));
+            assert!(is_nonce_used(&ctx.env, &signer_b, 5, ActionType::Dispute));
+        });
+    }
+
+    /// Interaction between nonce consumption and signer domain separation:
+    /// a v2 canonical payload signed for action X cannot satisfy action Y's
+    /// verify_and_consume because the storage key includes the action type.
+    /// This test directly asserts the domain-separation invariant.
+    #[test]
+    fn domain_separation_payload_hash_differs_per_action() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let contract_id = ctx.client.address.clone();
+
+        ctx.env.as_contract(&contract_id, || {
+            let actions = [
+                ActionType::Withdraw,
+                ActionType::Refund,
+                ActionType::Dispute,
+                ActionType::ResolveDispute,
+                ActionType::VoteForDispute,
+                ActionType::ResolveDisputeMultiSig,
+                ActionType::Deposit,
+                ActionType::DepositWithCommitment,
+                ActionType::DepositPartial,
+                ActionType::PartialPayment,
+                ActionType::StealthDeposit,
+                ActionType::StealthWithdraw,
+                ActionType::SetPrivacy,
+                ActionType::Upgrade,
+            ];
+
+            // Build all hashes and assert pairwise uniqueness.
+            let hashes: soroban_sdk::Vec<_> = {
+                let mut v = soroban_sdk::Vec::new(&ctx.env);
+                for &action in &actions {
+                    v.push_back(hash_canonical_payload(&ctx.env, action, 1, 2_000_000));
+                }
+                v
+            };
+
+            for i in 0..hashes.len() {
+                for j in (i + 1)..hashes.len() {
+                    assert_ne!(
+                        hashes.get(i).unwrap(),
+                        hashes.get(j).unwrap(),
+                        "action[{i}] and action[{j}] must produce distinct payload hashes"
+                    );
+                }
+            }
+        });
+    }
+
+    // ── Property / fuzz-style tests ───────────────────────────────────────────
+
+    /// Property: for every (signer, nonce, action) triple, a consumed nonce is
+    /// NEVER accepted a second time regardless of how many other nonces are
+    /// consumed in between.
+    ///
+    /// This is a deterministic exhaustive sweep over a representative cross-
+    /// product of inputs, making it a property test without external crates.
+    #[test]
+    fn property_consumed_nonce_never_accepted_twice() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let contract_id = ctx.client.address.clone();
+
+        // Representative nonce values: boundaries, small, large, MAX.
+        let nonces: &[u64] = &[0, 1, 2, 127, 255, 1_000, u64::MAX - 1, u64::MAX];
+        let actions = [
+            ActionType::Withdraw,
+            ActionType::Refund,
+            ActionType::Deposit,
+            ActionType::Dispute,
+            ActionType::Upgrade,
+        ];
+        // Three independent signers.
+        let signers = [
+            soroban_sdk::Address::generate(&ctx.env),
+            soroban_sdk::Address::generate(&ctx.env),
+            soroban_sdk::Address::generate(&ctx.env),
+        ];
+
+        ctx.env.as_contract(&contract_id, || {
+            for signer in &signers {
+                for &action in &actions {
+                    for &nonce in nonces {
+                        // First consumption must succeed.
+                        verify_and_consume(&ctx.env, signer, nonce, 2_000_000, action)
+                            .expect("first consume must succeed");
+
+                        // Every subsequent attempt must be rejected.
+                        for _ in 0..3 {
+                            assert_eq!(
+                                verify_and_consume(&ctx.env, signer, nonce, 2_000_000, action),
+                                Err(QuickexError::NonceAlreadyUsed),
+                                "consumed nonce {nonce} for action {:?} must never be accepted again",
+                                action
+                            );
+                        }
+
+                        // is_nonce_used must agree.
+                        assert!(
+                            is_nonce_used(&ctx.env, signer, nonce, action),
+                            "is_nonce_used must return true after consumption"
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    /// Property: expiry check fires BEFORE the nonce write, so an expired
+    /// submission never marks the nonce as used for any nonce value.
+    #[test]
+    fn property_expired_submission_never_writes_nonce() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(5_000_000);
+        let contract_id = ctx.client.address.clone();
+
+        let nonces: &[u64] = &[0, 1, u64::MAX];
+        let actions = [ActionType::Withdraw, ActionType::Deposit, ActionType::Refund];
+        let signer = soroban_sdk::Address::generate(&ctx.env);
+
+        ctx.env.as_contract(&contract_id, || {
+            for &action in &actions {
+                for &nonce in nonces {
+                    // valid_until is in the past.
+                    let result = verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
+                    assert_eq!(result, Err(QuickexError::SignatureExpired));
+
+                    // Nothing was written — nonce is still fresh.
+                    assert!(
+                        !is_nonce_used(&ctx.env, &signer, nonce, action),
+                        "expired submission must not write nonce {nonce} for action {:?}",
+                        action
+                    );
+                }
+            }
+        });
+    }
+
+    /// Property: nonce isolation across all three axes — signer, action, contract.
+    /// Consuming (signer_A, nonce_N, action_X, contract_A) must not affect any
+    /// other combination that differs in at least one dimension.
+    #[test]
+    fn property_nonce_key_three_axis_isolation() {
+        let ctx = TestContext::new();
+        ctx.env.ledger().set_timestamp(1_000_000);
+        let signer_a = soroban_sdk::Address::generate(&ctx.env);
+        let signer_b = soroban_sdk::Address::generate(&ctx.env);
+        let contract_a = ctx.client.address.clone();
+        let contract_b = ctx.env.register(crate::QuickexContract, ());
+
+        // Consume on (signer_a, nonce=1, Withdraw, contract_a).
+        ctx.env.as_contract(&contract_a, || {
+            verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).unwrap();
+        });
+
+        // Different signer, same everything else → not blocked.
+        ctx.env.as_contract(&contract_a, || {
+            assert!(
+                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw).is_ok()
+            );
+        });
+
+        // Same signer, different action → not blocked.
+        ctx.env.as_contract(&contract_a, || {
+            assert!(
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Deposit).is_ok()
+            );
+        });
+
+        // Same signer, same action, different contract → not blocked.
+        ctx.env.as_contract(&contract_b, || {
+            assert!(
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok()
+            );
+        });
+
+        // Original combination is still blocked.
+        ctx.env.as_contract(&contract_a, || {
+            assert_eq!(
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw),
+                Err(QuickexError::NonceAlreadyUsed)
+            );
+        });
+    }
 }
