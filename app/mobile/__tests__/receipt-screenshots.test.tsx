@@ -7,7 +7,7 @@ import {
   mockReceiptSuccess,
   mockReceiptFailed,
   mockReceiptRefund,
-} from '../src/data/mockReceipt';
+} from './fixtures/mockReceipt';
 
 function renderWithTheme(component: React.ReactElement, mode: 'light' | 'dark' = 'light') {
   jest.spyOn(require('react-native').Appearance, 'getColorScheme').mockReturnValue(mode);

@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "lint:no-mock-imports": "node scripts/check-no-mock-imports.js",
     "test": "echo 'Skipping mobile checks in backend release pipeline' || exit 0",
     "type-check": "tsc --noEmit",
     "build": "pnpm type-check && pnpm lint"

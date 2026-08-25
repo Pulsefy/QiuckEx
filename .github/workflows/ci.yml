@@ -30,6 +30,10 @@ jobs:
           cd app/backend
           npx tsc --noEmit || echo "::warning::Bypassing existing codebase compilation warning cleanly."
 
+      # Task 2: Ensure no production source file imports mock data fixtures
+      - name: Check no mock imports in production code
+        run: node app/mobile/scripts/check-no-mock-imports.js
+
   # ── Secret scanning (lightweight check in main CI) ──────────────────────
   secret-scan:
     name: Secret Scan

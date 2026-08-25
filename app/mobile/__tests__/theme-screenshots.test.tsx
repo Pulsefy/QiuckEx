@@ -7,16 +7,7 @@ import { PaymentScreen } from '../src/screens/PaymentScreen';
 import { ReceiptScreen } from '../src/screens/ReceiptScreen';
 import { SettingsScreen } from '../src/screens/SettingsScreen';
 import { NotificationScreen } from '../src/screens/NotificationScreen';
-
-const mockReceipt = {
-  id: 'test-123',
-  amount: '100.00',
-  asset: 'USDC',
-  sender: 'GABCDEF...123456',
-  timestamp: '2026-06-25 14:30',
-  status: 'success' as const,
-  memo: 'Test payment',
-};
+import { mockReceiptSuccess } from './fixtures/mockReceipt';
 
 async function renderWithTheme(component: React.ReactElement, mode: 'light' | 'dark' | 'system', systemAppearance: 'light' | 'dark' = 'light') {
   jest.spyOn(Appearance, 'getColorScheme').mockReturnValue(systemAppearance);
@@ -68,22 +59,22 @@ describe('Theme Consistency Screenshots', () => {
 
   // ReceiptScreen
   it('ReceiptScreen renders correctly in light theme', async () => {
-    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'light');
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceiptSuccess} />, 'light');
     expect(toJSON()).toMatchSnapshot('receipt-light');
   });
 
   it('ReceiptScreen renders correctly in dark theme', async () => {
-    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'dark');
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceiptSuccess} />, 'dark');
     expect(toJSON()).toMatchSnapshot('receipt-dark');
   });
 
   it('ReceiptScreen renders correctly in system-light theme', async () => {
-    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'system', 'light');
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceiptSuccess} />, 'system', 'light');
     expect(toJSON()).toMatchSnapshot('receipt-system-light');
   });
 
   it('ReceiptScreen renders correctly in system-dark theme', async () => {
-    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceipt} />, 'system', 'dark');
+    const { toJSON } = await renderWithTheme(<ReceiptScreen receipt={mockReceiptSuccess} />, 'system', 'dark');
     expect(toJSON()).toMatchSnapshot('receipt-system-dark');
   });
 

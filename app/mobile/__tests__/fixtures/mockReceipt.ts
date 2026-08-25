@@ -1,4 +1,4 @@
-import type { ReceiptData } from '../types/receipt';
+import type { ReceiptData } from '../../src/types/receipt';
 
 export const mockReceiptPending: ReceiptData = {
   id: 'rec_test_001',

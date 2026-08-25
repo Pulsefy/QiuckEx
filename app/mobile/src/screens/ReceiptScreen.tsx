@@ -939,34 +939,124 @@ const metaStyles = StyleSheet.create({
 // Main Screen
 // ---------------------------------------------------------------------------
 
-export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBack?: () => void }) {
+export interface ReceiptScreenProps {
+  /** Loaded receipt data. When undefined the screen shows a loading skeleton. */
+  receipt?: ReceiptData;
+  /** Pass an error message to show the error state instead of the receipt. */
+  error?: string | null;
+  /** Explicitly force the loading skeleton (e.g. while a fetch is in-flight). */
+  loading?: boolean;
+  onBack?: () => void;
+  /** Called when the user taps "Try Again" on the error state. */
+  onRetry?: () => void;
+}
+
+export function ReceiptScreen({
+  receipt,
+  error,
+  loading = false,
+  onBack,
+  onRetry,
+}: ReceiptScreenProps) {
   const { color, tokens, isDark } = useTheme();
+  const styles = themedStyles({ color, tokens, isDark });
+
+  // --- Loading state ---
+  const isLoading = loading || (!receipt && !error);
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <View style={[styles.header, { borderBottomColor: color(tokens.border) }]}>
+          <TouchableOpacity
+            style={[styles.backButton, { backgroundColor: color(tokens.surfaceElevated) }]}
+            onPress={onBack}
+          >
+            <Text style={[styles.backIcon, { color: color(tokens.textPrimary) }]}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: color(tokens.textPrimary) }]}>Receipt</Text>
+          <View style={styles.shareButton} />
+        </View>
+        <View style={styles.centeredState}>
+          <Text style={[styles.loadingIcon]}>⏳</Text>
+          <Text style={[styles.stateTitle, { color: color(tokens.textPrimary) }]}>
+            Loading Receipt…
+          </Text>
+          <Text style={[styles.stateBody, { color: color(tokens.textSecondary) }]}>
+            Fetching your transaction details from the Stellar network.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --- Error state ---
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <View style={[styles.header, { borderBottomColor: color(tokens.border) }]}>
+          <TouchableOpacity
+            style={[styles.backButton, { backgroundColor: color(tokens.surfaceElevated) }]}
+            onPress={onBack}
+          >
+            <Text style={[styles.backIcon, { color: color(tokens.textPrimary) }]}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: color(tokens.textPrimary) }]}>Receipt</Text>
+          <View style={styles.shareButton} />
+        </View>
+        <View style={styles.centeredState}>
+          <Text style={styles.loadingIcon}>❌</Text>
+          <Text style={[styles.stateTitle, { color: color(tokens.textPrimary) }]}>
+            Unable to Load Receipt
+          </Text>
+          <Text style={[styles.stateBody, { color: color(tokens.textSecondary) }]}>
+            {error}
+          </Text>
+          {onRetry && (
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: color(tokens.action.primary) }]}
+              onPress={onRetry}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.retryButtonText, { color: color(tokens.textInverse) }]}>
+                Try Again
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // At this point receipt is guaranteed to be defined (both guards above return early).
+  const data: ReceiptData = receipt!;
 
   const handleShare = async () => {
     try {
       await Share.share({
-        title: `QuickEx Payment — ${receipt.amount} ${receipt.asset}`,
-        message: generateSupportText(receipt),
-        url: getExplorerUrl(receipt),
+        title: `QuickEx Payment — ${data.amount} ${data.asset}`,
+        message: generateSupportText(data),
+        url: getExplorerUrl(data),
       }, {
         dialogTitle: 'Share Receipt',
-        subject: `QuickEx Payment — ${receipt.amount} ${receipt.asset}`,
+        subject: `QuickEx Payment — ${data.amount} ${data.asset}`,
       });
-    } catch (error) {
+    } catch (_err) {
       // User cancelled
     }
   };
 
   const handleCopySupport = () => {
-    Clipboard.setString(generateSupportText(receipt));
+    Clipboard.setString(generateSupportText(data));
     if (Platform.OS === 'android') {
       ToastAndroid.show('Support info copied', ToastAndroid.SHORT);
     }
   };
 
   const handleViewExplorer = () => {
-    const url = getExplorerUrl(receipt);
-    // Open URL via Linking or pass to parent
+    // Open URL via Linking or pass to parent — placeholder for navigator integration
+    void getExplorerUrl(data);
   };
 
   const styles = themedStyles({ color, tokens, isDark });
@@ -1008,14 +1098,14 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
           ]}
         >
           <Text style={[styles.amountLabel, { color: color(tokens.textSecondary) }]}>
-            You {receipt.status === 'refund' ? 'received back' : receipt.status === 'success' ? 'sent' : 'are sending'}
+            You {data.status === 'refund' ? 'received back' : data.status === 'success' ? 'sent' : 'are sending'}
           </Text>
           <View style={styles.amountRow}>
             <Text style={[styles.amountValue, { color: color(tokens.textPrimary) }]}>
-              {receipt.amount}
+              {data.amount}
             </Text>
             <Text style={[styles.amountAsset, { color: color(tokens.textSecondary) }]}>
-              {receipt.asset}
+              {data.asset}
             </Text>
           </View>
           <View style={styles.partiesRow}>
@@ -1026,7 +1116,7 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
                 numberOfLines={1}
                 ellipsizeMode="middle"
               >
-                {receipt.sender}
+                {data.sender}
               </Text>
             </View>
             <Text style={[styles.arrow, { color: color(tokens.textMuted) }]}>→</Text>
@@ -1037,30 +1127,30 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
                 numberOfLines={1}
                 ellipsizeMode="middle"
               >
-                {receipt.recipient}
+                {data.recipient}
               </Text>
             </View>
           </View>
-          {receipt.memo && (
+          {data.memo && (
             <View style={[styles.memoRow, { borderTopColor: color(tokens.border) }]}>
               <Text style={[styles.memoLabel, { color: color(tokens.textMuted) }]}>Memo</Text>
               <Text style={[styles.memoValue, { color: color(tokens.textSecondary) }]}>
-                {receipt.memo}
+                {data.memo}
               </Text>
             </View>
           )}
         </View>
 
         {/* Status Timeline */}
-        <StatusTimeline events={receipt.timeline} status={receipt.status} />
+        <StatusTimeline events={data.timeline} status={data.status} />
 
         {/* Metadata Section */}
         <MetadataSection
-          receiptId={receipt.id}
-          receiptMetadata={receipt.metadata}
-          contract={receipt.contract}
-          network={receipt.network}
-          supportBundleReference={receipt.supportBundleReference}
+          receiptId={data.id}
+          receiptMetadata={data.metadata}
+          contract={data.contract}
+          network={data.network}
+          supportBundleReference={data.supportBundleReference}
         />
 
         {/* QR Code */}
@@ -1076,7 +1166,7 @@ export function ReceiptScreen({ receipt, onBack }: { receipt: ReceiptData; onBac
             ]}
           >
             <QRCode
-              value={`quickex.to/receipt/${receipt.id}`}
+              value={`quickex.to/receipt/${data.id}`}
               size={160}
               color={color(tokens.textPrimary)}
               backgroundColor={color(tokens.surface)}
@@ -1312,6 +1402,37 @@ function themedStyles({ color, tokens, isDark }: {
     footerText: {
       fontSize: 12,
       textAlign: 'center',
+    },
+    // Loading / error states
+    centeredState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 32,
+      gap: 12,
+    },
+    loadingIcon: {
+      fontSize: 48,
+    },
+    stateTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    stateBody: {
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: 'center',
+    },
+    retryButton: {
+      marginTop: 8,
+      paddingHorizontal: 28,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    retryButtonText: {
+      fontSize: 15,
+      fontWeight: '700',
     },
   });
 }
