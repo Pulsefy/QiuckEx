@@ -59,10 +59,6 @@ const mockHorizonServer = {
   call: jest.fn(),
 };
 
-const mockReconciliationService = {
-  runReconciliation: jest.fn(),
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeRecord(

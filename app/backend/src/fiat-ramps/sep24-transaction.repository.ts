@@ -11,7 +11,6 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   Sep24InternalStatus,
   Sep24TransactionRecord,
-  IN_FLIGHT_ANCHOR_STATUSES,
   Sep24AnchorStatus,
 } from './types/sep24.types';
 
