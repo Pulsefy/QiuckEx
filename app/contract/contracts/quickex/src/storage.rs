@@ -50,7 +50,8 @@ use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
 use soroban_sdk::xdr::ToXdr;
 
 use crate::types::{
-    CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry,
+    CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, PendingAdminProposal, Role,
+    StealthEscrowEntry,
 };
 
 /// Record type for TTL policy selection.
@@ -113,6 +114,11 @@ pub const CURRENT_CONTRACT_VERSION: u32 = 1;
 pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
 pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
 
+/// Minimum timelock (seconds) that must elapse between an admin-transfer
+/// proposal and its acceptance. The caller may configure a longer delay
+/// per-proposal, but never shorter than this floor (Issue #870).
+pub const MIN_ADMIN_TRANSFER_DELAY: u64 = 86_400; // 1 day
+
 /// Bitmask flags for granular operation pausing.
 #[contracttype]
 #[repr(u64)]
@@ -151,6 +157,9 @@ pub enum DataKey {
     ContractVersion,
     /// Admin address (singleton).
     Admin,
+    /// Pending, timelocked admin-transfer proposal (singleton). Absent when
+    /// no transfer is currently proposed (Issue #870).
+    PendingAdminProposal,
     /// Explicit one-time initialization flag (singleton).
     Initialized,
     /// Paused state (singleton).
@@ -637,6 +646,32 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Timelocked Admin Transfer helpers (Issue #870)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Get the currently pending admin-transfer proposal, if any.
+pub fn get_pending_admin_proposal(env: &Env) -> Option<PendingAdminProposal> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::PendingAdminProposal)
+}
+
+/// Store a new (or overwrite the existing) pending admin-transfer proposal.
+pub fn set_pending_admin_proposal(env: &Env, proposal: &PendingAdminProposal) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PendingAdminProposal, proposal);
+}
+
+/// Clear any pending admin-transfer proposal (on accept or cancel).
+pub fn clear_pending_admin_proposal(env: &Env) {
+    let key = DataKey::PendingAdminProposal;
+    if env.storage().persistent().has(&key) {
+        env.storage().persistent().remove(&key);
+    }
 }
 
 // -----------------------------------------------------------------------------

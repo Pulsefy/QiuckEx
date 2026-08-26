@@ -52,6 +52,39 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "AdminTransferProposed",
+        topics: &[
+            EVENT_TOPIC_ADMIN,
+            "AdminTransferProposed",
+            "current_admin",
+            "proposed_admin",
+        ],
+        payload_keys: &["eligible_at", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "AdminTransferAccepted",
+        topics: &[
+            EVENT_TOPIC_ADMIN,
+            "AdminTransferAccepted",
+            "old_admin",
+            "new_admin",
+        ],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "AdminTransferCancelled",
+        topics: &[
+            EVENT_TOPIC_ADMIN,
+            "AdminTransferCancelled",
+            "current_admin",
+            "cancelled_proposed_admin",
+        ],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "ArbiterVoteCast",
         topics: &[
             EVENT_TOPIC_DISPUTE,
@@ -578,6 +611,88 @@ pub(crate) fn publish_admin_changed(env: &Env, old_admin: Address, new_admin: Ad
     AdminChangedEvent {
         old_admin,
         new_admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+// ---- Timelocked admin transfer events (Issue #870) ----
+
+#[contractevent(topics = ["TOPIC_ADMIN", "AdminTransferProposed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminTransferProposedEvent {
+    #[topic]
+    pub current_admin: Address,
+
+    #[topic]
+    pub proposed_admin: Address,
+
+    pub eligible_at: u64,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_admin_transfer_proposed(
+    env: &Env,
+    current_admin: Address,
+    proposed_admin: Address,
+    eligible_at: u64,
+) {
+    AdminTransferProposedEvent {
+        current_admin,
+        proposed_admin,
+        eligible_at,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "AdminTransferAccepted"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminTransferAcceptedEvent {
+    #[topic]
+    pub old_admin: Address,
+
+    #[topic]
+    pub new_admin: Address,
+
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_admin_transfer_accepted(env: &Env, old_admin: Address, new_admin: Address) {
+    AdminTransferAcceptedEvent {
+        old_admin,
+        new_admin,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ADMIN", "AdminTransferCancelled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminTransferCancelledEvent {
+    #[topic]
+    pub current_admin: Address,
+
+    #[topic]
+    pub cancelled_proposed_admin: Address,
+
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_admin_transfer_cancelled(
+    env: &Env,
+    current_admin: Address,
+    cancelled_proposed_admin: Address,
+) {
+    AdminTransferCancelledEvent {
+        current_admin,
+        cancelled_proposed_admin,
         schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }
