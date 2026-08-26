@@ -1,10 +1,13 @@
-import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { LinkState } from "../links/link-state-machine";
 import { PaymentLinkStatusDto } from "../dto/link/payment-link-status.dto";
 import { HorizonService } from "../transactions/horizon.service";
-import { SupabaseService } from "../supabase/supabase.service";
 import { LinksService } from "../links/links.service";
 import { PathPreviewService } from "../stellar/path-preview.service";
+import {
+  PAYMENT_LINKS_REPOSITORY,
+  type PaymentLinksRepository,
+} from "../links/payment-links.repository";
 
 import { LinkMetadataResponseDto } from "../dto/link/link-metadata-response.dto";
 
@@ -15,7 +18,8 @@ export class PaymentLinkService {
 
   constructor(
     private readonly horizonService: HorizonService,
-    private readonly supabaseService: SupabaseService,
+    @Inject(PAYMENT_LINKS_REPOSITORY)
+    private readonly paymentLinksRepository: PaymentLinksRepository,
     private readonly linksService: LinksService,
     @Optional() private readonly pathPreviewService?: PathPreviewService,
   ) {}
@@ -91,18 +95,15 @@ export class PaymentLinkService {
   private async getUsernameRecord(
     username: string,
   ): Promise<{ public_key: string }> {
-    const { data, error } = await this.supabaseService
-      .getClient()
-      .from("usernames")
-      .select("public_key")
-      .eq("username", username.toLowerCase())
-      .single();
+    const publicKey = await this.paymentLinksRepository.getPublicKeyByUsername(
+      username,
+    );
 
-    if (error || !data) {
+    if (!publicKey) {
       throw new NotFoundException(`Username '${username}' not found`);
     }
 
-    return data;
+    return { public_key: publicKey };
   }
 
   /**

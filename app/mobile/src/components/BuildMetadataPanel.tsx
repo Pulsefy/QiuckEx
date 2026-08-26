@@ -47,11 +47,15 @@ function CopyableMetadataRow({ label, value }: CopyableMetadataRowProps) {
       style={styles.row}
       onPress={handleCopy}
       activeOpacity={0.7}
+      accessibilityLabel={`${label}: ${value}. ${justCopied ? 'Copied to clipboard successfully.' : 'Tap to copy to clipboard.'}`}
+      accessibilityRole="button"
+      accessibilityHint={`Double-tap to copy ${label} value to clipboard`}
+      hitSlop={{ top: 4, left: 4, right: 4, bottom: 4 }}
     >
-      <Text style={[styles.label, { color: color(tokens.text.primary) }]}>
+      <Text style={[styles.label, { color: color(tokens.text.primary) }]} accessibilityElementsHidden={true} importantForAccessibility="no">
         {label}
       </Text>
-      <View style={styles.right}>
+      <View style={styles.right} accessibilityElementsHidden={true} importantForAccessibility="no">
         <Text
           style={[
             styles.value,
@@ -113,7 +117,7 @@ export function BuildMetadataPanel() {
   return (
     <View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Build Metadata</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Build Metadata</Text>
         <Text style={styles.sectionDescription}>
           Tap any field to copy. Share this info when reporting issues.
         </Text>
@@ -127,7 +131,7 @@ export function BuildMetadataPanel() {
               value={String(value)}
             />
             {index < Object.entries(displayMetadata).length - 1 && (
-              <View style={[styles.divider, { backgroundColor: color(tokens.border.subtle) }]} />
+              <View style={[styles.divider, { backgroundColor: color(tokens.border.subtle) }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
             )}
           </View>
         ))}
@@ -137,8 +141,11 @@ export function BuildMetadataPanel() {
         style={[styles.copyAllButton, { backgroundColor: color(tokens.action.primary) }]}
         onPress={handleCopyAll}
         activeOpacity={0.8}
+        accessibilityLabel="Copy All Metadata button. Copies all build information (version, build, git branch/commit, environment, network) to clipboard as newline-separated text."
+        accessibilityRole="button"
+        accessibilityHint="Double-tap to copy all build metadata at once for bug reports"
       >
-        <Text style={[styles.copyAllText, { color: color(tokens.text.inverse) }]}>
+        <Text style={[styles.copyAllText, { color: color(tokens.text.inverse) }]} accessibilityElementsHidden={true} importantForAccessibility="no">
           Copy All Metadata
         </Text>
       </TouchableOpacity>
@@ -216,6 +223,7 @@ function getMetadataStyles({ color, tokens }: {
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+      minHeight: 52,
     },
     copyAllText: {
       fontSize: 15,

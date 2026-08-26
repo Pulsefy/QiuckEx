@@ -21,6 +21,8 @@ import {
   clearOfflineQueue,
   retryQueuedAction,
   processOfflineQueue,
+  confirmQueuedAction,
+  discardQueuedAction,
   type QueuedAction,
 } from "../services/offline-queue";
 
@@ -53,7 +55,31 @@ export default function OfflineQueueInspectorScreen() {
   }, []);
 
   // Action helpers
-  const handleAddMock = async (type: "mock-success" | "mock-failure" | "mock-payment") => {
+  const handleConfirm = async (id: string) => {
+    setProcessingId(id);
+    try {
+      await confirmQueuedAction(id);
+      await loadQueue();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDiscard = async (id: string) => {
+    setProcessingId(id);
+    try {
+      await discardQueuedAction(id);
+      await loadQueue();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleAddMock = async (type: "mock-success" | "mock-failure" | "mock-payment" | "mock-expired-link" | "mock-already-applied" | "mock-permanent-failure") => {
     let payload = {};
     if (type === "mock-payment") {
       payload = {
@@ -116,9 +142,10 @@ export default function OfflineQueueInspectorScreen() {
       else if (curr.status === "retrying") acc.retrying++;
       else if (curr.status === "failed") acc.failed++;
       else if (curr.status === "completed") acc.completed++;
+      else if (curr.status === "conflict") acc.conflict++;
       return acc;
     },
-    { total: 0, pending: 0, retrying: 0, failed: 0, completed: 0 }
+    { total: 0, pending: 0, retrying: 0, failed: 0, completed: 0, conflict: 0 }
   );
 
   return (
@@ -161,6 +188,7 @@ export default function OfflineQueueInspectorScreen() {
           <StatCard label="Total" count={stats.total} color={theme.textPrimary} theme={theme} />
           <StatCard label="Pending" count={stats.pending} color={theme.status.warning} theme={theme} />
           <StatCard label="Failed" count={stats.failed} color={theme.status.error} theme={theme} />
+          <StatCard label="Conflict" count={stats.conflict} color={theme.status.warning} theme={theme} />
           <StatCard label="Done" count={stats.completed} color={theme.status.success} theme={theme} />
         </View>
 
@@ -207,6 +235,18 @@ export default function OfflineQueueInspectorScreen() {
               <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} />
               <Text style={[styles.sandboxBtnText, { color: theme.textPrimary }]}>Mock Payment</Text>
             </Pressable>
+            <Pressable style={[styles.sandboxBtn, { backgroundColor: theme.buttonSecondaryBg }]} onPress={() => handleAddMock("mock-expired-link")}>
+              <Ionicons name="add-circle-outline" size={16} color={theme.status.warning} />
+              <Text style={[styles.sandboxBtnText, { color: theme.status.warning }]}>Mock Expired</Text>
+            </Pressable>
+            <Pressable style={[styles.sandboxBtn, { backgroundColor: theme.buttonSecondaryBg }]} onPress={() => handleAddMock("mock-already-applied")}>
+              <Ionicons name="add-circle-outline" size={16} color={theme.status.warning} />
+              <Text style={[styles.sandboxBtnText, { color: theme.status.warning }]}>Mock Duplicate</Text>
+            </Pressable>
+            <Pressable style={[styles.sandboxBtn, { backgroundColor: theme.buttonSecondaryBg }]} onPress={() => handleAddMock("mock-permanent-failure")}>
+              <Ionicons name="add-circle-outline" size={16} color={theme.status.error} />
+              <Text style={[styles.sandboxBtnText, { color: theme.status.error }]}>Mock Perm-Fail</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -249,6 +289,10 @@ export default function OfflineQueueInspectorScreen() {
                 badgeBg = theme.primary + "15";
                 badgeColor = theme.primary;
                 statusIcon = "refresh-outline";
+              } else if (item.status === "conflict") {
+                badgeBg = theme.status.warning + "25";
+                badgeColor = theme.status.warning;
+                statusIcon = "alert-circle-outline";
               }
 
               return (
@@ -285,6 +329,62 @@ export default function OfflineQueueInspectorScreen() {
                     </Text>
                   </View>
 
+                  {/* Conflict policy */}
+                  <View style={styles.itemMeta}>
+                    <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                      Policy:{" "}
+                      <Text style={{ fontWeight: "700", color: theme.textPrimary }}>
+                        {item.conflictPolicy ?? "retry"}
+                      </Text>
+                    </Text>
+                    {item.outcome ? (
+                      <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                        Outcome:{" "}
+                        <Text style={{ fontWeight: "700", color: theme.textPrimary }}>
+                          {item.outcome}
+                        </Text>
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* Outcome message */}
+                  {item.outcomeMessage ? (
+                    <View
+                      style={[
+                        styles.outcomeBox,
+                        {
+                          backgroundColor:
+                            item.status === "conflict"
+                              ? theme.status.warning + "18"
+                              : theme.status.success + "12",
+                          borderColor:
+                            item.status === "conflict"
+                              ? theme.status.warning
+                              : theme.status.success,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={item.status === "conflict" ? "alert-circle-outline" : "information-circle-outline"}
+                        size={14}
+                        color={item.status === "conflict" ? theme.status.warning : theme.status.success}
+                      />
+                      <Text
+                        style={[
+                          styles.outcomeText,
+                          {
+                            color:
+                              item.status === "conflict"
+                                ? theme.status.warning
+                                : theme.textSecondary,
+                          },
+                        ]}
+                      >
+                        {item.outcomeMessage}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {item.failureReason ? (
                     <View style={[styles.errorBox, { backgroundColor: theme.status.errorBg, borderColor: theme.status.error }]}>
                       <Text style={[styles.errorText, { color: theme.status.error }]}>
@@ -318,6 +418,38 @@ export default function OfflineQueueInspectorScreen() {
                         {isExpanded ? "Hide Payloads" : "Inspect"}
                       </Text>
                     </Pressable>
+
+                    {/* Conflict: confirm / discard */}
+                    {item.status === "conflict" && (
+                      <>
+                        <Pressable
+                          style={styles.itemActionBtn}
+                          onPress={() => handleConfirm(item.id)}
+                          disabled={isProcessing}
+                        >
+                          {isProcessing ? (
+                            <ActivityIndicator size="small" color={theme.status.success} />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle-outline" size={16} color={theme.status.success} />
+                              <Text style={[styles.itemActionBtnText, { color: theme.status.success }]}>
+                                Confirm
+                              </Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          style={styles.itemActionBtn}
+                          onPress={() => handleDiscard(item.id)}
+                          disabled={isProcessing}
+                        >
+                          <Ionicons name="close-circle-outline" size={16} color={theme.status.error} />
+                          <Text style={[styles.itemActionBtnText, { color: theme.status.error }]}>
+                            Discard
+                          </Text>
+                        </Pressable>
+                      </>
+                    )}
 
                     {(item.status === "pending" || item.status === "failed") && (
                       <Pressable
@@ -564,6 +696,19 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   errorText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  outcomeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+  },
+  outcomeText: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 16,
   },

@@ -58,46 +58,87 @@ export default function QuickReceiveScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Text style={[styles.title, { color: theme.textPrimary }]}>
+      <Text
+        style={[styles.title, { color: theme.textPrimary }]}
+        accessibilityRole="header"
+      >
         Quick Receive
       </Text>
 
       {!isConnected ? (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.warning, { color: theme.textPrimary }]}>
+        <View
+          style={styles.emptyContainer}
+          accessibilityLabel="No wallet connected. Connect your Stellar wallet to display your QR code and start receiving payments."
+        >
+          <Text
+            style={[styles.warning, { color: theme.textPrimary }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             No wallet connected
           </Text>
-          <Text style={[styles.subText, { color: theme.textSecondary }]}>
+          <Text
+            style={[styles.subText, { color: theme.textSecondary }]}
+            accessibilityElementsHidden={true}
+            importantForAccessibility="no"
+          >
             Connect your Stellar wallet to display your QR code and start receiving payments.
           </Text>
 
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.status.info, marginTop: 24 }]}
             onPress={handleConnectWallet}
+            accessibilityLabel="Connect your Stellar wallet to receive payments."
+            accessibilityRole="button"
+            accessibilityHint="Navigates to wallet connection screen."
           >
-            <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>
+            <Text
+              style={[styles.buttonText, { color: theme.buttonPrimaryText }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               Connect Wallet
             </Text>
           </TouchableOpacity>
         </View>
       ) : (
         <>
-          <View style={[styles.badgeContainer, { backgroundColor: theme.chipBg }]}>
+          <View
+            style={[styles.badgeContainer, { backgroundColor: theme.chipBg }]}
+            accessibilityLabel={`Wallet connected. ${wallet.walletType ? wallet.walletType.toUpperCase() : "Unknown wallet"} on ${wallet.network.toUpperCase()} network.`}
+          >
             {wallet.walletType ? (
-              <Text style={[styles.badgeText, { color: theme.chipText }]}>
+              <Text
+                style={[styles.badgeText, { color: theme.chipText }]}
+                accessibilityElementsHidden={true}
+                importantForAccessibility="no"
+              >
                 {wallet.walletType.toUpperCase()} • {wallet.network.toUpperCase()}
               </Text>
             ) : null}
           </View>
 
-          <TouchableOpacity onPress={handleCopyAddress} activeOpacity={0.7}>
-            <Text style={[styles.username, { color: theme.textPrimary }]}>
+          <TouchableOpacity
+            onPress={handleCopyAddress}
+            activeOpacity={0.7}
+            accessibilityLabel={`Public key ${truncatedAddress}. Tap to copy full Stellar address to clipboard.`}
+            accessibilityHint={`Copies full public key: ${accountIdentifier}`}
+            accessibilityRole="button"
+            hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+          >
+            <Text
+              style={[styles.username, { color: theme.textPrimary }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
               {truncatedAddress}
             </Text>
           </TouchableOpacity>
 
-          {/* QR codes must always be black-on-white for scanner readability */}
-          <View style={[styles.qrWrapper, { backgroundColor: theme.qrBackground }]}>
+          <View
+            style={[styles.qrWrapper, { backgroundColor: theme.qrBackground }]}
+            accessibilityLabel={`QuickEx receive QR code. Encoded value: ${receiveLink}. Scan this code with a QuickEx wallet to send you payment.`}
+          >
             <QRCode
               value={receiveLink!}
               size={220}
@@ -109,22 +150,40 @@ export default function QuickReceiveScreen() {
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.status.info }]}
             onPress={handleCopyLink}
+            accessibilityLabel={`Copy QuickEx receive link: ${receiveLink}. Double tap to copy to clipboard.`}
+            accessibilityRole="button"
           >
-            <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>Copy Link</Text>
+            <Text
+              style={[styles.buttonText, { color: theme.buttonPrimaryText }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >Copy Link</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.secondaryButton, { backgroundColor: theme.chipBg, marginBottom: 12 }]}
             onPress={handleCopyAddress}
+            accessibilityLabel={`Copy full Stellar public key address: ${accountIdentifier}. Double tap to copy to clipboard.`}
+            accessibilityRole="button"
           >
-            <Text style={[styles.buttonText, { color: theme.textPrimary }]}>Copy Address</Text>
+            <Text
+              style={[styles.buttonText, { color: theme.textPrimary }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >Copy Address</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.secondaryButton, { backgroundColor: theme.status.success }]}
             onPress={handleShare}
+            accessibilityLabel={`Share my QuickEx receive payment link via system share sheet. Link: ${receiveLink}.`}
+            accessibilityRole="button"
           >
-            <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>Share</Text>
+            <Text
+              style={[styles.buttonText, { color: theme.buttonPrimaryText }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >Share</Text>
           </TouchableOpacity>
         </>
       )}
@@ -172,12 +231,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     marginBottom: 12,
+    minHeight: 48,
+    justifyContent: "center",
   },
   secondaryButton: {
     width: "100%",
     padding: 14,
     borderRadius: 12,
     alignItems: "center",
+    minHeight: 48,
+    justifyContent: "center",
   },
   buttonText: {
     fontWeight: "600",

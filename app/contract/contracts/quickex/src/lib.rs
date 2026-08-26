@@ -5,6 +5,9 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, V
 mod admin;
 #[cfg(test)]
 mod assert_helpers;
+pub mod batch;
+#[cfg(test)]
+mod batch_test;
 #[cfg(test)]
 mod bench_test;
 mod commitment;
@@ -12,6 +15,8 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
+#[cfg(test)]
+mod error_codes_test;
 mod errors;
 mod escrow;
 mod escrow_id;
@@ -41,6 +46,8 @@ mod pause_policy_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
+#[cfg(test)]
+mod smoke_test;
 mod stealth;
 #[cfg(test)]
 mod stealth_test;
@@ -51,6 +58,9 @@ mod storage_test;
 mod test;
 #[cfg(test)]
 mod test_context;
+mod ttl_policy;
+#[cfg(test)]
+mod ttl_policy_test;
 mod types;
 #[cfg(test)]
 mod upgrade_test;
@@ -621,11 +631,61 @@ impl QuickexContract {
 
     /// Extend the storage TTL of an escrow record.
     ///
-    /// Any user can call this to keep an escrow from being archived.
+    /// Bumps the entry's TTL to the currently configured policy value
+    /// (see `set_ttl_config`).  Any user can call this to prevent an escrow
+    /// from being archived by the network.
+    ///
+    /// # Errors
+    /// - `EscrowArchived` – the entry is not in live storage; it may have been
+    ///   archived.  Submit a `RestoreFootprint` transaction off-chain for the
+    ///   commitment key, then call `restore_archived_escrow`.
     pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         admin::require_initialized(&env)?;
         pause_policy::require_entry_allowed(&env, EntryPoint::ExtendEscrowTtl)?;
-        escrow::extend_escrow_ttl(&env, commitment)
+        ttl_policy::extend_ttl_or_archived(&env, commitment)
+    }
+
+    /// Re-anchor an escrow entry that was archived and has been restored off-chain.
+    ///
+    /// ## Recovery flow
+    ///
+    /// 1. An operation (or `extend_escrow_ttl`) returned `EscrowArchived`.
+    /// 2. Off-chain: construct and submit a `RestoreFootprint` transaction for
+    ///    `DataKey::EscrowCore(commitment_bytes)`.
+    /// 3. Once confirmed, call this function.  It verifies the entry is live
+    ///    and re-bumps its TTL to the full configured policy value (threshold=0
+    ///    so the bump is unconditional).
+    /// 4. All subsequent operations (withdraw, refund, dispute, etc.) will work
+    ///    normally until the TTL would expire again.
+    ///
+    /// # Errors
+    /// - `EscrowArchived` – the entry is still not in live storage; the restore
+    ///   transaction may not have been confirmed yet.
+    pub fn restore_archived_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
+        ttl_policy::restore_archived_escrow(&env, commitment)
+    }
+
+    /// Get the current TTL policy configuration (read-only).
+    pub fn get_ttl_config(env: Env) -> ttl_policy::TtlConfig {
+        ttl_policy::get_ttl_config(&env)
+    }
+
+    /// Set the TTL policy for escrow entries (**Admin only**).
+    ///
+    /// The new `config` must satisfy `MIN_TTL_LEDGERS ≤ threshold ≤ ttl ≤ MAX_TTL_LEDGERS`.
+    ///
+    /// # Errors
+    /// - `TtlOutOfBounds` – `ttl` or `threshold` violates hard bounds.
+    /// - `InsufficientRole` – caller is not admin.
+    pub fn set_ttl_config(
+        env: Env,
+        caller: Address,
+        config: ttl_policy::TtlConfig,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_admin(&env, &caller)?;
+        ttl_policy::set_ttl_config(&env, config)
     }
 
     /// Initiate a dispute for a pending escrow, locking the funds.

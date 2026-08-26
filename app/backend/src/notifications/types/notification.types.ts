@@ -29,7 +29,9 @@ export type NotificationEventType =
   | "recurring.link.resumed"
   | "recurring.link.completed"
   | "auto_reconciliation.succeeded"
-  | "payment.link.expired";
+  | "payment.link.expired"
+  | "export.completed"
+  | "export.failed";
 
 export type PaymentLinkExpiredEvent = "payment.link.expired";
 
@@ -154,6 +156,33 @@ export interface AutoReconciliationSucceededNotificationPayload extends BaseNoti
   confidence: number;
 }
 
+export interface ExportCompletedPayload extends BaseNotificationPayload {
+  eventType: "export.completed";
+  /** Type of data contained in the export (transactions, links, payments). */
+  exportType: string;
+  /** Export file format (csv or json). */
+  format: string;
+  /** Number of records included in the export. */
+  recordCount: number;
+  /** ID of the export generation job this notification belongs to. */
+  jobId: string;
+}
+
+export interface ExportFailedPayload extends BaseNotificationPayload {
+  eventType: "export.failed";
+  /** Type of data that was being exported (transactions, links, payments). */
+  exportType: string;
+  /** Export file format that was requested (csv or json). */
+  format: string;
+  /** ID of the export generation job that failed. */
+  jobId: string;
+  /**
+   * User-safe reason code describing why the export failed.
+   * Must NOT contain internal stack traces or raw database errors.
+   */
+  failureReason: string;
+}
+
 export type NotificationPayload =
   | EscrowDepositedPayload
   | EscrowWithdrawnPayload
@@ -165,7 +194,9 @@ export type NotificationPayload =
   | RecurringPaymentFailedPayload
   | RecurringLinkStatusPayload
   | AutoReconciliationSucceededNotificationPayload
-  | PaymentLinkExpiredPayload;
+  | PaymentLinkExpiredPayload
+  | ExportCompletedPayload
+  | ExportFailedPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences

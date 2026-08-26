@@ -79,8 +79,8 @@ export class RcSmokeCheckDto {
   @ApiProperty({ example: "horizon" })
   name!: string;
 
-  @ApiProperty({ enum: ["up", "down"], example: "up" })
-  status!: "up" | "down";
+  @ApiProperty({ enum: ["up", "degraded", "down"], example: "up" })
+  status!: "up" | "degraded" | "down";
 
   @ApiProperty({ required: false, example: "Horizon returned 503" })
   error?: string;

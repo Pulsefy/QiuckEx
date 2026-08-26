@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { TransactionTimelineService } from "./transaction-timeline.service";
-import { SupabaseService } from "../supabase/supabase.service";
+import { TRANSACTION_TIMELINE_REPOSITORY } from "./transaction-timeline.repository";
 import { HorizonService } from "../transactions/horizon.service";
 import type { TimelineResponse } from "./transaction-timeline.types";
 
@@ -12,7 +12,7 @@ function makeHorizonResp(items: object[] = []) {
   return { items, nextCursor: undefined };
 }
 
-function buildSupabaseMock(
+function buildTimelineRepositoryMock(
   overrides: {
     payment?: object[] | null;
     refund?: object[] | null;
@@ -24,58 +24,24 @@ function buildSupabaseMock(
     contractError?: object;
   } = {},
 ) {
-  const makeChain = (rows: object[] | null, err: object | null = null) => {
-    const chain: Record<string, jest.Mock> = {};
-    // Every chain method returns `chain` for further chaining AND resolves as a
-    // thenable so that `await client.from(...).select(...).eq(...)` works even
-    // when the last chained call is not `.limit()`.
-    const thenable = {
-      then: jest.fn((resolve: (v: unknown) => void) =>
-        resolve({ data: rows, error: err }),
-      ),
-    };
-    for (const key of [
-      "select",
-      "from",
-      "eq",
-      "or",
-      "ilike",
-      "order",
-      "limit",
-    ]) {
-      chain[key] = jest.fn().mockReturnValue(chain);
-    }
-    // Make the chain itself thenable so any terminal call resolves
-    Object.assign(chain, { then: thenable.then });
-    return chain;
-  };
-
-  const tableChains: Record<string, ReturnType<typeof makeChain>> = {
-    payment_records: makeChain(
-      overrides.payment ?? [],
-      overrides.paymentError ?? null,
-    ),
-    refund_attempts: makeChain(
-      overrides.refund ?? [],
-      overrides.refundError ?? null,
-    ),
-    notification_log: makeChain(
-      overrides.webhook ?? [],
-      overrides.webhookError ?? null,
-    ),
-    contract_change_webhooks: makeChain(
-      overrides.contract ?? [],
-      overrides.contractError ?? null,
-    ),
-  };
-
-  const getClient = jest.fn(() => ({
-    from: jest.fn((table: string) => {
-      return tableChains[table] ?? makeChain([]);
+  return {
+    getPaymentRecordsByTxHash: jest.fn(async () => {
+      if (overrides.paymentError) throw overrides.paymentError;
+      return overrides.payment ?? [];
     }),
-  }));
-
-  return { getClient };
+    getRefundAttempts: jest.fn(async () => {
+      if (overrides.refundError) throw overrides.refundError;
+      return overrides.refund ?? [];
+    }),
+    getNotificationLogs: jest.fn(async () => {
+      if (overrides.webhookError) throw overrides.webhookError;
+      return overrides.webhook ?? [];
+    }),
+    getEnabledContractWebhooks: jest.fn(async () => {
+      if (overrides.contractError) throw overrides.contractError;
+      return overrides.contract ?? [];
+    }),
+  };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -85,7 +51,7 @@ describe("TransactionTimelineService", () => {
   let horizonService: { getPayments: jest.Mock };
 
   async function init(
-    supabaseMock: ReturnType<typeof buildSupabaseMock>,
+    timelineRepositoryMock: ReturnType<typeof buildTimelineRepositoryMock>,
     horizonMock?: object,
   ) {
     horizonService = {
@@ -97,7 +63,10 @@ describe("TransactionTimelineService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransactionTimelineService,
-        { provide: SupabaseService, useValue: supabaseMock },
+        {
+          provide: TRANSACTION_TIMELINE_REPOSITORY,
+          useValue: timelineRepositoryMock,
+        },
         { provide: HorizonService, useValue: horizonService },
       ],
     }).compile();
@@ -155,7 +124,7 @@ describe("TransactionTimelineService", () => {
       ];
 
       await init(
-        buildSupabaseMock({
+        buildTimelineRepositoryMock({
           payment: paymentRows,
           refund: refundRows,
           webhook: webhookRows,
@@ -210,7 +179,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -248,7 +217,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -265,7 +234,7 @@ describe("TransactionTimelineService", () => {
   describe("partial timeline", () => {
     it("returns isPartial=true when one source throws", async () => {
       await init(
-        buildSupabaseMock({
+        buildTimelineRepositoryMock({
           refundError: { message: "DB error", code: "PGRST000" },
         }),
       );
@@ -292,7 +261,7 @@ describe("TransactionTimelineService", () => {
       ];
 
       await init(
-        buildSupabaseMock({
+        buildTimelineRepositoryMock({
           refundError: { message: "DB error", code: "PGRST000" },
           webhook: webhookRows,
         }),
@@ -309,7 +278,7 @@ describe("TransactionTimelineService", () => {
     });
 
     it("returns empty items array (not an error) when all sources have no data", async () => {
-      await init(buildSupabaseMock({}));
+      await init(buildTimelineRepositoryMock({}));
 
       const result = await service.getTimeline({ txHash: TX_HASH });
 
@@ -335,7 +304,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -361,7 +330,7 @@ describe("TransactionTimelineService", () => {
         created_at: `2024-01-${String(k + 1).padStart(2, "0")}T00:00:00Z`,
       }));
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -392,7 +361,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({}), makeHorizonResp(horizonItems));
+      await init(buildTimelineRepositoryMock({}), makeHorizonResp(horizonItems));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -421,7 +390,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({
         txHash: TX_HASH,
@@ -450,7 +419,7 @@ describe("TransactionTimelineService", () => {
         },
       ];
 
-      await init(buildSupabaseMock({ refund: refundRows }));
+      await init(buildTimelineRepositoryMock({ refund: refundRows }));
 
       const result = await service.getTimeline({ txHash: TX_HASH });
 

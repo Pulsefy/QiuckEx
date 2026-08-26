@@ -2,14 +2,14 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import { PaymentLinkService } from "./payment-link.service";
 import { HorizonService } from "../transactions/horizon.service";
-import { SupabaseService } from "../supabase/supabase.service";
+import { PAYMENT_LINKS_REPOSITORY } from "./payment-links.repository";
 import { LinksService } from "./links.service";
 import { LinkState } from "./link-state-machine";
 
 describe("PaymentLinkService", () => {
   let service: PaymentLinkService;
   let horizonService: jest.Mocked<HorizonService>;
-  let supabaseService: jest.Mocked<SupabaseService>;
+  let paymentLinksRepository: { getPublicKeyByUsername: jest.Mock };
   let linksService: jest.Mocked<LinksService>;
 
   const mockUsernameRecord = {
@@ -63,17 +63,9 @@ describe("PaymentLinkService", () => {
           },
         },
         {
-          provide: SupabaseService,
+          provide: PAYMENT_LINKS_REPOSITORY,
           useValue: {
-            getClient: jest.fn().mockReturnValue({
-              from: jest.fn().mockReturnValue({
-                select: jest.fn().mockReturnValue({
-                  eq: jest.fn().mockReturnValue({
-                    single: jest.fn(),
-                  }),
-                }),
-              }),
-            }),
+            getPublicKeyByUsername: jest.fn(),
           },
         },
         {
@@ -87,7 +79,7 @@ describe("PaymentLinkService", () => {
 
     service = module.get<PaymentLinkService>(PaymentLinkService);
     horizonService = module.get(HorizonService);
-    supabaseService = module.get(SupabaseService);
+    paymentLinksRepository = module.get(PAYMENT_LINKS_REPOSITORY);
     linksService = module.get(LinksService);
   });
 
@@ -98,15 +90,9 @@ describe("PaymentLinkService", () => {
   describe("getPaymentLinkStatus", () => {
     it("should return ACTIVE state when no payment found", async () => {
       // Mock username lookup
-      (supabaseService.getClient().from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({ data: mockUsernameRecord, error: null }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        mockUsernameRecord.public_key,
+      );
 
       // Mock metadata generation
       linksService.generateMetadata.mockResolvedValue(mockMetadata);
@@ -133,15 +119,9 @@ describe("PaymentLinkService", () => {
 
     it("should return PAID state when matching payment found", async () => {
       // Mock username lookup
-      (supabaseService.getClient().from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({ data: mockUsernameRecord, error: null }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        mockUsernameRecord.public_key,
+      );
 
       // Mock metadata generation
       linksService.generateMetadata.mockResolvedValue(mockMetadata);
@@ -168,15 +148,9 @@ describe("PaymentLinkService", () => {
       };
 
       // Mock username lookup
-      (supabaseService.getClient().from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({ data: mockUsernameRecord, error: null }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(
+        mockUsernameRecord.public_key,
+      );
 
       // Mock metadata generation
       linksService.generateMetadata.mockResolvedValue(expiredMetadata);
@@ -198,15 +172,7 @@ describe("PaymentLinkService", () => {
 
     it("should throw NotFoundException when username not found", async () => {
       // Mock username lookup failure
-      (supabaseService.getClient().from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest
-              .fn()
-              .mockResolvedValue({ data: null, error: new Error("Not found") }),
-          }),
-        }),
-      });
+      paymentLinksRepository.getPublicKeyByUsername.mockResolvedValue(null);
 
       await expect(
         service.getPaymentLinkStatus({

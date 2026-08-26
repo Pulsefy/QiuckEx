@@ -207,6 +207,9 @@ pub enum DataKey {
     DisputeVote(Bytes, Address),
     /// Tracks whether a hook contract is on the allowlist.
     HookAllowlist(Address),
+    /// Configurable TTL policy for escrow entries (singleton).
+    /// See [`crate::ttl_policy::TtlConfig`] for the stored type.
+    TtlConfig,
 }
 
 /// Compact escrow record stored on the hot path.
@@ -329,6 +332,7 @@ fn put_escrow_dispute_config(env: &Env, commitment: &Bytes, entry: &EscrowEntry)
     set_or_extend_ttl(env, &key, RecordType::EscrowDispute);
 }
 
+#[allow(dead_code)]
 fn extend_escrow_compaction_ttl(env: &Env, commitment: &Bytes) -> bool {
     let core_key = compact_escrow_key(commitment);
     if env.storage().persistent().has(&core_key) {
@@ -350,10 +354,6 @@ fn extend_escrow_compaction_ttl(env: &Env, commitment: &Bytes) -> bool {
 
     false
 }
-
-// -----------------------------------------------------------------------------
-// Emergency Mode helpers (module scope)
-// -----------------------------------------------------------------------------
 /// Set emergency mode. Once set to true, cannot be reverted.
 pub fn set_emergency_mode(env: &Env) {
     let key = DataKey::EmergencyMode;
@@ -535,6 +535,8 @@ pub fn has_escrow(env: &Env, commitment: &Bytes) -> bool {
 }
 
 /// Extend the TTL of whichever escrow representation is currently stored.
+/// Used by `ttl_policy` module for the policy-neutral baseline bump.
+#[allow(dead_code)]
 pub fn extend_escrow_storage_ttl(env: &Env, commitment: &Bytes) -> bool {
     extend_escrow_compaction_ttl(env, commitment)
 }

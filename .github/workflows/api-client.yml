@@ -1,0 +1,50 @@
+name: API Client
+
+# Keeps the generated, typed API client in sync with the OpenAPI spec.
+# Fails when packages/api-client is out of date with app/backend/docs/openapi.yaml.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/backend/docs/openapi.yaml"
+      - "packages/api-client/**"
+      - ".github/workflows/api-client.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/backend/docs/openapi.yaml"
+      - "packages/api-client/**"
+      - ".github/workflows/api-client.yml"
+  workflow_dispatch:
+
+jobs:
+  verify-generated-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Install only the generator's dependencies (openapi-typescript, typescript).
+      - name: Install generator dependencies
+        working-directory: packages/api-client
+        run: npm install --no-package-lock
+
+      - name: Regenerate client from OpenAPI spec
+        working-directory: packages/api-client
+        run: npm run regenerate
+
+      - name: Fail if committed client is out of date
+        run: |
+          if ! git diff --quiet -- packages/api-client/src/schemas.d.ts packages/api-client/dist; then
+            echo "::error::The generated API client is out of date with the OpenAPI spec."
+            echo "::error::Run 'pnpm api-client:generate' (or 'cd packages/api-client && npm run regenerate') and commit the result."
+            git --no-pager diff --stat -- packages/api-client/src/schemas.d.ts packages/api-client/dist
+            exit 1
+          fi
+          echo "Generated API client is up to date with the spec. ✓"

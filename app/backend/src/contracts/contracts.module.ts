@@ -18,6 +18,8 @@ import { DeploymentArtifactsController } from './deployment-artifacts.controller
 import { DeploymentArtifactsService } from './deployment-artifacts.service';
 import { ContractSpecController } from './contract-spec.controller';
 import { ContractSpecService } from './contract-spec.service';
+import { SmokeScenariosController } from './smoke-scenarios/smoke-scenarios.controller';
+import { SmokeScenariosService } from './smoke-scenarios/smoke-scenarios.service';
 
 @Module({
   imports: [ApiKeysModule, AuditModule, SupabaseModule],
@@ -28,6 +30,7 @@ import { ContractSpecService } from './contract-spec.service';
     ContractAllowlistController,
     DeploymentArtifactsController,
     ContractSpecController, // Add new controller
+    SmokeScenariosController,
   ],
   providers: [
     ContractRegistryService,
@@ -39,6 +42,7 @@ import { ContractSpecService } from './contract-spec.service';
     ContractMethodAllowlistGuard,
     DeploymentArtifactsService,
     ContractSpecService, // Add new service
+    SmokeScenariosService,
   ],
   exports: [
     ContractRegistryService,
@@ -46,6 +50,7 @@ import { ContractSpecService } from './contract-spec.service';
     ContractAllowlistService,
     ContractMethodAllowlistGuard,
     ContractSpecService, // Export new service
+    SmokeScenariosService,
   ],
 })
 export class ContractsModule {}

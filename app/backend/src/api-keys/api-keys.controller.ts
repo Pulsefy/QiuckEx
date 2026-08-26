@@ -28,10 +28,14 @@ export class ApiKeysController {
   @Post()
   @RequireOrgRole('admin')
   create(@Body() dto: CreateApiKeyDto, @Req() req: Request) {
-    return this.service.create({
-      ...dto,
-      organization_id: dto.organization_id ?? req.organizationContext?.organizationId,
-    });
+    const actor = req.organizationContext?.organizationId ?? req.apiKey?.id ?? 'admin';
+    return this.service.create(
+      {
+        ...dto,
+        organization_id: dto.organization_id ?? req.organizationContext?.organizationId,
+      },
+      actor,
+    );
   }
 
   /**
@@ -72,8 +76,9 @@ export class ApiKeysController {
    */
   @Delete(':id')
   @RequireOrgRole('admin')
-  revoke(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.revoke(id);
+  revoke(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const actor = req.organizationContext?.organizationId ?? req.apiKey?.id ?? 'admin';
+    return this.service.revoke(id, actor);
   }
 
   /**
@@ -82,7 +87,8 @@ export class ApiKeysController {
    */
   @Post(':id/rotate')
   @RequireOrgRole('admin')
-  rotate(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.rotate(id);
+  rotate(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const actor = req.organizationContext?.organizationId ?? req.apiKey?.id ?? 'admin';
+    return this.service.rotate(id, actor);
   }
 }

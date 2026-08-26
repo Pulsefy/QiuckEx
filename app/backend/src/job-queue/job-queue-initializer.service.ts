@@ -17,6 +17,7 @@ import {
   ExportGenerationHandler,
   ReconciliationHandler,
   StellarReconnectHandler,
+  Sep24StatusPollHandler,
 } from './handlers';
 
 /**
@@ -37,6 +38,7 @@ export class JobQueueInitializer implements OnModuleInit {
     private readonly exportGenerationHandler: ExportGenerationHandler,
     private readonly reconciliationHandler: ReconciliationHandler,
     private readonly stellarReconnectHandler: StellarReconnectHandler,
+    private readonly sep24StatusPollHandler: Sep24StatusPollHandler,
   ) {}
 
   /**
@@ -117,6 +119,20 @@ export class JobQueueInitializer implements OnModuleInit {
         initialDelayMs: 1000,         // 1 second
         maxDelayMs: 60000,            // 1 minute
         visibilityTimeoutMs: 120000,  // 2 minutes
+      },
+    );
+
+    // Register sep24_status_poll handler
+    // Runs every cron tick (1 minute); no retry since the next tick re-polls.
+    this.registry.registerHandler(
+      JobType.SEP24_STATUS_POLL,
+      this.sep24StatusPollHandler,
+      {
+        maxAttempts: 1,
+        backoffStrategy: 'fixed',
+        initialDelayMs: 0,
+        maxDelayMs: 0,
+        visibilityTimeoutMs: 120000, // 2 minutes — enough for a full batch
       },
     );
 

@@ -29,12 +29,13 @@ export function QRPreviewModal({
       transparent={true}
       animationType="fade"
       onRequestClose={onClose}
+      accessibilityViewIsModal={true}
     >
       <SafeAreaView
         style={[styles.overlay, { backgroundColor: theme.overlayBg }]}
       >
         <View style={styles.content}>
-          <Text style={[styles.title, { color: theme.qrBackground }]}>
+          <Text style={[styles.title, { color: theme.qrBackground }]} accessibilityRole="header">
             Scan to Pay
           </Text>
 
@@ -47,6 +48,7 @@ export function QRPreviewModal({
                 shadowColor: theme.qrForeground,
               },
             ]}
+            accessibilityLabel={`Payment QR code. Encoded value: ${value}. Point the payer's device camera at this QR code to initiate the payment.`}
           >
             <QRCode
               value={value}
@@ -62,9 +64,14 @@ export function QRPreviewModal({
               { backgroundColor: theme.surfaceElevated },
             ]}
             onPress={onClose}
+            accessibilityLabel="Close QR code preview. Dismisses this modal overlay and returns to the payment screen."
+            accessibilityRole="button"
+            accessibilityHint="Double-tap to close the QR preview modal"
           >
             <Text
               style={[styles.closeButtonText, { color: theme.textPrimary }]}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
             >
               Close
             </Text>
@@ -105,6 +112,8 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: "center",
+    minHeight: 56,
+    justifyContent: "center",
   },
   closeButtonText: {
     fontSize: 18,
