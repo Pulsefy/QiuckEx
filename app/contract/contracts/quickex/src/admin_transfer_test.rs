@@ -8,7 +8,24 @@
 
 use crate::{errors::QuickexError, storage::MIN_ADMIN_TRANSFER_DELAY, test_context::TestContext};
 use soroban_sdk::testutils::{Address as _, Events};
-use soroban_sdk::Address;
+use soroban_sdk::{Address, Symbol, TryIntoVal, Val};
+
+/// Returns the topic-1 symbol (the event name) of the most recent event
+/// published by `contract_id`, e.g. `"AdminTransferProposed"`.
+fn latest_event_name(env: &soroban_sdk::Env, contract_id: &Address) -> Symbol {
+    extern crate std;
+    let all = env.events().all();
+    let expected_str = std::format!("{:?}", contract_id);
+    for i in (0..all.len()).rev() {
+        let event = all.get(i).unwrap();
+        if std::format!("{:?}", event.0) == expected_str {
+            let topics = event.1;
+            let name_val: Val = topics.get(1).expect("event missing name topic");
+            return name_val.try_into_val(env).unwrap();
+        }
+    }
+    panic!("no contract event found for contract id")
+}
 
 #[test]
 fn accept_succeeds_after_delay_elapses() {
@@ -162,20 +179,22 @@ fn proposal_and_acceptance_emit_events() {
     let ctx = TestContext::with_admin();
     let new_admin = Address::generate(&ctx.env);
 
-    let before_propose = ctx.env.events().all().len();
     ctx.client
         .propose_admin_transfer(&ctx.admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
-    assert!(
-        ctx.env.events().all().len() > before_propose,
-        "propose_admin_transfer must emit an event"
+    assert_eq!(
+        latest_event_name(&ctx.env, &ctx.client.address),
+        Symbol::new(&ctx.env, "AdminTransferProposed"),
+        "propose_admin_transfer must emit AdminTransferProposed"
     );
 
     ctx.advance_time(MIN_ADMIN_TRANSFER_DELAY);
 
-    let before_accept = ctx.env.events().all().len();
     ctx.client.accept_admin_transfer(&new_admin);
-    assert!(
-        ctx.env.events().all().len() > before_accept,
+    // accept_admin_transfer emits AdminTransferAccepted followed by the
+    // general-purpose AdminChanged event; the latest one is AdminChanged.
+    assert_eq!(
+        latest_event_name(&ctx.env, &ctx.client.address),
+        Symbol::new(&ctx.env, "AdminChanged"),
         "accept_admin_transfer must emit an event"
     );
 }
@@ -188,10 +207,10 @@ fn cancellation_emits_event() {
     ctx.client
         .propose_admin_transfer(&ctx.admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
 
-    let before_cancel = ctx.env.events().all().len();
     ctx.client.cancel_admin_transfer(&ctx.admin);
-    assert!(
-        ctx.env.events().all().len() > before_cancel,
-        "cancel_admin_transfer must emit an event"
+    assert_eq!(
+        latest_event_name(&ctx.env, &ctx.client.address),
+        Symbol::new(&ctx.env, "AdminTransferCancelled"),
+        "cancel_admin_transfer must emit AdminTransferCancelled"
     );
 }
