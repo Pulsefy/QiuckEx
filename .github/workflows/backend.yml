@@ -109,3 +109,21 @@ jobs:
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_ANON_KEY: test-key
           DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
+
+      # ── OpenAPI Spec Completeness Gate ──────────────────────────────────
+      - name: Generate OpenAPI spec and run completeness gate
+        run: pnpm run openapi:generate
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          SUPABASE_URL: https://test-project.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key-for-testing
+          PORT: 4000
+
+      - name: Publish OpenAPI spec as CI artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi-spec
+          path: app/backend/dist-openapi/openapi.json
+          retention-days: 30

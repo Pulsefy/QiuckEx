@@ -1,0 +1,62 @@
+{
+  "paths": [
+    {
+      "pattern": "^/admin/.*",
+      "reason": "Internal admin routes – excluded from public spec completeness gate"
+    },
+    {
+      "pattern": "^/docs.*",
+      "reason": "Swagger UI itself"
+    },
+    {
+      "pattern": "^/metrics$",
+      "reason": "Prometheus metrics endpoint – text/plain response"
+    },
+    {
+      "pattern": "^/soroban-tooling/.*",
+      "reason": "Internal debugging tooling endpoints"
+    },
+    {
+      "pattern": "^/environment-parity/.*",
+      "reason": "Internal staging/dev tooling"
+    },
+    {
+      "pattern": "^/branch-preview/.*",
+      "reason": "Internal preview deployment endpoints"
+    },
+    {
+      "pattern": "^/runtime-config/.*",
+      "reason": "Internal runtime config endpoints"
+    },
+    {
+      "pattern": "^/deployment-sync/.*",
+      "reason": "Internal deployment sync endpoints"
+    },
+    {
+      "pattern": "^/seed-reset$",
+      "reason": "Demo/dev-only endpoint"
+    },
+    {
+      "pattern": "^/demos/.*",
+      "reason": "Demo/dev-only endpoints"
+    },
+    {
+      "pattern": "^/support-bundle/.*",
+      "reason": "Internal support/debug endpoints"
+    },
+    {
+      "pattern": "^/crash-reporting/.*",
+      "reason": "Internal crash-reporting admin endpoints"
+    },
+    {
+      "pattern": "^/ingestion/.*",
+      "reason": "Internal ingestion/indexer endpoints"
+    }
+  ],
+  "dtoFieldsSkipped": [
+    {
+      "name": "raw",
+      "reason": "Passthrough fields intentionally untyped"
+    }
+  ]
+}

@@ -73,6 +73,7 @@
     "test:fuzz:ci": "jest --config jest.fuzz.config.ts --runInBand",
     "test:smoke": "jest --config jest.e2e.config.ts test/smoke.e2e-spec.ts --testTimeout=30000",
     "test:smoke:soroban": "jest --config jest.e2e.config.ts test/smoke-soroban-horizon.e2e-spec.ts --testTimeout=30000",
-    "test:smoke:all": "jest --config jest.e2e.config.ts test/smoke*.e2e-spec.ts --testTimeout=30000"
+    "test:smoke:all": "jest --config jest.e2e.config.ts test/smoke*.e2e-spec.ts --testTimeout=30000",
+    "openapi:generate": "ts-node --transpile-only scripts/generate-openapi.ts"
   }
 }
