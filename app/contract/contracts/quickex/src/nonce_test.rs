@@ -113,8 +113,7 @@ mod tests {
 
         ctx.env.as_contract(&contract_id, || {
             verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw).unwrap();
-            let result =
-                verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 42, 2_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::NonceAlreadyUsed));
         });
     }
@@ -177,8 +176,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
             assert_eq!(result, Err(QuickexError::SignatureExpired));
         });
     }
@@ -191,8 +189,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            let result =
-                verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
+            let result = verify_and_consume(&ctx.env, &signer, 1, 1_000_001, ActionType::Withdraw);
             assert!(result.is_ok());
         });
     }
@@ -418,8 +415,7 @@ mod tests {
         // Still available on B
         ctx.env.as_contract(&contract_b, || {
             assert!(
-                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw)
-                    .is_ok(),
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok(),
                 "nonce should be scoped per-contract — contract B must accept"
             );
         });
@@ -510,8 +506,7 @@ mod tests {
             );
             // Nonce 999 (gap) is still available.
             assert!(
-                verify_and_consume(&ctx.env, &signer, 999, 2_000_000, ActionType::Withdraw)
-                    .is_ok()
+                verify_and_consume(&ctx.env, &signer, 999, 2_000_000, ActionType::Withdraw).is_ok()
             );
         });
     }
@@ -796,15 +791,18 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         let nonces: &[u64] = &[0, 1, u64::MAX];
-        let actions = [ActionType::Withdraw, ActionType::Deposit, ActionType::Refund];
+        let actions = [
+            ActionType::Withdraw,
+            ActionType::Deposit,
+            ActionType::Refund,
+        ];
         let signer = soroban_sdk::Address::generate(&ctx.env);
 
         ctx.env.as_contract(&contract_id, || {
             for &action in &actions {
                 for &nonce in nonces {
                     // valid_until is in the past.
-                    let result =
-                        verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
+                    let result = verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
                     assert_eq!(result, Err(QuickexError::SignatureExpired));
 
                     // Nothing was written — nonce is still fresh.
@@ -838,8 +836,7 @@ mod tests {
         // Different signer, same everything else → not blocked.
         ctx.env.as_contract(&contract_a, || {
             assert!(
-                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw)
-                    .is_ok()
+                verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw).is_ok()
             );
         });
 
@@ -853,8 +850,7 @@ mod tests {
         // Same signer, same action, different contract → not blocked.
         ctx.env.as_contract(&contract_b, || {
             assert!(
-                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw)
-                    .is_ok()
+                verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok()
             );
         });
 
