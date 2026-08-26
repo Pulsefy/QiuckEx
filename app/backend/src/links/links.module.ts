@@ -20,6 +20,7 @@ import { PrivacyModule } from "../privacy/privacy.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { AuditModule } from "../audit/audit.module";
 import { MetricsModule } from "../metrics/metrics.module";
+import { UsernamesModule } from "../usernames/usernames.module";
 
 @Module({
   controllers: [
@@ -57,6 +58,7 @@ import { MetricsModule } from "../metrics/metrics.module";
     AuditModule,
     MetricsModule,
     forwardRef(() => JobQueueModule),
+    UsernamesModule,
   ],
 })
 export class LinksModule {}
