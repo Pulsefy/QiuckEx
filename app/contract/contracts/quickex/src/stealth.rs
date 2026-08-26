@@ -17,15 +17,16 @@
 //!
 //! Sender (off-chain):
 //!   1. Generate ephemeral keypair (eph_priv, eph_pub).
-//!   2. shared_secret = KDF(eph_pub || scan_pub_key)     [SHA-256]
-//!   3. stealth_address = KDF(spend_pub_key || shared_secret)
+//!   2. shared_secret = SHA-256(eph_pub || spend_pub_key) [64 input bytes]
+//!   3. stealth_address = SHA-256(spend_pub_key || shared_secret)
 //!   4. Call register_ephemeral_key(stealth_address, eph_pub, token, amount, timeout)
 //!      → funds locked under stealth_address commitment.
 //!
 //! Recipient (off-chain):
 //!   1. Scan chain for EphemeralKeyRegistered events.
-//!   2. For each event: shared_secret = KDF(eph_pub || scan_priv_key * G)
-//!      (simplified: KDF(eph_pub || scan_priv_key_bytes))
+//!   2. For each event: shared_secret = SHA-256(eph_pub || spend_pub_key)
+//!      (the contract's PoC uses the supplied spend key as this second input;
+//!      no separate scan-key input or EC multiplication occurs).
 //!   3. Recompute stealth_address = KDF(spend_pub_key || shared_secret).
 //!   4. If stealth_address matches → funds are for me.
 //!   5. Derive stealth_priv_key = KDF(spend_priv_key || shared_secret).
@@ -38,6 +39,19 @@
 //! The recipient's main public address (`spend_pub_key` / `scan_pub_key`) never
 //! appears in any transaction or event.  Only the one-time `stealth_address` and
 //! the sender's `eph_pub` are recorded on-chain.
+//!
+//! ## Encoding and scheme deviation
+//!
+//! `eph_pub`, `scan_pub_key`, `spend_pub_key`, and `shared_secret` are each
+//! exactly 32 bytes. `||` is raw concatenation with no length prefix, text
+//! encoding, point compression, or endianness conversion. Both hashes are
+//! SHA-256, and their 32-byte digests are used directly as `BytesN<32>`.
+//!
+//! This intentionally deviates from EC-based dual-key stealth schemes: it does
+//! not perform ECDH, validate public keys as curve points, or derive a spend
+//! private key. It is not wire-compatible with EIP-5564 or a secp256k1/Ed25519
+//! implementation. Independent clients should use the fixed vectors in
+//! `STEALTH_ADDRESS_TEST_VECTORS.md`.
 
 use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
@@ -55,7 +69,7 @@ use crate::{
 
 /// Derive a 32-byte shared secret from two 32-byte public-key blobs.
 ///
-/// `KDF(a, b) = SHA-256(a || b)`
+/// `SHA-256(a || b)`, where both inputs are exactly 32 raw bytes.
 ///
 /// In a production implementation this would be replaced by proper EC scalar
 /// multiplication (e.g. `eph_priv * scan_pub` on secp256k1).
@@ -68,7 +82,7 @@ pub fn derive_shared_secret(env: &Env, key_a: &BytesN<32>, key_b: &BytesN<32>) -
 
 /// Derive the one-time stealth address from a spend key and a shared secret.
 ///
-/// `stealth = SHA-256(spend_pub || shared_secret)`
+/// `stealth = SHA-256(spend_pub || shared_secret)`, over 64 raw bytes.
 pub fn derive_stealth_address(
     env: &Env,
     spend_pub: &BytesN<32>,
