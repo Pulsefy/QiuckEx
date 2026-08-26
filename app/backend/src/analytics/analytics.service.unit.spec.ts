@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AnalyticsInterval, ReportType } from './dto/analytics-query.dto';
+import { TimeRange } from './dto/dashboard-summary.dto';
 import { AnalyticsService } from './analytics.service';
 
 describe('AnalyticsService', () => {
@@ -214,5 +215,325 @@ describe('AnalyticsService', () => {
         '2026-04-01T00:00:00.000Z',
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  describe('getDashboardSummary', () => {
+    it('should return dashboard summary for populated account with week time range', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_transactions: 10,
+              successful_transactions: 8,
+              failed_transactions: 2,
+              conversion_rate: 80,
+              total_volume_usd: 500,
+              average_transaction_usd: 50,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              asset: 'USDC',
+              volume_usd: 300,
+              percentage: 60,
+              transaction_count: 6,
+            },
+            {
+              asset: 'XLM',
+              volume_usd: 200,
+              percentage: 40,
+              transaction_count: 4,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              period: '2026-04-01',
+              transaction_count: 5,
+              successful_transactions: 4,
+              volume_usd: 250,
+              volume_usdc: 150,
+              volume_xlm: 100,
+              asset_volumes: { USDC: 150, XLM: 100 },
+            },
+          ],
+          error: null,
+        });
+
+      mockClient.from.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
+      });
+
+      const summary = await service.getDashboardSummary(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        TimeRange.WEEK,
+      );
+
+      expect(summary.volume.totalVolumeUsd).toBe(500);
+      expect(summary.volume.paymentCount).toBe(10);
+      expect(summary.payments.successfulCount).toBe(8);
+      expect(summary.payments.failedCount).toBe(2);
+      expect(summary.payments.pendingCount).toBe(0);
+      expect(summary.refunds.totalCount).toBe(0);
+      expect(summary.refunds.pendingCount).toBe(0);
+      expect(summary.refunds.approvedCount).toBe(0);
+      expect(summary.health.successRate).toBe(80);
+      expect(summary.health.deliveryFailureRate).toBe(0);
+      expect(summary.window.startDate).toBeDefined();
+      expect(summary.window.endDate).toBeDefined();
+    });
+
+    it('should return valid zero state for empty account', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_transactions: 0,
+              successful_transactions: 0,
+              failed_transactions: 0,
+              conversion_rate: 0,
+              total_volume_usd: 0,
+              average_transaction_usd: 0,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [],
+          error: null,
+        });
+
+      mockClient.from.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
+      });
+
+      const summary = await service.getDashboardSummary(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        TimeRange.TODAY,
+      );
+
+      expect(summary.volume.totalVolumeUsd).toBe(0);
+      expect(summary.volume.paymentCount).toBe(0);
+      expect(summary.payments.successfulCount).toBe(0);
+      expect(summary.payments.failedCount).toBe(0);
+      expect(summary.payments.pendingCount).toBe(0);
+      expect(summary.refunds.totalCount).toBe(0);
+      expect(summary.refunds.pendingCount).toBe(0);
+      expect(summary.refunds.approvedCount).toBe(0);
+      expect(summary.health.successRate).toBe(0);
+      expect(summary.health.deliveryFailureRate).toBe(0);
+    });
+
+    it('should handle custom time range with provided dates', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_transactions: 5,
+              successful_transactions: 5,
+              failed_transactions: 0,
+              conversion_rate: 100,
+              total_volume_usd: 250,
+              average_transaction_usd: 50,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [{ asset: 'USDC', volume_usd: 250, percentage: 100, transaction_count: 5 }],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              period: '2026-04-01',
+              transaction_count: 5,
+              successful_transactions: 5,
+              volume_usd: 250,
+              volume_usdc: 250,
+              volume_xlm: 0,
+              asset_volumes: { USDC: 250 },
+            },
+          ],
+          error: null,
+        });
+
+      mockClient.from.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
+      });
+
+      const summary = await service.getDashboardSummary(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        TimeRange.CUSTOM,
+        '2026-04-01T00:00:00.000Z',
+        '2026-04-30T23:59:59.999Z',
+      );
+
+      expect(summary.volume.totalVolumeUsd).toBe(250);
+      expect(summary.window.startDate).toBe('2026-04-01T00:00:00.000Z');
+      expect(summary.window.endDate).toBe('2026-04-30T23:59:59.999Z');
+    });
+
+    it('should handle refund data correctly', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_transactions: 10,
+              successful_transactions: 8,
+              failed_transactions: 2,
+              conversion_rate: 80,
+              total_volume_usd: 500,
+              average_transaction_usd: 50,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [{ asset: 'USDC', volume_usd: 500, percentage: 100, transaction_count: 10 }],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              period: '2026-04-01',
+              transaction_count: 10,
+              successful_transactions: 8,
+              volume_usd: 500,
+              volume_usdc: 500,
+              volume_xlm: 0,
+              asset_volumes: { USDC: 500 },
+            },
+          ],
+          error: null,
+        });
+
+      const refundData = [
+        { status: 'pending' },
+        { status: 'pending' },
+        { status: 'approved' },
+        { status: 'rejected' },
+      ];
+
+      mockClient.from.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        or: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: refundData, error: null }),
+      });
+
+      const summary = await service.getDashboardSummary(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        TimeRange.WEEK,
+      );
+
+      expect(summary.refunds.totalCount).toBe(4);
+      expect(summary.refunds.pendingCount).toBe(2);
+      expect(summary.refunds.approvedCount).toBe(1);
+    });
+
+    it('should handle pending payments correctly', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_transactions: 10,
+              successful_transactions: 7,
+              failed_transactions: 1,
+              conversion_rate: 70,
+              total_volume_usd: 500,
+              average_transaction_usd: 50,
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [{ asset: 'USDC', volume_usd: 500, percentage: 100, transaction_count: 10 }],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              period: '2026-04-01',
+              transaction_count: 10,
+              successful_transactions: 7,
+              volume_usd: 500,
+              volume_usdc: 500,
+              volume_xlm: 0,
+              asset_volumes: { USDC: 500 },
+            },
+          ],
+          error: null,
+        });
+
+      mockClient.from
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          or: jest.fn().mockReturnThis(),
+          in: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
+        })
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          or: jest.fn().mockReturnThis(),
+          in: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({
+            data: [{ id: '1' }, { id: '2' }],
+            error: null,
+          }),
+        })
+        .mockReturnValue({
+          select: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          or: jest.fn().mockReturnThis(),
+          in: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
+        });
+
+      const summary = await service.getDashboardSummary(
+        'GB1234567890123456789012345678901234567890123456789012345',
+        TimeRange.WEEK,
+      );
+
+      expect(summary.payments.pendingCount).toBe(2);
+    });
   });
 });
