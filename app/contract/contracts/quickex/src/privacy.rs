@@ -103,5 +103,5 @@ pub fn set_privacy(env: &Env, owner: Address, enabled: bool) -> Result<(), Quick
 /// Under the consolidated privacy model, privacy is enabled if and only if
 /// the account's canonical privacy level is greater than 0.
 pub fn get_privacy(env: &Env, owner: Address) -> bool {
-    get_privacy_level(env, &owner).map_or(false, |level| level > 0)
+    get_privacy_level(env, &owner).is_some_and( |level| level > 0)
 }

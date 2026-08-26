@@ -738,16 +738,6 @@ pub fn is_paused(env: &Env) -> bool {
 // Privacy helpers (level-based API)
 // -----------------------------------------------------------------------------
 
-/// Set canonical privacy level for an account.
-pub fn set_privacy_level(env: &Env, account: &Address, level: u32) {
-    crate::privacy::set_privacy_level(env, account.clone(), level);
-}
-
-/// Get canonical privacy level for an account, with lazy migration for deprecated boolean keys.
-pub fn get_privacy_level(env: &Env, account: &Address) -> Option<u32> {
-    crate::privacy::get_privacy_level(env, account)
-}
-
 /// Add to privacy history for an account.
 ///
 /// **Contract**: Pushes `level` to the front of the history (newest first).
