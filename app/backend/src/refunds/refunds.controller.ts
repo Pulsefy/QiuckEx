@@ -133,10 +133,11 @@ export class RefundsController {
   @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({ status: 200, description: 'List of refund attempts' })
-  async list(
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: number,
-  ) {
-    return this.refundsService.listRefunds(cursor, Number(limit || 20));
+  async list(@Query() query: CursorPaginationQueryDto) {
+    const { data, next_cursor, has_more } = await this.refundsService.listRefunds(
+      query.cursor,
+      query.limit,
+    );
+    return paginatedResponse(data, next_cursor, has_more, query.limit);
   }
 }
