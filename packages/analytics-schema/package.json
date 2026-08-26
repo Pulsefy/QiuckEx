@@ -1,0 +1,22 @@
+{
+  "name": "@quickex/analytics-schema",
+  "version": "1.0.0",
+  "description": "Schema registry for analytics events",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "export-schemas": "ts-node scripts/export-registry.ts",
+    "check-breaking": "ts-node scripts/check-breaking.ts"
+  },
+  "dependencies": {
+    "zod": "^3.22.0",
+    "zod-to-json-schema": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.1",
+    "@types/node": "^18.0.0"
+  }
+}

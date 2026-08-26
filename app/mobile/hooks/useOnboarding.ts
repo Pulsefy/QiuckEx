@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { validateEvent } from '@quickex/analytics-schema';
 import { redactContext } from '../utils/feedback-redaction';
 
 const ONBOARDING_STORAGE_KEY = 'quickex_onboarding_completed';
@@ -63,14 +64,20 @@ export function useOnboarding() {
         ...params,
       };
 
+      const { valid, error, data: validatedEvent } = validateEvent('onboarding_event', event);
+      if (!valid) {
+        console.error('Validation failed for onboarding event:', error);
+        return;
+      }
+
       const existingEvents = await AsyncStorage.getItem(ANALYTICS_STORAGE_KEY);
       const events: OnboardingEvent[] = existingEvents ? JSON.parse(existingEvents) : [];
-      events.push(event);
+      events.push(validatedEvent as OnboardingEvent);
 
       await AsyncStorage.setItem(ANALYTICS_STORAGE_KEY, JSON.stringify(events));
 
       // Log to console for now - in production, this would send to analytics service
-      console.log('Onboarding Analytics:', redactContext(event));
+      console.log('Onboarding Analytics:', redactContext(validatedEvent as Record<string, unknown>));
 
       // In a real implementation, you would also send this to your analytics backend
       // await sendToAnalytics(event);

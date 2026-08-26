@@ -1,0 +1,160 @@
+{
+  "$ref": "#/definitions/AnalyticsRegistry",
+  "definitions": {
+    "AnalyticsRegistry": {
+      "type": "object",
+      "properties": {
+        "payment_link_viewed": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "linkId": {
+              "type": "string"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "asset": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId"
+          ],
+          "additionalProperties": false
+        },
+        "payment_link_error": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "linkId": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        "payment_link_retry": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "linkId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId"
+          ],
+          "additionalProperties": false
+        },
+        "payment_initiated": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "linkId": {
+              "type": "string"
+            },
+            "transactionId": {
+              "type": "string"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "asset": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId",
+            "transactionId",
+            "amount",
+            "asset"
+          ],
+          "additionalProperties": false
+        },
+        "payment_completed": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "linkId": {
+              "type": "string"
+            },
+            "transactionId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId",
+            "transactionId",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "onboarding_event": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1,
+              "default": 1
+            },
+            "event_name": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "number"
+            },
+            "session_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_name",
+            "timestamp",
+            "session_id"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "payment_link_viewed",
+        "payment_link_error",
+        "payment_link_retry",
+        "payment_initiated",
+        "payment_completed",
+        "onboarding_event"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -263,13 +263,23 @@ function LoadingFallback() {
   );
 }
 
+import { validateEvent } from '@quickex/analytics-schema';
+
 // Simple analytics tracking (replace with your analytics provider)
 function trackAnalyticsEvent(event: string, data: Record<string, unknown>) {
   if (typeof window !== "undefined") {
-    // Replace with your analytics provider (e.g., PostHog, Google Analytics, etc.)
-    console.log(`[Analytics] ${event}`, data);
+    const { valid, error, data: validatedData } = validateEvent(event, data);
+    
+    if (!valid) {
+      console.error(`[Analytics] Validation failed for event ${event}:`, error);
+      // In production, we'd emit a metric count here rather than sending malformed data
+      return;
+    }
 
-    // Example: window.posthog?.capture(event, data);
-    // Example: window.gtag?.('event', event, data);
+    // Replace with your analytics provider (e.g., PostHog, Google Analytics, etc.)
+    console.log(`[Analytics] ${event}`, validatedData);
+
+    // Example: window.posthog?.capture(event, validatedData);
+    // Example: window.gtag?.('event', event, validatedData);
   }
 }
