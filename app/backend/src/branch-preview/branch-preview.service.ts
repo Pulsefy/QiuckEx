@@ -4,6 +4,8 @@ import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
 import { BranchPreviewAutoExpiryService } from './branch-preview-auto-expiry.service';
 import { AuditService } from '../audit/audit.service';
+import { EnvRole } from '../permissions/role';
+import { canModifyEnv, canDeleteEnv } from '../permissions/policy';
 import {
   BranchPreviewEnvironment,
   CreateBranchPreviewDto,
@@ -66,7 +68,8 @@ export class BranchPreviewService {
     actorId: string,
     requestId?: string,
   ): Promise<BranchPreviewEnvironment> {
-    const preview = await this.repository.create(dto);
+    // Actor becomes the owner of the new preview
+    const preview = await this.repository.create(dto, actorId);
     
     // Update cache
     this.cache.set(preview.branchName, preview, dto.ttlMs);
@@ -95,6 +98,21 @@ export class BranchPreviewService {
     actorId: string,
     requestId?: string,
   ): Promise<BranchPreviewEnvironment> {
+    // Retrieve existing preview to enforce permission
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new Error(`Branch preview ${id} not found`);
+    }
+
+    // Determine user role (assumed to be attached to actorId context elsewhere)
+    const roleHeader = (global as any).requestUserRoles?.[actorId] as any; // placeholder for role lookup
+    const role = roleHeader as any; // fallback if not found
+
+    // Import policy check
+    if (!canModifyEnv(actorId, role, existing)) {
+      throw new Error('Forbidden: insufficient permissions to modify this preview');
+    }
+
     const updated = await this.repository.update(id, dto);
     
     // Invalidate cache to force refresh
@@ -123,8 +141,17 @@ export class BranchPreviewService {
     actorId: string,
     requestId?: string,
   ): Promise<void> {
-    // We could add a findById method to the repository for better accuracy,
-    // but for simplicity we'll just clear the entire cache if we can't get the branch name
+    // Retrieve existing preview for permission check
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new Error(`Branch preview ${id} not found`);
+    }
+    const roleHeader = (global as any).requestUserRoles?.[actorId] as any; // placeholder
+    const role = roleHeader as any;
+    if (!canDeleteEnv(actorId, role, existing)) {
+      throw new Error('Forbidden: insufficient permissions to delete this preview');
+    }
+
     await this.repository.delete(id);
     this.cache.clear(); // Clear cache to ensure old entries are purged
     

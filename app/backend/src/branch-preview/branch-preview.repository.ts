@@ -13,7 +13,7 @@ export class BranchPreviewRepository {
   /**
    * Create a new branch preview environment in the database
    */
-  async create(dto: CreateBranchPreviewDto): Promise<BranchPreviewEnvironment> {
+  async create(dto: CreateBranchPreviewDto, ownerId: string): Promise<BranchPreviewEnvironment> {
     const client = this.supabaseService.getClient();
     const id = randomUUID();
     const now = new Date();
@@ -37,6 +37,7 @@ export class BranchPreviewRepository {
       .insert({
         id,
         branch_name: preview.branchName,
+      owner_id: ownerId,
         api_url: preview.apiUrl,
         frontend_url: preview.frontendUrl,
         network: preview.network,
@@ -79,6 +80,26 @@ export class BranchPreviewRepository {
       return null;
     }
 
+    return this.mapDbToModel(data);
+  }
+
+    /**
+   * Find a preview by its ID.
+   */
+  async findById(id: string): Promise<BranchPreviewEnvironment | null> {
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
+      .from(this.TABLE_NAME)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        this.logger.error(`Error finding branch preview by id: ${error.message}`, error);
+      }
+      return null;
+    }
     return this.mapDbToModel(data);
   }
 

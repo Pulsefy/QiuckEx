@@ -10,7 +10,7 @@ export interface BranchPreviewEnvironment {
   isActive: boolean;
   isShared: boolean;
   expiryExempt: boolean;
-  createdAt: Date;
+  ownerId: string;
   updatedAt: Date;
   lastActivityAt?: Date;
   expiresAt?: Date;
