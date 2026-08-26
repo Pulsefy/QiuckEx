@@ -25,6 +25,7 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
 import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
+import { CursorPaginationQueryDto, paginatedResponse } from '../dto/pagination/pagination.dto';
 
 interface ApiKeyRequest extends Request {
   apiKey: { id: string };
@@ -132,10 +133,11 @@ export class RefundsController {
   @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
   @ApiResponse({ status: 200, description: 'List of refund attempts' })
-  async list(
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: number,
-  ) {
-    return this.refundsService.listRefunds(cursor, Number(limit || 20));
+  async list(@Query() query: CursorPaginationQueryDto) {
+    const { data, next_cursor, has_more } = await this.refundsService.listRefunds(
+      query.cursor,
+      query.limit,
+    );
+    return paginatedResponse(data, next_cursor, has_more, query.limit);
   }
 }
