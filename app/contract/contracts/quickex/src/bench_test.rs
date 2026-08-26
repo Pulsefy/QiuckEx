@@ -141,6 +141,119 @@ impl CoreBenchResult {
     }
 }
 
+#[derive(Clone, Copy)]
+struct EntrypointBudget {
+    entrypoint: &'static str,
+    cpu_instructions: u64,
+    memory_bytes: u64,
+    tolerance_percent: u64,
+}
+
+impl EntrypointBudget {
+    fn max_cpu_with_tolerance(self) -> u64 {
+        let tolerance = self.tolerance_percent as f64 / 100.0;
+        ((self.cpu_instructions as f64) * (1.0 + tolerance)).ceil() as u64
+    }
+
+    fn max_memory_with_tolerance(self) -> u64 {
+        let tolerance = self.tolerance_percent as f64 / 100.0;
+        ((self.memory_bytes as f64) * (1.0 + tolerance)).ceil() as u64
+    }
+
+    fn assert_within_tolerance(self, actual_cpu: u64, actual_memory: u64) {
+        let cpu_limit = self.max_cpu_with_tolerance();
+        let memory_limit = self.max_memory_with_tolerance();
+
+        assert!(
+            actual_cpu <= cpu_limit,
+            "entrypoint={} budget exceeded: cpu delta={} (actual={} limit={} tolerance={}%)",
+            self.entrypoint,
+            actual_cpu.saturating_sub(self.cpu_instructions),
+            actual_cpu,
+            cpu_limit,
+            self.tolerance_percent,
+        );
+        assert!(
+            actual_memory <= memory_limit,
+            "entrypoint={} budget exceeded: memory delta={} (actual={} limit={} tolerance={}%)",
+            self.entrypoint,
+            actual_memory.saturating_sub(self.memory_bytes),
+            actual_memory,
+            memory_limit,
+            self.tolerance_percent,
+        );
+    }
+}
+
+// Keep the per-entrypoint budgets explicit and reviewable. Any budget change must
+// be intentional and accompanied by the corresponding code-review update.
+const ENTRYPOINT_BUDGETS: &[EntrypointBudget] = &[
+    EntrypointBudget {
+        entrypoint: "deposit",
+        cpu_instructions: 600_000,
+        memory_bytes: 150_000,
+        tolerance_percent: 10,
+    },
+    EntrypointBudget {
+        entrypoint: "deposit_with_commitment",
+        cpu_instructions: 600_000,
+        memory_bytes: 150_000,
+        tolerance_percent: 10,
+    },
+    EntrypointBudget {
+        entrypoint: "withdraw",
+        cpu_instructions: 500_000,
+        memory_bytes: 100_000,
+        tolerance_percent: 10,
+    },
+    EntrypointBudget {
+        entrypoint: "set_privacy",
+        cpu_instructions: 150_000,
+        memory_bytes: 60_000,
+        tolerance_percent: 15,
+    },
+    EntrypointBudget {
+        entrypoint: "get_privacy",
+        cpu_instructions: 120_000,
+        memory_bytes: 40_000,
+        tolerance_percent: 15,
+    },
+    EntrypointBudget {
+        entrypoint: "verify_proof_view",
+        cpu_instructions: 120_000,
+        memory_bytes: 40_000,
+        tolerance_percent: 15,
+    },
+    EntrypointBudget {
+        entrypoint: "dispute",
+        cpu_instructions: 500_000,
+        memory_bytes: 100_000,
+        tolerance_percent: 10,
+    },
+    EntrypointBudget {
+        entrypoint: "resolve_dispute",
+        cpu_instructions: 500_000,
+        memory_bytes: 100_000,
+        tolerance_percent: 10,
+    },
+    EntrypointBudget {
+        entrypoint: "create_amount_commitment",
+        cpu_instructions: 150_000,
+        memory_bytes: 30_000,
+        tolerance_percent: 15,
+    },
+];
+
+fn assert_entrypoint_budget(entrypoint: &str, actual_cpu: u64, actual_memory: u64) {
+    let budget = ENTRYPOINT_BUDGETS
+        .iter()
+        .copied()
+        .find(|candidate| candidate.entrypoint == entrypoint)
+        .unwrap_or_else(|| panic!("missing budget record for entrypoint={entrypoint}"));
+
+    budget.assert_within_tolerance(actual_cpu, actual_memory);
+}
+
 fn storage_bytes_for_pair<K: ToXdr + Clone, V: ToXdr + Clone>(
     env: &Env,
     key: &K,
@@ -491,6 +604,8 @@ fn bench_create_amount_commitment() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.create_amount_commitment(&owner, &1_000_000i128, &salt);
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("create_amount_commitment", cpu, memory);
     print_budget(&env, "create_amount_commitment");
 }
 
@@ -546,6 +661,8 @@ fn bench_deposit() {
         &0u64,
         &u64::MAX,
     );
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("deposit", cpu, memory);
     print_budget(&env, "deposit");
 }
 
@@ -575,6 +692,8 @@ fn bench_deposit_with_commitment() {
         &0u64,
         &u64::MAX,
     );
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("deposit_with_commitment", cpu, memory);
     print_budget(&env, "deposit_with_commitment");
 }
 
@@ -612,6 +731,8 @@ fn bench_withdraw() {
         &0u64,
         &u64::MAX,
     );
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("withdraw", cpu, memory);
     print_budget(&env, "withdraw");
 }
 
@@ -628,6 +749,8 @@ fn bench_set_privacy() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     client.set_privacy(&owner, &true);
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("set_privacy", cpu, memory);
     print_budget(&env, "set_privacy");
 }
 
@@ -646,6 +769,8 @@ fn bench_get_privacy() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.get_privacy(&owner);
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("get_privacy", cpu, memory);
     print_budget(&env, "get_privacy");
 }
 
@@ -736,6 +861,8 @@ fn bench_verify_proof_view() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.verify_proof_view(&amount, &salt, &owner);
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("verify_proof_view", cpu, memory);
     print_budget(&env, "verify_proof_view");
 }
 
@@ -772,6 +899,8 @@ fn bench_resolve_dispute_recipient() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     client.resolve_dispute(&arbiter, &commitment, &false, &recipient, &0u64, &u64::MAX);
+    let (cpu, memory) = measured_budget(&env);
+    assert_entrypoint_budget("resolve_dispute", cpu, memory);
     print_budget(&env, "resolve_dispute_recipient");
 }
 
