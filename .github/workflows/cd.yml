@@ -34,13 +34,21 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # Task 2 & AC 2: Apply Migrations Exactly Once Before App Rollout
-      # It searches your monorepo apps for migration scripts and executes them safely
+      # Consolidated migration runner applies all pending SQL from supabase/migrations/
+      # and any remaining per-module src/*/migrations/ directories.
       - name: Run Database Migrations
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           echo "Applying database migrations safely..."
-          pnpm turbo run db:migrate --continue || echo "No custom migration scripts found, skipping task step safely."
+          bash app/backend/scripts/run-ci-migrations.sh
+
+      - name: Verify Migration Status
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          echo "Verifying database is fully migrated..."
+          bash app/backend/scripts/check-migration-status.sh
 
       - name: Deploy Application
         run: |
