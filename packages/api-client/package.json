@@ -1,0 +1,36 @@
+{
+  "name": "@quickex/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated, typed API client for the QuickEx backend, produced from the OpenAPI spec.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./schemas": "./src/schemas.d.ts"
+  },
+  "files": [
+    "dist",
+    "src/schemas.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-schemas.mjs",
+    "regenerate": "npm run generate && npm run build",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.13.8"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

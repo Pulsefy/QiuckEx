@@ -10,6 +10,7 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { themeTokens } from '../theme/tokens';
 import { BuildMetadataPanel } from '../components/BuildMetadataPanel';
+import { fetchBackendStatus, type BackendStatus } from '../services/quickexApi';
 
 type ThemeOption = {
   value: 'system' | 'light' | 'dark';
@@ -27,6 +28,19 @@ export function SettingsScreen() {
   const { mode, setMode, isDark, color, tokens } = useTheme();
   const [notifications, setNotifications] = React.useState(true);
   const [xrayDefault, setXrayDefault] = React.useState(false);
+  const [backendStatus, setBackendStatus] = React.useState<BackendStatus>("unknown");
+
+  React.useEffect(() => {
+    let active = true;
+    fetchBackendStatus()
+      .then((status) => {
+        if (active) setBackendStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const styles = themedStyles({ color, isDark, tokens });
 
@@ -119,6 +133,7 @@ export function SettingsScreen() {
       <BuildMetadataPanel />
 
       <Text style={styles.version}>QuickEx v2.3.0</Text>
+      <Text style={styles.version}>Backend: {backendStatus}</Text>
     </ScrollView>
   );
 }
