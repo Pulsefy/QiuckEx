@@ -180,3 +180,22 @@ export class Sep24TransactionStuckEvent {
     public readonly reason: string,
   ) {}
 }
+
+export class ReconciliationDriftDetectedEvent {
+  constructor(
+    public readonly runId: string,
+    public readonly countDiscrepancy: number,
+    public readonly amountDiscrepancy: string,
+    public readonly details: string,
+    public readonly occurredAt: string,
+  ) {}
+}
+
+export class ReconciliationFailedEvent {
+  constructor(
+    public readonly type: 'failure' | 'skip',
+    public readonly consecutiveCount: number,
+    public readonly lastReason: string,
+    public readonly occurredAt: string,
+  ) {}
+}

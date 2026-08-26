@@ -29,6 +29,8 @@ import {
   PaymentReceivedEvent,
   UsernameClaimedEvent,
   AutoReconciliationSucceededEvent,
+  ReconciliationDriftDetectedEvent,
+  ReconciliationFailedEvent,
 } from "../events/notification.events";
 
 import type {
@@ -250,6 +252,28 @@ export class NotificationService implements OnModuleInit {
     };
 
     await this.dispatch(payload);
+  }
+
+  @OnEvent("reconciliation.drift_detected", { async: true })
+  async onReconciliationDriftDetected(
+    event: ReconciliationDriftDetectedEvent,
+  ): Promise<void> {
+    this.logger.error(
+      `[ALERT] Reconciliation drift detected: runId=${event.runId}, ` +
+        `Count discrepancy: ${event.countDiscrepancy}, Amount discrepancy: ${event.amountDiscrepancy}. ` +
+        `Details: ${event.details}`,
+    );
+  }
+
+  @OnEvent("reconciliation.failed", { async: true })
+  async onReconciliationFailed(
+    event: ReconciliationFailedEvent,
+  ): Promise<void> {
+    this.logger.error(
+      `[ALERT] Reconciliation ${event.type} threshold exceeded: ` +
+        `${event.consecutiveCount} consecutive ${event.type}s. ` +
+        `Last reason: ${event.lastReason}`,
+    );
   }
 
   // ---------------------------------------------------------------------------

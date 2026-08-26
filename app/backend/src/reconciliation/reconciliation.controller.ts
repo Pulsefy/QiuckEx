@@ -22,6 +22,9 @@ import { ReconciliationReport } from './types/reconciliation.types';
 import type { IncomingTransaction, MatchResult } from './types/auto-match.types';
 import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
 import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
+import { ReconciliationService } from './reconciliation.service';
 
 /**
  * Admin endpoints for the reconciliation worker and auto-match engine.
@@ -35,6 +38,7 @@ export class ReconciliationController {
     private readonly backfill: BackfillService,
     private readonly autoMatch: AutoMatchService,
     private readonly unmatchedQueue: UnmatchedQueueRepository,
+    private readonly reconciliationService: ReconciliationService,
   ) {}
 
   // ─── Existing reconciliation endpoints ──────────────────────────────────────
@@ -47,6 +51,22 @@ export class ReconciliationController {
       running: this.worker.running,
       lastReport: this.worker.getLastReport(),
     };
+  }
+
+  @Get('history')
+  @UseGuards(ApiKeyGuard)
+  @RequireScopes('admin')
+  @ApiOperation({ summary: 'List historical reconciliation runs (operator only)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max rows (1–100, default 20)' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Zero-based row offset (default 0)' })
+  @ApiResponse({ status: 200, description: 'Paginated list of reconciliation runs' })
+  async getHistory(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
+    const parsedOffset = Math.max(0, parseInt(offset ?? '0', 10) || 0);
+    return this.reconciliationService.getHistory(parsedLimit, parsedOffset);
   }
 
   @Post('trigger')

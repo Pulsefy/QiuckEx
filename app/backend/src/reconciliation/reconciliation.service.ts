@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Horizon } from '@stellar/stellar-sdk';
 import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { AppConfigService } from '../config/app-config.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { SentryService } from '../sentry/sentry.service';
 import {
   EscrowDbStatus,
   EscrowRecord,
@@ -22,6 +24,9 @@ export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
   private readonly server: Horizon.Server;
 
+  private consecutiveFailures = 0;
+  private consecutiveSkips = 0;
+
   /** Statuses that need to be reconciled against the chain. */
   private readonly ACTIONABLE_ESCROW_STATUSES: EscrowDbStatus[] = [
     EscrowDbStatus.Pending,
@@ -37,6 +42,8 @@ export class ReconciliationService {
     private readonly config: AppConfigService,
     private readonly supabase: SupabaseService,
     private readonly metrics: MetricsService,
+    private readonly sentry: SentryService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     const horizonUrl =
       config.network === 'mainnet'
@@ -60,31 +67,211 @@ export class ReconciliationService {
 
     this.logger.log(`[${runId}] Reconciliation run started (batchSize=${batchSize})`);
 
-    const [escrowResults, paymentResults] = await Promise.all([
-      this.reconcileEscrows(runId, batchSize),
-      this.reconcilePayments(runId, batchSize),
-    ]);
+    try {
+      const [escrowResults, paymentResults] = await Promise.all([
+        this.reconcileEscrows(runId, batchSize),
+        this.reconcilePayments(runId, batchSize),
+      ]);
 
-    const completedAt = new Date().toISOString();
-    const durationMs = Date.now() - startMs;
+      const completedAt = new Date().toISOString();
+      const durationMs = Date.now() - startMs;
 
-    const report: ReconciliationReport = {
-      runId,
-      startedAt,
-      completedAt,
-      durationMs,
-      escrows: this.summarise(escrowResults),
-      payments: this.summarise(paymentResults),
-    };
+      const report: ReconciliationReport = {
+        runId,
+        startedAt,
+        completedAt,
+        durationMs,
+        escrows: this.summarise(escrowResults),
+        payments: this.summarise(paymentResults),
+      };
 
-    // Add totals comparison for payments
-    report.totalsComparison = await this.comparePaymentTotals(runId);
+      // Add totals comparison for payments
+      report.totalsComparison = await this.comparePaymentTotals(runId);
 
-    // Generate alert if discrepancies exceed threshold
-    report.alert = this.generateDiscrepancyAlert(report);
+      // Generate alert if discrepancies exceed threshold
+      report.alert = this.generateDiscrepancyAlert(report);
 
-    this.logReport(report);
-    return report;
+      this.logReport(report);
+
+      // Save successful run to DB
+      await this.saveReconciliationRun(
+        runId,
+        startedAt,
+        completedAt,
+        durationMs,
+        'success',
+        null,
+        report,
+      );
+
+      // Reset consecutive failure trackers
+      this.recordSuccess();
+
+      // Raise drift alerts if thresholds exceeded
+      if (report.alert) {
+        this.raiseDriftAlert(report);
+      }
+
+      return report;
+    } catch (err) {
+      const completedAt = new Date().toISOString();
+      const durationMs = Date.now() - startMs;
+      const errorMsg = (err as Error).message || String(err);
+
+      // Save failed run to DB
+      await this.saveReconciliationRun(
+        runId,
+        startedAt,
+        completedAt,
+        durationMs,
+        'failed',
+        errorMsg,
+        null,
+      );
+
+      // Record failure for monitoring
+      this.recordFailure(errorMsg);
+
+      throw err;
+    }
+  }
+
+  private async saveReconciliationRun(
+    runId: string,
+    startedAt: string,
+    completedAt: string,
+    durationMs: number,
+    status: 'success' | 'failed',
+    errorMessage: string | null,
+    report: ReconciliationReport | null,
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .getClient()
+        .from('reconciliation_runs')
+        .insert({
+          id: runId,
+          started_at: startedAt,
+          completed_at: completedAt,
+          duration_ms: durationMs,
+          status,
+          error_message: errorMessage,
+          report: report ? JSON.stringify(report) : null,
+          created_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        this.logger.error(`Failed to save reconciliation run record: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to save reconciliation run ${runId} to DB: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
+  }
+
+  private raiseDriftAlert(report: ReconciliationReport): void {
+    if (!report.alert || !report.totalsComparison?.payments) {
+      return;
+    }
+    const { countDiscrepancy, amountDiscrepancy } = report.totalsComparison.payments;
+
+    this.sentry.captureMessage(report.alert.message, 'error', {
+      runId: report.runId,
+      severity: report.alert.severity,
+      details: report.alert.details,
+    });
+
+    this.eventEmitter.emit('reconciliation.drift_detected', {
+      runId: report.runId,
+      countDiscrepancy,
+      amountDiscrepancy,
+      details: report.alert.details,
+      occurredAt: new Date().toISOString(),
+    });
+  }
+
+  recordSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.consecutiveSkips = 0;
+  }
+
+  recordFailure(reason: string): void {
+    this.consecutiveFailures++;
+    this.logger.error(
+      `Reconciliation failure recorded (consecutive: ${this.consecutiveFailures}): ${reason}`,
+    );
+
+    const threshold = this.config.reconciliationConsecutiveFailureThreshold;
+    if (this.consecutiveFailures >= threshold) {
+      this.raiseConsecutiveAlert('failure', this.consecutiveFailures, reason);
+    }
+  }
+
+  recordSkip(reason: string): void {
+    this.consecutiveSkips++;
+    this.logger.warn(
+      `Reconciliation skip recorded (consecutive: ${this.consecutiveSkips}): ${reason}`,
+    );
+
+    const threshold = this.config.reconciliationConsecutiveFailureThreshold;
+    if (this.consecutiveSkips >= threshold) {
+      this.raiseConsecutiveAlert('skip', this.consecutiveSkips, reason);
+    }
+  }
+
+  private raiseConsecutiveAlert(
+    type: 'failure' | 'skip',
+    count: number,
+    reason: string,
+  ): void {
+    const message = `Reconciliation alert: ${count} consecutive ${type}s detected`;
+    const details = `Last ${type} reason: ${reason}`;
+
+    this.logger.error(`${message} | ${details}`);
+    this.metrics.recordError('reconciliation', `consecutive_${type}s`);
+
+    this.sentry.captureMessage(message, 'error', {
+      type,
+      consecutiveCount: count,
+      lastReason: reason,
+    });
+
+    this.eventEmitter.emit('reconciliation.failed', {
+      type,
+      consecutiveCount: count,
+      lastReason: reason,
+      occurredAt: new Date().toISOString(),
+    });
+  }
+
+  async getHistory(
+    limit: number,
+    offset: number,
+  ): Promise<{ data: any[]; total: number; limit: number; offset: number }> {
+    try {
+      const { data, error, count } = await this.supabase
+        .getClient()
+        .from('reconciliation_runs')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return {
+        data: data ?? [],
+        total: count ?? 0,
+        limit,
+        offset,
+      };
+    } catch (err) {
+      this.logger.error(`Failed to query reconciliation runs: ${(err as Error).message}`);
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -408,8 +595,12 @@ export class ReconciliationService {
         BigInt(expectedTotalAmount) - BigInt(observedTotalAmount)
       ).toString();
 
-      // Threshold: alert if count discrepancy > 5 or amount discrepancy > 0
-      const exceedsThreshold = countDiscrepancy > 5 || amountDiscrepancy !== '0';
+      // Threshold: alert if count discrepancy > configured threshold or amount discrepancy > configured threshold
+      const countThreshold = this.config.reconciliationDriftThresholdCount;
+      const amountThreshold = this.config.reconciliationDriftThresholdAmount;
+      const exceedsThreshold =
+        countDiscrepancy > countThreshold ||
+        BigInt(amountDiscrepancy) > BigInt(amountThreshold);
 
       this.logger.log(
         `[${runId}] Payment totals comparison: expected=${expectedCount}/${expectedTotalAmount}, observed=${observedCount}/${observedTotalAmount}, exceedsThreshold=${exceedsThreshold}`,
@@ -445,8 +636,13 @@ export class ReconciliationService {
     const { payments } = report.totalsComparison;
     const { countDiscrepancy, amountDiscrepancy } = payments;
 
-    // Critical if amount discrepancy or high count discrepancy
-    const isCritical = amountDiscrepancy !== '0' || countDiscrepancy > 10;
+    const countThreshold = this.config.reconciliationDriftThresholdCount;
+    const amountThreshold = this.config.reconciliationDriftThresholdAmount;
+
+    // Critical if amount discrepancy is greater than threshold or count discrepancy is more than double the threshold
+    const isCritical =
+      BigInt(amountDiscrepancy) > BigInt(amountThreshold) ||
+      countDiscrepancy > countThreshold * 2;
 
     const message = isCritical
       ? 'Critical payment discrepancy detected'

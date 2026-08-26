@@ -248,6 +248,34 @@ export class AppConfigService {
   }
 
   /**
+   * Cron schedule for scheduled reconciliation run
+   */
+  get reconciliationCronExpression(): string {
+    return this.configService.get("RECONCILIATION_CRON_EXPRESSION", { infer: true }) ?? "*/5 * * * *";
+  }
+
+  /**
+   * Payment count drift threshold
+   */
+  get reconciliationDriftThresholdCount(): number {
+    return this.configService.get("RECONCILIATION_DRIFT_THRESHOLD_COUNT", { infer: true }) ?? 5;
+  }
+
+  /**
+   * Payment amount drift threshold
+   */
+  get reconciliationDriftThresholdAmount(): string {
+    return this.configService.get("RECONCILIATION_DRIFT_THRESHOLD_AMOUNT", { infer: true }) ?? "0";
+  }
+
+  /**
+   * Threshold for consecutive failed/skipped reconciliation runs
+   */
+  get reconciliationConsecutiveFailureThreshold(): number {
+    return this.configService.get("RECONCILIATION_CONSECUTIVE_FAILURE_THRESHOLD", { infer: true }) ?? 3;
+  }
+
+  /**
    * QuickEx Soroban contract id (optional). Used for ingestion and soroban preflight.
    */
   get quickexContractId(): string | undefined {

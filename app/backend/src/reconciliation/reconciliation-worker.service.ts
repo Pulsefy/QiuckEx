@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 
 import { AppConfigService } from '../config/app-config.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -20,7 +21,7 @@ import { ReconciliationPayload } from '../job-queue/types/job-payloads.types';
  * herds against the Horizon API.
  */
 @Injectable()
-export class ReconciliationWorkerService {
+export class ReconciliationWorkerService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ReconciliationWorkerService.name);
   private isRunning = false;
   private lastReport: ReconciliationReport | null = null;
@@ -29,22 +30,38 @@ export class ReconciliationWorkerService {
     private readonly reconciliationService: ReconciliationService,
     private readonly config: AppConfigService,
     private readonly jobQueueService: JobQueueService,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
+
+  onApplicationBootstrap(): void {
+    const cronExpression = this.config.reconciliationCronExpression;
+    this.logger.log(`Scheduling reconciliation worker with expression: ${cronExpression}`);
+
+    try {
+      const job = new CronJob(cronExpression, async () => {
+        await this.handleCron();
+      });
+
+      this.schedulerRegistry.addCronJob('reconciliation-worker', job);
+      job.start();
+    } catch (err) {
+      this.logger.error(
+        `Failed to schedule reconciliation worker: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Scheduled job — every 5 minutes by default.
   // Override via RECONCILIATION_CRON_EXPRESSION env var for custom scheduling.
   // ---------------------------------------------------------------------------
 
-  @Cron(CronExpression.EVERY_5_MINUTES, {
-    name: 'reconciliation-worker',
-    timeZone: 'UTC',
-  })
   async handleCron(): Promise<void> {
     if (this.isRunning) {
-      this.logger.warn(
-        'Reconciliation tick skipped — previous run still in progress',
-      );
+      const msg = 'Reconciliation tick skipped — previous run still in progress';
+      this.logger.warn(msg);
+      this.reconciliationService.recordSkip(msg);
       return;
     }
 
@@ -53,12 +70,10 @@ export class ReconciliationWorkerService {
 
     try {
       const batchSize = this.config.reconciliationBatchSize;
-      
+
       // Enqueue reconciliation job via JobQueueService
-      // Requirements: 10.2, 10.4
       const payload: ReconciliationPayload = {
         batchSize,
-        // startLedger and endLedger are optional - not used in current implementation
       };
 
       const jobId = await this.jobQueueService.enqueue(
@@ -67,14 +82,10 @@ export class ReconciliationWorkerService {
       );
 
       this.logger.log(`Reconciliation job enqueued: ${jobId} (batchSize: ${batchSize})`);
-      
-      // Note: The actual reconciliation execution is now handled by the job queue system.
-      // The visibility timeout (5 minutes) prevents concurrent reconciliation jobs.
     } catch (err) {
-      this.logger.error(
-        `Failed to enqueue reconciliation job: ${(err as Error).message}`,
-        (err as Error).stack,
-      );
+      const errorMsg = `Failed to enqueue reconciliation job: ${(err as Error).message}`;
+      this.logger.error(errorMsg, (err as Error).stack);
+      this.reconciliationService.recordFailure(errorMsg);
     } finally {
       this.isRunning = false;
     }
