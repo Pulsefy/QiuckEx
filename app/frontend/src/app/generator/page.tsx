@@ -6,6 +6,7 @@ import { QRPreview } from "@/components/QRPreview";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { useApi } from "@/hooks/useApi";
 import { getQuickexApiBase } from "@/lib/api";
+import { useFeatureFlag } from "@/contexts/FeatureFlagContext";
 import {
   buildGeneratedLinksCsv,
   BulkCsvDraftRow,
@@ -117,6 +118,7 @@ type BulkLinkRequestItem = {
 
 export default function Generator() {
   const { t } = useTranslation();
+  const bulkInvoicingEnabled = useFeatureFlag("bulk_invoicing_v2");
   const apiBase = useMemo(() => getQuickexApiBase(), []);
   const { error, loading, callApi, data } = useApi<LinkMetadataSuccess>();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -1340,7 +1342,8 @@ export default function Generator() {
           </div>
         </div>
 
-        <section className="mt-20 max-w-7xl space-y-8">
+        {bulkInvoicingEnabled && (
+          <section className="mt-20 max-w-7xl space-y-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-brand">
@@ -1973,7 +1976,8 @@ export default function Generator() {
               </div>
             </div>
           </div>
-        </section>
+          </section>
+        )}
       </main>
     </div>
   );
