@@ -3,13 +3,42 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["TEAM_ID.com.pulsefy.quickex"],
+        "appIDs": [
+          "TEAM_ID.com.pulsefy.quickex"
+        ],
         "components": [
           {
-            "/": "/*"
+            "/": "/username/*",
+            "comment": "Matches any username-based payment link"
+          },
+          {
+            "/": "/username/*/amount/*",
+            "comment": "Matches payment links with specific amount"
+          },
+          {
+            "/": "/username/*/amount/*/*",
+            "comment": "Matches payment links with amount and asset"
+          },
+          {
+            "/": "/username/*/amount/*/*/*",
+            "comment": "Matches payment links with amount, asset, and memo"
           }
+        ],
+        "paths": [
+          "/username/*",
+          "/username/*/amount/*",
+          "/username/*/amount/*/*",
+          "/username/*/amount/*/*/*",
+          "NOT /api/*",
+          "NOT /static/*",
+          "NOT /admin/*"
         ]
       }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "TEAM_ID.com.pulsefy.quickex"
     ]
   }
 }

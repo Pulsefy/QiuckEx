@@ -47,7 +47,7 @@ function apiUrl(env: string): string {
     case 'staging':
       return 'https://staging-api.quickex.to';
     default:
-      return process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+      return process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
   }
 }
 

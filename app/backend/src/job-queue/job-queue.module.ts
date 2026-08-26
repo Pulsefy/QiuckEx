@@ -23,12 +23,14 @@ import { IngestionModule } from "../ingestion/ingestion.module";
 import { AuthModule } from "../auth/auth.module";
 import { MetricsModule } from "../metrics/metrics.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
+import { FiatRampsModule } from "../fiat-ramps/fiat-ramps.module";
 import {
   WebhookDeliveryHandler,
   RecurringPaymentHandler,
   ExportGenerationHandler,
   ReconciliationHandler,
   StellarReconnectHandler,
+  Sep24StatusPollHandler,
 } from "./handlers";
 
 /**
@@ -59,6 +61,7 @@ import {
     forwardRef(() => LinksModule),
     forwardRef(() => ReconciliationModule),
     forwardRef(() => IngestionModule),
+    forwardRef(() => FiatRampsModule),
   ],
   controllers: [JobAdminController],
   providers: [
@@ -75,6 +78,7 @@ import {
     ExportGenerationHandler,
     ReconciliationHandler,
     StellarReconnectHandler,
+    Sep24StatusPollHandler,
   ],
   exports: [
     JobQueueService,
@@ -87,6 +91,7 @@ import {
     ExportGenerationHandler,
     ReconciliationHandler,
     StellarReconnectHandler,
+    Sep24StatusPollHandler,
   ],
 })
 export class JobQueueModule {}

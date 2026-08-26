@@ -58,12 +58,12 @@ describe('UsernamesController', () => {
       const result = await controller.createUsername(body);
       expect(result).toEqual({ ok: true });
       expect(usernamesService.create).toHaveBeenCalledWith('alice_123', validPublicKey);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      // The `username.claimed` event is now staged in the transactional outbox
+      // by the service and dispatched asynchronously, so the controller must no
+      // longer emit it directly.
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
         'username.claimed',
-        expect.objectContaining({
-          username: 'alice_123',
-          publicKey: validPublicKey,
-        }),
+        expect.anything(),
       );
     });
 

@@ -25,6 +25,9 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
+  private outboxDepth: client.Gauge<string>;
+  private outboxDispatchLagSeconds: client.Gauge<string>;
+  private outboxDispatchTotal: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -160,6 +163,22 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
+      this.outboxDepth = new client.Gauge({
+        name: "outbox_depth",
+        help: "Number of domain events currently waiting in the outbox for dispatch",
+      });
+
+      this.outboxDispatchLagSeconds = new client.Gauge({
+        name: "outbox_dispatch_lag_seconds",
+        help: "Seconds the oldest undispatched outbox event has been waiting for delivery",
+      });
+
+      this.outboxDispatchTotal = new client.Counter({
+        name: "outbox_dispatch_total",
+        help: "Total outbox dispatch attempts by outcome",
+        labelNames: ["event_type", "outcome"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -181,6 +200,9 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
+      this.register.registerMetric(this.outboxDepth);
+      this.register.registerMetric(this.outboxDispatchLagSeconds);
+      this.register.registerMetric(this.outboxDispatchTotal);
 
       this.initialized = true;
     } catch (error) {
@@ -406,6 +428,30 @@ export class MetricsService implements OnModuleInit {
         const topTag = tags[0] ?? "none";
         this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
       }
+    } catch (error) {}
+  }
+
+  setOutboxDepth(depth: number) {
+    if (!this.initialized || !this.outboxDepth) return;
+    try {
+      this.outboxDepth.set(depth);
+    } catch (error) {}
+  }
+
+  setOutboxDispatchLagSeconds(lagSeconds: number) {
+    if (!this.initialized || !this.outboxDispatchLagSeconds) return;
+    try {
+      this.outboxDispatchLagSeconds.set(lagSeconds);
+    } catch (error) {}
+  }
+
+  recordOutboxDispatch(
+    eventType: string,
+    outcome: "success" | "retry" | "dead",
+  ) {
+    if (!this.initialized || !this.outboxDispatchTotal) return;
+    try {
+      this.outboxDispatchTotal.labels(eventType, outcome).inc();
     } catch (error) {}
   }
 }

@@ -112,3 +112,16 @@ export interface StellarReconnectPayload {
   /** Last cursor position before disconnection */
   lastCursor: string;
 }
+
+/**
+ * SEP-24 anchor transaction status poll job payload.
+ * Triggers a full poll cycle against all in-flight SEP-24 ramp transactions.
+ */
+export interface Sep24StatusPollPayload {
+  /**
+   * Who triggered this poll run.
+   * 'cron'   — scheduled tick from Sep24PollingWorkerService.
+   * 'manual' — triggered by an admin action or test.
+   */
+  triggeredBy: 'cron' | 'manual';
+}

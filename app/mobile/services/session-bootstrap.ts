@@ -10,6 +10,13 @@ export interface BootstrapResponse {
   unreadCount: number;
   featureFlags: Record<string, boolean>;
   accountContext: AccountContext | null;
+  /**
+   * Runtime-configured whitelist of assets the backend can swap FROM.
+   * Sourced from the backend so it stays in sync without an app release.
+   * May be absent on older backends, in which case the client falls back
+   * to a conservative built-in default (see services/swappable-assets).
+   */
+  swappableAssets?: string[];
 }
 
 /**

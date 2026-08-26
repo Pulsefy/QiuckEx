@@ -16,6 +16,8 @@ interface Props {
   item: TransactionItemType;
   /** The connected account ID used to determine payment direction */
   accountId: string;
+  /** Optional test identifier for the row container */
+  testID?: string;
 }
 
 function formatDate(iso: string, locale: string): string {
@@ -51,7 +53,7 @@ function shortenAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-export default function TransactionItem({ item }: Props) {
+export default function TransactionItem({ item, testID }: Props) {
   const { i18n } = useTranslation();
   const { theme } = useTheme();
   const router = useRouter();
@@ -84,6 +86,7 @@ export default function TransactionItem({ item }: Props) {
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.7}
+      testID={testID}
       style={[
         styles.row,
         {

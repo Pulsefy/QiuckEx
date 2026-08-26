@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsernamesService } from './usernames.service';
-import { SupabaseService } from '../supabase/supabase.service';
+import { USERNAMES_REPOSITORY } from './usernames.repository';
 import { AppConfigService } from '../config';
 import { DiscoveryCacheService } from './cache/discovery-cache.service';
 import {
@@ -8,14 +8,13 @@ import {
   UsernameLimitExceededError,
   UsernameValidationError,
 } from './errors';
-import { SupabaseUniqueConstraintError } from '../supabase/supabase.errors';
 
 describe('UsernamesService', () => {
   let service: UsernamesService;
   let configMaxPerWallet: number | undefined;
 
-  const mockSupabaseService = {
-    insertUsername: jest.fn(),
+  const mockUsernamesRepository = {
+    claimUsernameWithOutbox: jest.fn(),
     countUsernamesByPublicKey: jest.fn(),
     listUsernamesByPublicKey: jest.fn(),
     searchPublicUsernames: jest.fn(),
@@ -30,14 +29,14 @@ describe('UsernamesService', () => {
     configMaxPerWallet = undefined;
     jest.clearAllMocks();
     // Ensure updateUsernameActivity returns a promise so callers can `.catch()` safely
-    mockSupabaseService.updateUsernameActivity.mockResolvedValue(undefined);
+    mockUsernamesRepository.updateUsernameActivity.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsernamesService,
         {
-          provide: SupabaseService,
-          useValue: mockSupabaseService,
+          provide: USERNAMES_REPOSITORY,
+          useValue: mockUsernamesRepository,
         },
         {
           provide: AppConfigService,
@@ -109,27 +108,31 @@ describe('UsernamesService', () => {
 
   describe('create', () => {
     it('creates username and returns ok', async () => {
-      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
+      mockUsernamesRepository.claimUsernameWithOutbox.mockResolvedValueOnce(undefined);
       const result = await service.create('alice_123', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
       expect(result).toEqual({ ok: true });
-      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+      expect(mockUsernamesRepository.claimUsernameWithOutbox).toHaveBeenCalledWith(
         'alice_123',
         'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
+        expect.any(String),
+        expect.objectContaining({ username: 'alice_123', publicKey: 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR' }),
       );
     });
 
     it('normalizes username to lowercase before insert', async () => {
-      mockSupabaseService.insertUsername.mockResolvedValueOnce(undefined);
+      mockUsernamesRepository.claimUsernameWithOutbox.mockResolvedValueOnce(undefined);
       await service.create('Alice_99', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
-      expect(mockSupabaseService.insertUsername).toHaveBeenCalledWith(
+      expect(mockUsernamesRepository.claimUsernameWithOutbox).toHaveBeenCalledWith(
         'alice_99',
         expect.any(String),
+        expect.any(String),
+        expect.any(Object),
       );
     });
 
-    it('throws UsernameConflictError on unique violation (SupabaseUniqueConstraintError)', async () => {
-      mockSupabaseService.insertUsername.mockRejectedValueOnce(
-        new SupabaseUniqueConstraintError('duplicate key')
+    it('throws UsernameConflictError on unique violation', async () => {
+      mockUsernamesRepository.claimUsernameWithOutbox.mockRejectedValueOnce(
+        new UsernameConflictError('taken')
       );
 
       await expect(
@@ -138,8 +141,8 @@ describe('UsernamesService', () => {
     });
 
     it('conflict error message mentions username is already taken', async () => {
-      mockSupabaseService.insertUsername.mockRejectedValueOnce(
-        new SupabaseUniqueConstraintError('duplicate key')
+      mockUsernamesRepository.claimUsernameWithOutbox.mockRejectedValueOnce(
+        new UsernameConflictError('taken')
       );
       try {
         await service.create('taken', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR');
@@ -158,7 +161,7 @@ describe('UsernamesService', () => {
 
     it('throws UsernameLimitExceededError when wallet at limit', async () => {
       configMaxPerWallet = 2;
-      mockSupabaseService.countUsernamesByPublicKey.mockResolvedValueOnce(2);
+      mockUsernamesRepository.countUsernamesByPublicKey.mockResolvedValueOnce(2);
 
       await expect(
         service.create('newuser', 'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR'),
@@ -176,7 +179,7 @@ describe('UsernamesService', () => {
           created_at: '2025-01-01T00:00:00Z',
         },
       ];
-      mockSupabaseService.listUsernamesByPublicKey.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.listUsernamesByPublicKey.mockResolvedValueOnce(rows);
 
       const result = await service.listByPublicKey(
         'GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR',
@@ -222,18 +225,18 @@ describe('UsernamesService', () => {
     ];
 
     it('returns first page with next_cursor and has_more=true', async () => {
-      mockSupabaseService.searchPublicUsernames.mockResolvedValueOnce(rows.slice(0, 3));
+      mockUsernamesRepository.searchPublicUsernames.mockResolvedValueOnce(rows.slice(0, 3));
 
       const result = await service.searchPublicUsernames('alice', 2);
 
       expect(result.data.map((r: { id: string }) => r.id)).toEqual(['id-4', 'id-3']);
       expect(result.has_more).toBe(true);
       expect(result.next_cursor).toBeTruthy();
-      expect(mockSupabaseService.updateUsernameActivity).toHaveBeenCalledWith('alice4');
+      expect(mockUsernamesRepository.updateUsernameActivity).toHaveBeenCalledWith('alice4');
     });
 
     it('advances to next page when cursor is provided', async () => {
-      mockSupabaseService.searchPublicUsernames.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.searchPublicUsernames.mockResolvedValueOnce(rows);
       const cursor = Buffer.from(
         JSON.stringify({ pk: '2025-01-03T00:00:00.000Z', id: 'id-3' }),
         'utf-8',
@@ -244,7 +247,7 @@ describe('UsernamesService', () => {
       expect(result.data.map((r: { id: string }) => r.id)).toEqual(['id-2', 'id-1']);
       expect(result.has_more).toBe(false);
       expect(result.next_cursor).toBeNull();
-      expect(mockSupabaseService.searchPublicUsernames).toHaveBeenCalledWith('alice', 100);
+      expect(mockUsernamesRepository.searchPublicUsernames).toHaveBeenCalledWith('alice', 100);
     });
   });
 
@@ -264,7 +267,7 @@ describe('UsernamesService', () => {
     });
 
     it('breaks volume ties deterministically by ascending id', async () => {
-      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
+      mockUsernamesRepository.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
 
       const result = await service.getTrendingCreators(24, 3);
 
@@ -272,7 +275,7 @@ describe('UsernamesService', () => {
     });
 
     it('returns first page with next_cursor and has_more=true', async () => {
-      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
+      mockUsernamesRepository.getTrendingCreators.mockResolvedValueOnce(rows.slice(0, 3));
 
       const result = await service.getTrendingCreators(24, 2);
 
@@ -282,7 +285,7 @@ describe('UsernamesService', () => {
     });
 
     it('advances to next page when cursor is provided, without re-returning prior rows', async () => {
-      mockSupabaseService.getTrendingCreators.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.getTrendingCreators.mockResolvedValueOnce(rows);
       const cursor = Buffer.from(
         JSON.stringify({ pk: '200', id: 'id-2' }),
         'utf-8',
@@ -291,11 +294,11 @@ describe('UsernamesService', () => {
       const result = await service.getTrendingCreators(24, 2, cursor);
 
       expect(result.data.map((r) => r.id)).toEqual(['id-3', 'id-1']);
-      expect(mockSupabaseService.getTrendingCreators).toHaveBeenCalledWith(24, 100);
+      expect(mockUsernamesRepository.getTrendingCreators).toHaveBeenCalledWith(24, 100);
     });
 
     it('is stable across repeated calls with identical input (ranking stability)', async () => {
-      mockSupabaseService.getTrendingCreators.mockResolvedValue(rows.slice(0, 3));
+      mockUsernamesRepository.getTrendingCreators.mockResolvedValue(rows.slice(0, 3));
 
       const first = await service.getTrendingCreators(24, 3);
       const second = await service.getTrendingCreators(24, 3);
@@ -320,7 +323,7 @@ describe('UsernamesService', () => {
     });
 
     it('breaks activity-timestamp ties deterministically by ascending id', async () => {
-      mockSupabaseService.getRecentlyActiveUsers.mockResolvedValueOnce(rows.slice(0, 3));
+      mockUsernamesRepository.getRecentlyActiveUsers.mockResolvedValueOnce(rows.slice(0, 3));
 
       const result = await service.getRecentlyActiveUsers(24, 3);
 
@@ -328,7 +331,7 @@ describe('UsernamesService', () => {
     });
 
     it('advances to next page when cursor is provided', async () => {
-      mockSupabaseService.getRecentlyActiveUsers.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.getRecentlyActiveUsers.mockResolvedValueOnce(rows);
       const cursor = Buffer.from(
         JSON.stringify({ pk: '2025-01-02T00:00:00.000Z', id: 'id-2' }),
         'utf-8',
@@ -350,7 +353,7 @@ describe('UsernamesService', () => {
     ];
 
     it('orders by featured_rank ascending with null ranks last, ties broken by id', async () => {
-      mockSupabaseService.getFeaturedUsernames.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.getFeaturedUsernames.mockResolvedValueOnce(rows);
 
       const result = await service.getFeaturedCreators(4);
 
@@ -358,7 +361,7 @@ describe('UsernamesService', () => {
     });
 
     it('advances to next page when cursor is provided, including null-rank rows', async () => {
-      mockSupabaseService.getFeaturedUsernames.mockResolvedValueOnce(rows);
+      mockUsernamesRepository.getFeaturedUsernames.mockResolvedValueOnce(rows);
       const cursor = Buffer.from(
         JSON.stringify({ pk: '5', id: 'id-2' }),
         'utf-8',
