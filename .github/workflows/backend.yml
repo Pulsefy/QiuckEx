@@ -69,7 +69,7 @@ jobs:
           DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
         run: |
           echo "🔍 Validating schema after migrations..."
-          EXPECTED_TABLES=$(find supabase/migrations -name '*.sql' -exec grep -h 'CREATE TABLE' {} \; | \
+          EXPECTED_TABLES=$(find supabase/migrations src -name '*.sql' -exec grep -h 'CREATE TABLE' {} \; | \
             sed 's/.*CREATE TABLE.*IF NOT EXISTS *//; s/CREATE TABLE *//; s/ *(.*//; s/^public\.//' | \
             sort -u | wc -l)
           ACTUAL_TABLES=$(psql "$DATABASE_URL" -t -A -c \
@@ -81,6 +81,13 @@ jobs:
             exit 1
           fi
           echo "✅ Schema validation passed."
+
+      - name: Verify migration completeness
+        env:
+          DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
+        run: |
+          echo "📊 Checking migration status..."
+          bash scripts/check-migration-status.sh
 
       # ── Tests ────────────────────────────────────────────────────────────
       # Tests are run separately to avoid CI failures during development
