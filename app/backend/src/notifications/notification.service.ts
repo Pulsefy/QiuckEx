@@ -20,6 +20,7 @@ import type {
   UsernameClaimedPayload,
   AutoReconciliationSucceededNotificationPayload,
   PaymentLinkExpiredPayload,
+  ExportCompletedPayload,
 } from "./types/notification.types";
 
 import {
@@ -368,6 +369,34 @@ export class NotificationService implements OnModuleInit {
     }
   }
 
+  async dispatchExport(
+    recipientPublicKey: string,
+    exportType: ExportCompletedPayload["exportType"],
+    format: ExportCompletedPayload["format"],
+    exportData: string,
+    eventId: string,
+  ): Promise<void> {
+    const payload: ExportCompletedPayload = {
+      eventType: "export.completed",
+      eventId,
+      recipientPublicKey,
+      title: "Export completed",
+      body: `Your ${format} ${exportType} export is ready.`,
+      occurredAt: new Date().toISOString(),
+      exportType,
+      format,
+      exportData,
+      metadata: { exportType, format, exportData },
+    };
+
+    const preferences = await this.prefsRepo.getWebhooksByPublicKey(recipientPublicKey);
+    await Promise.all(
+      preferences
+        .filter((pref) => pref.enabled && pref.webhookUrl && this.matchesPreference(payload, pref))
+        .map((pref) => this.sendToChannel(pref, payload)),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // RETRY (UNCHANGED)
   // ---------------------------------------------------------------------------
@@ -440,6 +469,7 @@ export class NotificationService implements OnModuleInit {
     const jobPayload: WebhookDeliveryPayload = {
       recipientPublicKey: publicKey,
       webhookUrl,
+      webhookSecret: pref.webhookSecret,
       eventType,
       eventId,
       previewScope: payload.previewScope,

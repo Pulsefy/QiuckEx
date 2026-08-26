@@ -33,6 +33,7 @@ const VALID_EVENTS: NotificationEventType[] = [
   "recurring.link.paused",
   "recurring.link.resumed",
   "recurring.link.completed",
+  "export.completed",
 ];
 
 export class UpsertNotificationPreferenceDto {

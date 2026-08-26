@@ -29,7 +29,10 @@ export type NotificationEventType =
   | "recurring.link.resumed"
   | "recurring.link.completed"
   | "auto_reconciliation.succeeded"
-  | "payment.link.expired";
+  | "payment.link.expired"
+  | "export.completed";
+
+export type ExportCompletedEvent = "export.completed";
 
 export type PaymentLinkExpiredEvent = "payment.link.expired";
 
@@ -37,6 +40,13 @@ export interface PaymentLinkExpiredPayload extends BaseNotificationPayload {
   eventType: PaymentLinkExpiredEvent;
   linkId: string;
   expiredAt: string | null;
+}
+
+export interface ExportCompletedPayload extends BaseNotificationPayload {
+  eventType: ExportCompletedEvent;
+  exportType: "transactions" | "links" | "payments";
+  format: "csv" | "json";
+  exportData: string;
 }
 
 export interface BaseNotificationPayload {
@@ -165,7 +175,8 @@ export type NotificationPayload =
   | RecurringPaymentFailedPayload
   | RecurringLinkStatusPayload
   | AutoReconciliationSucceededNotificationPayload
-  | PaymentLinkExpiredPayload;
+  | PaymentLinkExpiredPayload
+  | ExportCompletedPayload;
 
 // ---------------------------------------------------------------------------
 // User preferences

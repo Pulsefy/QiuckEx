@@ -7,10 +7,11 @@
  * Requirements: 9.3, 9.4, 9.5, 15.4, 15.5
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { JobHandler, Job, CancellationToken } from '../types';
 import { ExportGenerationPayload } from '../types/job-payloads.types';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { NotificationService } from '../../notifications/notification.service';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -36,6 +37,8 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
 
   constructor(
     private readonly supabase: SupabaseService,
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -249,9 +252,13 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
 
     switch (deliveryMethod) {
       case 'webhook':
-        // TODO: Implement webhook delivery
-        // For now, just log
-        this.logger.log(`Webhook delivery not yet implemented for user ${userId}`);
+        await this.notificationService.dispatchExport(
+          userId,
+          exportType,
+          format,
+          exportData,
+          `${userId}:export:${exportType}:${format}`,
+        );
         break;
 
       case 'email':

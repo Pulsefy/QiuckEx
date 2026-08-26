@@ -7,11 +7,13 @@
  * Requirements: 7.3, 7.4, 7.5, 15.4, 15.5
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { JobHandler, Job, CancellationToken } from '../types';
 import { WebhookDeliveryPayload } from '../types/job-payloads.types';
 import { NotificationLogRepository } from '../../notifications/notification-log.repository';
 import { NotificationEventType } from '../../notifications/types/notification.types';
+import type { BaseNotificationPayload, NotificationPreference } from '../../notifications/types/notification.types';
+import { INotificationProvider, NOTIFICATION_PROVIDERS, WebhookProvider } from '../../notifications/providers/notification-provider.interface';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -39,6 +41,8 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
 
   constructor(
     private readonly notificationLogRepo: NotificationLogRepository,
+    @Inject(NOTIFICATION_PROVIDERS)
+    @Optional() private readonly notificationProviders?: INotificationProvider[],
   ) {}
 
   /**
@@ -58,109 +62,64 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
     // Check cancellation token before HTTP request
     cancellationToken.throwIfCancelled();
 
-    const { webhookUrl, eventType, eventId, payload, recipientPublicKey, correlationId } = job.payload;
+    const { webhookUrl, eventType, eventId, payload, recipientPublicKey, correlationId, webhookSecret } = job.payload;
 
     this.logger.log(
       `Delivering webhook to ${webhookUrl} (eventType: ${eventType}, eventId: ${eventId}, jobId: ${job.id}, correlationId: ${correlationId ?? 'N/A'})`,
     );
 
     try {
-      // Create abort controller for request timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
-
-      // Send HTTP POST request
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-QuickEx-Event': eventType,
-          'X-QuickEx-Event-Id': eventId,
-          'User-Agent': 'QuickEx-Webhook/1.0',
-          ...(correlationId ? { 'X-QuickEx-Correlation-Id': correlationId } : {}),
-        },
-        body: JSON.stringify({
-          eventType,
-          eventId,
-          recipientPublicKey,
-          payload,
-          timestamp: new Date().toISOString(),
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // Read response body (truncate if too long)
-      let responseBody: string | undefined;
-      try {
-        const text = await response.text();
-        responseBody =
-          text.length > this.maxResponseBodyLength
-            ? text.slice(0, this.maxResponseBodyLength) + '...'
-            : text;
-      } catch {
-        // Ignore response body read errors
-        responseBody = undefined;
-      }
-
-      // Check response status
-      if (response.status >= 200 && response.status < 300) {
-        // Success - log to notification_logs
-        await this.notificationLogRepo.markSent(
-          recipientPublicKey,
-          'webhook',
-          eventType as NotificationEventType, // eventType from payload may not match NotificationEventType enum
-          eventId,
-          undefined, // no provider message ID for webhooks
-          response.status,
-          responseBody,
-        );
-
-        this.logger.log(
-          `Webhook delivered successfully to ${webhookUrl} (status: ${response.status}, jobId: ${job.id})`,
-        );
-        return;
-      }
-
-      // Non-2xx response - classify error
-      const errorMessage = `Webhook returned HTTP ${response.status} for ${webhookUrl}: ${responseBody ?? 'no response body'}`;
-
-      if (response.status >= 400 && response.status < 500) {
-        // 4xx errors are generally permanent, except:
-        // - 408 Request Timeout (transient)
-        // - 429 Too Many Requests (transient, should retry)
-        if (response.status === 408 || response.status === 429) {
-          this.logger.warn(
-            `Webhook returned transient 4xx error (status: ${response.status}, jobId: ${job.id}) - will retry`,
-          );
-          throw new Error(errorMessage);
-        }
-
-        // Other 4xx errors are permanent (bad request, unauthorized, not found, etc.)
-        this.logger.error(
-          `Webhook returned permanent 4xx error (status: ${response.status}, jobId: ${job.id}) - no retry`,
-        );
-        throw new PermanentJobError(errorMessage);
-      }
-
-      // 5xx errors are transient (server errors, should retry)
-      if (response.status >= 500) {
-        this.logger.warn(
-          `Webhook returned 5xx error (status: ${response.status}, jobId: ${job.id}) - will retry`,
-        );
-        throw new Error(errorMessage);
-      }
-
-      // Other status codes (3xx, etc.) - treat as transient
-      this.logger.warn(
-        `Webhook returned unexpected status (status: ${response.status}, jobId: ${job.id}) - will retry`,
+      const provider = (this.notificationProviders ?? [new WebhookProvider()]).find(
+        (candidate) => candidate.channel === 'webhook',
       );
-      throw new Error(errorMessage);
+      if (!provider) throw new Error('Webhook provider is not configured');
+
+      const preference: NotificationPreference = {
+        id: `job-${job.id}`,
+        publicKey: recipientPublicKey,
+        channel: 'webhook',
+        webhookUrl,
+        webhookSecret,
+        events: null,
+        minAmountStroops: 0n,
+        enabled: true,
+      };
+      const result = await provider.send(preference, {
+        eventType: eventType as NotificationEventType,
+        eventId,
+        recipientPublicKey,
+        title: String(payload.title ?? eventType),
+        body: String(payload.body ?? ''),
+        occurredAt: String(payload.occurredAt ?? new Date().toISOString()),
+        metadata: payload.metadata,
+        correlationId,
+      } as BaseNotificationPayload);
+
+      await this.notificationLogRepo.markSent(
+        recipientPublicKey,
+        'webhook',
+        eventType as NotificationEventType,
+        eventId,
+        result.messageId,
+        result.httpStatus,
+        result.responseBody,
+      );
+
+      this.logger.log(
+        `Webhook delivered successfully to ${webhookUrl} (status: ${result.httpStatus}, jobId: ${job.id})`,
+      );
+      return;
     } catch (error) {
       // Re-throw PermanentJobError as-is
       if (error instanceof PermanentJobError) {
         throw error;
+      }
+
+      const status = error instanceof Error
+        ? Number(error.message.match(/HTTP (\d{3})/)?.[1])
+        : NaN;
+      if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw new PermanentJobError(error instanceof Error ? error.message : String(error));
       }
 
       // Handle network errors (timeout, connection refused, DNS failure, etc.)

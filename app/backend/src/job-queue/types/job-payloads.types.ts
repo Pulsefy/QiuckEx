@@ -15,6 +15,9 @@ export interface WebhookDeliveryPayload {
   
   /** Target webhook URL to deliver to */
   webhookUrl: string;
+
+  /** Secret used by the webhook provider to sign the request */
+  webhookSecret?: string;
   
   /** Type of event being delivered */
   eventType: string;
