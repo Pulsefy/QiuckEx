@@ -102,6 +102,20 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  webpack(config: any) {
+    // When transpilePackages compiles @quickex/api-client source files,
+    // webpack resolves imports (e.g. 'openapi-fetch') relative to the package
+    // directory. In CI the api-client package has no node_modules of its own,
+    // so we pin the resolution to the frontend's node_modules explicitly.
+    config.resolve ??= {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "openapi-fetch": path.resolve(__dirname, "node_modules/openapi-fetch"),
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -30,6 +30,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
 
+      - name: Install api-client dependencies
+        working-directory: ./packages/api-client
+        run: npm install --no-package-lock
+
       - name: Install dependencies
         working-directory: ./app/frontend
         run: npm ci
@@ -61,6 +65,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install api-client dependencies
+        working-directory: ./packages/api-client
+        run: npm install --no-package-lock
 
       - name: Install dependencies
         working-directory: ./app/frontend
