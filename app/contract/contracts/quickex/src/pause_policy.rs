@@ -73,6 +73,7 @@ impl EntryPoint {
     ///   mutate privacy settings (`SetPrivacy`), or interact with the dispute resolution 
     ///   process (`Dispute`, `ResolveDispute`, `VoteForDispute`, `ResolveDisputeMultiSig`) 
     ///   are blocked to contain potential exploits and freeze contract state.
+    #[allow(clippy::match_like_matches_macro)]
     pub fn is_emergency_safe(self) -> bool {
         match self {
             // Fund-recovery and maintenance operations are allowed.
