@@ -1,10 +1,18 @@
 export const RATE_LIMITS = {
-  PUBLIC: {
+  'public-read': {
     ttl: 60,
     limit: 20,
   },
-  API_KEY: {
+  'search': {
+     ttl: 60,
+    limit: 30,
+  },
+  'mutation': {
     ttl: 60,
-    limit: 120,
+    limit: 10,
+  },
+  'export': {
+    ttl: 3600,
+    limit: 5,
   },
 };
