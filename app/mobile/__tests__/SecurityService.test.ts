@@ -12,6 +12,8 @@ import {
   setFallbackPin,
   verifyFallbackPin,
 } from "../services/security";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { DEFAULT_SESSION_TIMEOUT_MINUTES, MAX_SESSION_TIMEOUT_MINUTES, MIN_SESSION_TIMEOUT_MINUTES } from "../types/security";
 
 describe("security service", () => {
@@ -79,11 +81,29 @@ describe("security service", () => {
       expect(await verifyFallbackPin("1234")).toBe(true);
       expect(await verifyFallbackPin("0000")).toBe(false);
     });
+
+    it("stores only a salted hash in SecureStore", async () => {
+      await setFallbackPin("1234");
+
+      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+        "quickex.security.pinHash",
+        expect.anything(),
+      );
+      const stored = await SecureStore.getItemAsync("quickex.security.pinHash");
+      const parsed = JSON.parse(stored!);
+
+      expect(parsed.salt).toHaveLength(32);
+      expect(parsed.hash).not.toContain("1234");
+    });
   });
 
   describe("sensitive token", () => {
     it("stores sensitive token and can clear it", async () => {
       await saveSensitiveToken("qex_session_abc123xyz");
+      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+        "quickex.security.sensitiveToken",
+        expect.anything(),
+      );
       expect(await getSensitiveToken()).toBe("qex_session_abc123xyz");
 
       await clearSensitiveToken();

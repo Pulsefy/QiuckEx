@@ -17,6 +17,7 @@ import {
 } from "../services/wallet-session";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { WalletSession } from "../services/wallet-session";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // AsyncStorage is already mocked in __mocks__/@react-native-async-storage/async-storage.js
 
@@ -42,6 +43,15 @@ describe("wallet-session service", () => {
     expect(session!.network).toBe("testnet");
     expect(session!.walletType).toBe("demo");
     expect(session!.connectedAt).toBe(VALID_SESSION.connectedAt);
+  });
+
+  it("stores wallet session state outside AsyncStorage", async () => {
+    await saveWalletSession(VALID_SESSION);
+
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      "quickex.wallet.session.v3",
+      expect.anything(),
+    );
   });
 
   it("returns null when no session exists", async () => {
