@@ -1,6 +1,17 @@
 use crate::{errors::QuickexError, storage, types::HookEventKind};
 use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec};
 
+/**
+ * Hook contract interface expectations:
+ *
+ *   - Implementors must expose an `on_escrow_event` entry point.
+ *   - The function receives the escrow event details and should return
+ *     `Result<(), QuickexError>`.
+ *   - Errors are swallowed by the core contract to ensure failure isolation.
+ *   - Hooks are invoked in FIFO order of registration.
+ *   - Resource limits (gas, call depth) follow the standard Soroban limits.
+ */
+
 pub fn register_hook(env: &Env, hook_contract: Address) -> Result<(), QuickexError> {
     if !storage::is_hook_allowed(env, &hook_contract) {
         return Err(QuickexError::HookNotAllowed);
