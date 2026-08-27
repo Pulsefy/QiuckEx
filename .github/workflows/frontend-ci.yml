@@ -38,6 +38,13 @@ jobs:
         working-directory: ./app/frontend
         run: npm ci
 
+      - name: Reject frontend mock data modules
+        run: |
+          if find app/frontend/src -type f \( -name 'mockData.ts' -o -name 'mockApi.ts' \) -print -quit | grep -q .; then
+            echo "Frontend mock data modules are not allowed under app/frontend/src."
+            exit 1
+          fi
+
       - name: Run ESLint
         working-directory: ./app/frontend
         run: npx eslint . --max-warnings 0
