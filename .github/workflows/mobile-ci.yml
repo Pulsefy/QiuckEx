@@ -1,0 +1,47 @@
+name: Mobile CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+
+jobs:
+  i18n-parity:
+    name: i18n Key Parity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/mobile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      # Fails the build when any mobile locale is missing a key present in the
+      # base locale (en). Missing keys are reported per locale by name.
+      - name: Check mobile i18n key parity
+        run: node scripts/check-i18n-parity.mjs
+
+      # Same invariant, enforced as a unit test for fast local feedback.
+      - name: Run i18n parity unit test
+        run: npx jest __tests__/i18n-key-parity.test.ts
