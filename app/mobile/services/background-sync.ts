@@ -34,8 +34,11 @@ export interface SyncExecutionResult {
     | "no-wallet"
     | "offline"
     | "wifi-required"
+    | "low-battery"
+    | "metered-connection"
     | "unavailable"
-    | "fetch-failed";
+    | "fetch-failed"
+    | "sync-timeout";
   error?: string;
   snapshot: SyncSnapshot;
 }
@@ -45,6 +48,7 @@ const SYNC_SNAPSHOT_KEY = "quickex.background-sync.snapshot.v1";
 const SYNC_TASK_NAME = "quickex.background-sync.task";
 const MAX_NOTIFICATIONS = 50;
 const MAX_ACTIVITY_ITEMS = 25;
+const SYNC_FETCH_TIMEOUT_MS = 30_000;
 
 export const SYNC_INTERVALS_MINUTES: Record<SyncFrequency, number> = {
   "battery-saver": 60,
@@ -89,6 +93,56 @@ function getTaskManagerModule() {
 
 function getNotificationsModule() {
   return safeRequire("expo-notifications");
+}
+
+function getBatteryModule() {
+  return safeRequire("expo-battery");
+}
+
+export async function isLowBattery(): Promise<boolean> {
+  const Battery = getBatteryModule();
+  if (!Battery?.getBatteryLevelAsync) {
+    return false;
+  }
+
+  try {
+    const level = await Battery.getBatteryLevelAsync();
+    return level < 0.2;
+  } catch {
+    return false;
+  }
+}
+
+export function isMeteredConnection(
+  network: {
+    isConnectionExpensive?: boolean;
+    details?: { isConnectionExpensive?: boolean } | null;
+  },
+): boolean {
+  return network.isConnectionExpensive === true || network.details?.isConnectionExpensive === true;
+}
+
+export async function getEffectiveSyncFrequency(
+  settings: BackgroundSyncSettings,
+): Promise<SyncFrequency> {
+  if (settings.frequency === "battery-saver") {
+    return "battery-saver";
+  }
+
+  const [lowBattery, network] = await Promise.all([
+    isLowBattery(),
+    NetInfo.fetch(),
+  ]);
+
+  if (lowBattery) {
+    return "battery-saver";
+  }
+
+  if (isMeteredConnection(network)) {
+    return "battery-saver";
+  }
+
+  return settings.frequency;
 }
 
 function notificationIdForTransaction(item: TransactionItem) {
@@ -282,8 +336,22 @@ export async function syncAppBadgeCount(
   }
 }
 
-export function getForegroundSyncIntervalMs(settings: BackgroundSyncSettings) {
-  return SYNC_INTERVALS_MINUTES[settings.frequency] * 60 * 1000;
+export function getSyncIntervalMsForFrequency(frequency: SyncFrequency): number {
+  return SYNC_INTERVALS_MINUTES[frequency] * 60 * 1000;
+}
+
+export function getForegroundSyncIntervalMs(
+  settings: BackgroundSyncSettings,
+  effectiveFrequency?: SyncFrequency,
+): number {
+  return getSyncIntervalMsForFrequency(effectiveFrequency ?? settings.frequency);
+}
+
+export async function getEffectiveSyncIntervalMs(
+  settings: BackgroundSyncSettings,
+): Promise<number> {
+  const frequency = await getEffectiveSyncFrequency(settings);
+  return getSyncIntervalMsForFrequency(frequency);
 }
 
 export function shouldSyncOnAppForeground(snapshot: SyncSnapshot) {
@@ -317,10 +385,27 @@ export async function performBackgroundSync(
     return { status: "skipped", reason, detail: "wifi-required", snapshot };
   }
 
+  if (await isLowBattery()) {
+    return { status: "skipped", reason, detail: "low-battery", snapshot };
+  }
+
+  if (isMeteredConnection(network)) {
+    return { status: "skipped", reason, detail: "metered-connection", snapshot };
+  }
+
   try {
-    const response = await fetchTransactions(walletSession.publicKey, {
+    const fetchPromise = fetchTransactions(walletSession.publicKey, {
       limit: MAX_ACTIVITY_ITEMS,
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Sync suspended: fetch timed out")),
+        SYNC_FETCH_TIMEOUT_MS,
+      ),
+    );
+
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     const nextSnapshot = mergeSyncSnapshot(
       snapshot,
@@ -347,7 +432,7 @@ export async function performBackgroundSync(
     return {
       status: "failed",
       reason,
-      detail: "fetch-failed",
+      detail: message.includes("timed out") ? "sync-timeout" : "fetch-failed",
       error: message,
       snapshot,
     };
@@ -406,8 +491,9 @@ export async function configureBackgroundSyncTask(
     return { available: true, registered: false };
   }
 
+  const intervalSeconds = (await getEffectiveSyncIntervalMs(settings)) / 1000;
   await BackgroundTask.registerTaskAsync(SYNC_TASK_NAME, {
-    minimumInterval: getForegroundSyncIntervalMs(settings) / 1000,
+    minimumInterval: intervalSeconds,
   }).catch(() => {});
 
   const nextRegistered = await TaskManager.isTaskRegisteredAsync(
@@ -415,4 +501,8 @@ export async function configureBackgroundSyncTask(
   ).catch(() => false);
 
   return { available: true, registered: nextRegistered };
+}
+
+export async function triggerManualSync(): Promise<SyncExecutionResult> {
+  return performBackgroundSync("manual");
 }
