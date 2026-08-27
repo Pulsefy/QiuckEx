@@ -8,12 +8,22 @@ alter table if exists public.contract_registry_entries
 
 -- Add check constraint to prevent invalid state:
 -- if previous_contract_id exists, both effective_ledger and effective_time must be set
-alter table if exists public.contract_registry_entries
-  add constraint if not exists dual_read_window_constraint
-  check (
-    (previous_contract_id is null) or
-    (previous_contract_id is not null and effective_ledger is not null)
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'dual_read_window_constraint'
+      AND conrelid = 'public.contract_registry_entries'::regclass
+  ) THEN
+    ALTER TABLE public.contract_registry_entries
+      ADD CONSTRAINT dual_read_window_constraint
+      CHECK (
+        (previous_contract_id is null) or
+        (previous_contract_id is not null and effective_ledger is not null)
+      );
+  END IF;
+END
+$$;
 
 -- Add index for efficient dual-read queries
 create index if not exists contract_registry_effective_ledger_idx

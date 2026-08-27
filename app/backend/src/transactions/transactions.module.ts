@@ -10,6 +10,7 @@ import { MetricsModule } from "../metrics/metrics.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { ContractsModule } from "../contracts/contracts.module";
 import { AuditModule } from "../audit/audit.module";
+import { IdempotencyModule } from "../common/idempotency/idempotency.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AuditModule } from "../audit/audit.module";
     FeatureFlagsModule,
     ContractsModule,
     AuditModule,
+    IdempotencyModule,
   ],
   controllers: [TransactionsController],
   providers: [

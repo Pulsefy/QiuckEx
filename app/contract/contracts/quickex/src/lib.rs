@@ -4,7 +4,12 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, V
 
 mod admin;
 #[cfg(test)]
+mod admin_transfer_test;
+#[cfg(test)]
 mod assert_helpers;
+pub mod batch;
+#[cfg(test)]
+mod batch_test;
 #[cfg(test)]
 mod bench_test;
 mod commitment;
@@ -15,6 +20,9 @@ mod coverage_test;
 #[cfg(test)]
 mod dispute_quorum_test;
 mod errors;mod escrow;
+mod error_codes_test;
+mod errors;
+mod escrow;
 mod escrow_id;
 #[cfg(test)]
 mod escrow_id_test;
@@ -42,6 +50,8 @@ mod pause_policy_test;
 mod privacy;
 #[cfg(test)]
 mod role_test;
+#[cfg(test)]
+mod smoke_test;
 mod stealth;
 #[cfg(test)]
 mod stealth_test;
@@ -52,6 +62,9 @@ mod storage_test;
 mod test;
 #[cfg(test)]
 mod test_context;
+mod ttl_policy;
+#[cfg(test)]
+mod ttl_policy_test;
 mod types;
 #[cfg(test)]
 mod upgrade_test;
@@ -62,6 +75,8 @@ use storage::*;
 use types::{
     DeploymentMetadata, DisputeQuorumConfig, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
     PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
+    PendingAdminProposal, PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -622,11 +637,61 @@ impl QuickexContract {
 
     /// Extend the storage TTL of an escrow record.
     ///
-    /// Any user can call this to keep an escrow from being archived.
+    /// Bumps the entry's TTL to the currently configured policy value
+    /// (see `set_ttl_config`).  Any user can call this to prevent an escrow
+    /// from being archived by the network.
+    ///
+    /// # Errors
+    /// - `EscrowArchived` – the entry is not in live storage; it may have been
+    ///   archived.  Submit a `RestoreFootprint` transaction off-chain for the
+    ///   commitment key, then call `restore_archived_escrow`.
     pub fn extend_escrow_ttl(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         admin::require_initialized(&env)?;
         pause_policy::require_entry_allowed(&env, EntryPoint::ExtendEscrowTtl)?;
-        escrow::extend_escrow_ttl(&env, commitment)
+        ttl_policy::extend_ttl_or_archived(&env, commitment)
+    }
+
+    /// Re-anchor an escrow entry that was archived and has been restored off-chain.
+    ///
+    /// ## Recovery flow
+    ///
+    /// 1. An operation (or `extend_escrow_ttl`) returned `EscrowArchived`.
+    /// 2. Off-chain: construct and submit a `RestoreFootprint` transaction for
+    ///    `DataKey::EscrowCore(commitment_bytes)`.
+    /// 3. Once confirmed, call this function.  It verifies the entry is live
+    ///    and re-bumps its TTL to the full configured policy value (threshold=0
+    ///    so the bump is unconditional).
+    /// 4. All subsequent operations (withdraw, refund, dispute, etc.) will work
+    ///    normally until the TTL would expire again.
+    ///
+    /// # Errors
+    /// - `EscrowArchived` – the entry is still not in live storage; the restore
+    ///   transaction may not have been confirmed yet.
+    pub fn restore_archived_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        admin::require_initialized(&env)?;
+        ttl_policy::restore_archived_escrow(&env, commitment)
+    }
+
+    /// Get the current TTL policy configuration (read-only).
+    pub fn get_ttl_config(env: Env) -> ttl_policy::TtlConfig {
+        ttl_policy::get_ttl_config(&env)
+    }
+
+    /// Set the TTL policy for escrow entries (**Admin only**).
+    ///
+    /// The new `config` must satisfy `MIN_TTL_LEDGERS ≤ threshold ≤ ttl ≤ MAX_TTL_LEDGERS`.
+    ///
+    /// # Errors
+    /// - `TtlOutOfBounds` – `ttl` or `threshold` violates hard bounds.
+    /// - `InsufficientRole` – caller is not admin.
+    pub fn set_ttl_config(
+        env: Env,
+        caller: Address,
+        config: ttl_policy::TtlConfig,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_admin(&env, &caller)?;
+        ttl_policy::set_ttl_config(&env, config)
     }
 
     /// Initiate a dispute for a pending escrow, locking the funds.
@@ -981,20 +1046,65 @@ impl QuickexContract {
         )
     }
 
-    /// Transfer admin rights to a new address (**Admin only**).
+    /// Propose a new admin, subject to a timelock (**Admin only**, Issue #870).
     ///
-    /// Caller must equal the current admin. The new admin can later transfer again.
+    /// This is the only way to change the admin address — there is no
+    /// instant, single-call transfer. A compromised admin key can propose a
+    /// takeover, but cannot complete one before `delay_secs` elapses, and
+    /// the legitimate admin can `cancel_admin_transfer` during that window.
+    ///
+    /// Overwrites any existing pending proposal. `delay_secs` must be at least
+    /// the contract-wide minimum delay; shorter values are rejected.
     ///
     /// # Arguments
     /// * `env` - The contract environment
-    /// * `caller` - Caller address (must equal current admin)
-    /// * `new_admin` - New admin address
+    /// * `caller` - Caller address (must be admin)
+    /// * `new_admin` - Address proposed to become the new admin
+    /// * `delay_secs` - Timelock duration in seconds before `accept_admin_transfer` is callable
     ///
     /// # Errors
-    /// * `Unauthorized` - Caller is not the admin, or admin not set
-    pub fn set_admin(env: Env, caller: Address, new_admin: Address) -> Result<(), QuickexError> {
+    /// * `InsufficientRole` - Caller is not admin
+    /// * `InvalidTimeout` - `delay_secs` is below the minimum allowed delay
+    pub fn propose_admin_transfer(
+        env: Env,
+        caller: Address,
+        new_admin: Address,
+        delay_secs: u64,
+    ) -> Result<(), QuickexError> {
         pause_policy::require_admin_entry_allowed(&env)?;
-        admin::set_admin(&env, caller, new_admin)
+        admin::propose_admin_transfer(&env, caller, new_admin, delay_secs)
+    }
+
+    /// Accept a pending, timelocked admin-transfer proposal (Issue #870).
+    ///
+    /// Must be called by the exact address named in the proposal, and only
+    /// after the proposal's timelock has elapsed. Performs the same
+    /// admin/role handover in a single atomic step and clears the proposal.
+    ///
+    /// # Errors
+    /// * `NoPendingAdminProposal` - No proposal is currently pending
+    /// * `InvalidAcceptor` - Caller does not match the proposed admin
+    /// * `AdminTimelockNotElapsed` - The configured delay has not yet passed
+    pub fn accept_admin_transfer(env: Env, caller: Address) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::accept_admin_transfer(&env, caller)
+    }
+
+    /// Cancel a pending admin-transfer proposal (**Admin only**, Issue #870).
+    ///
+    /// May be called by any current admin, not just the original proposer.
+    ///
+    /// # Errors
+    /// * `InsufficientRole` - Caller is not admin
+    /// * `NoPendingAdminProposal` - No proposal is currently pending
+    pub fn cancel_admin_transfer(env: Env, caller: Address) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::cancel_admin_transfer(&env, caller)
+    }
+
+    /// Get the currently pending admin-transfer proposal, if any (Issue #870).
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminProposal> {
+        admin::get_pending_admin_transfer(&env)
     }
 
     /// Check if the contract is currently paused.

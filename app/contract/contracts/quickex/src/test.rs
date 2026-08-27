@@ -6,7 +6,7 @@ use crate::{
     },
     storage::{
         put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
-        PRIVACY_ENABLED_KEY,
+        MIN_ADMIN_TRANSFER_DELAY, PRIVACY_ENABLED_KEY,
     },
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
@@ -358,7 +358,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 27);
+    assert_eq!(EVENT_SCHEMAS.len(), 32);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -1399,8 +1399,11 @@ fn test_set_admin() {
     // Initialize admin
     client.initialize(&admin);
 
-    // Transfer admin rights
-    client.set_admin(&admin, &new_admin);
+    // Propose, wait out the timelock, then accept — there is no instant path.
+    client.propose_admin_transfer(&admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + MIN_ADMIN_TRANSFER_DELAY);
+    client.accept_admin_transfer(&new_admin);
 
     // Verify new admin is set
     assert_eq!(client.get_admin(), Some(new_admin.clone()));
@@ -1417,8 +1420,13 @@ fn test_event_snapshot_admin_changed_schema() {
     let new_admin = Address::generate(&env);
 
     client.initialize(&old_admin);
-    client.set_admin(&old_admin, &new_admin);
+    client.propose_admin_transfer(&old_admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + MIN_ADMIN_TRANSFER_DELAY);
+    client.accept_admin_transfer(&new_admin);
 
+    // accept_admin_transfer emits AdminTransferAccepted followed by the
+    // general-purpose AdminChanged event; the latter is what this test locks.
     let (topics, data) = latest_contract_event(&env, &client.address);
 
     let t0: Symbol = topics.get(0).unwrap().try_into_val(&env).unwrap();
@@ -1451,8 +1459,9 @@ fn test_set_admin_by_non_admin_fails() {
     // Initialize admin
     client.initialize(&admin);
 
-    // Non-admin tries to transfer admin rights - should fail
-    let result = client.try_set_admin(&non_admin, &new_admin);
+    // Non-admin tries to propose an admin transfer - should fail
+    let result =
+        client.try_propose_admin_transfer(&non_admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
     assert_contract_error(result, QuickexError::InsufficientRole);
 }
 
@@ -1465,8 +1474,11 @@ fn test_old_admin_cannot_pause_after_transfer() {
     // Initialize admin
     client.initialize(&admin);
 
-    // Transfer admin rights
-    client.set_admin(&admin, &new_admin);
+    // Transfer admin rights via the timelocked flow
+    client.propose_admin_transfer(&admin, &new_admin, &MIN_ADMIN_TRANSFER_DELAY);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + MIN_ADMIN_TRANSFER_DELAY);
+    client.accept_admin_transfer(&new_admin);
 
     // Old admin tries to pause - should fail
     let result = client.try_set_paused(&admin, &true, &1u32);
@@ -3376,7 +3388,6 @@ mod tests {
 
     // #[cfg(feature = "testutils")]
     mod fuzz {
-        use soroban_sdk::testutils::Address as _;
         use soroban_sdk::Env;
 
         use super::*;

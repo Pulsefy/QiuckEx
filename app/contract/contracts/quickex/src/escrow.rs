@@ -72,6 +72,8 @@ use crate::{
         get_dispute_quorum_config, get_dispute_vote, get_escrow, get_escrow_id_mapping,
         has_dispute_vote, has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping,
         remove_escrow,
+        count_dispute_votes, get_dispute_vote, get_escrow, get_escrow_id_mapping, has_dispute_vote,
+        has_escrow, put_dispute_vote, put_escrow, put_escrow_id_mapping, remove_escrow,
     },
     types::{DisputeVote, EscrowEntry, EscrowStatus, HookEventKind, Role},
 };
@@ -813,17 +815,6 @@ pub fn is_refund_eligible(env: &Env, commitment: BytesN<32>) -> Result<bool, Qui
 // ---------------------------------------------------------------------------
 // TTL & Cleanup
 // ---------------------------------------------------------------------------
-
-/// Extend the storage TTL of an escrow record.
-///
-/// Any user can call this to keep an escrow from being archived.
-pub fn extend_escrow_ttl(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
-    let commitment_bytes: Bytes = commitment.into();
-    if !extend_escrow_storage_ttl(env, &commitment_bytes) {
-        return Err(QuickexError::CommitmentNotFound);
-    }
-    Ok(())
-}
 
 /// Cleanup terminal escrow entries to reclaim storage deposits.
 ///

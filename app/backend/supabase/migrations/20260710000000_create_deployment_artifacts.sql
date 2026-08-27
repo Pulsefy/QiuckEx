@@ -41,5 +41,4 @@ CREATE INDEX IF NOT EXISTS idx_deployment_artifacts_type
   ON deployment_artifacts (artifact_type, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_deployment_artifacts_retention
-  ON deployment_artifacts (retention_until)
-  WHERE retention_until < now();
+  ON deployment_artifacts (retention_until);

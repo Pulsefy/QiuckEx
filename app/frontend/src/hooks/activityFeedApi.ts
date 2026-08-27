@@ -1,9 +1,10 @@
 import { getQuickexApiBase } from "@/lib/api";
+import { createQuickexClient } from "@quickex/api-client";
 import { resolvePublicKey } from "@/lib/publicKey";
 
 /**
  * Activity feed item as displayed in the dashboard.
- * Mirrors fields from the backend TransactionItemDto.
+ * Mirrors fields from the backend TransactionItem schema.
  */
 export interface ActivityFeedItem {
   id: string;
@@ -18,19 +19,13 @@ export interface ActivityFeedItem {
 }
 
 interface BackendTransactionItem {
-  amount: string;
-  asset: string;
-  memo?: string;
-  timestamp: string;
-  source: string;
-  destination: string;
-  status: "Success" | "Pending";
-  txHash: string;
-  pagingToken: string;
-}
-
-interface BackendResponse {
-  items: BackendTransactionItem[];
+  amount?: string;
+  assetCode?: string | null;
+  memo?: string | null;
+  timestamp?: string;
+  sourceAccount?: string;
+  destinationAccount?: string | null;
+  hash?: string;
 }
 
 function simplifyAsset(asset: string): string {
@@ -65,15 +60,15 @@ function formatTimestamp(iso: string): string {
 
 function mapToActivityItem(item: BackendTransactionItem): ActivityFeedItem {
   return {
-    id: item.txHash,
-    amount: item.amount,
-    asset: simplifyAsset(item.asset),
+    id: item.hash ?? "",
+    amount: item.amount ?? "",
+    asset: simplifyAsset(item.assetCode ?? ""),
     memo: item.memo ?? null,
-    date: formatTimestamp(item.timestamp),
-    status: item.status === "Success" ? "Settled" : "Pending",
-    source: item.source,
-    destination: item.destination,
-    timestamp: item.timestamp,
+    date: formatTimestamp(item.timestamp ?? ""),
+    status: "Settled",
+    source: item.sourceAccount ?? "",
+    destination: item.destinationAccount ?? "",
+    timestamp: item.timestamp ?? "",
   };
 }
 
@@ -91,29 +86,28 @@ export async function fetchActivityFeed(
   limit = 20,
 ): Promise<ActivityFeedResponse> {
   const publicKey = resolvePublicKey();
-  const url = new URL(`${getQuickexApiBase()}/payments/recent`);
-  url.searchParams.set("address", publicKey);
-  url.searchParams.set("limit", String(limit));
+  const client = createQuickexClient({ baseUrl: getQuickexApiBase() });
 
   try {
-    const res = await fetch(url.toString(), { method: "GET" });
+    const { data, response } = await client.GET("/payments/recent", {
+      params: { query: { address: publicKey, limit } },
+    });
 
-    if (!res.ok) {
-      if (res.status >= 400 && res.status < 500) {
+    if (!response.ok) {
+      if (response.status >= 400 && response.status < 500) {
         // Client error (e.g. bad public key) — return empty, not degraded
         console.warn(
-          `Activity feed: client error ${res.status}, returning empty list`,
+          `Activity feed: client error ${response.status}, returning empty list`,
         );
         return { items: [], degraded: false };
       }
       throw new Error(
-        `Activity feed request failed with status ${res.status}`,
+        `Activity feed request failed with status ${response.status}`,
       );
     }
 
-    const data = (await res.json()) as BackendResponse;
     return {
-      items: (data.items ?? []).map(mapToActivityItem),
+      items: (data?.items ?? []).map(mapToActivityItem),
       degraded: false,
     };
   } catch (error) {

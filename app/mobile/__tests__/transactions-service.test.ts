@@ -12,12 +12,24 @@
 
 import { fetchTransactions } from "../services/transactions";
 
+// Mock the shared build config so API_URL resolves to localhost:4000
+jest.mock("../src/config/build", () => ({
+  API_URL: "http://localhost:4000",
+  APP_VERSION: "1.0.0",
+  BUILD_NUMBER: "1",
+  BUILD_METADATA: "1.0.0+1",
+  BUILD_TAG: "",
+  APP_ENVIRONMENT: "dev",
+  STELLAR_NETWORK: "testnet",
+  IS_DEBUG_BUILD: true,
+}));
+
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 const ACCOUNT_ID = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = "http://localhost:4000";
 
 const mockTransactionResponse = {
   items: [

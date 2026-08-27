@@ -11,6 +11,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JobHandler, Job, CancellationToken } from '../types';
 import { ExportGenerationPayload } from '../types/job-payloads.types';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { NotificationService } from '../../notifications/notification.service';
+import { ExportCompletedPayload } from '../../notifications/types/notification.types';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -36,6 +38,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
 
   constructor(
     private readonly supabase: SupabaseService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -75,7 +78,16 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
       );
 
       // Deliver export via specified method
-      await this.deliverExport(userId, exportType, exportData, format, deliveryMethod, cancellationToken);
+      await this.deliverExport(
+        userId,
+        exportType,
+        exportData,
+        format,
+        deliveryMethod,
+        records.length,
+        job.id,
+        cancellationToken,
+      );
 
       this.logger.log(
         `Export delivered successfully via ${deliveryMethod} (jobId: ${job.id})`,
@@ -229,13 +241,18 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * Deliver export via specified method
    * 
    * Supports webhook, email, and download link delivery methods.
+   * Email delivery is routed through the notifications module and its
+   * versioned template system (BE-101).
    * 
    * @param userId - User ID requesting the export
    * @param exportType - Type of export
    * @param exportData - Export data as string
    * @param format - Export format
    * @param deliveryMethod - How to deliver the export
+   * @param recordCount - Number of records included in the export
+   * @param jobId - ID of the export generation job
    * @param cancellationToken - Token to check for cancellation
+   * @throws Error when email delivery fails (surfaced on the export job record)
    */
   private async deliverExport(
     userId: string,
@@ -243,6 +260,8 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     exportData: string,
     format: string,
     deliveryMethod: 'webhook' | 'email' | 'download',
+    recordCount: number,
+    jobId: string,
     cancellationToken: CancellationToken,
   ): Promise<void> {
     cancellationToken.throwIfCancelled();
@@ -254,11 +273,40 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         this.logger.log(`Webhook delivery not yet implemented for user ${userId}`);
         break;
 
-      case 'email':
-        // TODO: Implement email delivery
-        // For now, just log
-        this.logger.log(`Email delivery not yet implemented for user ${userId}`);
+      case 'email': {
+        const payload: ExportCompletedPayload = {
+          eventType: 'export.completed',
+          eventId: `export:${jobId}`,
+          recipientPublicKey: userId,
+          title: `Your ${exportType} export is ready`,
+          body: `Your ${format.toUpperCase()} export of ${recordCount} ${recordCount === 1 ? 'record' : 'records'} has been generated and is attached to this delivery.`,
+          occurredAt: new Date().toISOString(),
+          exportType,
+          format,
+          recordCount,
+          jobId,
+          metadata: {
+            jobId,
+            exportType,
+            format,
+            recordCount,
+            sizeBytes: Buffer.byteLength(exportData, 'utf8'),
+          },
+        };
+
+        const result = await this.notificationService.deliverExportEmail(payload);
+
+        if (!result.delivered) {
+          const errorMessage = `Email delivery failed for export (jobId: ${jobId}): ${result.error ?? 'unknown error'}`;
+          this.logger.error(errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        this.logger.log(
+          `Export email delivered via template version ${result.templateVersionId ?? 'fallback'} (jobId: ${jobId})`,
+        );
         break;
+      }
 
       case 'download':
         // TODO: Implement download link generation (store in S3/Supabase Storage)
@@ -325,13 +373,27 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * **Validates: Requirements 9.5**
    */
   async onFailure(job: Job<ExportGenerationPayload>, error: Error): Promise<void> {
-    const { userId, exportType } = job.payload;
+    const { userId, exportType, format } = job.payload;
 
     this.logger.error(
       `Export generation permanently failed for user ${userId} (type: ${exportType}, jobId: ${job.id}): ${error.message}`,
       error.stack,
     );
 
-    // TODO: Notify user of export failure via notification system
+    // Derive a user-safe reason: use only the error message (never the stack
+    // trace) and fall back to a generic phrase so internal details are never
+    // surfaced to the end user.
+    const safeReason =
+      error instanceof Error && error.message
+        ? error.message.replace(/\s*\n[\s\S]*$/, '') // strip any embedded newlines / stack frames
+        : 'An unexpected error occurred';
+
+    await this.notificationService.notifyExportFailed(
+      userId,
+      job.id,
+      exportType,
+      format,
+      safeReason,
+    );
   }
 }

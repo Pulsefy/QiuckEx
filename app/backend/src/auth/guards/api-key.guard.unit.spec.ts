@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ApiKeyGuard } from "./api-key.guard";
 import { ApiKeysService } from "../../api-keys/api-keys.service";
@@ -92,5 +92,86 @@ describe("ApiKeyGuard", () => {
     });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("should deny access with INSUFFICIENT_SCOPE when API key is missing required scope", async () => {
+    mockReflector.getAllAndOverride.mockReturnValue(["links:write"]);
+    mockApiKeysService.validateKey.mockResolvedValue({
+      record: {
+        id: "api-key-id",
+        name: "test key",
+        scopes: ["links:read"],
+        request_count: 0,
+        monthly_quota: 1000,
+      },
+      hasScope: (s: string) => ["links:read"].includes(s),
+    });
+
+    const { ctx } = makeContext({
+      "x-api-key": "valid-key",
+    });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+
+    try {
+      await guard.canActivate(ctx);
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const res = (err as ForbiddenException).getResponse();
+      expect(res).toEqual(
+        expect.objectContaining({
+          error: "INSUFFICIENT_SCOPE",
+          message: expect.stringContaining("links:write"),
+        }),
+      );
+    }
+  });
+
+  it("should allow access when API key has the required scope", async () => {
+    mockReflector.getAllAndOverride.mockReturnValue(["links:write"]);
+    mockApiKeysService.validateKey.mockResolvedValue({
+      record: {
+        id: "api-key-id",
+        name: "test key",
+        scopes: ["links:write", "links:read"],
+        request_count: 0,
+        monthly_quota: 1000,
+      },
+      hasScope: (s: string) => ["links:write", "links:read"].includes(s),
+    });
+
+    const { ctx, req } = makeContext({
+      "x-api-key": "valid-key",
+    });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(req.apiKey).toBeDefined();
+  });
+
+  it("should skip scope check when route has no @RequireScopes metadata", async () => {
+    mockReflector.getAllAndOverride.mockReturnValue([]);
+    const hasScopeMock = jest.fn().mockReturnValue(false);
+
+    mockApiKeysService.validateKey.mockResolvedValue({
+      record: {
+        id: "api-key-id",
+        name: "test key",
+        scopes: [],
+        request_count: 0,
+        monthly_quota: 1000,
+      },
+      hasScope: hasScopeMock,
+    });
+
+    const { ctx } = makeContext({
+      "x-api-key": "valid-key",
+    });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(hasScopeMock).not.toHaveBeenCalled();
   });
 });

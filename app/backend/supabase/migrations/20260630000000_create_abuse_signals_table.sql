@@ -91,8 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_as_target_username
 
 -- Retention sweeper.
 CREATE INDEX IF NOT EXISTS idx_as_retention
-  ON abuse_signals (retention_until)
-  WHERE retention_until < now();
+  ON abuse_signals (retention_until);
 
 -- Grouped counts for aggregation queries.
 CREATE INDEX IF NOT EXISTS idx_as_outcome_action

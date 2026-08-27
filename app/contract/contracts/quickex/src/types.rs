@@ -316,3 +316,20 @@ pub enum PauseReason {
     RegulatoryCompliance = 4,
     OperatorIntervention = 5,
 }
+
+/// A pending, timelocked admin transfer.
+///
+/// Stored under [`DataKey::PendingAdminProposal`](crate::storage::DataKey::PendingAdminProposal)
+/// (singleton) while a proposal is outstanding. Cleared on accept or cancel.
+#[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PendingAdminProposal {
+    /// Address proposed to become the new admin.
+    pub proposed_admin: Address,
+    /// Admin address that created the proposal (informational only — any
+    /// current admin, not just this address, may cancel the proposal via
+    /// `cancel_admin_transfer`).
+    pub proposed_by: Address,
+    /// Ledger timestamp at which `accept_admin_transfer` becomes callable.
+    pub eligible_at: u64,
+}

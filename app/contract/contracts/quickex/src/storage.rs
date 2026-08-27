@@ -51,6 +51,7 @@ use soroban_sdk::xdr::ToXdr;
 
 use crate::types::{
     CachedOraclePrice, DisputeQuorumConfig, DisputeVote, EscrowEntry, FeeConfig, Role,
+    CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, PendingAdminProposal, Role,
     StealthEscrowEntry,
 };
 
@@ -114,6 +115,11 @@ pub const CURRENT_CONTRACT_VERSION: u32 = 1;
 pub const LEDGER_THRESHOLD: u32 = 17280; // ~1 day
 pub const SIX_MONTHS_IN_LEDGERS: u32 = 3110400; // ~185 days
 
+/// Minimum timelock (seconds) that must elapse between an admin-transfer
+/// proposal and its acceptance. The caller may configure a longer delay
+/// per-proposal, but never shorter than this floor (Issue #870).
+pub const MIN_ADMIN_TRANSFER_DELAY: u64 = 86_400; // 1 day
+
 /// Bitmask flags for granular operation pausing.
 #[contracttype]
 #[repr(u64)]
@@ -152,6 +158,9 @@ pub enum DataKey {
     ContractVersion,
     /// Admin address (singleton).
     Admin,
+    /// Pending, timelocked admin-transfer proposal (singleton). Absent when
+    /// no transfer is currently proposed (Issue #870).
+    PendingAdminProposal,
     /// Explicit one-time initialization flag (singleton).
     Initialized,
     /// Paused state (singleton).
@@ -210,6 +219,9 @@ pub enum DataKey {
     HookAllowlist(Address),
     /// Global dispute quorum configuration (singleton).
     DisputeQuorumConfig,
+    /// Configurable TTL policy for escrow entries (singleton).
+    /// See [`crate::ttl_policy::TtlConfig`] for the stored type.
+    TtlConfig,
 }
 
 /// Compact escrow record stored on the hot path.
@@ -339,6 +351,7 @@ fn put_escrow_dispute_config(env: &Env, commitment: &Bytes, entry: &EscrowEntry)
     set_or_extend_ttl(env, &key, RecordType::EscrowDispute);
 }
 
+#[allow(dead_code)]
 fn extend_escrow_compaction_ttl(env: &Env, commitment: &Bytes) -> bool {
     let core_key = compact_escrow_key(commitment);
     if env.storage().persistent().has(&core_key) {
@@ -360,10 +373,6 @@ fn extend_escrow_compaction_ttl(env: &Env, commitment: &Bytes) -> bool {
 
     false
 }
-
-// -----------------------------------------------------------------------------
-// Emergency Mode helpers (module scope)
-// -----------------------------------------------------------------------------
 /// Set emergency mode. Once set to true, cannot be reverted.
 pub fn set_emergency_mode(env: &Env) {
     let key = DataKey::EmergencyMode;
@@ -545,6 +554,8 @@ pub fn has_escrow(env: &Env, commitment: &Bytes) -> bool {
 }
 
 /// Extend the TTL of whichever escrow representation is currently stored.
+/// Used by `ttl_policy` module for the policy-neutral baseline bump.
+#[allow(dead_code)]
 pub fn extend_escrow_storage_ttl(env: &Env, commitment: &Bytes) -> bool {
     extend_escrow_compaction_ttl(env, commitment)
 }
@@ -645,6 +656,32 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Timelocked Admin Transfer helpers (Issue #870)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Get the currently pending admin-transfer proposal, if any.
+pub fn get_pending_admin_proposal(env: &Env) -> Option<PendingAdminProposal> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::PendingAdminProposal)
+}
+
+/// Store a new (or overwrite the existing) pending admin-transfer proposal.
+pub fn set_pending_admin_proposal(env: &Env, proposal: &PendingAdminProposal) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PendingAdminProposal, proposal);
+}
+
+/// Clear any pending admin-transfer proposal (on accept or cancel).
+pub fn clear_pending_admin_proposal(env: &Env) {
+    let key = DataKey::PendingAdminProposal;
+    if env.storage().persistent().has(&key) {
+        env.storage().persistent().remove(&key);
+    }
 }
 
 // -----------------------------------------------------------------------------

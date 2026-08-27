@@ -8,6 +8,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
@@ -27,6 +28,10 @@ import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
 import { ComposeTransactionDto, SimulateOperationDto, SubmitSignedTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
 import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
+import {
+  IdempotencyInterceptor,
+  IDEMPOTENCY_KEY_HEADER,
+} from "../common/idempotency/idempotency.interceptor";
 
 function correlationIdOf(req: Request): string | undefined {
   return (req as unknown as Record<string, unknown>)["correlationId"] as
@@ -40,7 +45,14 @@ function correlationIdOf(req: Request): string | undefined {
   description: "Optional API key for higher rate limits",
   required: false,
 })
+@ApiHeader({
+  name: IDEMPOTENCY_KEY_HEADER,
+  description:
+    "Optional. Supply a unique key to make this mutation idempotent: retries with the same key and body return the original response; reuse with a different body is rejected.",
+  required: false,
+})
 @UseGuards(ApiKeyGuard)
+@UseInterceptors(IdempotencyInterceptor)
 @Controller("transactions")
 export class TransactionsController {
   constructor(

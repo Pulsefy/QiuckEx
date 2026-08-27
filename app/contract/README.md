@@ -148,7 +148,10 @@ required fields.
 
 ### 4. Admin
 - `set_paused(caller, new_state)` – pause/unpause (caller must be admin).
-- `set_admin(caller, new_admin)` – transfer admin.
+- `propose_admin_transfer(caller, new_admin, delay_secs)` – start a timelocked admin transfer (**Admin only**).
+- `accept_admin_transfer(caller)` – complete a pending admin transfer once its delay has elapsed (must be called by the proposed admin).
+- `cancel_admin_transfer(caller)` – cancel a pending admin transfer (**Admin only**).
+- `get_pending_admin_transfer()` – view the currently pending admin transfer proposal, if any.
 - `upgrade(caller, new_wasm_hash)` – upgrade contract (caller must authorize).
 - `migrate(caller)` – run post-upgrade storage migration steps for the current release.
 - `get_version()` – inspect the stored schema version (`0` means a legacy deployment with no version key yet).

@@ -1,41 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MOCK_USERS, User } from "@/lib/mockData";
+import { PublicProfile, useDiscoveryProfiles } from "@/hooks/useDiscoveryProfiles";
+
+const formatPublicKey = (publicKey: string) =>
+  publicKey ? `${publicKey.slice(0, 5)}...${publicKey.slice(-4)}` : "Key unavailable";
 
 export default function DiscoveryPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [trending, setTrending] = useState<User[]>([]);
-  const [recent, setRecent] = useState<User[]>([]);
+  const { isLoading, trending, recent, error } = useDiscoveryProfiles();
 
-  useEffect(() => {
-    // Simulate network latency for smooth skeleton experience
-    const timer = setTimeout(() => {
-      setTrending(MOCK_USERS.filter(u => u.isTrending));
-      setRecent(MOCK_USERS.filter(u => u.isRecentlyActive));
-      setIsLoading(false);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const UserCard = ({ user }: { user: User }) => (
+  const UserCard = ({ user }: { user: PublicProfile }) => (
     <Link href={`/profile/${user.username}`} className="block group">
       <div className="p-6 rounded-3xl bg-card border border-border hover:border-indigo-500/30 hover:bg-card/80 transition-all h-full flex flex-col shadow-lg shadow-black/20 group-hover:shadow-indigo-500/10">
         <div className="flex items-start justify-between mb-5">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-2xl shadow-inner ${user.avatarColor}`}>
-            {user.name.charAt(0)}
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/15 flex items-center justify-center font-bold text-2xl shadow-inner text-indigo-300">
+            {user.username.charAt(0).toUpperCase()}
           </div>
           <div className="flex flex-col items-end">
             <span className="text-xs font-semibold text-subtle bg-background/50 px-3 py-1.5 rounded-full border border-border">
-              {Number(user.followers).toLocaleString()} followers
+              {user.transactionCount ?? 0} payments
             </span>
           </div>
         </div>
-        <h3 className="text-lg font-bold text-foreground group-hover:text-indigo-400 transition-colors">{user.name}</h3>
+        <h3 className="text-lg font-bold text-foreground group-hover:text-indigo-400 transition-colors">@{user.username}</h3>
         <p className="text-sm text-brand/80 mb-4 tracking-tight">@{user.username}</p>
-        <p className="text-sm text-subtle flex-1 leading-relaxed">{user.bio}</p>
+        <p className="text-sm text-subtle flex-1 leading-relaxed">{formatPublicKey(user.publicKey)}</p>
         
         <div className="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs text-subtle font-medium group-hover:text-indigo-400 transition-colors">
           <span>View Profile</span>
@@ -86,8 +75,10 @@ export default function DiscoveryPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {isLoading 
+          {isLoading
             ? [...Array(4)].map((_, i) => <SkeletonCard key={`trending-skeleton-${i}`} />)
+            : error ? <p className="col-span-full text-center text-sm text-warning">{error}</p>
+            : trending.length === 0 ? <p className="col-span-full text-center text-sm text-subtle">No trending profiles are available yet.</p>
             : trending.map(user => <UserCard key={`trending-${user.id}`} user={user} />)
           }
         </div>
@@ -101,15 +92,17 @@ export default function DiscoveryPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {isLoading 
+          {isLoading
             ? [...Array(4)].map((_, i) => <SkeletonCard key={`recent-skeleton-${i}`} />)
+            : error ? <p className="col-span-full text-center text-sm text-warning">{error}</p>
+            : recent.length === 0 ? <p className="col-span-full text-center text-sm text-subtle">No recently active profiles are available yet.</p>
             : recent.map(user => <UserCard key={`recent-${user.id}`} user={user} />)
           }
         </div>
       </section>
 
       {/* Empty State / Join Community CTA */}
-      {!isLoading && (
+      {!isLoading && !error && trending.length === 0 && recent.length === 0 && (
         <section className="mt-32 p-12 rounded-3xl bg-gradient-to-br from-indigo-900/40 to-cyan-900/20 border border-border-strong text-center space-y-6 relative overflow-hidden shadow-2xl shadow-indigo-500/5 group hover:border-border-strong transition-all">
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl -tralsate-y-1/2 translate-x-1/2"></div>

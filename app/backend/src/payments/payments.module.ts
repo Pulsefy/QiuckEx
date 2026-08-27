@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
-import { HorizonService } from "../transactions/horizon.service";
+import { TransactionsModule } from "../transactions/transactions.module";
 import { PaymentsController } from "./payments.controller";
+import { PaymentsService } from "./payments.service";
 
 @Module({
-  imports: [],
+  imports: [TransactionsModule],
   controllers: [PaymentsController],
-  providers: [HorizonService],
-  exports: [],
+  providers: [PaymentsService],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

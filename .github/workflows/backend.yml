@@ -18,6 +18,21 @@ jobs:
       run:
         working-directory: app/backend
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_test
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: quickex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,6 +56,33 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # ── Database migrations ──────────────────────────────────────────────
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
+        run: |
+          echo "🗄️  Running migrations against PostgreSQL..."
+          bash scripts/run-ci-migrations.sh
+
+      - name: Validate migration schema
+        env:
+          DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
+        run: |
+          echo "🔍 Validating schema after migrations..."
+          EXPECTED_TABLES=$(find supabase/migrations -name '*.sql' -exec grep -h 'CREATE TABLE' {} \; | \
+            sed 's/.*CREATE TABLE.*IF NOT EXISTS *//; s/CREATE TABLE *//; s/ *(.*//; s/^public\.//' | \
+            sort -u | wc -l)
+          ACTUAL_TABLES=$(psql "$DATABASE_URL" -t -A -c \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+          echo "  Expected tables (from migrations): ~$EXPECTED_TABLES"
+          echo "  Actual tables in database:          $ACTUAL_TABLES"
+          if [ "$ACTUAL_TABLES" -lt 1 ]; then
+            echo "❌ No tables found in the database — migrations may have failed silently."
+            exit 1
+          fi
+          echo "✅ Schema validation passed."
+
+      # ── Tests ────────────────────────────────────────────────────────────
       # Tests are run separately to avoid CI failures during development
       # Uncomment when tests are stable
       # - name: Run Unit Tests
@@ -66,3 +108,4 @@ jobs:
           STELLAR_NETWORK: testnet
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_ANON_KEY: test-key
+          DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
