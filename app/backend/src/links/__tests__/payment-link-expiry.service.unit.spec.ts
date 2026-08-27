@@ -3,11 +3,13 @@ import { PaymentLinkExpiryService } from '../payment-link-expiry.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../../audit/audit.service';
+import { MetricsService } from '../../metrics/metrics.service';
 
 describe('PaymentLinkExpiryService', () => {
   let svc: PaymentLinkExpiryService;
   let mockSupabase: { getClient: jest.Mock };
   let mockAudit: { log: jest.Mock };
+  let mockMetrics: { recordPaymentLinkExpired: jest.Mock };
   let events: EventEmitter2;
 
   beforeEach(async () => {
@@ -30,6 +32,8 @@ describe('PaymentLinkExpiryService', () => {
 
     mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
 
+    mockMetrics = { recordPaymentLinkExpired: jest.fn() };
+
     events = new EventEmitter2();
 
     const module = await Test.createTestingModule({
@@ -38,6 +42,7 @@ describe('PaymentLinkExpiryService', () => {
         { provide: SupabaseService, useValue: mockSupabase },
         { provide: EventEmitter2, useValue: events },
         { provide: AuditService, useValue: mockAudit },
+        { provide: MetricsService, useValue: mockMetrics },
       ],
     }).compile();
 
@@ -60,6 +65,7 @@ describe('PaymentLinkExpiryService', () => {
 
     const count = await svc.runExpirySweep('run-1');
     expect(count).toBe(1);
+    expect(mockMetrics.recordPaymentLinkExpired).toHaveBeenCalledTimes(1);
     expect(mockAudit.log).toHaveBeenCalledWith('system:expiry-worker', 'payment_link.expired', String(updatedRow.id), expect.any(Object));
     expect(spyEmit).toHaveBeenCalledWith('payment.link.expired', expect.objectContaining({ linkId: String(updatedRow.id) }));
   });

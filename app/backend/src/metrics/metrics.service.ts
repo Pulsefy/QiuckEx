@@ -27,6 +27,7 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
+  private paymentLinksExpired: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -174,6 +175,11 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
+      this.paymentLinksExpired = new client.Counter({
+        name: "paymentlinks_expired_count",
+        help: "Total number of payment links marked as expired by the expiry sweep",
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -197,6 +203,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
+      this.register.registerMetric(this.paymentLinksExpired);
 
       this.initialized = true;
     } catch (error) {
@@ -440,6 +447,13 @@ export class MetricsService implements OnModuleInit {
         const topTag = tags[0] ?? "none";
         this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
       }
+    } catch (error) {}
+  }
+
+  recordPaymentLinkExpired() {
+    if (!this.initialized || !this.paymentLinksExpired) return;
+    try {
+      this.paymentLinksExpired.inc();
     } catch (error) {}
   }
 }
