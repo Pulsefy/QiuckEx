@@ -1,4 +1,4 @@
-//! Tests for the nonce / replay-protection module (Domain Separation v2).
+﻿//! Tests for the nonce / replay-protection module (Domain Separation v2).
 //!
 //! All tests run inside a deployed contract context via `env.as_contract`
 //! so that persistent storage and `current_contract_address()` are available.
@@ -25,7 +25,7 @@ mod tests {
         test_context::TestContext,
     };
 
-    // ── Happy path ────────────────────────────────────────────────────────────
+    // â”€â”€ Happy path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn fresh_nonce_within_window_succeeds() {
@@ -54,7 +54,7 @@ mod tests {
         });
     }
 
-    // ── Replay protection ─────────────────────────────────────────────────────
+    // â”€â”€ Replay protection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn replay_same_nonce_fails_with_nonce_already_used() {
@@ -86,7 +86,7 @@ mod tests {
         });
     }
 
-    // ── Cross-method replay protection (NEW for v2) ───────────────────────────
+    // â”€â”€ Cross-method replay protection (NEW for v2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn same_nonce_different_actions_are_independent() {
@@ -96,7 +96,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            // Same nonce, different actions — both must succeed because the
+            // Same nonce, different actions â€” both must succeed because the
             // NonceKey includes the ActionType.
             verify_and_consume(&ctx.env, &signer, 7, 2_000_000, ActionType::Withdraw).unwrap();
             verify_and_consume(&ctx.env, &signer, 7, 2_000_000, ActionType::Refund).unwrap();
@@ -153,7 +153,7 @@ mod tests {
         });
     }
 
-    // ── Expiry enforcement ────────────────────────────────────────────────────
+    // â”€â”€ Expiry enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn expired_signature_fails_with_signature_expired() {
@@ -194,7 +194,7 @@ mod tests {
         });
     }
 
-    // ── Nonce gaps ────────────────────────────────────────────────────────────
+    // â”€â”€ Nonce gaps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn non_sequential_nonces_are_independent() {
@@ -215,7 +215,7 @@ mod tests {
         });
     }
 
-    // ── Canonical payload stability ───────────────────────────────────────────
+    // â”€â”€ Canonical payload stability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn canonical_payload_is_stable_and_non_empty() {
@@ -299,7 +299,7 @@ mod tests {
         });
     }
 
-    // ── Domain separation ─────────────────────────────────────────────────────
+    // â”€â”€ Domain separation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn domain_prefix_v1_is_non_empty() {
@@ -323,7 +323,7 @@ mod tests {
         });
     }
 
-    // ── Migration compatibility ───────────────────────────────────────────────
+    // â”€â”€ Migration compatibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     #[test]
     fn v1_prefix_is_shorter_than_v2_payload() {
@@ -363,7 +363,7 @@ mod tests {
             ctx.env.storage().persistent().set(&v1_key, &true);
 
             // The v2 check for the same (signer, nonce, action) should NOT
-            // see the v1 key — different storage discriminants.
+            // see the v1 key â€” different storage discriminants.
             assert!(!is_nonce_used(&ctx.env, &signer, 99, ActionType::Withdraw));
 
             // But the v1 key is still independently readable.
@@ -371,7 +371,7 @@ mod tests {
         });
     }
 
-    // ── Cross-contract / cross-network simulation ─────────────────────────────
+    // â”€â”€ Cross-contract / cross-network simulation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Simulate a second contract by registering a new instance and checking
     /// that the canonical payload produced by contract A differs from B.
@@ -416,7 +416,7 @@ mod tests {
         ctx.env.as_contract(&contract_b, || {
             assert!(
                 verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok(),
-                "nonce should be scoped per-contract — contract B must accept"
+                "nonce should be scoped per-contract â€” contract B must accept"
             );
         });
 
@@ -455,7 +455,7 @@ mod tests {
         }
     }
 
-    // ── Adversarial replay matrix ─────────────────────────────────────────────
+    // â”€â”€ Adversarial replay matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Replaying an expired nonce must be rejected for expiry, not leak a
     /// used-nonce signal when it was never consumed.
@@ -472,7 +472,7 @@ mod tests {
             assert_eq!(r1, Err(QuickexError::SignatureExpired));
 
             // A second identical call must still surface SignatureExpired, not
-            // NonceAlreadyUsed — the nonce must never have been written.
+            // NonceAlreadyUsed â€” the nonce must never have been written.
             let r2 = verify_and_consume(&ctx.env, &signer, 1, 1_000_000, ActionType::Withdraw);
             assert_eq!(r2, Err(QuickexError::SignatureExpired));
 
@@ -511,7 +511,7 @@ mod tests {
         });
     }
 
-    /// Nonce gaps — consuming nonce N leaves all other values available.
+    /// Nonce gaps â€” consuming nonce N leaves all other values available.
     #[test]
     fn nonce_gap_does_not_pollute_adjacent_values() {
         let ctx = TestContext::new();
@@ -578,7 +578,7 @@ mod tests {
         let contract_id = ctx.client.address.clone();
 
         ctx.env.as_contract(&contract_id, || {
-            // timestamp (MAX-1) < valid_until (MAX) → should succeed.
+            // timestamp (MAX-1) < valid_until (MAX) â†’ should succeed.
             verify_and_consume(&ctx.env, &signer, 1, u64::MAX, ActionType::Withdraw).unwrap();
         });
     }
@@ -656,7 +656,7 @@ mod tests {
 
     /// Signer domain separation: consuming a nonce for signer A must not affect
     /// `is_nonce_used` for signer B, even when all other parameters are
-    /// identical — confirming that storage is keyed on the signer address.
+    /// identical â€” confirming that storage is keyed on the signer address.
     #[test]
     fn nonce_storage_key_includes_signer_address() {
         let ctx = TestContext::new();
@@ -723,14 +723,14 @@ mod tests {
         });
     }
 
-    // ── Property / fuzz-style tests ───────────────────────────────────────────
+    // â”€â”€ Property / fuzz-style tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Property: for every (signer, nonce, action) triple, a consumed nonce is
     /// NEVER accepted a second time regardless of how many other nonces are
     /// consumed in between.
     ///
     /// Deterministic exhaustive sweep over a representative cross-product of
-    /// inputs — a property test without external crates.
+    /// inputs â€” a property test without external crates.
     #[test]
     fn property_consumed_nonce_never_accepted_twice() {
         let ctx = TestContext::new();
@@ -805,7 +805,7 @@ mod tests {
                     let result = verify_and_consume(&ctx.env, &signer, nonce, 1_000_000, action);
                     assert_eq!(result, Err(QuickexError::SignatureExpired));
 
-                    // Nothing was written — nonce is still fresh.
+                    // Nothing was written â€” nonce is still fresh.
                     assert!(
                         !is_nonce_used(&ctx.env, &signer, nonce, action),
                         "expired submission must not write nonce {nonce} for action {:?}",
@@ -816,7 +816,7 @@ mod tests {
         });
     }
 
-    /// Property: nonce isolation across all three axes — signer, action, contract.
+    /// Property: nonce isolation across all three axes â€” signer, action, contract.
     /// Consuming (signer_A, nonce_N, action_X, contract_A) must not affect any
     /// other combination that differs in at least one dimension.
     #[test]
@@ -833,21 +833,21 @@ mod tests {
             verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).unwrap();
         });
 
-        // Different signer, same everything else → not blocked.
+        // Different signer, same everything else â†’ not blocked.
         ctx.env.as_contract(&contract_a, || {
             assert!(
                 verify_and_consume(&ctx.env, &signer_b, 1, 2_000_000, ActionType::Withdraw).is_ok()
             );
         });
 
-        // Same signer, different action → not blocked.
+        // Same signer, different action â†’ not blocked.
         ctx.env.as_contract(&contract_a, || {
             assert!(
                 verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Deposit).is_ok()
             );
         });
 
-        // Same signer, same action, different contract → not blocked.
+        // Same signer, same action, different contract â†’ not blocked.
         ctx.env.as_contract(&contract_b, || {
             assert!(
                 verify_and_consume(&ctx.env, &signer_a, 1, 2_000_000, ActionType::Withdraw).is_ok()
