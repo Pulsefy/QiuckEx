@@ -101,7 +101,7 @@ export class ExportStorageService {
    *     another user's artifact even if job IDs were somehow recycled.
    */
   async uploadArtifact(opts: UploadArtifactOptions): Promise<UploadArtifactResult> {
-    const { jobId, userId, content, format, exportType } = opts;
+    const { jobId, userId, content, format } = opts;
     const ext = format === 'csv' ? 'csv' : 'json';
     const storageKey = `exports/${userId}/${jobId}.${ext}`;
     const mimeType = format === 'csv' ? 'text/csv' : 'application/json';

@@ -13,7 +13,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   ExportStorageService,
   EXPORT_LINK_INVALID,
-  EXPORT_NOT_FOUND,
+  // EXPORT_NOT_FOUND is exported for external consumers; not used in this suite
 } from '../export-storage.service';
 import { AppConfigService } from '../../config/app-config.service';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -59,23 +59,24 @@ function makeSupabaseMock(overrides: {
   };
 
   // Chainable query builder for table queries
-  const makeBuilder = (data: unknown, error: unknown) => {
-    const b: any = {};
-    b.select = jest.fn().mockReturnThis();
-    b.eq = jest.fn().mockReturnThis();
-    b.lt = jest.fn().mockResolvedValue({ data: overrides.expiredRows ?? [], error: overrides.expiredFetchError ?? null });
-    b.maybeSingle = jest.fn().mockResolvedValue({ data: overrides.fromSelectData ?? null, error: overrides.fromSelectError ?? null });
-    b.upsert = jest.fn().mockResolvedValue({ error: overrides.upsertError ?? null });
-    b.delete = jest.fn().mockReturnThis();
+  const makeBuilder = () => {
+    const b: Record<string, jest.Mock> = {};
+    b['select'] = jest.fn().mockReturnThis();
+    b['eq'] = jest.fn().mockReturnThis();
+    b['lt'] = jest.fn().mockResolvedValue({ data: overrides.expiredRows ?? [], error: overrides.expiredFetchError ?? null });
+    b['maybeSingle'] = jest.fn().mockResolvedValue({ data: overrides.fromSelectData ?? null, error: overrides.fromSelectError ?? null });
+    b['upsert'] = jest.fn().mockResolvedValue({ error: overrides.upsertError ?? null });
+    b['delete'] = jest.fn().mockReturnThis();
     // delete().eq() resolves
-    b.eq.mockImplementation(() => ({
+    b['eq'].mockImplementation(() => ({
       ...b,
-      then: (resolve: any) => resolve({ error: overrides.deleteError ?? null }),
+      then: (resolve: (v: { error: null | { message: string } }) => void) =>
+        resolve({ error: overrides.deleteError ?? null }),
     }));
     return b;
   };
 
-  const tableMock = jest.fn().mockReturnValue(makeBuilder(null, null));
+  const tableMock = jest.fn().mockReturnValue(makeBuilder());
 
   return {
     getClient: jest.fn().mockReturnValue({
