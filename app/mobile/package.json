@@ -11,6 +11,7 @@
     "lint": "expo lint",
     "test": "echo 'Skipping mobile checks in backend release pipeline' || exit 0",
     "type-check": "tsc --noEmit",
+    "check:i18n": "node scripts/check-i18n-parity.mjs",
     "build": "pnpm type-check && pnpm lint"
   },
   "dependencies": {
