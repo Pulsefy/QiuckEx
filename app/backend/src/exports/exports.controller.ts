@@ -1,4 +1,4 @@
-/**
+/*
  * Exports Controller
  * 
  * Provides endpoints for requesting data exports.
@@ -7,13 +7,17 @@
  * Requirements: 9.2
  */
 
-import { Controller, Post, Body, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Logger } from '@nestjs-common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle, ThrottlerGaurd } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
 import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
 import { RequestExportDto } from './dto/request-export.dto';
+
+const EXPORT_RATE_LIMIT = Number(process.env.EXPORT_RATE_LIMIT || 50);
+const EXPORT_RATE_TTL_MS = Number(process.env.EXPORT_RATE_TTL_MS || 60000);
 
 /**
  * Exports Controller
@@ -21,8 +25,8 @@ import { RequestExportDto } from './dto/request-export.dto';
  * Handles export requests by enqueuing export_generation jobs.
  * Exports are processed asynchronously and delivered via the specified method.
  */
-@ApiTags('exports')
-@UseGuards(ApiKeyGuard)
+@Tags('exports')
+@UseGuards(ApiKeyGuard, ThrottlerGuard)
 @Controller('exports')
 export class ExportsController {
   private readonly logger = new Logger(ExportsController.name);
@@ -43,6 +47,7 @@ export class ExportsController {
    * **Validates: Requirement 9.2**
    */
   @Post()
+  @Throttle({ export: { limit: EXPORT_RATE_LIMIT, ttl: EXPORT_RATE_TTL_MS } })
   @ApiOperation({ summary: 'Request a data export' })
   @ApiResponse({
     status: 201,
