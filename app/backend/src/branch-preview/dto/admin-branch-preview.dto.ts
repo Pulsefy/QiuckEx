@@ -43,6 +43,14 @@ export class CreateBranchPreviewRequestDto {
   @IsOptional()
   @IsBoolean()
   expiryExempt?: boolean;
+
+  @ApiProperty({
+    description: 'Owner of the branch preview environment',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
 }
 
 export class UpdateBranchPreviewRequestDto {

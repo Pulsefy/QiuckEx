@@ -30,6 +30,7 @@ export class BranchPreviewRepository {
       expiryExempt: dto.expiryExempt ?? false,
       lastActivityAt: now,
       expiresAt: expiresAt || undefined,
+      ownerId: dto.ownerId,
     };
 
     const { data, error } = await client
@@ -48,6 +49,7 @@ export class BranchPreviewRepository {
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
         expires_at: expiresAt?.toISOString(),
+        owner_id: preview.ownerId,
       })
       .select()
       .single();
@@ -75,6 +77,27 @@ export class BranchPreviewRepository {
     if (error) {
       if (error.code !== 'PGRST116') { // Record not found is expected
         this.logger.error(`Error finding branch preview: ${error.message}`, error);
+      }
+      return null;
+    }
+
+    return this.mapDbToModel(data);
+  }
+
+  /**
+   * Find a branch preview by ID
+   */
+  async findById(id: string): Promise<BranchPreviewEnvironment | null> {
+    const client = this.supabaseService.getClient();
+    const { data, error } = await client
+      .from(this.TABLE_NAME)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        this.logger.error(`Error finding branch preview by id: ${error.message}`, error);
       }
       return null;
     }
@@ -120,6 +143,7 @@ export class BranchPreviewRepository {
     if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
     if (dto.isShared !== undefined) updateData.is_shared = dto.isShared;
     if (dto.expiryExempt !== undefined) updateData.expiry_exempt = dto.expiryExempt;
+    if (dto.ownerId !== undefined) updateData.owner_id = dto.ownerId;
     if (dto.ttlMs) {
       updateData.expires_at = new Date(now.getTime() + dto.ttlMs).toISOString();
     }
@@ -276,6 +300,7 @@ export class BranchPreviewRepository {
         ? new Date(dbRecord.auto_expired_at as string)
         : undefined,
       autoExpiryReason: dbRecord.auto_expiry_reason as string | undefined,
+      ownerId: dbRecord.owner_id as string | undefined,
     };
   }
 }

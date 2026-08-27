@@ -25,6 +25,7 @@ describe("BranchPreviewService", () => {
       delete: jest.fn(),
       findAll: jest.fn(),
       findExpired: jest.fn(),
+      findById: jest.fn(),
       touchLastActivity: jest.fn(),
     };
 
@@ -144,5 +145,54 @@ describe("BranchPreviewService", () => {
     const result = await service.getPreviewForBranch(branchName);
 
     expect(result.isFallback).toBe(true);
+  });
+
+  describe("permissions and authorization", () => {
+    it("allows admin to update preview", async () => {
+      const mockPreview = { id: "test-id", branchName: "b", ownerId: "user-1", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findById.mockResolvedValue(mockPreview);
+      repository.update.mockResolvedValue({ ...mockPreview, apiUrl: "bar" });
+      
+      const result = await service.updatePreview("test-id", { apiUrl: "bar" }, "admin-user", ["admin"]);
+      expect(result.apiUrl).toBe("bar");
+    });
+
+    it("allows reviewer to delete preview", async () => {
+      const mockPreview = { id: "test-id", branchName: "b", ownerId: "user-1", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findById.mockResolvedValue(mockPreview);
+      repository.delete.mockResolvedValue(undefined);
+      
+      await expect(service.deletePreview("test-id", "reviewer-user", ["branch_preview:reviewer"])).resolves.not.toThrow();
+    });
+
+    it("allows owner to update their preview", async () => {
+      const mockPreview = { id: "test-id", branchName: "b", ownerId: "user-owner", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findById.mockResolvedValue(mockPreview);
+      repository.update.mockResolvedValue({ ...mockPreview, apiUrl: "bar" });
+      
+      const result = await service.updatePreview("test-id", { apiUrl: "bar" }, "user-owner", ["some:other:scope"]);
+      expect(result.apiUrl).toBe("bar");
+    });
+
+    it("throws ForbiddenException when unauthorized user attempts to update", async () => {
+      const mockPreview = { id: "test-id", branchName: "b", ownerId: "user-owner", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findById.mockResolvedValue(mockPreview);
+      
+      await expect(service.updatePreview("test-id", { apiUrl: "bar" }, "unauthorized-user", ["some:scope"])).rejects.toThrow("You do not have permission to modify this preview environment");
+    });
+
+    it("throws ForbiddenException when unauthorized user attempts to delete", async () => {
+      const mockPreview = { id: "test-id", branchName: "b", ownerId: "user-owner", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findById.mockResolvedValue(mockPreview);
+      
+      await expect(service.deletePreview("test-id", "unauthorized-user", ["some:scope"])).rejects.toThrow("You do not have permission to delete this preview environment");
+    });
+
+    it("throws ForbiddenException when unauthorized user attempts to invalidate cache", async () => {
+      const mockPreview = { id: "test-id", branchName: "test-branch", ownerId: "user-owner", apiUrl: "foo", frontendUrl: "foo", network: "testnet" as const, contractRegistryVersion: "latest", isActive: true, isShared: false, expiryExempt: false, createdAt: new Date(), updatedAt: new Date() };
+      repository.findByBranchName.mockResolvedValue(mockPreview);
+      
+      await expect(service.invalidateCache("test-branch", "unauthorized-user", ["some:scope"])).rejects.toThrow("You do not have permission to invalidate cache for this preview environment");
+    });
   });
 });
