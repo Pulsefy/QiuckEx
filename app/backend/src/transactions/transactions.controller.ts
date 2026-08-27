@@ -4,15 +4,17 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiHeader } from "@nestjs/swagger";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
 import {
   GetTransactionsQueryDto,
@@ -27,6 +29,7 @@ import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
 import { ComposeTransactionDto, SimulateOperationDto, SubmitSignedTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
 import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
+import { EtagCacheService, EtagCacheRoute } from "./etag-cache.service";
 
 function correlationIdOf(req: Request): string | undefined {
   return (req as unknown as Record<string, unknown>)["correlationId"] as
@@ -43,10 +46,60 @@ function correlationIdOf(req: Request): string | undefined {
 @UseGuards(ApiKeyGuard)
 @Controller("transactions")
 export class TransactionsController {
+  private readonly logger = new Logger(TransactionsController.name);
+
   constructor(
     private readonly horizonService: HorizonService,
     private readonly transactionService: TransactionsService,
+    private readonly etagCache: EtagCacheService,
   ) {}
+
+  private hasApiKey(req: Request): boolean {
+    const value = req.headers["x-api-key"];
+    return typeof value === "string" && value.length > 0;
+  }
+
+  /**
+   * ETag-based caching for the expensive compose/simulate operations.
+   * The cache key is the SHA-256 of the serialized request body. When the
+   * client sends an If-None-Match header matching the computed ETag we return
+   * 304 Not Modified. Requests carrying an X-API-Key header bypass the cache.
+   */
+  private async respondWithEtagCache(
+    route: EtagCacheRoute,
+    payload: unknown,
+    req: Request,
+    res: Response,
+    compute: () => Promise<object>,
+  ): Promise<unknown> {
+    if (this.hasApiKey(req)) {
+      const result = await compute();
+      return { ...result, correlationId: correlationIdOf(req) };
+    }
+
+    const etag = this.etagCache.computeCacheKey(payload);
+    res.setHeader("ETag", `"${etag}"`);
+    res.setHeader("Cache-Control", "no-cache");
+
+    const clientEtag = req.headers["if-none-match"];
+    const cached = this.etagCache.get(route, etag);
+
+    if (clientEtag && (clientEtag === `"${etag}"` || clientEtag === "*")) {
+      if (cached !== undefined) {
+        res.status(HttpStatus.NOT_MODIFIED);
+        return;
+      }
+      this.logger.warn(`Conditional ETag miss [${route}]: ${etag}`);
+    }
+
+    if (cached !== undefined) {
+      return { ...(cached as object), correlationId: correlationIdOf(req) };
+    }
+
+    const result = await compute();
+    this.etagCache.set(route, etag, result);
+    return { ...result, correlationId: correlationIdOf(req) };
+  }
 
   @Get()
   @ApiOperation({
@@ -91,9 +144,17 @@ export class TransactionsController {
   @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async compose(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
-    const result = await this.transactionService.composeTransaction(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
+  @ApiOperation({
+    summary: "Compose an unsigned Soroban transaction with ETag-based caching",
+  })
+  async compose(
+    @Body() dto: ComposeTransactionDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respondWithEtagCache("compose", dto, req, res, () =>
+      this.transactionService.composeTransaction(dto),
+    );
   }
 
   @Post("build")
@@ -117,9 +178,14 @@ export class TransactionsController {
   @ApiOperation({
     summary: "Simulate contract operations with deterministic failure reasons",
   })
-  async simulateOperation(@Body() dto: SimulateOperationDto, @Req() req: Request) {
-    const result = await this.transactionService.simulateOperation(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
+  async simulateOperation(
+    @Body() dto: SimulateOperationDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respondWithEtagCache("simulate", dto, req, res, () =>
+      this.transactionService.simulateOperation(dto),
+    );
   }
 
   @Post("submit")

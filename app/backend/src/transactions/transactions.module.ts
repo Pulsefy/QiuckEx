@@ -4,6 +4,7 @@ import { HorizonService } from "./horizon.service";
 import { AppConfigModule } from "../config";
 import { TransactionsService } from "./transaction.service";
 import { SorobanRpcService } from "./soroban-rpc.service";
+import { EtagCacheService } from "./etag-cache.service";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { MetricsModule } from "../metrics/metrics.module";
@@ -25,6 +26,7 @@ import { AuditModule } from "../audit/audit.module";
     HorizonService,
     TransactionsService,
     SorobanRpcService,
+    EtagCacheService,
     ApiKeyGuard,
   ],
   exports: [HorizonService, TransactionsService, SorobanRpcService],

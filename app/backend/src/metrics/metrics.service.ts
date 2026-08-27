@@ -27,6 +27,7 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
+  private etagCacheTotal: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -174,6 +175,12 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
+      this.etagCacheTotal = new client.Counter({
+        name: "etag_cache_total",
+        help: "ETag cache lookups broken down by route and result",
+        labelNames: ["route", "result"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -197,6 +204,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
+      this.register.registerMetric(this.etagCacheTotal);
 
       this.initialized = true;
     } catch (error) {
@@ -440,6 +448,13 @@ export class MetricsService implements OnModuleInit {
         const topTag = tags[0] ?? "none";
         this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
       }
+    } catch (error) {}
+  }
+
+  recordEtagCacheResult(route: "compose" | "simulate", result: "hit" | "miss") {
+    if (!this.initialized || !this.etagCacheTotal) return;
+    try {
+      this.etagCacheTotal.labels(route, result).inc();
     } catch (error) {}
   }
 }
