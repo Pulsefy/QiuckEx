@@ -132,7 +132,7 @@ impl ReentrantRefundHook {
 
         let code: u32 = match attempt {
             Err(Ok(e)) => e as u32,
-            Ok(_) => 0,          // unexpected: reentrant call succeeded
+            Ok(_) => 0, // unexpected: reentrant call succeeded
             Err(Err(InvokeError::Contract(code))) => code,
             Err(Err(InvokeError::Abort)) => 9998, // host-level abort/panic, not a QuickexError
         };
@@ -404,7 +404,8 @@ fn test_reentrant_withdraw_during_refund_is_rejected() {
     ctx.advance_time(101);
 
     // Triggers the Refund hook, which attempts a reentrant withdraw(commitment2).
-    ctx.client.refund(&commitment1, &ctx.alice, &0u64, &u64::MAX);
+    ctx.client
+        .refund(&commitment1, &ctx.alice, &0u64, &u64::MAX);
 
     assert_eq!(hook_client.result(), HOST_REENTRY_ABORT);
 
