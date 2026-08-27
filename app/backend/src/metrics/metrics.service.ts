@@ -25,6 +25,8 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
+  private circuitBreakerState: client.Gauge<string>;
+  private circuitBreakerTransitions: client.Gauge<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -160,6 +162,18 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
+      this.circuitBreakerState = new client.Gauge({
+        name: "circuit_breaker_state",
+        help: "Current state of a circuit breaker (0=closed,1=half_open,2=open)",
+        labelNames: ["name"],
+      });
+
+      this.circuitBreakerTransitions = new client.Gauge({
+        name: "circuit_breaker_transitions",
+        help: "Number of state transitions for a circuit breaker",
+        labelNames: ["name"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -181,6 +195,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
+      this.register.registerMetric(this.circuitBreakerState);
+      this.register.registerMetric(this.circuitBreakerTransitions);
 
       this.initialized = true;
     } catch (error) {
@@ -406,6 +422,24 @@ export class MetricsService implements OnModuleInit {
         const topTag = tags[0] ?? "none";
         this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
       }
+    } catch (error) {}
+  }
+
+  setCircuitBreakerState(
+    name: string,
+    state: "closed" | "open" | "half_open",
+  ): void {
+    if (!this.initialized || !this.circuitBreakerState) return;
+    try {
+      const value = state === "closed" ? 0 : state === "half_open" ? 1 : 2;
+      this.circuitBreakerState.labels(name).set(value);
+    } catch (error) {}
+  }
+
+  setCircuitBreakerTransitions(name: string, count: number): void {
+    if (!this.initialized || !this.circuitBreakerTransitions) return;
+    try {
+      this.circuitBreakerTransitions.labels(name).set(count);
     } catch (error) {}
   }
 }

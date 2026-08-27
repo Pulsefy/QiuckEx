@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
 import { HorizonService } from "../stellar/horizon.service";
 import { AppConfigService } from "../config/app-config.service";
@@ -7,6 +7,7 @@ import { JobQueueService } from "../job-queue/job-queue.service";
 import { JobRepository } from "../job-queue/job.repository";
 import { CursorRepository } from "../ingestion/cursor.repository";
 import { SorobanRpcService } from "../transactions/soroban-rpc.service";
+import { CircuitBreakerService } from "../circuit-breaker/circuit-breaker.service";
 
 @Injectable()
 export class HealthService {
@@ -22,6 +23,7 @@ export class HealthService {
     private readonly jobRepository: JobRepository,
     private readonly cursorRepository: CursorRepository,
     private readonly sorobanRpcService: SorobanRpcService,
+    @Optional() private readonly circuitBreakerService?: CircuitBreakerService,
   ) {}
 
   /**
@@ -334,6 +336,32 @@ export class HealthService {
   }
 
   /**
+   * Reports the current Horizon circuit-breaker state (admin observability).
+   */
+  checkHorizonCircuit(): {
+    status: "up" | "down" | "degraded";
+    state?: string;
+    details?: string;
+  } {
+    if (!this.circuitBreakerService) {
+      return { status: "degraded", details: "Circuit breaker not registered" };
+    }
+
+    const breaker = this.circuitBreakerService.horizon;
+    const state = breaker.getState();
+    const stats = breaker.getStats();
+
+    const status =
+      state === "closed" ? "up" : state === "half_open" ? "degraded" : "down";
+
+    return {
+      status,
+      state,
+      details: `failures=${stats.failuresInWindow}/${stats.failureThreshold}`,
+    };
+  }
+
+  /**
    * Returns shallow health status for /health.
    */
   async getHealthStatus() {
@@ -401,6 +429,21 @@ export class HealthService {
           lastSuccess: horizon.lastSuccess,
           error: horizon.status === "down" ? horizon.details : undefined,
         },
+        ...(() => {
+          const circuit = this.checkHorizonCircuit();
+          return [
+            {
+              name: "horizon_circuit",
+              status: circuit.status,
+              state: circuit.state,
+              details: circuit.details,
+              error:
+                circuit.status === "down"
+                  ? "Horizon circuit breaker is open"
+                  : undefined,
+            },
+          ];
+        })(),
         {
           name: "soroban_rpc",
           status: sorobanRpc.status,

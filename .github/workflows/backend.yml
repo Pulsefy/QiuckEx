@@ -41,6 +41,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: OpenAPI spec must not diverge
+        run: pnpm run docs:export:check
+        env:
+          NODE_ENV: test
+          NETWORK: testnet
+          SUPABASE_URL: https://spec-export.supabase.co
+          SUPABASE_ANON_KEY: spec-export-key
+
       # Tests are run separately to avoid CI failures during development
       # Uncomment when tests are stable
       # - name: Run Unit Tests

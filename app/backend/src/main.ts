@@ -22,6 +22,7 @@ import { GlobalHttpExceptionFilter } from "./common/filters/global-http-exceptio
 import { mapValidationErrors } from "./common/utils/validation-error.mapper";
 import { SentryExceptionFilter, SentryService } from "./sentry";
 import { MetricsService } from "./metrics/metrics.service";
+import { OpenApiDocumentHolder } from "./common/swagger/openapi-document.holder";
 import { 
   sanitizeErrorMessage,
   createConfigSummary 
@@ -160,9 +161,13 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
+  // Store the validated spec for the POST /docs/json export endpoint and for
+  // the CI spec-divergence check.
+  OpenApiDocumentHolder.get().set(document as unknown as Record<string, unknown>);
   SwaggerModule.setup("docs", app, document, {
     swaggerOptions: {
       persistAuthorization: true,
+      tryItOutEnabled: true,
     },
   });
 

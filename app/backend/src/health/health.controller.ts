@@ -7,6 +7,7 @@ import { createHash } from "crypto";
 import { HealthService } from "./health.service";
 import { HealthResponseDto, ReadyResponseDto } from "./health-response.dto";
 import { PublicStatusResponseDto } from "./public-status.dto";
+import { ApiErrorResponse } from "../common/decorators/api-error-response.decorator";
 
 @ApiTags("health")
 @Controller()
@@ -20,6 +21,7 @@ export class HealthController {
       "Returns application health status (shallow). Used for liveness probes.",
   })
   @ApiResponse({ status: 200, type: HealthResponseDto })
+  @ApiErrorResponse(500, { description: "Unexpected internal error" })
   async getHealth(@Res() res: Response) {
     const result = await this.healthService.getHealthStatus();
     return res.status(200).json(result);

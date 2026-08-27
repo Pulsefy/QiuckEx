@@ -44,8 +44,11 @@ import { DeveloperModule } from "./developer/developer.module";
 import { PrivacyModule } from "./privacy/privacy.module";
 import { ContractsModule } from "./contracts/contracts.module";
 import { SorobanToolingModule } from "./soroban-tooling/soroban-tooling.module";
-import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
+import { RateLimitModule } from "./rate-limit/rate-limit.module";
+import { RedisSlidingWindowRateLimitGuard } from "./rate-limit/redis-sliding-window-rate-limit.guard";
+import { RedisModule } from "./redis/redis.module";
+import { CircuitBreakerModule } from "./circuit-breaker/circuit-breaker.module";
 import { throttlerModuleProfiles } from "./config/rate-limit.config";
 import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
 import { IndexerLagModule } from "./indexer-lag";
@@ -60,6 +63,7 @@ import { BranchPreviewModule } from "./branch-preview/branch-preview.module";
 import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
 import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
+import { DocsModule } from "./docs/docs.module";
 
 type AppImport =
 | Type<unknown>
@@ -77,8 +81,11 @@ EventEmitterModule.forRoot({
 wildcard: true,
 delimiter: ".",
 }),
-ThrottlerModule.forRoot(throttlerModuleProfiles),
-SupabaseModule,
+        ThrottlerModule.forRoot(throttlerModuleProfiles),
+        SupabaseModule,
+        RateLimitModule,
+        RedisModule,
+        CircuitBreakerModule,
 HealthModule,
 AssetMetadataModule,
 StellarModule,
@@ -112,6 +119,7 @@ OperationsModule,
     PreviewScopeModule,
     TransactionTimelineModule,
     DashboardFeedModule,
+    DocsModule,
     ];
 
     try {
@@ -141,7 +149,7 @@ return baseImports;
 providers: [
 {
 provide: APP_GUARD,
-useClass: CustomThrottlerGuard,
+useClass: RedisSlidingWindowRateLimitGuard,
 },
 {
 provide: APP_INTERCEPTOR,

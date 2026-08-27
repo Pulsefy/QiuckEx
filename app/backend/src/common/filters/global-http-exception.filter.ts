@@ -16,13 +16,18 @@ interface ErrorResponseBody {
   error: {
     code: string;
     message: string | string[];
-    /** Stable alias for correlationId — used by clients to trace requests */
+    /** Stable trace identifier — always present on every error response. */
+    traceId?: string;
+    /** Stable alias for traceId — used by clients to trace requests */
     request_id?: string;
     correlationId?: string;
     fields?: unknown;
     details?: unknown;
   };
 }
+
+const DEFAULT_CODE = "INTERNAL_ERROR";
+const DEFAULT_MESSAGE = "An unexpected error occurred";
 
 type ValidationExceptionPayload = {
   code: "VALIDATION_ERROR";
@@ -62,8 +67,8 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     ] as string | undefined;
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
-    let code = "INTERNAL_SERVER_ERROR";
-    let message: string | string[] = "An unexpected error occurred";
+    let code = DEFAULT_CODE;
+    let message: string | string[] = DEFAULT_MESSAGE;
     let details: unknown = undefined;
 
     if (exception instanceof ThrottlerException) {
@@ -111,6 +116,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
               code: "VALIDATION_ERROR",
               message: validation.message ?? "Validation failed",
               fields: validation.fields ?? [],
+              traceId: correlationId ?? "unknown",
               ...(correlationId ? { request_id: correlationId, correlationId } : {}),
             },
           });
@@ -141,6 +147,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       error: {
         code,
         message,
+        traceId: correlationId ?? "unknown",
         ...(correlationId ? { request_id: correlationId, correlationId } : {}),
         ...(details && !isProduction ? { details } : {}),
       },
