@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { User, MOCK_USERS } from "@/lib/mockData";
+import { useProfileSearch, PublicProfile } from "@/hooks/useDiscoveryProfiles";
 
 export function SearchBar() {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<User[]>([]);
+  const { isLoading, results, error } = useProfileSearch(query);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,29 +20,6 @@ export function SearchBar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
-    setIsLoading(true);
-    setIsOpen(true);
-
-    const timer = setTimeout(() => {
-      const lowerQuery = query.toLowerCase();
-      const filtered = MOCK_USERS.filter(user => 
-        user.username.toLowerCase().includes(lowerQuery) || 
-        user.name.toLowerCase().includes(lowerQuery) ||
-        user.bio.toLowerCase().includes(lowerQuery)
-      );
-      setResults(filtered.slice(0, 5)); // max 5 results
-      setIsLoading(false);
-    }, 300); // simulate network delay
-
-    return () => clearTimeout(timer);
-  }, [query]);
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -91,23 +67,25 @@ export function SearchBar() {
                 </div>
               ))}
             </div>
+          ) : error ? (
+            <div className="p-8 text-center text-sm text-warning">{error}</div>
           ) : results.length > 0 ? (
             <div className="flex flex-col py-2">
               <div className="px-4 py-2 text-xs font-semibold text-subtle uppercase tracking-wider mb-1">
                 Profiles
               </div>
-              {results.map((user) => (
+              {results.map((user: PublicProfile) => (
                 <Link 
                   key={user.id} 
                   href={`/profile/${user.username}`} 
                   className="flex items-center gap-4 px-4 py-2 hover:bg-surface transition group"
                   onClick={() => setIsOpen(false)}
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-inner ${user.avatarColor}`}>
-                    {user.name.charAt(0)}
+                  <div className="w-10 h-10 rounded-full bg-indigo-500/15 flex items-center justify-center font-bold text-sm shadow-inner text-indigo-300">
+                    {user.username.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 flex flex-col items-start overflow-hidden">
-                    <span className="text-sm font-semibold text-foreground group-hover:text-indigo-400 transition-colors truncate">{user.name}</span>
+                    <span className="text-sm font-semibold text-foreground group-hover:text-indigo-400 transition-colors truncate">@{user.username}</span>
                     <span className="text-xs text-subtle truncate">@{user.username}</span>
                   </div>
                 </Link>
