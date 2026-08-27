@@ -35,11 +35,10 @@
 #![cfg(test)]
 #![allow(dead_code)]
 
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, InvokeError, Symbol};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, InvokeError};
 
 use crate::{
     assert_helpers::{assert_escrow_pending, assert_escrow_refunded, assert_escrow_spent},
-    errors::QuickexError,
     test_context::TestContext,
     types::HookEventKind,
     QuickexContractClient,
@@ -64,7 +63,7 @@ impl CountingHook {
         _amount: i128,
         _fee: i128,
     ) {
-        let key = Symbol::short("count");
+        let key = symbol_short!("count");
         let count: u32 = env.storage().persistent().get(&key).unwrap_or(0);
         env.storage().persistent().set(&key, &(count + 1));
     }
@@ -72,7 +71,7 @@ impl CountingHook {
     pub fn count(env: Env) -> u32 {
         env.storage()
             .persistent()
-            .get(&Symbol::short("count"))
+            .get(&symbol_short!("count"))
             .unwrap_or(0)
     }
 }
@@ -90,13 +89,13 @@ impl ReentrantRefundHook {
     pub fn init(env: Env, target: Address, commitment: BytesN<32>, owner: Address) {
         env.storage()
             .persistent()
-            .set(&Symbol::short("target"), &target);
+            .set(&symbol_short!("target"), &target);
         env.storage()
             .persistent()
-            .set(&Symbol::short("commit"), &commitment);
+            .set(&symbol_short!("commit"), &commitment);
         env.storage()
             .persistent()
-            .set(&Symbol::short("owner"), &owner);
+            .set(&symbol_short!("owner"), &owner);
     }
 
     pub fn on_escrow_event(
@@ -114,17 +113,17 @@ impl ReentrantRefundHook {
         let target: Address = env
             .storage()
             .persistent()
-            .get(&Symbol::short("target"))
+            .get(&symbol_short!("target"))
             .unwrap();
         let commitment: BytesN<32> = env
             .storage()
             .persistent()
-            .get(&Symbol::short("commit"))
+            .get(&symbol_short!("commit"))
             .unwrap();
         let owner: Address = env
             .storage()
             .persistent()
-            .get(&Symbol::short("owner"))
+            .get(&symbol_short!("owner"))
             .unwrap();
 
         let client = QuickexContractClient::new(&env, &target);
@@ -138,13 +137,13 @@ impl ReentrantRefundHook {
         };
         env.storage()
             .persistent()
-            .set(&Symbol::short("result"), &code);
+            .set(&symbol_short!("result"), &code);
     }
 
     pub fn result(env: Env) -> u32 {
         env.storage()
             .persistent()
-            .get(&Symbol::short("result"))
+            .get(&symbol_short!("result"))
             .unwrap_or(0)
     }
 }
@@ -171,20 +170,20 @@ impl ReentrantWithdrawHook {
     ) {
         env.storage()
             .persistent()
-            .set(&Symbol::short("target"), &target);
+            .set(&symbol_short!("target"), &target);
         env.storage()
             .persistent()
-            .set(&Symbol::short("token"), &token);
+            .set(&symbol_short!("token"), &token);
         env.storage()
             .persistent()
-            .set(&Symbol::short("amount"), &amount);
+            .set(&symbol_short!("amount"), &amount);
         env.storage()
             .persistent()
-            .set(&Symbol::short("commit"), &commitment);
-        env.storage().persistent().set(&Symbol::short("to"), &to);
+            .set(&symbol_short!("commit"), &commitment);
+        env.storage().persistent().set(&symbol_short!("to"), &to);
         env.storage()
             .persistent()
-            .set(&Symbol::short("salt"), &salt);
+            .set(&symbol_short!("salt"), &salt);
     }
 
     pub fn on_escrow_event(
@@ -202,32 +201,32 @@ impl ReentrantWithdrawHook {
         let target: Address = env
             .storage()
             .persistent()
-            .get(&Symbol::short("target"))
+            .get(&symbol_short!("target"))
             .unwrap();
         let token: Address = env
             .storage()
             .persistent()
-            .get(&Symbol::short("token"))
+            .get(&symbol_short!("token"))
             .unwrap();
         let amount: i128 = env
             .storage()
             .persistent()
-            .get(&Symbol::short("amount"))
+            .get(&symbol_short!("amount"))
             .unwrap();
         let commitment: BytesN<32> = env
             .storage()
             .persistent()
-            .get(&Symbol::short("commit"))
+            .get(&symbol_short!("commit"))
             .unwrap();
         let to: Address = env
             .storage()
             .persistent()
-            .get(&Symbol::short("to"))
+            .get(&symbol_short!("to"))
             .unwrap();
         let salt: Bytes = env
             .storage()
             .persistent()
-            .get(&Symbol::short("salt"))
+            .get(&symbol_short!("salt"))
             .unwrap();
 
         let client = QuickexContractClient::new(&env, &target);
@@ -242,13 +241,13 @@ impl ReentrantWithdrawHook {
         };
         env.storage()
             .persistent()
-            .set(&Symbol::short("result"), &code);
+            .set(&symbol_short!("result"), &code);
     }
 
     pub fn result(env: Env) -> u32 {
         env.storage()
             .persistent()
-            .get(&Symbol::short("result"))
+            .get(&symbol_short!("result"))
             .unwrap_or(0)
     }
 }
