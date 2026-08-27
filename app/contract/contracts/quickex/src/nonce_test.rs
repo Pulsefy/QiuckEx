@@ -706,16 +706,13 @@ mod tests {
                 ActionType::Upgrade,
             ];
 
-            // Collect all hashes into a plain Vec for pairwise comparison.
-            let hashes: std::vec::Vec<_> = actions
-                .iter()
-                .map(|&action| hash_canonical_payload(&ctx.env, action, 1, 2_000_000))
-                .collect();
-
-            for i in 0..hashes.len() {
-                for j in (i + 1)..hashes.len() {
+            // Assert pairwise hash uniqueness directly from the actions array.
+            for i in 0..actions.len() {
+                for j in (i + 1)..actions.len() {
+                    let h_i = hash_canonical_payload(&ctx.env, actions[i], 1, 2_000_000);
+                    let h_j = hash_canonical_payload(&ctx.env, actions[j], 1, 2_000_000);
                     assert_ne!(
-                        hashes[i], hashes[j],
+                        h_i, h_j,
                         "action[{i}] and action[{j}] must produce distinct payload hashes"
                     );
                 }
