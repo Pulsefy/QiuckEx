@@ -15,6 +15,7 @@ import { CancellationStore } from "./cancellation-token";
 import { JobQueueInitializer } from "./job-queue-initializer.service";
 import { JobAdminController } from "./job-admin.controller";
 import { JobQueueMetricsService } from "./job-queue-metrics.service";
+import { DeadLetterQueueMonitorService } from "./dead-letter-monitor.service";
 import { SupabaseModule } from "../supabase/supabase.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { LinksModule } from "../links/links.module";
@@ -75,6 +76,7 @@ import {
     CancellationStore,
     JobQueueInitializer,
     JobQueueMetricsService,
+    DeadLetterQueueMonitorService,
     WebhookDeliveryHandler,
     RecurringPaymentHandler,
     ExportGenerationHandler,

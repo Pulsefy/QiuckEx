@@ -326,6 +326,27 @@ export class AppConfigService {
   }
 
   /**
+   * Whether the dead letter queue depth/age monitor is enabled
+   */
+  get dlqMonitorEnabled(): boolean {
+    return this.configService.get("DLQ_MONITOR_ENABLED", { infer: true });
+  }
+
+  /**
+   * Dead letter queue depth (per job type) that triggers an alert
+   */
+  get dlqAlertDepthThreshold(): number {
+    return this.configService.get("DLQ_ALERT_DEPTH_THRESHOLD", { infer: true });
+  }
+
+  /**
+   * Age in ms of the oldest dead-lettered job (per job type) that triggers an alert
+   */
+  get dlqAlertAgeThresholdMs(): number {
+    return this.configService.get("DLQ_ALERT_AGE_THRESHOLD_MS", { infer: true });
+  }
+
+  /**
    * Days to retain abuse signals before auto-pruning
    */
   get abuseSignalRetentionDays(): number {
