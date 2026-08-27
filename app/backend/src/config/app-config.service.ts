@@ -446,4 +446,19 @@ export class AppConfigService {
         : "Public Global Stellar Network ; September 2015")
     );
   }
+
+  // ── Export artifact storage (BE-102) ───────────────────────────────────────
+
+  /** Retention period for export artifacts in object storage (hours). */
+  get exportArtifactTtlHours(): number {
+    return this.configService.get('EXPORT_ARTIFACT_TTL_HOURS', { infer: true });
+  }
+
+  /**
+   * HMAC-SHA256 secret used to sign export download tokens.
+   * Must be at least 32 characters.  Rotate by cycling this env var.
+   */
+  get exportDownloadSecret(): string {
+    return this.configService.get('EXPORT_DOWNLOAD_SECRET', { infer: true });
+  }
 }
