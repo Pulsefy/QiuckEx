@@ -722,26 +722,52 @@ export class SupabaseService {
     };
   }
 
-  async getActiveListings(
-    limit: number,
-    cursor: string | null,
-  ): Promise<{ listings: MarketplaceListing[]; next_cursor: string | null; has_more: boolean; total: number }> {
-    const effectiveLimit = Math.min(100, Math.max(1, limit));
+  /**
+   * Query active listings with sort, price range, and username filters,
+   * using cursor-based pagination.
+   *
+   * The cursor filter mirrors the pattern used by `getActiveListings`
+   * above rather than the generic `applyCursorFilter` util: it fetches
+   * `limit + 1` rows ordered by (sortColumn, id) and decodes an opaque
+   * `{ pk, id }` cursor where `pk` is the value of whatever column is
+   * currently being sorted on.
+   */
+  async queryActiveListings(options: {
+    limit: number;
+    cursor: string | null;
+    sortColumn: 'created_at' | 'asking_price';
+    ascending: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    username?: string;
+  }): Promise<{ listings: MarketplaceListing[]; next_cursor: string | null; has_more: boolean; total: number }> {
+    const effectiveLimit = Math.min(100, Math.max(1, options.limit));
+    const { sortColumn, ascending } = options;
 
     let query = this.client
       .from('username_marketplace')
       .select('*', { count: 'exact' })
       .eq('status', 'active');
 
-    if (cursor) {
-      // Decode cursor
+    if (options.minPrice !== undefined) {
+      query = query.gte('asking_price', options.minPrice);
+    }
+    if (options.maxPrice !== undefined) {
+      query = query.lte('asking_price', options.maxPrice);
+    }
+    if (options.username) {
+      query = query.ilike('username', `%${options.username.trim().toLowerCase()}%`);
+    }
+
+    if (options.cursor) {
       try {
-        const json = Buffer.from(cursor, 'base64url').toString('utf-8');
+        const json = Buffer.from(options.cursor, 'base64url').toString('utf-8');
         const parsed = JSON.parse(json);
         if (typeof parsed.pk === 'string' && typeof parsed.id === 'string') {
-          query = query
-            .lt('created_at', parsed.pk)
-            .or(`created_at.eq.${parsed.pk},id.lt.${parsed.id}`);
+          const cmpOp = ascending ? 'gt' : 'lt';
+          query = query[cmpOp](sortColumn, parsed.pk).or(
+            `${sortColumn}.eq.${parsed.pk},id.${cmpOp}.${parsed.id}`,
+          );
         }
       } catch {
         // invalid cursor – start from beginning
@@ -749,8 +775,8 @@ export class SupabaseService {
     }
 
     query = query
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
+      .order(sortColumn, { ascending })
+      .order('id', { ascending })
       .limit(effectiveLimit + 1);
 
     const { data, error, count } = await query;
@@ -762,9 +788,9 @@ export class SupabaseService {
 
     let nextCursor: string | null = null;
     if (hasMore && listings.length > 0) {
-      const last = listings[listings.length - 1];
+      const last = listings[listings.length - 1] as unknown as Record<string, unknown>;
       nextCursor = Buffer.from(
-        JSON.stringify({ pk: last.created_at, id: last.id }),
+        JSON.stringify({ pk: String(last[sortColumn]), id: String(last['id']) }),
         'utf-8',
       ).toString('base64url');
     }
@@ -775,6 +801,22 @@ export class SupabaseService {
       has_more: hasMore,
       total: count ?? 0,
     };
+  }
+
+  /**
+   * Batch-fetch bids for a set of listing ids, used to attach bid summary
+   * data to a page of listings without an N+1 query per listing.
+   */
+  async getBidsForListingIds(listingIds: string[]): Promise<MarketplaceBid[]> {
+    if (listingIds.length === 0) {
+      return [];
+    }
+    const { data, error } = await this.client
+      .from('username_bids')
+      .select('*')
+      .in('listing_id', listingIds);
+    if (error) this.handleError(error);
+    return (data ?? []) as MarketplaceBid[];
   }
 
   async getBidsByListingIdPaginated(
