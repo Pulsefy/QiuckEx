@@ -90,3 +90,7 @@ jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
   isTaskRegisteredAsync: jest.fn(async () => false),
 }));
+
+jest.mock("expo-battery", () => ({
+  getBatteryLevelAsync: jest.fn(async () => 1),
+}));
