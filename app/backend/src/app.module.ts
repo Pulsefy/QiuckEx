@@ -79,7 +79,15 @@ EventEmitterModule.forRoot({
 wildcard: true,
 delimiter: ".",
 }),
-ThrottlerModule.forRoot(throttlerModuleProfiles),
+ThrottlerModule.forRoot([
+  { name: 'public-read', ttl: 60_000, limit: 100 },
+  { name: 'search', ttl: 60_000, limit: 30 },
+  { name: 'mutation', ttl: 60_000, limit: 20 },
+  { name: 'export', ttl: 60_000, limit: 10 },
+  ...throttlerModuleProfiles.filter(
+    (p) => !['public-read', 'search', 'mutation', 'export'].includes(p.name),
+  ),
+]),
 SupabaseModule,
 HealthModule,
 AssetMetadataModule,
