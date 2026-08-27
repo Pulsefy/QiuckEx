@@ -1,4 +1,4 @@
-// Marketplace data and API calls
+// Marketplace mock data and simulated API calls
 
 import { getQuickexApiBase } from "@/lib/api";
 export type UsernameStatus = "auction" | "buyNow" | "sold" | "listed";
@@ -38,11 +38,147 @@ let cachedListings: MarketplaceListing[] | null = null;
 let cachedUserBids: UserBid[] | null = null;
 let cachedUserListings: UserListing[] | null = null;
 
-export function clearMarketplaceCache(): void {
-  cachedListings = null;
-  cachedUserBids = null;
-  cachedUserListings = null;
-}
+const MOCK_LISTINGS: MarketplaceListing[] = [
+  {
+    id: "1",
+    username: "pay",
+    currentBid: 5800,
+    buyNowPrice: 12000,
+    ownerAddress: "GDRH...4T9F",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 2.5),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
+    status: "auction",
+    category: "og",
+    bidCount: 34,
+    watchers: 210,
+    verified: true,
+  },
+  {
+    id: "2",
+    username: "sol",
+    currentBid: 3200,
+    buyNowPrice: 8500,
+    ownerAddress: "GCXY...8K3J",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 5),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
+    status: "auction",
+    category: "crypto",
+    bidCount: 19,
+    watchers: 98,
+    verified: true,
+  },
+  {
+    id: "3",
+    username: "nova",
+    currentBid: 1400,
+    buyNowPrice: 4000,
+    ownerAddress: "GBXT...2R7K",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
+    status: "auction",
+    category: "brand",
+    bidCount: 8,
+    watchers: 54,
+    verified: false,
+  },
+  {
+    id: "4",
+    username: "satoshi",
+    currentBid: 9900,
+    buyNowPrice: null,
+    ownerAddress: "GDKL...5W1M",
+    endsAt: new Date(Date.now() + 1000 * 60 * 47),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
+    status: "auction",
+    category: "trending",
+    bidCount: 62,
+    watchers: 445,
+    verified: true,
+  },
+  {
+    id: "5",
+    username: "alex",
+    currentBid: 780,
+    buyNowPrice: 2000,
+    ownerAddress: "GCMQ...9P2N",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 36),
+    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
+    status: "auction",
+    category: "short",
+    bidCount: 5,
+    watchers: 31,
+    verified: false,
+  },
+  {
+    id: "6",
+    username: "defi",
+    currentBid: 4100,
+    buyNowPrice: null,
+    ownerAddress: "GBKR...1Q0C",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+    status: "auction",
+    category: "crypto",
+    bidCount: 27,
+    watchers: 182,
+    verified: true,
+  },
+  {
+    id: "7",
+    username: "lux",
+    currentBid: 620,
+    buyNowPrice: 1500,
+    ownerAddress: "GDXP...3F4G",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+    createdAt: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
+    status: "listed",
+    category: "brand",
+    bidCount: 3,
+    watchers: 22,
+    verified: false,
+  },
+  {
+    id: "8",
+    username: "web3",
+    currentBid: 2700,
+    buyNowPrice: 6000,
+    ownerAddress: "GBNH...7T5Q",
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
+    status: "auction",
+    category: "trending",
+    bidCount: 15,
+    watchers: 113,
+    verified: true,
+  },
+];
+
+const MOCK_USER_BIDS: UserBid[] = [
+  {
+    username: "nova",
+    myBid: 1200,
+    currentBid: 1400,
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    isWinning: false,
+  },
+  {
+    username: "lux",
+    myBid: 620,
+    currentBid: 620,
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+    isWinning: true,
+  },
+];
+
+const MOCK_USER_LISTINGS: UserListing[] = [
+  {
+    username: "stellardev",
+    minBid: 300,
+    currentBid: 480,
+    bidCount: 3,
+    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
+  },
+];
 
 export function mapBackendListingToCardListing(item: BackendMarketplaceListing): MarketplaceListing {
   const createdAt = new Date(item.created_at || Date.now());
@@ -97,39 +233,57 @@ export async function fetchListings(options: FetchListingsOptions = {}): Promise
     url.searchParams.set("cursor", cursor);
   }
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to load marketplace listings (${response.status})`);
+    if (!response.ok) {
+      throw new Error(`Failed to load marketplace listings (${response.status})`);
+    }
+
+    const data = (await response.json()) as {
+      listings: BackendMarketplaceListing[];
+      total: number;
+      next_cursor: string | null;
+      has_more: boolean;
+    };
+
+    const mapped = (data.listings || []).map(mapBackendListingToCardListing);
+    cachedListings = mapped;
+    return mapped;
+  } catch (err) {
+    console.warn("Marketplace backend query error, returning fallback list:", err);
+    cachedListings = MOCK_LISTINGS;
+    return MOCK_LISTINGS;
   }
-
-  const data = (await response.json()) as {
-    listings?: BackendMarketplaceListing[];
-    total?: number;
-    next_cursor?: string | null;
-    has_more?: boolean;
-  };
-
-  const mapped = (data.listings || []).map(mapBackendListingToCardListing);
-  cachedListings = mapped;
-  return mapped;
 }
 
 export async function fetchUserBids(): Promise<UserBid[]> {
   if (cachedUserBids) {
-    return cachedUserBids;
+    return Promise.resolve(cachedUserBids);
   }
-  return [];
+
+  return new Promise((resolve) =>
+    setTimeout(() => {
+      cachedUserBids = MOCK_USER_BIDS;
+      resolve(MOCK_USER_BIDS);
+    }, 700),
+  );
 }
 
 export async function fetchUserListings(): Promise<UserListing[]> {
   if (cachedUserListings) {
-    return cachedUserListings;
+    return Promise.resolve(cachedUserListings);
   }
-  return [];
+
+  return new Promise((resolve) =>
+    setTimeout(() => {
+      cachedUserListings = MOCK_USER_LISTINGS;
+      resolve(MOCK_USER_LISTINGS);
+    }, 700),
+  );
 }
 
 export type BidResult = { success: true } | { success: false; reason: string };

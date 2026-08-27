@@ -88,8 +88,8 @@ function DashboardContent() {
 
   useEffect(() => {
     void callApi(() => fetchActivityFeed(20));
-    void fetchUserBids().then(setUserBids).catch(() => setUserBids([]));
-    void fetchUserListings().then(setUserListings).catch(() => setUserListings([]));
+    void fetchUserBids().then(setUserBids);
+    void fetchUserListings().then(setUserListings);
   }, [callApi, feedRetryCount]);
 
   useEffect(() => {
