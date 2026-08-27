@@ -529,6 +529,24 @@ export const envSchema = Joi.object({
     .max(200)
     .default(50)
     .description("Max SEP-24 transactions to process per poll cycle"),
+
+  // ── Export artifact storage (BE-102) ─────────────────────────────────────
+  EXPORT_ARTIFACT_TTL_HOURS: Joi.number()
+    .integer()
+    .min(1)
+    .max(720)
+    .default(24)
+    .description(
+      "How long export artifacts are retained in object storage before cleanup (hours, default: 24)",
+    ),
+
+  EXPORT_DOWNLOAD_SECRET: Joi.string()
+    .min(32)
+    .default("change-me-in-production-export-download-secret-32chars")
+    .description(
+      "HMAC-SHA256 secret used to sign and verify export download tokens. " +
+        "Must be at least 32 characters. Rotate by cycling this value.",
+    ),
 });
 
 /**
@@ -615,4 +633,9 @@ export interface EnvConfig {
   API_KEY_ROTATION_OVERLAP_HOURS: number;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;
+  SEP24_STUCK_THRESHOLD_MS: number;
+  SEP24_MAX_POLL_FAILURES: number;
+  SEP24_POLL_BATCH_SIZE: number;
+  EXPORT_ARTIFACT_TTL_HOURS: number;
+  EXPORT_DOWNLOAD_SECRET: string;
 }

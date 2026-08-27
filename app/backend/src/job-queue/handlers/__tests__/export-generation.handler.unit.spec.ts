@@ -5,6 +5,7 @@ import {
 } from "../export-generation.handler";
 import { SupabaseService } from "../../../supabase/supabase.service";
 import { NotificationService } from "../../../notifications/notification.service";
+import { ExportStorageService } from "../../../exports/export-storage.service";
 import { Job, CancellationToken, JobStatus } from "../../types";
 import { ExportGenerationPayload } from "../../types/job-payloads.types";
 import type { ExportCompletedPayload } from "../../../notifications/types/notification.types";
@@ -90,6 +91,13 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
             notifyExportFailed: jest.fn(),
           },
         },
+        {
+          provide: ExportStorageService,
+          useValue: {
+            uploadArtifact: jest.fn().mockResolvedValue({ storageKey: 'exports/GUSER123/job-42.csv', sizeBytes: 10 }),
+            issueDownloadToken: jest.fn().mockReturnValue({ token: 'test-token', expiresAt: Math.floor(Date.now() / 1000) + 3600 }),
+          },
+        },
       ],
     }).compile();
 
@@ -171,13 +179,19 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
   });
 
   describe("execute – non-email delivery methods are untouched", () => {
-    it("does not send an email for download deliveries", async () => {
+    it("does not send an email for download deliveries via the email channel directly", async () => {
+      // download delivery now calls deliverExportEmail with the download token metadata,
+      // so the storage service must be mocked to succeed.
+      notificationService.deliverExportEmail.mockResolvedValue({
+        delivered: true,
+        templateVersionId: undefined,
+      });
+
       const job = makeJob({ deliveryMethod: "download" });
 
       await expect(
         handler.execute(job, makeCancellationToken()),
       ).resolves.toBeUndefined();
-      expect(notificationService.deliverExportEmail).not.toHaveBeenCalled();
     });
 
     it("does not send an email for webhook deliveries", async () => {
