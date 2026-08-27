@@ -10,7 +10,7 @@ import { ThrottlerException } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { AppConfigService } from "../../config";
 import { MetricsService } from "../../metrics/metrics.service";
-import { ErrorCatalog, ErrorCode } from "../errors";
+import { ErrorCatalog } from "../errors";
 
 interface ErrorResponseBody {
   error: {
