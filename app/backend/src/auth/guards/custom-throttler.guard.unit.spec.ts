@@ -110,7 +110,7 @@ describe("CustomThrottlerGuard", () => {
     jest.restoreAllMocks();
   });
 
-  it("uses public burst profile by default", async () => {
+  it("uses publicRead burst profile by default", async () => {
     const context = buildContext({
       ip: "127.0.0.1",
       baseUrl: "/links",
@@ -122,8 +122,8 @@ describe("CustomThrottlerGuard", () => {
 
     expect(superHandleRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        limit: throttlerConfig.groups.public.burst.limit,
-        ttl: throttlerConfig.groups.public.burst.ttlMs,
+        limit: throttlerConfig.groups.publicRead.burst.limit,
+        ttl: throttlerConfig.groups.publicRead.burst.ttlMs,
       }),
     );
   });
@@ -163,6 +163,66 @@ describe("CustomThrottlerGuard", () => {
       expect.objectContaining({
         limit: throttlerConfig.groups.webhooks.burst.limit,
         ttl: throttlerConfig.groups.webhooks.burst.ttlMs,
+      }),
+    );
+  });
+
+  it("uses search burst profile when metadata tag is set", async () => {
+    const handler = () => undefined;
+    Reflect.defineMetadata(RATE_LIMIT_GROUP_METADATA_KEY, "search", handler);
+
+    const context = buildContext(
+      { ip: "127.0.0.1", baseUrl: "/search", route: { path: "/:query" } },
+      handler,
+    );
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: throttlerConfig.groups.search.burst.limit,
+        ttl: throttlerConfig.groups.search.burst.ttlMs,
+      }),
+    );
+  });
+
+  it("uses mutation burst profile when metadata tag is set", async () => {
+    const handler = () => undefined;
+    Reflect.defineMetadata(RATE_LIMIT_GROUP_METADATA_KEY, "mutation", handler);
+
+    const context = buildContext(
+      { ip: "127.0.0.1", baseUrl: "/transactions", route: { path: "/" } },
+      handler,
+    );
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: throttlerConfig.groups.mutation.burst.limit,
+        ttl: throttlerConfig.groups.mutation.burst.ttlMs,
+      }),
+    );
+  });
+
+  it("uses export burst profile when metadata tag is set", async () => {
+    const handler = () => undefined;
+    Reflect.defineMetadata(RATE_LIMIT_GROUP_METADATA_KEY, "export", handler);
+
+    const context = buildContext(
+      { ip: "127.0.0.1", baseUrl: "/exports", route: { path: "/:id" } },
+      handler,
+    );
+    const props = buildProps(context, THROTTLER_BURST_NAME);
+
+    await guard.handleRequest(props);
+
+    expect(superHandleRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: throttlerConfig.groups.export.burst.limit,
+        ttl: throttlerConfig.groups.export.burst.ttlMs,
       }),
     );
   });
@@ -209,7 +269,7 @@ describe("CustomThrottlerGuard", () => {
     expect(metricsServiceRecordMock).toHaveBeenCalledWith(
       "GET",
       "/metadata",
-      "public",
+      "publicRead",
       "ip",
     );
   });
