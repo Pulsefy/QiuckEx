@@ -26,6 +26,13 @@ import { EnvironmentProvider } from "../contexts/EnvironmentContext";
 import { SessionProvider } from "../contexts/SessionContext";
 import { GlobalNetworkBanner } from "../components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "../components/wallet/WalletSyncBridge";
+import { useDeviceTokenRegistration } from "../hooks/useDeviceTokenRegistration";
+import { registerDeviceTokenQueueHandlers } from "../services/device-token-registration";
+
+// Register offline-queue handlers for device-token register/deregister
+// retries as early as possible, so a crash mid-boot still leaves the queue
+// primed for the next flush.
+registerDeviceTokenQueueHandlers();
 
 import { resolveDeepLink, type DeepLinkRoute } from "@/utils/deep-link-routing";
 import { initializeCrashMonitoring } from "../services/crash-monitoring";
@@ -231,6 +238,7 @@ function AppShell() {
 
   useDeepLinkHandler(enqueueRoute, enqueueError);
   useNotificationTapRouting(enqueueRoute);
+  useDeviceTokenRegistration();
 
   if (onboardingLoading) {
     return null; // Show loading screen while checking onboarding status
