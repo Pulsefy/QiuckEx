@@ -13,7 +13,7 @@ import { AppState, Platform } from "react-native";
 import { PinAuthModal } from "@/components/security/pin-auth-modal";
 import {
     clearBiometricSession,
-    clearSensitiveToken,
+  clearSensitiveSecurityData,
     getSecuritySettings,
     getSensitiveToken,
     getSessionExpiryExplanation,
@@ -358,7 +358,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSensitiveSessionToken = useCallback(async () => {
-    await clearSensitiveToken();
+    await clearSensitiveSecurityData();
   }, []);
 
   // ── New session timeout methods ─────────────────────────────────────────────

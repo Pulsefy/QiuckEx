@@ -1,5 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { StellarNetwork, WalletType } from "../types/wallet";
+import {
+  deleteSecureItem,
+  getSecureItem,
+  setSecureItem,
+} from "./secure-storage";
 
 export type WalletNetwork = StellarNetwork;
 
@@ -51,7 +56,8 @@ function isValidNetwork(value: unknown): value is WalletNetwork {
 
 export async function getWalletSession(): Promise<WalletSession | null> {
   try {
-    const raw = await AsyncStorage.getItem(WALLET_SESSION_KEY);
+    await AsyncStorage.removeItem(WALLET_SESSION_KEY);
+    const raw = await getSecureItem(WALLET_SESSION_KEY);
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<WalletSession>;
@@ -91,11 +97,13 @@ export async function saveWalletSession(
     environmentId: environmentId ?? session.environmentId,
     buildTag: buildTag ?? session.buildTag,
   };
-  await AsyncStorage.setItem(WALLET_SESSION_KEY, JSON.stringify(enriched));
+  await AsyncStorage.removeItem(WALLET_SESSION_KEY);
+  await setSecureItem(WALLET_SESSION_KEY, JSON.stringify(enriched));
   await AsyncStorage.setItem(LAST_WALLET_TYPE_KEY, session.walletType);
 }
 
 export async function clearWalletSession(): Promise<void> {
+  await deleteSecureItem(WALLET_SESSION_KEY);
   await AsyncStorage.removeItem(WALLET_SESSION_KEY);
 }
 

@@ -1,9 +1,15 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import {
+  deleteSecureItem,
+  getSecureItem,
+  setSecureItem,
+} from "./secure-storage";
+
 // Lazily load native modules to avoid runtime errors in environments where
 // native Expo modules (expo-crypto, expo-secure-store) are not available
 // (web, node, or mismatched Expo Go). We provide JS fallbacks where possible.
 let ExpoCrypto: any | undefined;
-let ExpoSecureStore: any | undefined;
-let AsyncStorage: any | undefined;
 
 try {
   // Use require so bundlers won't eagerly fail when native modules are missing
@@ -12,20 +18,6 @@ try {
   ExpoCrypto = require("expo-crypto");
 } catch (e) {
   ExpoCrypto = undefined;
-}
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-  ExpoSecureStore = require("expo-secure-store");
-} catch (e) {
-  ExpoSecureStore = undefined;
-}
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-  AsyncStorage = require("@react-native-async-storage/async-storage");
-} catch (e) {
-  AsyncStorage = undefined;
 }
 
 import type {
@@ -42,7 +34,7 @@ import {
 const SECURITY_SETTINGS_KEY = "quickex.security.settings";
 const FALLBACK_PIN_HASH_KEY = "quickex.security.pinHash";
 const SENSITIVE_TOKEN_KEY = "quickex.security.sensitiveToken";
-const PIN_HASH_SALT = "quickex.v2.pin.salt";
+const PIN_HASH_LENGTH = 16;
 
 const BIOMETRIC_SESSION_KEY = "quickex.security.biometricSession";
 
@@ -51,71 +43,8 @@ export const DEFAULT_SETTINGS: SecuritySettings = {
   sessionTimeoutMinutes: DEFAULT_SESSION_TIMEOUT_MINUTES,
 };
 
-async function isSecureStoreAvailable() {
-  try {
-    if (
-      ExpoSecureStore &&
-      typeof ExpoSecureStore.isAvailableAsync === "function"
-    ) {
-      return await ExpoSecureStore.isAvailableAsync();
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-async function getItem(key: string) {
-  if (await isSecureStoreAvailable()) {
-    return ExpoSecureStore.getItemAsync(key);
-  }
-
-  // Fallback to AsyncStorage if available (less secure, used for web/testing)
-  if (AsyncStorage && typeof AsyncStorage.getItem === "function") {
-    try {
-      return await AsyncStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-async function setItem(key: string, value: string) {
-  if (await isSecureStoreAvailable()) {
-    await ExpoSecureStore.setItemAsync(key, value, {
-      keychainAccessible: ExpoSecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
-    return;
-  }
-
-  if (AsyncStorage && typeof AsyncStorage.setItem === "function") {
-    try {
-      await AsyncStorage.setItem(key, value);
-    } catch {
-      // ignore
-    }
-  }
-}
-
-async function deleteItem(key: string) {
-  if (await isSecureStoreAvailable()) {
-    await ExpoSecureStore.deleteItemAsync(key);
-    return;
-  }
-
-  if (AsyncStorage && typeof AsyncStorage.removeItem === "function") {
-    try {
-      await AsyncStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
-  }
-}
-
 export async function getSecuritySettings(): Promise<SecuritySettings> {
-  const raw = await getItem(SECURITY_SETTINGS_KEY);
+  const raw = await AsyncStorage.getItem(SECURITY_SETTINGS_KEY);
   if (!raw) return DEFAULT_SETTINGS;
 
   try {
@@ -135,14 +64,14 @@ export async function getSecuritySettings(): Promise<SecuritySettings> {
 }
 
 export async function saveSecuritySettings(settings: SecuritySettings) {
-  await setItem(SECURITY_SETTINGS_KEY, JSON.stringify(settings));
+  await AsyncStorage.setItem(SECURITY_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 /**
  * Removes all stored security settings, returning to the default state.
  */
 export async function clearSecuritySettings() {
-  await deleteItem(SECURITY_SETTINGS_KEY);
+  await AsyncStorage.removeItem(SECURITY_SETTINGS_KEY);
 }
 
 // ── Biometric Session Management ──────────────────────────────────────────────
@@ -156,14 +85,14 @@ export async function recordBiometricAuth(reason: SecurityAuthReason) {
     lastAuthenticatedAt: new Date().toISOString(),
     lastAuthReason: reason,
   };
-  await setItem(BIOMETRIC_SESSION_KEY, JSON.stringify(sessionInfo));
+  await setSecureItem(BIOMETRIC_SESSION_KEY, JSON.stringify(sessionInfo));
 }
 
 /**
  * Retrieves the last biometric session info.
  */
 export async function getBiometricSession(): Promise<BiometricSessionInfo | null> {
-  const raw = await getItem(BIOMETRIC_SESSION_KEY);
+  const raw = await getSecureItem(BIOMETRIC_SESSION_KEY);
   if (!raw) return null;
 
   try {
@@ -179,7 +108,7 @@ export async function getBiometricSession(): Promise<BiometricSessionInfo | null
  * Clears the biometric session, forcing re-authentication on the next action.
  */
 export async function clearBiometricSession() {
-  await deleteItem(BIOMETRIC_SESSION_KEY);
+  await deleteSecureItem(BIOMETRIC_SESSION_KEY);
 }
 
 /**
@@ -240,13 +169,41 @@ export async function getSessionExpiryExplanation(): Promise<string> {
   return `Your session expires in ${remainingSeconds} second${remainingSeconds !== 1 ? "s" : ""}.`;
 }
 
-async function hashPin(pin: string) {
+async function createPinSalt(): Promise<string> {
+  try {
+    if (ExpoCrypto && typeof ExpoCrypto.getRandomBytesAsync === "function") {
+      const bytes = await ExpoCrypto.getRandomBytesAsync(PIN_HASH_LENGTH);
+      return Array.from(bytes, (byte: number) => byte.toString(16).padStart(2, "0")).join("");
+    }
+  } catch {
+    // Try the platform-independent crypto implementations below.
+  }
+
+  try {
+    if (typeof globalThis?.crypto?.getRandomValues === "function") {
+      const bytes = globalThis.crypto.getRandomValues(new Uint8Array(PIN_HASH_LENGTH));
+      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    }
+  } catch {
+    // Try Node crypto in test and development environments.
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+    const nodeCrypto = require("crypto");
+    return nodeCrypto.randomBytes(PIN_HASH_LENGTH).toString("hex");
+  } catch {
+    throw new Error("A cryptographically secure random source is unavailable");
+  }
+}
+
+async function hashPin(pin: string, salt: string) {
   // Prefer ExpoCrypto if available, otherwise use Web Crypto or Node crypto as fallback
   try {
     if (ExpoCrypto && typeof ExpoCrypto.digestStringAsync === "function") {
       return ExpoCrypto.digestStringAsync(
         ExpoCrypto.CryptoDigestAlgorithm.SHA256,
-        `${PIN_HASH_SALT}:${pin}`,
+        `${salt}:${pin}`,
       );
     }
   } catch (e) {
@@ -256,7 +213,7 @@ async function hashPin(pin: string) {
   // Web Crypto API
   try {
     if (typeof globalThis?.crypto?.subtle?.digest === "function") {
-      const data = new TextEncoder().encode(`${PIN_HASH_SALT}:${pin}`);
+      const data = new TextEncoder().encode(`${salt}:${pin}`);
       const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
       // convert to hex
       const arr = Array.from(new Uint8Array(hash));
@@ -272,49 +229,67 @@ async function hashPin(pin: string) {
     const nodeCrypto = require("crypto");
     return nodeCrypto
       .createHash("sha256")
-      .update(`${PIN_HASH_SALT}:${pin}`)
+      .update(`${salt}:${pin}`)
       .digest("hex");
   } catch (e) {
     // As a last resort, return a non-cryptographic string (shouldn't happen)
-    return `${PIN_HASH_SALT}:${pin}`;
+    throw new Error("No cryptographic hash implementation is available");
   }
 }
 
 export async function setFallbackPin(pin: string) {
-  const pinHash = await hashPin(pin);
-  await setItem(FALLBACK_PIN_HASH_KEY, pinHash);
+  const salt = await createPinSalt();
+  const hash = await hashPin(pin, salt);
+  await setSecureItem(FALLBACK_PIN_HASH_KEY, JSON.stringify({ salt, hash }));
 }
 
 export async function hasFallbackPin() {
-  const pinHash = await getItem(FALLBACK_PIN_HASH_KEY);
-  return Boolean(pinHash);
+  const stored = await getSecureItem(FALLBACK_PIN_HASH_KEY);
+  if (!stored) return false;
+  try {
+    const parsed = JSON.parse(stored) as { salt?: string; hash?: string };
+    return Boolean(parsed.salt && parsed.hash);
+  } catch {
+    return false;
+  }
 }
 
 export async function verifyFallbackPin(pin: string) {
-  const storedHash = await getItem(FALLBACK_PIN_HASH_KEY);
-  if (!storedHash) return false;
+  const stored = await getSecureItem(FALLBACK_PIN_HASH_KEY);
+  if (!stored) return false;
 
-  const incomingHash = await hashPin(pin);
-  return storedHash === incomingHash;
+  try {
+    const parsed = JSON.parse(stored) as { salt?: string; hash?: string };
+    if (!parsed.salt || !parsed.hash) return false;
+    return parsed.hash === (await hashPin(pin, parsed.salt));
+  } catch {
+    return false;
+  }
 }
 
 export async function saveSensitiveToken(token: string) {
-  await setItem(SENSITIVE_TOKEN_KEY, token);
+  await setSecureItem(SENSITIVE_TOKEN_KEY, token);
 }
 
 export async function getSensitiveToken() {
-  return getItem(SENSITIVE_TOKEN_KEY);
+  return getSecureItem(SENSITIVE_TOKEN_KEY);
 }
 
 export async function clearSensitiveToken() {
-  await deleteItem(SENSITIVE_TOKEN_KEY);
+  await deleteSecureItem(SENSITIVE_TOKEN_KEY);
+}
+
+export async function clearSensitiveSecurityData(): Promise<void> {
+  await Promise.all([
+    deleteSecureItem(FALLBACK_PIN_HASH_KEY),
+    deleteSecureItem(SENSITIVE_TOKEN_KEY),
+    deleteSecureItem(BIOMETRIC_SESSION_KEY),
+  ]);
 }
 
 export async function clearSecurityData(): Promise<void> {
   await Promise.all([
-    deleteItem(SECURITY_SETTINGS_KEY),
-    deleteItem(FALLBACK_PIN_HASH_KEY),
-    deleteItem(SENSITIVE_TOKEN_KEY),
-    deleteItem(BIOMETRIC_SESSION_KEY),
+    clearSecuritySettings(),
+    clearSensitiveSecurityData(),
   ]);
 }
