@@ -432,6 +432,34 @@ pub(crate) fn publish_privacy_toggled(env: &Env, owner: Address, enabled: bool) 
     .publish(env);
 }
 
+#[contractevent(topics = ["TOPIC_PRIVACY", "PrivacyAccessAttempt"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivacyAccessAttemptEvent {
+    #[topic]
+    pub caller: Address,
+
+    pub owner: Address,
+    pub was_redacted: bool,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_privacy_access_attempt(
+    env: &Env,
+    caller: Address,
+    owner: Address,
+    was_redacted: bool,
+) {
+    PrivacyAccessAttemptEvent {
+        caller,
+        owner,
+        was_redacted,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 #[allow(dead_code)]
 #[contractevent(topics = ["TOPIC_ADMIN", "ContractInitialized"])]
 #[derive(Clone, Debug, Eq, PartialEq)]

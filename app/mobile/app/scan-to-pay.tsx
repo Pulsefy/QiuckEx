@@ -3,18 +3,30 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
   View,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { parsePaymentLink } from '@/utils/parse-payment-link';
 import { useTheme } from '../src/theme/ThemeContext';
+import { CrashReportingService } from '@/services/CrashReportingService';
 
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+
+interface ScannedPaymentData {
+  username: string;
+  amount: string;
+  asset: string;
+  memo?: string;
+  privacy: boolean;
+}
 
 export default function ScanToPayScreen() {
   const router = useRouter();
@@ -80,6 +92,52 @@ export default function ScanToPayScreen() {
     setScanned(false);
   }, []);
 
+  const handleConfirmPayment = async () => {
+    if (!paymentData) return;
+
+    setIsProcessing(true);
+    try {
+      CrashReportingService.recordUserAction('Payment confirmed', {
+        username: paymentData.username,
+        asset: paymentData.asset,
+        amount: paymentData.amount,
+      });
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      router.replace({
+        pathname: '/payment-confirmation',
+        params: {
+          username: paymentData.username,
+          amount: paymentData.amount,
+          asset: paymentData.asset,
+          ...(paymentData.memo ? { memo: paymentData.memo } : {}),
+          privacy: String(paymentData.privacy),
+        },
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to process payment';
+      CrashReportingService.recordError(errorMsg);
+      Alert.alert('Error', errorMsg);
+      setIsProcessing(false);
+      setShowConfirmation(false);
+    }
+  };
+
+  const handleRejectPayment = () => {
+    if (!paymentData) return;
+
+    CrashReportingService.recordUserAction('Payment rejected', {
+      username: paymentData.username,
+      asset: paymentData.asset,
+    });
+
+    setShowConfirmation(false);
+    setPaymentData(null);
+    processingRef.current = false;
+    setScanned(false);
+  };
+
   if (!permission) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: theme.background }]}>
@@ -120,9 +178,7 @@ export default function ScanToPayScreen() {
       {/* Overlay — intentionally uses white-on-transparent for camera readability */}
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <Text style={styles.title}>Scan to Pay</Text>
-        <Text style={styles.hint}>
-          Point your camera at a QuickEx QR code
-        </Text>
+        <Text style={styles.hint}>Point your camera at a QuickEx QR code</Text>
 
         {/* Viewfinder */}
         <View style={styles.viewfinder}>
@@ -161,6 +217,95 @@ export default function ScanToPayScreen() {
           </Pressable>
         </View>
       </SafeAreaView>
+
+      {/* Payment Confirmation Modal */}
+      <Modal visible={showConfirmation} transparent animationType="slide" onRequestClose={handleRejectPayment}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={handleRejectPayment} hitSlop={8}>
+              <Ionicons name="close" size={24} color={theme.textPrimary} />
+            </Pressable>
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Confirm Payment</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={[styles.amountCard, { borderColor: theme.borderColor }]}>
+              <Text style={[styles.amountLabel, { color: theme.textSecondary }]}>You're sending</Text>
+              <Text style={[styles.amount, { color: theme.textPrimary }]}>
+                {paymentData?.amount} {paymentData?.asset}
+              </Text>
+            </View>
+
+            <View style={[styles.detailsSection, { borderColor: theme.borderColor }]}>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Recipient</Text>
+                <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{paymentData?.username}</Text>
+              </View>
+
+              <View style={[styles.detailDivider, { backgroundColor: theme.borderColor }]} />
+
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Asset</Text>
+                <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{paymentData?.asset}</Text>
+              </View>
+
+              {paymentData?.memo && (
+                <>
+                  <View style={[styles.detailDivider, { backgroundColor: theme.borderColor }]} />
+                  <View style={styles.detailRow}>
+                    <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Memo</Text>
+                    <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{paymentData.memo}</Text>
+                  </View>
+                </>
+              )}
+
+              <View style={[styles.detailDivider, { backgroundColor: theme.borderColor }]} />
+
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Privacy</Text>
+                <Text style={[styles.detailValue, { color: theme.textPrimary }]}>
+                  {paymentData?.privacy ? 'Enabled' : 'Disabled'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.warningBox}>
+              <Ionicons name="alert-circle" size={16} color="#f59e0b" />
+              <Text style={[styles.warningText, { color: theme.textSecondary }]}>
+                Please review the details carefully before confirming.
+              </Text>
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <Pressable
+              style={[styles.confirmButton, { backgroundColor: theme.buttonPrimaryBg }]}
+              onPress={handleConfirmPayment}
+              disabled={isProcessing}
+              android_ripple={{ color: 'rgba(0,0,0,0.2)' }}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color={theme.buttonPrimaryText} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color={theme.buttonPrimaryText} />
+                  <Text style={[styles.buttonText, { color: theme.buttonPrimaryText }]}>Confirm & Sign</Text>
+                </>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[styles.cancelButton, { borderColor: theme.borderColor }]}
+              onPress={handleRejectPayment}
+              disabled={isProcessing}
+              android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+            >
+              <Text style={[styles.buttonText, { color: theme.textSecondary }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -182,7 +327,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
   },
-  // Camera overlay text — intentionally white for camera contrast
   title: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -257,4 +401,102 @@ const styles = StyleSheet.create({
   primaryBtnText: { fontSize: 17, fontWeight: '600' },
   secondaryBtn: { padding: 14 },
   secondaryBtnText: { fontSize: 16 },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  amountCard: {
+    borderWidth: 2,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  amountLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  amount: {
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  detailsSection: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  detailDivider: {
+    height: 1,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    marginBottom: 20,
+    alignItems: 'flex-start',
+  },
+  warningText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+  },
+  modalActions: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  confirmButton: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

@@ -772,9 +772,21 @@ export default function Generator() {
 
   const loadCsvFile = useCallback(
     (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setCsvFileName(file.name);
+        setCsvFileErrors(["Choose a file with a .csv extension."]);
+        setCsvRows([]);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         applyCsvContents(String(reader.result ?? ""), file.name);
+      };
+      reader.onerror = () => {
+        setCsvFileName(file.name);
+        setCsvFileErrors(["The CSV file could not be read."]);
+        setCsvRows([]);
       };
       reader.readAsText(file);
     },

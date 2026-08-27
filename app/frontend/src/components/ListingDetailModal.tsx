@@ -8,6 +8,7 @@ import {
   mapListingDetailToCardListing,
   MarketplaceListing,
   MarketplaceListingDetail,
+  acceptBid,
 } from "@/hooks/marketplaceApi";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
@@ -82,6 +83,21 @@ export function ListingDetailModal({
       cancelled = true;
     };
   }, [listingId, viewerPublicKey]);
+
+  async function handleAcceptBid(bidId: string) {
+    if (!listingId) return;
+    setActionState(bidId);
+    setActionError(null);
+    const result = await acceptBid(listingId, bidId, resolvePublicKey());
+    if (!result.success) {
+      setActionError(result.reason);
+      setActionState(null);
+      return;
+    }
+    const detail = await fetchListingDetail(listingId, resolvePublicKey());
+    setLoadState({ kind: "ready", detail });
+    setActionState(null);
+  }
 
   if (!listingId || loadState.kind === "idle") {
     return null;
@@ -261,11 +277,26 @@ export function ListingDetailModal({
                         <span className="text-xs font-bold uppercase tracking-wide text-subtle">
                           {formatBidStatus(bid.status)}
                         </span>
+                        {loadState.detail.state_hints.can_accept_bids && bid.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => void handleAcceptBid(bid.id)}
+                            disabled={actionState !== null}
+                            className="ml-3 rounded-xl bg-indigo-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-400 disabled:opacity-50"
+                          >
+                            {actionState === bid.id ? "Accepting..." : "Accept"}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
+              {actionError && (
+                <p role="alert" className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-xs font-semibold text-danger">
+                  {actionError}
+                </p>
+              )}
             </section>
 
             <aside className="p-8">

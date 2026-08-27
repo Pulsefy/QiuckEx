@@ -182,7 +182,9 @@ export class BulkPaymentLinksService {
     }
 
     // Parse headers
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = lines[0]
+      .split(',')
+      .map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'));
 
     // Validate required header
     if (!headers.includes('amount')) {
@@ -215,11 +217,15 @@ export class BulkPaymentLinksService {
       if (row.memotype) item.memoType = row.memoType;
       if (row.username) item.username = row.username;
       if (row.destination) item.destination = row.destination;
-      if (row.referenceid) item.referenceId = row.referenceId;
+      if (row.referenceid || row.reference_id) {
+        item.referenceId = row.referenceid || row.reference_id;
+      }
       if (row.privacy) item.privacy = row.privacy.toLowerCase() === 'true';
-      if (row.expirationdays) item.expirationDays = parseInt(row.expirationDays, 10);
-      if (row.acceptedassets) {
-        item.acceptedAssets = row.acceptedassets
+      if (row.expirationdays || row.expiration_days) {
+        item.expirationDays = parseInt(row.expirationdays || row.expiration_days, 10);
+      }
+      if (row.acceptedassets || row.accepted_assets) {
+        item.acceptedAssets = (row.acceptedassets || row.accepted_assets)
           .split('|')
           .map((a) => a.trim())
           .filter((a) => a.length > 0);

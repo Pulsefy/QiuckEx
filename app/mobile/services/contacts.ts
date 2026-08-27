@@ -39,11 +39,11 @@ export async function saveContact(contact: Omit<Contact, 'id' | 'createdAt' | 'u
 export async function updateContact(updated: Contact): Promise<void> {
   const contacts = await getContacts();
   const next = contacts.map(c => c.id === updated.id ? { ...updated, updatedAt: Date.now() } : c);
-  await AsyncStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+  await cacheContacts(next);
 }
 
 export async function deleteContact(id: string): Promise<void> {
   const contacts = await getContacts();
   const next = contacts.filter(c => c.id !== id);
-  await AsyncStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+  await cacheContacts(next);
 }

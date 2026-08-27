@@ -13,6 +13,7 @@ import { useWatchlist } from "@/contexts/WatchlistContext";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import Link from "next/link";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
+import { resolvePublicKey } from "@/lib/publicKey";
 
 const BidModal = dynamic(
   () => import("@/components/BidModal").then((mod) => mod.BidModal),
@@ -442,6 +443,7 @@ function MarketplacePageContent() {
 
       <ListingDetailModal
         listingId={detailListingId}
+          viewerPublicKey={resolvePublicKey()}
         isWatched={detailListingId ? isInWatchlist(detailListingId) : false}
         onClose={() => setDetailListingId(null)}
         onToggleWatchlist={(listing) => toggleWatchlist(listing.id, listing.username)}

@@ -69,19 +69,45 @@ pub fn resolve_arbiter_bps(env: &Env, token: &Address) -> u32 {
 // Collector rotation
 // ---------------------------------------------------------------------------
 
-/// Rotate to a new fee collector address.
+/// Rotate to a new fee collector address with cooldown enforcement and history tracking.
 ///
 /// Atomically increments the `FeeCollectorIndex` and stores `new_collector`
 /// at the new index. All subsequent calls to [`active_collector`] will return
 /// `new_collector` until the next rotation.
 ///
+/// Enforces a 24-hour cooldown between rotations and maintains a chronological
+/// audit trail of all rotations.
+///
 /// **Caller is responsible for authorization** — call only from admin entry points.
-pub fn rotate_collector(env: &Env, new_collector: &Address) -> u32 {
+///
+/// # Errors
+/// Returns `None` if cooldown period has not elapsed since the last rotation.
+pub fn rotate_collector(env: &Env, new_collector: &Address) -> Result<u32, crate::errors::QuickexError> {
+    let now = env.ledger().timestamp();
+    let last_rotation = storage::get_fee_collector_last_rotation(env);
+
+    if last_rotation > 0 && now.saturating_sub(last_rotation) < storage::FEE_COLLECTOR_ROTATION_COOLDOWN_SECS {
+        return Err(crate::errors::QuickexError::InvalidAmount); // Reuse for "cooldown not elapsed"
+    }
+
     let current = storage::get_fee_collector_index(env);
     let next = current.saturating_add(1);
+    let previous_collector = storage::get_fee_collector_at(env, current);
+
     storage::set_fee_collector_index(env, next);
     storage::set_fee_collector_at(env, next, new_collector);
-    next
+    storage::set_fee_collector_last_rotation(env, now);
+
+    // Record rotation in history
+    let entry = crate::types::FeeCollectorRotationEntry {
+        rotation_index: next,
+        collector: new_collector.clone(),
+        previous_collector,
+        rotated_at: now,
+    };
+    storage::add_fee_collector_rotation_entry(env, &entry);
+
+    Ok(next)
 }
 
 // ---------------------------------------------------------------------------

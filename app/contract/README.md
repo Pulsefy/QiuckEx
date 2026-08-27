@@ -208,7 +208,7 @@ Helper functions:
 
 ### Overview
 
-The amount commitment functions provide a **placeholder** for X-Ray privacy shielded flows. These are deterministic SHA256-based commitments without real zero-knowledge guarantees. Future versions will integrate actual ZK proofs.
+The amount commitment functions provide a **placeholder** for X-Ray privacy shielded flows. These use KECCAK256-based deterministic commitments for optimal security and compatibility with Soroban cryptographic operations. Legacy SHA256 commitments remain accepted for backward compatibility.
 
 ### Use Cases
 
@@ -218,15 +218,35 @@ The amount commitment functions provide a **placeholder** for X-Ray privacy shie
 
 ### Serialization Format
 
-Commitments are computed as `SHA256(owner_bytes || amount_bytes || salt_bytes)`:
+Commitments are computed as `KECCAK256(owner_bytes || amount_bytes || salt_bytes)`:
 
 | Component | Size | Format | Description |
 |-----------|------|--------|-------------|
 | Owner | Variable | XDR-serialized Address | Soroban address bytes |
 | Amount | 16 bytes | Big-endian i128 | Transaction amount value |
-| Salt | 0-256 bytes | Raw bytes | Randomness for uniqueness |
+| Salt | 0-1024 bytes | Raw bytes | Randomness for uniqueness |
 
-**Result**: 32-byte SHA256 hash
+**Result**: 32-byte KECCAK256 hash
+
+#### Legacy SHA256 Migration
+
+For backward compatibility with existing deployments, both KECCAK256 and SHA256 commitments are accepted during verification. The migration strategy is:
+
+- **New deposits** (via `create_amount_commitment`): Use KECCAK256 (more secure, consistent with Soroban crypto ops)
+- **Existing SHA256 commitments**: Continue to verify correctly via `verify_amount_commitment`
+- **Verification paths**: Accept both algorithms transparently
+- **Logging**: Legacy SHA256 commitments are logged as `commitment_type: "legacy"` in events for audit trails
+
+**Deprecation Timeline**:
+- **v1.0** (current): Both KECCAK256 and SHA256 accepted; all new commitments use KECCAK256
+- **v2.0** (planned 2025 Q2): SHA256 verification deprecated but still functional; strong recommendation to migrate
+- **v3.0** (planned 2025 Q4): SHA256 support removed; KECCAK256 only
+
+**Migration Path for Users**:
+1. Verify existing escrows use KECCAK256 hashes where possible
+2. For SHA256-based escrows: Continue using `verify_amount_commitment` (works unchanged)
+3. For new workflows: Exclusively use KECCAK256 via `create_amount_commitment`
+4. Before v3.0: Complete transition to KECCAK256-only workflows
 
 ### API Examples
 
@@ -278,10 +298,11 @@ assert!(!client.verify_amount_commitment(&commitment, &other_owner, &amount, &sa
 ### Constraints & Limitations
 
 - **No confidentiality**: Commitments are deterministic hashes, not ZK proofs. Do not rely on them for privacy.
-- **Maximum salt length**: 256 bytes to prevent resource exhaustion.
-- **Non-negative amounts**: Negative amounts will panic; validate client-side.
+- **Maximum salt length**: 1024 bytes to prevent resource exhaustion.
+- **Non-negative amounts**: Negative amounts will fail validation; validate client-side.
 - **Deterministic only**: Same inputs always produce identical commits; useful for audits but no hiding.
 - **Not production-grade privacy**: Mark this feature as "experimental" in UX; full privacy requires ZK integration.
+- **Algorithm migration**: New workflows use KECCAK256; legacy SHA256 commitments are accepted until v3.0.
 
 ## View Functions (Read-Only RPC Calls)
 

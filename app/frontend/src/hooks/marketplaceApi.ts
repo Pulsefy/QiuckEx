@@ -1,6 +1,5 @@
-// Marketplace mock data and simulated API calls
-
 import { getQuickexApiBase } from "@/lib/api";
+import { resolvePublicKey } from "@/lib/publicKey";
 export type UsernameStatus = "auction" | "buyNow" | "sold" | "listed";
 
 export type MarketplaceListing = {
@@ -19,11 +18,13 @@ export type MarketplaceListing = {
 };
 
 export type UserBid = {
+  listingId: string;
   username: string;
   myBid: number;
   currentBid: number;
   endsAt: Date;
   isWinning: boolean;
+  status: BackendMarketplaceBid["status"];
 };
 
 export type UserListing = {
@@ -35,151 +36,6 @@ export type UserListing = {
 };
 
 let cachedListings: MarketplaceListing[] | null = null;
-let cachedUserBids: UserBid[] | null = null;
-let cachedUserListings: UserListing[] | null = null;
-
-const MOCK_LISTINGS: MarketplaceListing[] = [
-  {
-    id: "1",
-    username: "pay",
-    currentBid: 5800,
-    buyNowPrice: 12000,
-    ownerAddress: "GDRH...4T9F",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 2.5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-    status: "auction",
-    category: "og",
-    bidCount: 34,
-    watchers: 210,
-    verified: true,
-  },
-  {
-    id: "2",
-    username: "sol",
-    currentBid: 3200,
-    buyNowPrice: 8500,
-    ownerAddress: "GCXY...8K3J",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
-    status: "auction",
-    category: "crypto",
-    bidCount: 19,
-    watchers: 98,
-    verified: true,
-  },
-  {
-    id: "3",
-    username: "nova",
-    currentBid: 1400,
-    buyNowPrice: 4000,
-    ownerAddress: "GBXT...2R7K",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
-    status: "auction",
-    category: "brand",
-    bidCount: 8,
-    watchers: 54,
-    verified: false,
-  },
-  {
-    id: "4",
-    username: "satoshi",
-    currentBid: 9900,
-    buyNowPrice: null,
-    ownerAddress: "GDKL...5W1M",
-    endsAt: new Date(Date.now() + 1000 * 60 * 47),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
-    status: "auction",
-    category: "trending",
-    bidCount: 62,
-    watchers: 445,
-    verified: true,
-  },
-  {
-    id: "5",
-    username: "alex",
-    currentBid: 780,
-    buyNowPrice: 2000,
-    ownerAddress: "GCMQ...9P2N",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 36),
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    status: "auction",
-    category: "short",
-    bidCount: 5,
-    watchers: 31,
-    verified: false,
-  },
-  {
-    id: "6",
-    username: "defi",
-    currentBid: 4100,
-    buyNowPrice: null,
-    ownerAddress: "GBKR...1Q0C",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    status: "auction",
-    category: "crypto",
-    bidCount: 27,
-    watchers: 182,
-    verified: true,
-  },
-  {
-    id: "7",
-    username: "lux",
-    currentBid: 620,
-    buyNowPrice: 1500,
-    ownerAddress: "GDXP...3F4G",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
-    createdAt: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-    status: "listed",
-    category: "brand",
-    bidCount: 3,
-    watchers: 22,
-    verified: false,
-  },
-  {
-    id: "8",
-    username: "web3",
-    currentBid: 2700,
-    buyNowPrice: 6000,
-    ownerAddress: "GBNH...7T5Q",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-    status: "auction",
-    category: "trending",
-    bidCount: 15,
-    watchers: 113,
-    verified: true,
-  },
-];
-
-const MOCK_USER_BIDS: UserBid[] = [
-  {
-    username: "nova",
-    myBid: 1200,
-    currentBid: 1400,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    isWinning: false,
-  },
-  {
-    username: "lux",
-    myBid: 620,
-    currentBid: 620,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
-    isWinning: true,
-  },
-];
-
-const MOCK_USER_LISTINGS: UserListing[] = [
-  {
-    username: "stellardev",
-    minBid: 300,
-    currentBid: 480,
-    bidCount: 3,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
-  },
-];
-
 export function mapBackendListingToCardListing(item: BackendMarketplaceListing): MarketplaceListing {
   const createdAt = new Date(item.created_at || Date.now());
   let hash = 0;
@@ -254,36 +110,46 @@ export async function fetchListings(options: FetchListingsOptions = {}): Promise
     cachedListings = mapped;
     return mapped;
   } catch (err) {
-    console.warn("Marketplace backend query error, returning fallback list:", err);
-    cachedListings = MOCK_LISTINGS;
-    return MOCK_LISTINGS;
+    throw err;
   }
 }
 
-export async function fetchUserBids(): Promise<UserBid[]> {
-  if (cachedUserBids) {
-    return Promise.resolve(cachedUserBids);
-  }
-
-  return new Promise((resolve) =>
-    setTimeout(() => {
-      cachedUserBids = MOCK_USER_BIDS;
-      resolve(MOCK_USER_BIDS);
-    }, 700),
+export async function fetchUserBids(publicKey = resolvePublicKey()): Promise<UserBid[]> {
+  const listings = await fetchListings({ bypassCache: true });
+  const details = await Promise.all(
+    listings.map((listing) => fetchListingDetail(listing.id, publicKey)),
   );
+
+  return details.flatMap((detail) => {
+    const bids = detail.bids.filter(
+      (bid) => bid.bidder_public_key === publicKey,
+    );
+    if (bids.length === 0) return [];
+
+    const highestBid = Math.max(...detail.bids.map((bid) => Number(bid.bid_amount)));
+    return bids.map((bid) => ({
+      listingId: detail.listing.id,
+      username: detail.listing.username,
+      myBid: Number(bid.bid_amount),
+      currentBid: highestBid,
+      endsAt: new Date(detail.listing.created_at),
+      isWinning: bid.status === "pending" && Number(bid.bid_amount) >= highestBid,
+      status: bid.status,
+    }));
+  });
 }
 
-export async function fetchUserListings(): Promise<UserListing[]> {
-  if (cachedUserListings) {
-    return Promise.resolve(cachedUserListings);
-  }
-
-  return new Promise((resolve) =>
-    setTimeout(() => {
-      cachedUserListings = MOCK_USER_LISTINGS;
-      resolve(MOCK_USER_LISTINGS);
-    }, 700),
-  );
+export async function fetchUserListings(publicKey = resolvePublicKey()): Promise<UserListing[]> {
+  const listings = await fetchListings({ bypassCache: true });
+  return listings
+    .filter((listing) => listing.ownerAddress === formatPublicKey(publicKey))
+    .map((listing) => ({
+      username: listing.username,
+      minBid: listing.currentBid,
+      currentBid: listing.currentBid,
+      bidCount: listing.bidCount,
+      endsAt: listing.endsAt,
+    }));
 }
 
 export type BidResult = { success: true } | { success: false; reason: string };
@@ -405,20 +271,40 @@ export function formatPublicKey(publicKey: string): string {
 }
 
 export async function placeBid(
-  username: string,
-  amount: number
+  listingId: string,
+  amount: number,
+  bidderPublicKey = resolvePublicKey(),
 ): Promise<BidResult> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Simulate ~10% chance of wallet rejection, otherwise success
-      if (Math.random() < 0.1) {
-        resolve({ success: false, reason: "User rejected the transaction in wallet." });
-      } else {
-        console.log(`Bid placed: ${amount} USDC on @${username}`);
-        resolve({ success: true });
-      }
-    }, 2200);
+  const response = await fetch(`${getQuickexApiBase()}/marketplace/${listingId}/bid`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ bidderPublicKey, bidAmount: amount }),
   });
+  const payload = (await response.json().catch(() => ({}))) as { message?: string };
+  if (!response.ok) {
+    return { success: false, reason: payload.message ?? `Bid failed (${response.status}).` };
+  }
+  return { success: true };
+}
+
+export async function acceptBid(
+  listingId: string,
+  bidId: string,
+  sellerPublicKey = resolvePublicKey(),
+): Promise<BidResult> {
+  const response = await fetch(
+    `${getQuickexApiBase()}/marketplace/${listingId}/accept-bid/${bidId}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ sellerPublicKey }),
+    },
+  );
+  const payload = (await response.json().catch(() => ({}))) as { message?: string };
+  if (!response.ok) {
+    return { success: false, reason: payload.message ?? `Accepting bid failed (${response.status}).` };
+  }
+  return { success: true };
 }
 
 export function formatCountdown(date: Date): string {

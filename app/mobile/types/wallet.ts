@@ -36,6 +36,6 @@ export interface WalletContextValue {
   connect: (walletType: WalletType, network?: StellarNetwork) => Promise<void>;
   disconnect: () => Promise<void>;
   switchAccount: (newPublicKey: string) => Promise<void>;
-  switchNetwork: (network: StellarNetwork) => void;
+  switchNetwork: (network: StellarNetwork) => Promise<void>;
   clearError: () => void;
 }

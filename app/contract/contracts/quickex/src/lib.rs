@@ -1182,6 +1182,11 @@ impl QuickexContract {
     }
 
     /// Rotate active fee collector (**Admin only**).
+    ///
+    /// Enforces a 24-hour cooldown between rotations and maintains rotation history.
+    ///
+    /// # Errors
+    /// * `InvalidAmount` – Cooldown period has not elapsed since the last rotation
     pub fn rotate_fee_collector(
         env: Env,
         caller: Address,
@@ -1190,6 +1195,22 @@ impl QuickexContract {
         pause_policy::require_admin_entry_allowed(&env)?;
         hook::assert_not_reentrant(&env)?;
         admin::rotate_fee_collector(&env, &caller, new_collector)
+    }
+
+    /// Get the fee collector rotation history (read-only).
+    ///
+    /// Returns a chronological list of all fee collector rotations, including
+    /// when each rotation occurred, the new collector, and the previous collector.
+    pub fn get_fee_collector_rotation_history(env: Env) -> Vec<types::FeeCollectorRotationEntry> {
+        storage::get_fee_collector_rotation_history(&env)
+    }
+
+    /// Get the current pause status of the contract (read-only).
+    ///
+    /// Returns information about global pause, per-feature pauses, and their reason codes.
+    /// Useful for clients to determine which operations are currently available.
+    pub fn get_pause_status(env: Env) -> types::PauseStatus {
+        storage::get_pause_status(&env)
     }
 
     /// Read current active fee collector (rotation-aware).
@@ -1275,6 +1296,7 @@ impl QuickexContract {
     /// - If privacy is **disabled**, or `caller` equals the escrow owner,
     ///   all fields are returned in full.
     /// - If `caller` equals the arbiter, the arbiter field is always visible.
+    /// - Access attempts are logged as events for audit trails.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -1293,6 +1315,11 @@ impl QuickexContract {
         let is_owner = caller == entry.owner;
         let is_arbiter = entry.arbiter.as_ref().is_some_and(|a| caller == *a);
         let show_sensitive = !privacy_on || is_owner || is_arbiter;
+
+        let was_redacted = privacy_on && !is_owner && !is_arbiter;
+        if was_redacted {
+            events::publish_privacy_access_attempt(&env, caller.clone(), entry.owner.clone(), true);
+        }
 
         if show_sensitive {
             Some(PrivacyAwareEscrowView {

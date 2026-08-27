@@ -331,9 +331,26 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── Switch network ───────────────────────────────────────────────────────
 
-  const switchNetwork = useCallback((network: StellarNetwork) => {
-    setWallet((prev) => ({ ...prev, network }));
-  }, []);
+  const switchNetwork = useCallback(
+    async (network: StellarNetwork) => {
+      if (wallet.connected && wallet.publicKey && wallet.walletType) {
+        const now = Date.now();
+        await saveWalletSession(
+          {
+            publicKey: wallet.publicKey,
+            network,
+            walletType: wallet.walletType,
+            connectedAt: wallet.connectedAt ?? now,
+            lastConfirmedAt: new Date(now).toISOString(),
+          },
+          currentEnvironmentId,
+        );
+      }
+
+      setWallet((prev) => ({ ...prev, network }));
+    },
+    [currentEnvironmentId, wallet.connected, wallet.connectedAt, wallet.publicKey, wallet.walletType],
+  );
 
   // ── Clear error ──────────────────────────────────────────────────────────
 

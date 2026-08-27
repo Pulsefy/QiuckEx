@@ -252,6 +252,7 @@ fn migrate_legacy_to_v1(env: &Env) -> u32 {
 /// **Admin only**. Define `[start, end)` epoch seconds:
 /// - `start` = 0: no window set (upgrades blocked)
 /// - `end` = 0: no upper bound (upgrades allowed from start onwards)
+/// - Validates that start < end (when end != 0)
 pub fn set_upgrade_window(
     env: &Env,
     caller: &Address,
@@ -259,7 +260,8 @@ pub fn set_upgrade_window(
     end: u64,
 ) -> Result<(), QuickexError> {
     require_admin(env, caller)?;
-    storage::set_upgrade_window(env, start, end);
+    storage::set_upgrade_window(env, start, end)?;
+    crate::events::publish_upgrade_window_changed(env, caller, start, end);
     Ok(())
 }
 
@@ -413,6 +415,11 @@ pub fn set_oracle_fee_config(
 ) -> Result<(), QuickexError> {
     require_any_role(env, caller, &[Role::Admin, Role::Operator])?;
 
+    const MAX_STALE_THRESHOLD_SECS: u64 = 3600;
+    if config.stale_threshold_secs > MAX_STALE_THRESHOLD_SECS {
+        return Err(QuickexError::InvalidAmount);
+    }
+
     storage::set_oracle_fee_config(env, &config);
     Ok(())
 }
@@ -431,6 +438,11 @@ pub fn set_platform_wallet(
 }
 
 /// Rotate active fee collector (**Admin only**).
+///
+/// Enforces a 24-hour cooldown between rotations and maintains rotation history.
+///
+/// # Errors
+/// * `InvalidAmount` – Cooldown period has not elapsed since the last rotation
 pub fn rotate_fee_collector(
     env: &Env,
     caller: &Address,
@@ -438,7 +450,7 @@ pub fn rotate_fee_collector(
 ) -> Result<u32, QuickexError> {
     require_admin(env, caller)?;
 
-    let next_index = fee_router::rotate_collector(env, &new_collector);
+    let next_index = fee_router::rotate_collector(env, &new_collector)?;
     publish_fee_collector_rotated(env, new_collector, next_index);
     Ok(next_index)
 }

@@ -214,5 +214,27 @@ invalid,USDC
       expect(result.success).toBe(true);
       expect(result.total).toBe(1);
     });
+
+    it('should parse snake_case CSV headers', async () => {
+      const csvContent = `amount,asset,reference_id,accepted_assets
+100,XLM,invoice-100,XLM|USDC`;
+
+      mockLinksService.generateMetadata.mockResolvedValue({
+        amount: '100.0000000',
+        asset: 'XLM',
+        canonical: 'amount=100.0000000&asset=XLM&referenceId=invoice-100',
+      });
+
+      const result = await service.generateFromCSV(csvContent);
+
+      expect(result.success).toBe(true);
+      expect(result.total).toBe(1);
+      expect(mockLinksService.generateMetadata).toHaveBeenCalledWith(
+        expect.objectContaining({
+          referenceId: 'invoice-100',
+          acceptedAssets: ['XLM', 'USDC'],
+        }),
+      );
+    });
   });
 });

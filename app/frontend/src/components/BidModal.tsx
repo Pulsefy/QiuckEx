@@ -32,7 +32,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
     setBidState("loading");
     setErrorMsg("");
 
-    const result = await placeBid(listing.username, parsedAmount);
+    const result = await placeBid(listing.id, parsedAmount, resolvePublicKey());
     if (result.success) {
       setBidState("success");
       onBidSuccess(listing.username, parsedAmount);
@@ -72,16 +72,16 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
               <div className="text-6xl animate-bounce">🎉</div>
               <h2 className="text-2xl font-black">Bid Placed!</h2>
               <p className="text-subtle">
-                You&apos;re leading with{" "}
+                Your bid of{" "}
                 <span className="text-indigo-400 font-bold">{parsedAmount} USDC</span> on{" "}
                 <span className="text-foreground font-bold">@{listing.username}</span>.
               </p>
               <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-left text-xs text-subtle font-mono">
-                <p className="font-bold text-indigo-400 mb-1">tx signed & broadcast ✓</p>
-                <p>Network: Stellar Testnet</p>
+                <p className="font-bold text-indigo-400 mb-1">Bid submitted ✓</p>
+                <p>Listing: @{listing.username}</p>
                 <p>Asset: USDC</p>
                 <p>Amount: {parsedAmount}.00 USDC</p>
-                <p>Ledger: ~2s settlement</p>
+                <p>The seller can review your offer.</p>
               </div>
               <button
                 onClick={handleClose}
@@ -240,7 +240,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
                         Signing...
                       </>
                     ) : (
-                      "Sign & Pay"
+                      "Submit Bid"
                     )}
                   </button>
                 </div>

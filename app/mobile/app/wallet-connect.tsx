@@ -356,10 +356,11 @@ export default function WalletConnectScreen() {
               onPress={
                 isDemoMode
                   ? undefined
-                  : () =>
-                      switchNetwork(
+                  : () => {
+                      void switchNetwork(
                         wallet.network === "testnet" ? "mainnet" : "testnet",
-                      )
+                      );
+                    }
               }
               disabled={isDemoMode}
             >

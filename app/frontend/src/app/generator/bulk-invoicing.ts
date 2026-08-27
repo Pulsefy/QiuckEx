@@ -305,8 +305,16 @@ export function parseBulkInvoiceCsv(csvContent: string): BulkCsvParseResult {
         ]
       : [];
 
-  const rows = lines.slice(1).map((line, index) => {
+  const rows: BulkCsvDraftRow[] = [];
+  const rowErrors: string[] = [];
+
+  lines.slice(1).forEach((line, index) => {
     const values = parseCsvLine(line);
+    if (values.length !== headers.length) {
+      rowErrors.push(`Skipped row ${index + 2}: expected ${headers.length} columns but found ${values.length}.`);
+      return;
+    }
+
     const columns: BulkCsvColumns = {};
 
     headers.forEach((header, headerIndex) => {
@@ -316,11 +324,11 @@ export function parseBulkInvoiceCsv(csvContent: string): BulkCsvParseResult {
       columns[header] = values[headerIndex] ?? '';
     });
 
-    return toBulkCsvDraftRow(columns, index);
+    rows.push(toBulkCsvDraftRow(columns, index));
   });
 
   return {
-    fileErrors,
+    fileErrors: [...fileErrors, ...rowErrors],
     rows,
   };
 }

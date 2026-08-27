@@ -10,7 +10,7 @@ import { useTheme } from "../../src/theme/ThemeContext";
  * A banner that appears at the top of the screen when the device is offline.
  */
 export function OfflineBanner() {
-  const { isConnected } = useNetworkStatus();
+  const { isConnected, isInternetReachable } = useNetworkStatus();
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
@@ -18,7 +18,9 @@ export function OfflineBanner() {
   const backgroundColor = theme.status.warning;
   const textColor = theme.buttonPrimaryText;
 
-  if (isConnected !== false) {
+  const isOffline = isConnected === false || isInternetReachable === false;
+
+  if (!isOffline) {
     return null;
   }
 
