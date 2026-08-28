@@ -1785,10 +1785,37 @@ paths:
                 properties:
                   jobId:
                     type: string
+                  status:
+                    type: string
+                    enum: [queued]
                   message:
                     type: string
         "400":
           $ref: "#/components/responses/BadRequest"
+
+  /exports/{jobId}:
+    get:
+      tags: [exports]
+      operationId: getExportStatus
+      summary: Get export job status
+      description: Returns the current export status and, when complete, the delivery reference.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current export status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportStatus"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # ---------------------------------------------------------------------------
   # Telegram
@@ -3597,6 +3624,46 @@ components:
         deliveryMethod:
           type: string
           enum: [webhook, email, download]
+
+    ExportStatus:
+      type: object
+      required: [jobId, status, exportType, format, deliveryMethod, queuedAt]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        exportType:
+          type: string
+          enum: [transactions, links, payments]
+        format:
+          type: string
+          enum: [csv, json]
+        deliveryMethod:
+          type: string
+          enum: [webhook, email, download]
+        queuedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveryReference:
+          type: string
+          description: Present when status is completed
+        failureReason:
+          type: string
+          description: Present when status is failed
 
     # --- Feature Flags ---
     UpdateFeatureFlagRequest:

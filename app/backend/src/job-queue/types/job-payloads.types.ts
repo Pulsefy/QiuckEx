@@ -5,6 +5,12 @@
  * Each job type has a specific payload structure validated at enqueue time.
  */
 
+import {
+  ExportDeliveryMethod,
+  ExportFormat,
+  ExportType,
+} from '../../exports/enums/export.enums';
+
 /**
  * Webhook delivery job payload
  * Used for delivering webhook notifications to external endpoints
@@ -71,16 +77,16 @@ export interface ExportGenerationPayload {
   userId: string;
   
   /** Type of data to export */
-  exportType: 'transactions' | 'links' | 'payments';
+  exportType: ExportType;
   
   /** Filters to apply to the export query */
   filters: Record<string, unknown>;
   
   /** Output format */
-  format: 'csv' | 'json';
+  format: ExportFormat;
   
   /** How to deliver the export */
-  deliveryMethod: 'webhook' | 'email' | 'download';
+  deliveryMethod: ExportDeliveryMethod;
 }
 
 /**

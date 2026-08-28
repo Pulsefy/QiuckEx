@@ -14,6 +14,15 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { NotificationService } from '../../notifications/notification.service';
 import { ExportCompletedPayload } from '../../notifications/types/notification.types';
 import { ExportStorageService } from '../../exports/export-storage.service';
+import { ExportRepository } from '../../exports/export.repository';
+import {
+  ExportDeliveryMethod,
+  ExportFormat,
+  ExportStatus,
+  ExportType,
+} from '../../exports/enums/export.enums';
+import { collectExportValidationErrors } from '../../exports/utils/export-validation.util';
+import { buildDeliveryReference } from '../../exports/utils/export-delivery.util';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -41,6 +50,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     private readonly supabase: SupabaseService,
     private readonly notificationService: NotificationService,
     private readonly exportStorageService: ExportStorageService,
+    private readonly exportRepository: ExportRepository,
   ) {}
 
   /**
@@ -65,22 +75,21 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     );
 
     try {
-      // Fetch data based on export type
+      await this.exportRepository.transition(job.id, ExportStatus.RUNNING);
+
       const records = await this.fetchExportData(userId, exportType, filters, cancellationToken);
 
       this.logger.log(
         `Fetched ${records.length} records for export (jobId: ${job.id})`,
       );
 
-      // Generate export file
       const exportData = await this.generateExportFile(records, format, cancellationToken);
 
       this.logger.log(
         `Generated ${format} export (${exportData.length} bytes, jobId: ${job.id})`,
       );
 
-      // Deliver export via specified method
-      await this.deliverExport(
+      const deliveryReference = await this.deliverExport(
         userId,
         exportType,
         exportData,
@@ -90,6 +99,10 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         job.id,
         cancellationToken,
       );
+
+      await this.exportRepository.transition(job.id, ExportStatus.COMPLETED, {
+        deliveryReference,
+      });
 
       this.logger.log(
         `Export delivered successfully via ${deliveryMethod} (jobId: ${job.id})`,
@@ -124,7 +137,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    */
   private async fetchExportData(
     userId: string,
-    exportType: 'transactions' | 'links' | 'payments',
+    exportType: ExportType,
     filters: Record<string, unknown>,
     cancellationToken: CancellationToken,
   ): Promise<Record<string, unknown>[]> {
@@ -132,34 +145,16 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     cancellationToken.throwIfCancelled();
 
     const client = this.supabase.getClient();
-    let query;
+    const tableByExportType: Record<ExportType, string> = {
+      [ExportType.TRANSACTIONS]: 'transactions',
+      [ExportType.LINKS]: 'links',
+      [ExportType.PAYMENTS]: 'payments',
+    };
 
-    // Build query based on export type
-    switch (exportType) {
-      case 'transactions':
-        query = client
-          .from('transactions')
-          .select('*')
-          .eq('user_id', userId);
-        break;
-
-      case 'links':
-        query = client
-          .from('links')
-          .select('*')
-          .eq('user_id', userId);
-        break;
-
-      case 'payments':
-        query = client
-          .from('payments')
-          .select('*')
-          .eq('user_id', userId);
-        break;
-
-      default:
-        throw new PermanentJobError(`Unsupported export type: ${exportType}`);
-    }
+    let query = client
+      .from(tableByExportType[exportType])
+      .select('*')
+      .eq('user_id', userId);
 
     // Apply filters
     for (const [key, value] of Object.entries(filters)) {
@@ -194,10 +189,10 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    */
   private async generateExportFile(
     records: Record<string, unknown>[],
-    format: 'csv' | 'json',
+    format: ExportFormat,
     cancellationToken: CancellationToken,
   ): Promise<string> {
-    if (format === 'json') {
+    if (format === ExportFormat.JSON) {
       // JSON export is simple - just stringify
       cancellationToken.throwIfCancelled();
       return JSON.stringify(records, null, 2);
@@ -260,28 +255,29 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     userId: string,
     exportType: string,
     exportData: string,
-    format: string,
-    deliveryMethod: 'webhook' | 'email' | 'download',
+    format: ExportFormat,
+    deliveryMethod: ExportDeliveryMethod,
     recordCount: number,
     jobId: string,
     cancellationToken: CancellationToken,
-  ): Promise<void> {
+  ): Promise<string> {
     cancellationToken.throwIfCancelled();
 
     switch (deliveryMethod) {
-      case 'webhook':
-        // TODO: Implement webhook delivery
-        // For now, just log
+      case ExportDeliveryMethod.WEBHOOK:
         this.logger.log(`Webhook delivery not yet implemented for user ${userId}`);
-        break;
+        return buildDeliveryReference(ExportDeliveryMethod.WEBHOOK, { jobId, userId });
 
-      case 'email': {
+      case ExportDeliveryMethod.EMAIL: {
         const payload: ExportCompletedPayload = {
           eventType: 'export.completed',
           eventId: `export:${jobId}`,
           recipientPublicKey: userId,
           title: `Your ${exportType} export is ready`,
-          body: `Your ${format.toUpperCase()} export of ${recordCount} ${recordCount === 1 ? 'record' : 'records'} has been generated and is attached to this delivery.`,
+          body:
+            `Your ${format.toUpperCase()} export of ${recordCount} ` +
+            `${recordCount === 1 ? 'record' : 'records'} has been generated ` +
+            `and is attached to this delivery.`,
           occurredAt: new Date().toISOString(),
           exportType,
           format,
@@ -299,24 +295,27 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         const result = await this.notificationService.deliverExportEmail(payload);
 
         if (!result.delivered) {
-          const errorMessage = `Email delivery failed for export (jobId: ${jobId}): ${result.error ?? 'unknown error'}`;
+          const errorMessage =
+            `Email delivery failed for export (jobId: ${jobId}): ` +
+            `${result.error ?? 'unknown error'}`;
           this.logger.error(errorMessage);
           throw new Error(errorMessage);
         }
 
         this.logger.log(
-          `Export email delivered via template version ${result.templateVersionId ?? 'fallback'} (jobId: ${jobId})`,
+          `Export email delivered via template version ` +
+            `${result.templateVersionId ?? 'fallback'} (jobId: ${jobId})`,
         );
-        break;
+        return buildDeliveryReference(ExportDeliveryMethod.EMAIL, { jobId, userId });
       }
 
-      case 'download': {
+      case ExportDeliveryMethod.DOWNLOAD: {
         // Upload artifact to object storage and issue a signed download token.
         const { storageKey, sizeBytes } = await this.exportStorageService.uploadArtifact({
           jobId,
           userId,
           content: exportData,
-          format: format as 'csv' | 'json',
+          format,
           exportType,
         });
 
@@ -326,7 +325,8 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         });
 
         this.logger.log(
-          `Export artifact stored (key=${storageKey}, size=${sizeBytes}B, expiresAt=${new Date(expiresAt * 1000).toISOString()}, jobId=${jobId})`,
+          `Export artifact stored (key=${storageKey}, size=${sizeBytes}B, ` +
+            `expiresAt=${new Date(expiresAt * 1000).toISOString()}, jobId=${jobId})`,
         );
 
         // Notify the user that their download link is ready.
@@ -335,7 +335,10 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
           eventId: `export:${jobId}`,
           recipientPublicKey: userId,
           title: `Your ${exportType} export is ready to download`,
-          body: `Your ${(format as string).toUpperCase()} export of ${recordCount} ${recordCount === 1 ? 'record' : 'records'} is ready. Use the download token to retrieve it.`,
+          body:
+            `Your ${format.toUpperCase()} export of ${recordCount} ` +
+            `${recordCount === 1 ? 'record' : 'records'} is ready. ` +
+            `Use the download token to retrieve it.`,
           occurredAt: new Date().toISOString(),
           exportType,
           format,
@@ -353,7 +356,11 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         };
 
         await this.notificationService.deliverExportEmail(downloadPayload);
-        break;
+        return buildDeliveryReference(ExportDeliveryMethod.DOWNLOAD, {
+          jobId,
+          userId,
+          storageKey,
+        });
       }
 
       default:
@@ -376,30 +383,16 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * **Validates: Requirements 9.3, 15.4, 15.5**
    */
   async validate(payload: ExportGenerationPayload): Promise<void> {
-    const errors: string[] = [];
+    const errors = collectExportValidationErrors(payload);
 
-    if (!payload.userId || typeof payload.userId !== 'string') {
-      errors.push('userId is required and must be a string');
-    }
-
-    if (!payload.exportType || !['transactions', 'links', 'payments'].includes(payload.exportType)) {
-      errors.push('exportType is required and must be one of: transactions, links, payments');
-    }
-
-    if (!payload.format || !['csv', 'json'].includes(payload.format)) {
-      errors.push('format is required and must be one of: csv, json');
-    }
-
-    if (!payload.deliveryMethod || !['webhook', 'email', 'download'].includes(payload.deliveryMethod)) {
-      errors.push('deliveryMethod is required and must be one of: webhook, email, download');
-    }
-
-    if (!payload.filters || typeof payload.filters !== 'object') {
+    if (payload.filters === undefined || payload.filters === null) {
       errors.push('filters is required and must be an object');
     }
 
-    if (errors.length > 0) {
-      throw new PermanentJobError(`Validation failed: ${errors.join(', ')}`);
+    const uniqueErrors = [...new Set(errors)];
+
+    if (uniqueErrors.length > 0) {
+      throw new PermanentJobError(`Validation failed: ${uniqueErrors.join(', ')}`);
     }
   }
 
@@ -418,7 +411,8 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
     const { userId, exportType, format } = job.payload;
 
     this.logger.error(
-      `Export generation permanently failed for user ${userId} (type: ${exportType}, jobId: ${job.id}): ${error.message}`,
+      `Export generation permanently failed for user ${userId} ` +
+        `(type: ${exportType}, jobId: ${job.id}): ${error.message}`,
       error.stack,
     );
 
@@ -437,5 +431,17 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
       format,
       safeReason,
     );
+
+    try {
+      await this.exportRepository.transition(job.id, ExportStatus.FAILED, {
+        failureReason: safeReason,
+      });
+    } catch (statusError) {
+      const msg =
+        statusError instanceof Error ? statusError.message : String(statusError);
+      this.logger.error(
+        `Failed to persist failed status for export job ${job.id}: ${msg}`,
+      );
+    }
   }
 }
