@@ -55,6 +55,13 @@ describe("MarketplaceService", () => {
     supabaseMock = {
       getListingById: jest.fn().mockResolvedValue(mockListing),
       getBidsByListingIdPaginated: jest.fn().mockResolvedValue(mockBidPage),
+      queryActiveListings: jest.fn().mockResolvedValue({
+        listings: [mockListing],
+        next_cursor: null,
+        has_more: false,
+        total: 1,
+      }),
+      getBidsForListingIds: jest.fn().mockResolvedValue(mockBids),
     };
 
     usernamesMock = {};
@@ -166,6 +173,91 @@ describe("MarketplaceService", () => {
       ).rejects.toMatchObject({
         code: MarketplaceErrorCode.LISTING_NOT_FOUND,
       });
+    });
+  });
+
+  describe("queryListings", () => {
+    it("passes sort/filter/pagination params through to the repository", async () => {
+      await service.queryListings({
+        sort: "price_desc",
+        min_price: 10,
+        max_price: 500,
+        username: "no",
+        limit: 5,
+        cursor: "some-cursor",
+      });
+
+      expect(supabaseMock.queryActiveListings).toHaveBeenCalledWith({
+        limit: 5,
+        cursor: "some-cursor",
+        sortColumn: "asking_price",
+        ascending: false,
+        minPrice: 10,
+        maxPrice: 500,
+        username: "no",
+      });
+    });
+
+    it("defaults to newest sort and no filters when none are given", async () => {
+      await service.queryListings({});
+
+      expect(supabaseMock.queryActiveListings).toHaveBeenCalledWith({
+        limit: 20,
+        cursor: null,
+        sortColumn: "created_at",
+        ascending: false,
+        minPrice: undefined,
+        maxPrice: undefined,
+        username: undefined,
+      });
+    });
+
+    it("attaches bid summary and current_price to each returned listing", async () => {
+      const result = await service.queryListings({});
+
+      expect(supabaseMock.getBidsForListingIds).toHaveBeenCalledWith(["listing-1"]);
+      expect(result.total).toBe(1);
+      expect(result.listings).toHaveLength(1);
+      expect(result.listings[0].id).toBe("listing-1");
+      expect(result.listings[0].current_price).toBe(120); // highest pending bid
+      expect(result.listings[0].bid_summary).toEqual({
+        total_bids: 2,
+        pending_bids: 1,
+        highest_bid: 120,
+        lowest_bid: 120,
+      });
+      expect(result.listings[0].ends_at).toBe("2026-07-03T12:00:00.000Z"); // created_at + 48h
+    });
+
+    it("skips the bid lookup when the page has no listings", async () => {
+      (supabaseMock.queryActiveListings as jest.Mock).mockResolvedValue({
+        listings: [],
+        next_cursor: null,
+        has_more: false,
+        total: 0,
+      });
+
+      const result = await service.queryListings({});
+
+      expect(supabaseMock.getBidsForListingIds).toHaveBeenCalledWith([]);
+      expect(result.listings).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it("rejects when min_price is greater than max_price", async () => {
+      await expect(
+        service.queryListings({ min_price: 500, max_price: 100 }),
+      ).rejects.toMatchObject({
+        code: MarketplaceErrorCode.INVALID_PRICE_RANGE,
+      });
+
+      expect(supabaseMock.queryActiveListings).not.toHaveBeenCalled();
+    });
+
+    it("allows min_price equal to max_price", async () => {
+      await expect(
+        service.queryListings({ min_price: 100, max_price: 100 }),
+      ).resolves.toBeDefined();
     });
   });
 });
