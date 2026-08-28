@@ -57,6 +57,8 @@ pub enum QuickexError {
     ArbiterAlreadyVoted = 320,
     /// Insufficient arbiter votes to reach the threshold for resolution.
     InsufficientVotes = 321,
+    /// This signer has already approved the current admin action round.
+    AdminActionAlreadyApproved = 327,
     /// Hook contract is not allowed.
     HookNotAllowed = 322,
     /// Maximum number of escrow extensions reached.

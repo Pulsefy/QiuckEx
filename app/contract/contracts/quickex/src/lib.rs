@@ -430,11 +430,7 @@ impl QuickexContract {
     }
     /// Activate emergency mode (irreversible). Only admin can call. Emits event.
     pub fn activate_emergency_mode(env: Env, caller: Address) -> Result<(), QuickexError> {
-        // Only admin can activate
-        let admin = get_admin(&env).ok_or(QuickexError::Unauthorized)?;
-        if caller != admin {
-            return Err(QuickexError::Unauthorized);
-        }
+        admin::require_admin(&env, &caller)?;
         if storage::is_emergency_mode(&env) {
             return Ok(()); // Already set
         }
@@ -874,6 +870,41 @@ impl QuickexContract {
     /// * `AlreadyInitialized` - Contract has already been initialized
     pub fn initialize(env: Env, admin: Address) -> Result<(), QuickexError> {
         admin::initialize(&env, admin)
+    }
+
+    /// Initialize the contract with multiple admin signers and a signature threshold.
+    pub fn initialize_multisig(
+        env: Env,
+        signers: Vec<Address>,
+        threshold: u32,
+    ) -> Result<(), QuickexError> {
+        admin::initialize_multisig(&env, signers, threshold)
+    }
+
+    /// Approve the next privileged admin action for the caller's signer.
+    pub fn approve_admin_action(env: Env, caller: Address) -> Result<u32, QuickexError> {
+        admin::approve_admin_action(&env, &caller)
+    }
+
+    /// Replace the admin signer set and signature threshold (**Admin only**).
+    pub fn configure_multisig(
+        env: Env,
+        caller: Address,
+        signers: Vec<Address>,
+        threshold: u32,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::configure_multisig(&env, &caller, signers, threshold)
+    }
+
+    /// Get the configured admin signers.
+    pub fn get_admin_signers(env: Env) -> Vec<Address> {
+        admin::get_admin_signers(&env)
+    }
+
+    /// Get the number of signatures required for the next admin action.
+    pub fn get_admin_threshold(env: Env) -> u32 {
+        admin::get_admin_threshold(&env)
     }
 
     /// Get the stored contract schema version.
