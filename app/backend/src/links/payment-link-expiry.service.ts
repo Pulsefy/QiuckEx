@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../audit/audit.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class PaymentLinkExpiryService {
@@ -14,10 +15,11 @@ export class PaymentLinkExpiryService {
     private readonly supabase: SupabaseService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditService: AuditService,
+    private readonly metrics: MetricsService,
   ) {}
 
-  // Run every minute to sweep expired open links. Idempotent by design.
-  @Cron(CronExpression.EVERY_MINUTE, { name: 'payment-link-expiry-sweep', timeZone: 'UTC' })
+  // Run every 5 minutes to sweep expired open links. Idempotent by design.
+  @Cron(CronExpression.EVERY_5_MINUTES, { name: 'payment-link-expiry-sweep', timeZone: 'UTC' })
   async handleCron(): Promise<void> {
     const runId = uuidv4();
     try {
@@ -63,6 +65,9 @@ export class PaymentLinkExpiryService {
       for (const row of updated) {
         const linkId = String(row.id);
         const expiresAt = row.expires_at ? String(row.expires_at) : null;
+
+        // Track the number of links expired for observability
+        this.metrics.recordPaymentLinkExpired();
 
         // Persist to expiry audit table
         try {
