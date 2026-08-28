@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
 import { HorizonService } from "../stellar/horizon.service";
 import { AppConfigService } from "../config/app-config.service";

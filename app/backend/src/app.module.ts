@@ -44,7 +44,6 @@ import { DeveloperModule } from "./developer/developer.module";
 import { PrivacyModule } from "./privacy/privacy.module";
 import { ContractsModule } from "./contracts/contracts.module";
 import { SorobanToolingModule } from "./soroban-tooling/soroban-tooling.module";
-import { CustomThrottlerGuard } from "./auth/guards/custom-throttler.guard";
 import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
 import { RateLimitConfigService } from "./config/rate-limit.config";
 import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
@@ -150,7 +149,7 @@ return baseImports;
 providers: [
 {
 provide: APP_GUARD,
-useClass: CustomThrottlerGuard,
+useClass: RedisSlidingWindowRateLimitGuard,
 },
 {
 provide: APP_INTERCEPTOR,
