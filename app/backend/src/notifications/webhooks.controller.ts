@@ -253,6 +253,39 @@ export class WebhooksController {
     return this.webhookService.getDeliveryLogs(publicKey, limit ? Number(limit) : undefined, cursor);
   }
 
+  @Get(":publicKey/:id/dead-letter")
+  @ApiOperation({
+    summary: "List dead-letter queue (DLQ) entries for a webhook",
+    description:
+      "Webhook deliveries that exhausted all retry attempts and were parked in the DLQ.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description: "Maximum number of DLQ entries to return",
+    example: 50,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "DLQ entries",
+    type: [WebhookDeliveryLogDto],
+  })
+  @ApiResponse({ status: 404, description: "Webhook not found" })
+  async getDeadLetter(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Query("limit") limit?: number,
+  ): Promise<WebhookDeliveryLogDto[]> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    return this.webhookService.getDeadLetter(publicKey, limit ? Number(limit) : undefined);
+  }
+
   @Get(":publicKey/:id/stats")
   @ApiOperation({ summary: "Get webhook delivery statistics" })
   @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })

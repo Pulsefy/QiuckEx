@@ -479,4 +479,107 @@ export class NotificationLogRepository {
       lastError: lastDelivery?.last_error ?? undefined,
     };
   }
+
+  /** List webhook deliveries that exhausted all retry attempts (DLQ). */
+  async getWebhookDlqEntries(
+    publicKey: string,
+    limit = 50,
+  ): Promise<
+    Array<{
+      id: string;
+      eventType: NotificationEventType;
+      eventId: string;
+      attempts: number;
+      lastError?: string;
+      httpStatus?: number;
+      responseBody?: string;
+      createdAt: string;
+      updatedAt?: string;
+    }>
+  > {
+    const effectiveLimit = Math.min(100, Math.max(1, limit));
+
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .select(
+        "id, event_type, event_id, attempts, last_error, webhook_response_status, webhook_response_body, created_at, updated_at",
+      )
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("status", "dlq")
+      .order("updated_at", { ascending: false })
+      .limit(effectiveLimit);
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch webhook DLQ entries for ${publicKey}: ${error.message}`,
+      );
+      return [];
+    }
+
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      eventType: r.event_type as NotificationEventType,
+      eventId: r.event_id,
+      attempts: r.attempts,
+      lastError: r.last_error ?? undefined,
+      httpStatus: r.webhook_response_status ?? undefined,
+      responseBody: r.webhook_response_body ?? undefined,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at ?? undefined,
+    }));
+  }
+
+  /** Count webhook deliveries currently parked in the DLQ for a public key. */
+  async countWebhookDlq(publicKey: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .select("id", { count: "exact", head: true })
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("status", "dlq");
+
+    if (error) {
+      this.logger.error(
+        `Failed to count webhook DLQ for ${publicKey}: ${error.message}`,
+      );
+      return 0;
+    }
+
+    return count ?? 0;
+  }
+
+  /** Delivery totals (sent/failed/dlq) used to derive success-rate metrics. */
+  async getWebhookDeliveryTotals(
+    publicKey: string,
+  ): Promise<{ sent: number; failed: number; dlq: number }> {
+    const client = this.supabase.getClient();
+
+    const count = async (status: string): Promise<number> => {
+      const { count, error } = await client
+        .from("notification_log")
+        .select("id", { count: "exact", head: true })
+        .eq("public_key", publicKey)
+        .eq("channel", "webhook")
+        .eq("status", status);
+
+      if (error) {
+        this.logger.error(
+          `Failed to count webhook ${status} for ${publicKey}: ${error.message}`,
+        );
+        return 0;
+      }
+      return count ?? 0;
+    };
+
+    const [sent, failed, dlq] = await Promise.all([
+      count("sent"),
+      count("failed"),
+      count("dlq"),
+    ]);
+
+    return { sent, failed, dlq };
+  }
 }

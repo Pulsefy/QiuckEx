@@ -2,6 +2,17 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { EnvConfig } from "./env.schema";
+import { RateLimitProfileName } from "./rate-limit.config";
+
+export type RateLimitEnvOverrides = {
+  public: Partial<{ burst: number; burstTtlMs: number; sustained: number; sustainedTtlMs: number }>;
+  authenticated: Partial<{ burst: number; burstTtlMs: number; sustained: number; sustainedTtlMs: number }>;
+  webhooks: Partial<{ burst: number; burstTtlMs: number; sustained: number; sustainedTtlMs: number }>;
+  keyOrder: string;
+  allowlistCidrs: string;
+  allowlistApiKeys: string;
+  allowlistUserIds: string;
+};
 
 /**
  * Typed configuration service with centralized accessors for environment variables.
@@ -254,6 +265,24 @@ export class AppConfigService {
   }
 
   /**
+   * Redis connection URL (optional). Absent/empty disables Redis-backed features,
+   * which then fall back to in-memory stores.
+   */
+  get redisUrl(): string | undefined {
+    return this.configService.get("REDIS_URL", { infer: true });
+  }
+
+  /**
+   * Retention TTL (ms) for the last successful analytics report, served when the
+   * data source is unavailable. Defaults to 5 minutes.
+   */
+  get analyticsStaleCacheTtlMs(): number {
+    return this.configService.get("ANALYTICS_STALE_CACHE_TTL_MS", {
+      infer: true,
+    });
+  }
+
+  /**
    * Supabase service role key (optional). Used for admin database operations.
    */
   get supabaseServiceRoleKey(): string | undefined {
@@ -394,5 +423,68 @@ export class AppConfigService {
         ? "Test SDF Network ; September 2015"
         : "Public Global Stellar Network ; September 2015")
     );
+  }
+
+  /**
+   * Active rate-limit profile. Resolved from an explicit PROFILE/RATE_LIMIT_PROFILE
+   * if provided, otherwise derived from the environment name / network so config
+   * can be selected purely through environment variables.
+   */
+  get rateLimitProfile(): RateLimitProfileName {
+    const explicit = this.configService.get<string>("RATE_LIMIT_PROFILE");
+    if (explicit) {
+      const normalized = explicit.trim().toLowerCase();
+      if (
+        normalized === "local" ||
+        normalized === "preview" ||
+        normalized === "staging" ||
+        normalized === "production" ||
+        normalized === "testnet"
+      ) {
+        return normalized;
+      }
+    }
+
+    const envName = this.configService.get<string>("ENVIRONMENT_NAME");
+    if (envName === "staging") return "staging";
+    if (envName === "production") return "production";
+
+    if (this.isProduction && envName !== "development") return "production";
+    if (this.isTestnet) return "testnet";
+
+    // Remaining dev-like environments default to the local profile.
+    return "local";
+  }
+
+  /**
+   * Per-profile env overrides for rate limiting. Each value is read live from
+   * the validated environment so it can be changed without a restart in dev.
+   */
+  get rateLimitOverrides(): RateLimitEnvOverrides {
+    const cfg = this.configService;
+    return {
+      public: {
+        burst: cfg.get("RATE_LIMIT_PUBLIC_BURST_LIMIT", { infer: true }),
+        burstTtlMs: cfg.get("RATE_LIMIT_PUBLIC_BURST_TTL_MS", { infer: true }),
+        sustained: cfg.get("RATE_LIMIT_PUBLIC_SUSTAINED_LIMIT", { infer: true }),
+        sustainedTtlMs: cfg.get("RATE_LIMIT_PUBLIC_SUSTAINED_TTL_MS", { infer: true }),
+      },
+      authenticated: {
+        burst: cfg.get("RATE_LIMIT_AUTHENTICATED_BURST_LIMIT", { infer: true }),
+        burstTtlMs: cfg.get("RATE_LIMIT_AUTHENTICATED_BURST_TTL_MS", { infer: true }),
+        sustained: cfg.get("RATE_LIMIT_AUTHENTICATED_SUSTAINED_LIMIT", { infer: true }),
+        sustainedTtlMs: cfg.get("RATE_LIMIT_AUTHENTICATED_SUSTAINED_TTL_MS", { infer: true }),
+      },
+      webhooks: {
+        burst: cfg.get("RATE_LIMIT_WEBHOOKS_BURST_LIMIT", { infer: true }),
+        burstTtlMs: cfg.get("RATE_LIMIT_WEBHOOKS_BURST_TTL_MS", { infer: true }),
+        sustained: cfg.get("RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT", { infer: true }),
+        sustainedTtlMs: cfg.get("RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS", { infer: true }),
+      },
+      keyOrder: cfg.get("RATE_LIMIT_KEY_ORDER", { infer: true }),
+      allowlistCidrs: cfg.get("RATE_LIMIT_ALLOWLIST_CIDRS", { infer: true }) ?? "",
+      allowlistApiKeys: cfg.get("RATE_LIMIT_ALLOWLIST_API_KEYS", { infer: true }) ?? "",
+      allowlistUserIds: cfg.get("RATE_LIMIT_ALLOWLIST_USER_IDS", { infer: true }) ?? "",
+    };
   }
 }

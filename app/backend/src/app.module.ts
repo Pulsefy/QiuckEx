@@ -45,11 +45,7 @@ import { PrivacyModule } from "./privacy/privacy.module";
 import { ContractsModule } from "./contracts/contracts.module";
 import { SorobanToolingModule } from "./soroban-tooling/soroban-tooling.module";
 import { OrganizationRoleGuard } from "./auth/guards/organization-role.guard";
-import { RateLimitModule } from "./rate-limit/rate-limit.module";
-import { RedisSlidingWindowRateLimitGuard } from "./rate-limit/redis-sliding-window-rate-limit.guard";
-import { RedisModule } from "./redis/redis.module";
-import { CircuitBreakerModule } from "./circuit-breaker/circuit-breaker.module";
-import { throttlerModuleProfiles } from "./config/rate-limit.config";
+import { RateLimitConfigService } from "./config/rate-limit.config";
 import { EnvironmentParityModule } from "./environment-parity/environment-parity.module";
 import { IndexerLagModule } from "./indexer-lag";
 import { SupportBundleModule } from "./support-bundle/support-bundle.module";
@@ -64,6 +60,7 @@ import { RuntimeConfigModule } from "./runtime-config/runtime-config.module";
 import { TransactionTimelineModule } from "./transaction-timeline/transaction-timeline.module";
 import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 import { ContactsModule } from "./contacts/contacts.module";
+import { TeamsModule } from "./teams/teams.module";
 
 type AppImport =
 | Type<unknown>
@@ -81,11 +78,12 @@ EventEmitterModule.forRoot({
 wildcard: true,
 delimiter: ".",
 }),
-        ThrottlerModule.forRoot(throttlerModuleProfiles),
-        SupabaseModule,
-        RateLimitModule,
-        RedisModule,
-        CircuitBreakerModule,
+  ThrottlerModule.forRootAsync({
+    inject: [RateLimitConfigService],
+    useFactory: (rateLimitConfig: RateLimitConfigService) =>
+      rateLimitConfig.getThrottlerModuleProfiles(),
+  }),
+SupabaseModule,
 HealthModule,
 AssetMetadataModule,
 StellarModule,
@@ -100,6 +98,7 @@ IngestionModule,
 ApiKeysModule,
 MarketplaceModule,
 ContactsModule,
+TeamsModule,
 FiatRampsModule,
 RefundsModule,
 ExportsModule,
@@ -120,7 +119,7 @@ OperationsModule,
     PreviewScopeModule,
     TransactionTimelineModule,
     DashboardFeedModule,
-    DocsModule,
+    TeamsModule,
     ];
 
     try {

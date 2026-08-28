@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 
+import { MetricsService } from "../metrics/metrics.service";
 import { NotificationLogRepository } from "./notification-log.repository";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { WebhookProvider } from "./providers/notification-provider.interface";
@@ -18,6 +19,7 @@ export class WebhookRetryScheduler {
   constructor(
     private readonly logRepo: NotificationLogRepository,
     private readonly prefsRepo: NotificationPreferencesRepository,
+    private readonly metrics?: MetricsService,
   ) {}
 
   /**
@@ -30,6 +32,8 @@ export class WebhookRetryScheduler {
       WEBHOOK_MAX_DELIVERY_ATTEMPTS,
     );
     const webhookPending = pending.filter((r) => r.channel === "webhook");
+
+    await this.recordDeliveryMetrics(webhookPending.map((r) => r.publicKey));
 
     if (webhookPending.length === 0) return;
 
@@ -132,5 +136,32 @@ export class WebhookRetryScheduler {
     }
 
     return anySuccess;
+  }
+
+  /**
+   * Publish delivery health gauges per affected public key:
+   * webhook_delivery_success_rate (0-1) and webhook_dlq_size.
+   */
+  private async recordDeliveryMetrics(publicKeys: string[]): Promise<void> {
+    if (!this.metrics) return;
+
+    const keys = [...new Set(publicKeys)];
+    if (keys.length === 0) return;
+
+    for (const publicKey of keys) {
+      try {
+        const { sent, failed, dlq } =
+          await this.logRepo.getWebhookDeliveryTotals(publicKey);
+        const total = sent + failed;
+        const rate = total > 0 ? sent / total : 0;
+        this.metrics.setWebhookDeliverySuccessRate(publicKey, rate);
+        this.metrics.setWebhookDlqSize(publicKey, dlq);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.debug(
+          `Failed to record webhook delivery metrics for ${publicKey.slice(0, 8)}...: ${message}`,
+        );
+      }
+    }
   }
 }

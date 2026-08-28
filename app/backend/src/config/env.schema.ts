@@ -323,9 +323,33 @@ export const envSchema = Joi.object({
       "Preferred key order for rate-limit identity. Allowed values: user_id,api_key,ip",
     ),
 
+  RATE_LIMIT_PROFILE: Joi.string()
+    .valid("local", "preview", "staging", "production", "testnet")
+    .optional()
+    .description(
+      "Optional explicit rate-limit profile. When omitted it is derived from ENVIRONMENT_NAME / NODE_ENV / NETWORK.",
+    ),
+
   // ---------------------------------------------------------------------------
   // Sentry Error Monitoring (optional; omit to disable)
   // ---------------------------------------------------------------------------
+
+  // Analytics stale-data fallback (graceful degradation when data source fails)
+  ANALYTICS_STALE_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(5 * 60 * 1000)
+    .description(
+      "Retention TTL (ms) for the last successful analytics report served when the data source is unavailable.",
+    ),
+
+  // Redis (optional; Redi-backed health/caching features degrade gracefully)
+  REDIS_URL: Joi.string()
+    .empty("")
+    .optional()
+    .description(
+      "Redis connection URL (redis://...). When omitted, Redis-backed features use in-memory fallbacks.",
+    ),
 
   SENTRY_DSN: Joi.string()
     .uri({ scheme: ["http", "https"] })
@@ -506,6 +530,12 @@ export interface EnvConfig {
   RATE_LIMIT_WEBHOOKS_SUSTAINED_LIMIT: number;
   RATE_LIMIT_WEBHOOKS_SUSTAINED_TTL_MS: number;
   RATE_LIMIT_KEY_ORDER: string;
+  RATE_LIMIT_PROFILE?: "local" | "preview" | "staging" | "production" | "testnet";
+  RATE_LIMIT_ALLOWLIST_CIDRS?: string;
+  RATE_LIMIT_ALLOWLIST_API_KEYS?: string;
+  RATE_LIMIT_ALLOWLIST_USER_IDS?: string;
+  ANALYTICS_STALE_CACHE_TTL_MS: number;
+  REDIS_URL?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;

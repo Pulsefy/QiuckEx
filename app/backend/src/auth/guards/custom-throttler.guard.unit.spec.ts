@@ -9,6 +9,9 @@ import {
 import { CustomThrottlerGuard } from "./custom-throttler.guard";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
+  RateLimitConfigService,
+  RateLimitGroup,
+  RateLimitWindow,
   THROTTLER_BURST_NAME,
   THROTTLER_SUSTAINED_NAME,
   throttlerConfig,
@@ -89,6 +92,18 @@ describe("CustomThrottlerGuard", () => {
       ],
       providers: [
         CustomThrottlerGuard,
+        {
+          provide: RateLimitConfigService,
+          useValue: {
+            getFullConfig: () => throttlerConfig,
+            getGroupConfig: (group: RateLimitGroup, window: RateLimitWindow) =>
+              throttlerConfig.groups[group][window],
+            getProfileName: () => "testnet",
+            getProfile: () => ({ defaultLimit: 20, windowMs: 60000, apiKeyMultiplier: 6 }),
+            getApiKeyMultiplier: () => 6,
+            getThrottlerModuleProfiles: () => [],
+          },
+        },
         {
           provide: MetricsService,
           useValue: {

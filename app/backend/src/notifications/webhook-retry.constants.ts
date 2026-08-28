@@ -1,9 +1,10 @@
-/** Retry delays in milliseconds: 1m, 5m, 30m, 2h */
+/** Retry delays in milliseconds: 1m, 5m, 15m, 1h, 6h (exponential backoff). */
 export const WEBHOOK_RETRY_DELAYS_MS = [
   60_000,
   300_000,
-  1_800_000,
-  7_200_000,
+  900_000,
+  3_600_000,
+  21_600_000,
 ] as const;
 
 /** Total delivery attempts (1 initial + retries). */

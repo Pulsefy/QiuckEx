@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AnalyticsInterval,
   ReportType,
 } from './dto/analytics-query.dto';
+import { AnalyticsStaleCache } from './analytics-stale-cache';
+import type { StaleCacheEntry } from './analytics-stale-cache';
 
 type PaymentRow = Record<string, unknown>;
 type RpcSummaryRow = {
@@ -75,7 +77,10 @@ export type AnalyticsReport = {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional() private readonly staleCache?: AnalyticsStaleCache,
+  ) {}
 
   async getAnalyticsReport(
     publicKey: string,
@@ -84,8 +89,69 @@ export class AnalyticsService {
     interval: AnalyticsInterval = AnalyticsInterval.DAILY,
     organizationId?: string,
   ): Promise<AnalyticsReport> {
-    const { startIso, endIso } = this.resolveDateWindow(startDate, endDate);
+    const { report } = await this.getAnalyticsReportWithStatus(
+      publicKey,
+      startDate,
+      endDate,
+      interval,
+      organizationId,
+    );
+    return report;
+  }
 
+  /**
+   * Same as getAnalyticsReport but also reports whether the returned data came
+   * from the stale cache (used by the controller to emit X-Cache-Status).
+   * When the data source fails and a recent successful report exists, the stale
+   * report is returned instead of failing outright (graceful degradation).
+   */
+  async getAnalyticsReportWithStatus(
+    publicKey: string,
+    startDate?: string,
+    endDate?: string,
+    interval: AnalyticsInterval = AnalyticsInterval.DAILY,
+    organizationId?: string,
+  ): Promise<{ report: AnalyticsReport; cacheStatus: 'fresh' | 'stale' }> {
+    const { startIso, endIso } = this.resolveDateWindow(startDate, endDate);
+    const cacheKey = this.staleCache?.getCacheKey(
+      publicKey,
+      interval,
+      organizationId,
+      startIso,
+      endIso,
+    );
+
+    try {
+      const report = await this.generateReport(
+        publicKey,
+        startIso,
+        endIso,
+        interval,
+        organizationId,
+      );
+
+      if (cacheKey && this.staleCache) {
+        const entry: StaleCacheEntry = { report, generatedAt: Date.now() };
+        this.staleCache.set(cacheKey, entry);
+      }
+
+      return { report, cacheStatus: 'fresh' };
+    } catch (err) {
+      const entry = cacheKey ? this.staleCache?.get('stale', cacheKey) : undefined;
+      if (entry) {
+        return { report: entry.report, cacheStatus: 'stale' };
+      }
+      throw err;
+    }
+  }
+
+  private async generateReport(
+    publicKey: string,
+    startIso: string,
+    endIso: string,
+    interval: AnalyticsInterval,
+    organizationId?: string,
+  ): Promise<AnalyticsReport> {
     const rpcReport = await this.fetchAggregatedReportViaRpc(
       publicKey,
       startIso,

@@ -21,6 +21,7 @@ import { LinkState } from "../src/links/link-state-machine";
 import { PaymentLinkExpiryService } from "../src/links/payment-link-expiry.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { AuditService } from "../src/audit/audit.service";
+import { MetricsService } from "../src/metrics/metrics.service";
 
 describe("Payment Flow Integration", () => {
   let paymentLinkService: PaymentLinkService;
@@ -90,6 +91,15 @@ describe("Payment Flow Integration", () => {
         {
           provide: AuditService,
           useValue: { log: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: MetricsService,
+          useValue: {
+            recordPaymentLinkExpired: jest.fn(),
+            recordRequestDuration: jest.fn(),
+            recordError: jest.fn(),
+            getRegistry: jest.fn(() => ({ getMetricsAsJSON: jest.fn() })),
+          },
         },
       ],
     }).compile();

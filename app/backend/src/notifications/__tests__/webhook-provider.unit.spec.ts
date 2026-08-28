@@ -125,7 +125,7 @@ describe("WebhookProvider", () => {
       );
     });
 
-    it("should include delivery ID and timestamp headers", async () => {
+    it("should include stable delivery ID and timestamp headers", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
@@ -133,14 +133,32 @@ describe("WebhookProvider", () => {
       });
 
       await provider.send(makePref(), makePayload());
+      await provider.send(makePref(), makePayload());
 
-      const call = mockFetch.mock.calls[0];
-      const headers = call[1].headers;
+      const first = mockFetch.mock.calls[0];
+      const second = mockFetch.mock.calls[1];
 
-      expect(headers["X-QuickEx-Delivery"]).toMatch(/^wh_\d+_[a-z0-9]+$/);
-      expect(headers["X-QuickEx-Timestamp"]).toMatch(
+      // Delivery ID must be stable across retries of the same event so receivers
+      // can deduplicate via X-QuickEx-Delivery-ID.
+      expect(first[1].headers["X-QuickEx-Delivery-ID"]).toMatch(/^wh_[a-f0-9]+$/);
+      expect(first[1].headers["X-QuickEx-Delivery-ID"]).toBe(
+        second[1].headers["X-QuickEx-Delivery-ID"],
+      );
+      expect(first[1].headers["X-QuickEx-Timestamp"]).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
       );
+    });
+
+    it("should treat a 202 response as a receiver ack (success)", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 202,
+        text: async () => '{"acknowledged":true}',
+      });
+
+      const result = await provider.send(makePref(), makePayload());
+
+      expect(result.httpStatus).toBe(202);
     });
 
     it("should truncate long response bodies", async () => {

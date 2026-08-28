@@ -11,6 +11,8 @@ export class MetricsService implements OnModuleInit {
   private ingestionLagSeconds: client.Gauge<string>;
   private webhookRetryTotal: client.Counter<string>;
   private webhookDeliveryDuration: client.Histogram<string>;
+  private webhookDeliverySuccessRate: client.Gauge<string>;
+  private webhookDlqSize: client.Gauge<string>;
   private externalCallDuration: client.Histogram<string>;
   private errorRate: client.Counter<string>;
   private sorobanRpcFailoverTotal: client.Counter<string>;
@@ -25,8 +27,7 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
-  private circuitBreakerState: client.Gauge<string>;
-  private circuitBreakerTransitions: client.Gauge<string>;
+  private paymentLinksExpired: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -76,6 +77,18 @@ export class MetricsService implements OnModuleInit {
         help: "Duration of webhook delivery attempts in seconds",
         labelNames: ["event_type", "status"],
         buckets: [0.1, 0.5, 1, 2, 5, 10],
+      });
+
+      this.webhookDeliverySuccessRate = new client.Gauge({
+        name: "webhook_delivery_success_rate",
+        help: "Ratio (0-1) of successful webhook deliveries over total attempts",
+        labelNames: ["webhook_id"],
+      });
+
+      this.webhookDlqSize = new client.Gauge({
+        name: "webhook_dlq_size",
+        help: "Number of webhook deliveries currently in the dead-letter queue",
+        labelNames: ["webhook_id"],
       });
 
       this.externalCallDuration = new client.Histogram({
@@ -162,16 +175,9 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
-      this.circuitBreakerState = new client.Gauge({
-        name: "circuit_breaker_state",
-        help: "Current state of a circuit breaker (0=closed,1=half_open,2=open)",
-        labelNames: ["name"],
-      });
-
-      this.circuitBreakerTransitions = new client.Gauge({
-        name: "circuit_breaker_transitions",
-        help: "Number of state transitions for a circuit breaker",
-        labelNames: ["name"],
+      this.paymentLinksExpired = new client.Counter({
+        name: "paymentlinks_expired_count",
+        help: "Total number of payment links marked as expired by the expiry sweep",
       });
 
       this.register.registerMetric(this.httpRequestDuration);
@@ -181,6 +187,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.ingestionLagSeconds);
       this.register.registerMetric(this.webhookRetryTotal);
       this.register.registerMetric(this.webhookDeliveryDuration);
+      this.register.registerMetric(this.webhookDeliverySuccessRate);
+      this.register.registerMetric(this.webhookDlqSize);
       this.register.registerMetric(this.externalCallDuration);
       this.register.registerMetric(this.errorRate);
       this.register.registerMetric(this.sorobanRpcFailoverTotal);
@@ -195,8 +203,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
-      this.register.registerMetric(this.circuitBreakerState);
-      this.register.registerMetric(this.circuitBreakerTransitions);
+      this.register.registerMetric(this.paymentLinksExpired);
 
       this.initialized = true;
     } catch (error) {
@@ -297,6 +304,24 @@ export class MetricsService implements OnModuleInit {
 
     try {
       this.webhookDeliveryDuration.labels(eventType, status).observe(duration);
+    } catch (error) {}
+  }
+
+  setWebhookDeliverySuccessRate(webhookId: string, rate: number) {
+    if (!this.initialized || !this.webhookDeliverySuccessRate) {
+      return;
+    }
+    try {
+      this.webhookDeliverySuccessRate.labels(webhookId).set(rate);
+    } catch (error) {}
+  }
+
+  setWebhookDlqSize(webhookId: string, size: number) {
+    if (!this.initialized || !this.webhookDlqSize) {
+      return;
+    }
+    try {
+      this.webhookDlqSize.labels(webhookId).set(size);
     } catch (error) {}
   }
 
@@ -425,21 +450,10 @@ export class MetricsService implements OnModuleInit {
     } catch (error) {}
   }
 
-  setCircuitBreakerState(
-    name: string,
-    state: "closed" | "open" | "half_open",
-  ): void {
-    if (!this.initialized || !this.circuitBreakerState) return;
+  recordPaymentLinkExpired() {
+    if (!this.initialized || !this.paymentLinksExpired) return;
     try {
-      const value = state === "closed" ? 0 : state === "half_open" ? 1 : 2;
-      this.circuitBreakerState.labels(name).set(value);
-    } catch (error) {}
-  }
-
-  setCircuitBreakerTransitions(name: string, count: number): void {
-    if (!this.initialized || !this.circuitBreakerTransitions) return;
-    try {
-      this.circuitBreakerTransitions.labels(name).set(count);
+      this.paymentLinksExpired.inc();
     } catch (error) {}
   }
 }

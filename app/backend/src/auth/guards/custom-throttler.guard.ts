@@ -10,8 +10,9 @@ import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   RateLimitGroup,
   RateLimitKeyType,
+  RateLimitConfig,
+  RateLimitConfigService,
   THROTTLER_BURST_NAME,
-  throttlerConfig,
 } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
 
@@ -36,15 +37,23 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
   @Inject(MetricsService)
   private readonly metricsService: MetricsService;
 
+  @Inject(RateLimitConfigService)
+  private readonly rateLimitConfig: RateLimitConfigService;
+
   protected readonly reflector = new Reflector();
 
+  private getConfig(): RateLimitConfig {
+    return this.rateLimitConfig.getFullConfig();
+  }
+
   private isIpInAllowlist(ip: string): boolean {
-    if (!throttlerConfig.allowlist.cidrs.length) return false;
+    const cidrs = this.getConfig().allowlist.cidrs;
+    if (!cidrs.length) return false;
     
     try {
       const clientIp = parse(ip);
       
-      for (const cidr of throttlerConfig.allowlist.cidrs) {
+      for (const cidr of cidrs) {
         if (cidr.includes('/')) {
           const [range, prefix] = cidr.split('/');
           if (parse(range).match(clientIp, parseInt(prefix))) {
@@ -62,15 +71,16 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
   }
 
   private isClientInAllowlist(req: RequestWithRateLimitContext): boolean {
+    const allowlist = this.getConfig().allowlist;
     // Check if user is allowlisted
     const userId = this.getUserId(req);
-    if (userId && throttlerConfig.allowlist.userIds.includes(userId)) {
+    if (userId && allowlist.userIds.includes(userId)) {
       return true;
     }
     
     // Check if API key is allowlisted
     const apiKeyValue = this.getApiKeyValue(req);
-    if (apiKeyValue && throttlerConfig.allowlist.apiKeys.includes(apiKeyValue)) {
+    if (apiKeyValue && allowlist.apiKeys.includes(apiKeyValue)) {
       return true;
     }
     
@@ -99,7 +109,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const group = this.resolveGroup(context, req);
     const window =
       throttler.name === THROTTLER_BURST_NAME ? "burst" : "sustained";
-    const windowConfig = throttlerConfig.groups[group][window];
+    const windowConfig = this.rateLimitConfig.getGroupConfig(group, window);
 
     req.rateLimitContext = {
       group,
@@ -182,7 +192,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
   } {
     const ip = this.getIp(req);
 
-    for (const keyType of throttlerConfig.keyOrder) {
+    for (const keyType of this.getConfig().keyOrder) {
       if (keyType === "user_id") {
         const userId = this.getUserId(req);
         if (userId) return { keyType, value: userId };

@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AppConfigService } from './app-config.service';
+import { RateLimitConfigService } from './rate-limit.config';
 import { envSchema } from './env.schema';
 import { NetworkController } from './network.controller';
 import { stellarConfig } from './stellar.config';
@@ -25,7 +26,7 @@ import { stellarConfig } from './stellar.config';
     }),
   ],
   controllers: [NetworkController],
-  providers: [AppConfigService],
-  exports: [AppConfigService],
+  providers: [AppConfigService, RateLimitConfigService],
+  exports: [AppConfigService, RateLimitConfigService],
 })
 export class AppConfigModule {}

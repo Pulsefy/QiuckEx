@@ -212,7 +212,7 @@ export class WebhookProvider implements INotificationProvider {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-QuickEx-Signature": signature,
-      "X-QuickEx-Delivery": webhookPayload.id,
+      "X-QuickEx-Delivery-ID": webhookPayload.id,
       "X-QuickEx-Event": payload.eventType,
       "X-QuickEx-Timestamp": webhookPayload.sentAt,
     };
@@ -252,6 +252,14 @@ export class WebhookProvider implements INotificationProvider {
         `Webhook delivered to ${preference.webhookUrl}: status=${response.status}`,
       );
 
+      // A 202 (Accepted) is treated as an explicit receiver ack — the receiver
+      // has taken ownership of the event, so retries stop for this delivery.
+      if (response.status === 202) {
+        this.logger.debug(
+          `Webhook receiver acknowledged delivery ${webhookPayload.id} with 202 (retries stopped)`,
+        );
+      }
+
       if (this.metrics) {
         this.metrics.recordWebhookDeliveryDuration(payload.eventType, "success", duration);
       }
@@ -274,7 +282,14 @@ export class WebhookProvider implements INotificationProvider {
   private buildWebhookPayload(
     payload: BaseNotificationPayload,
   ): WebhookPayload {
-    const deliveryId = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    // Stable delivery ID derived from the event — retries (and any accidental
+    // duplicate pushes) reuse the same ID so receivers can deduplicate via the
+    // X-QuickEx-Delivery-ID header.
+    const deliveryId = `wh_${crypto
+      .createHash("sha256")
+      .update(`${payload.eventType}.${payload.eventId}.${payload.recipientPublicKey}`)
+      .digest("hex")
+      .slice(0, 16)}`;
 
     return {
       id: deliveryId,

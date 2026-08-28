@@ -7,13 +7,36 @@ import { JobQueueService } from "../job-queue/job-queue.service";
 import { JobRepository } from "../job-queue/job.repository";
 import { CursorRepository } from "../ingestion/cursor.repository";
 import { SorobanRpcService } from "../transactions/soroban-rpc.service";
-import { CircuitBreakerService } from "../circuit-breaker/circuit-breaker.service";
+import { RedisService } from "../redis/redis.service";
+import { SentryService } from "../sentry";
+
+export type DependencyStatus = "healthy" | "degraded" | "unhealthy";
+
+export type DependencyCheckResult = {
+  status: DependencyStatus;
+  latency?: number;
+  error?: string;
+  lastSuccess?: string;
+};
+
+export type CompositeHealth = {
+  status: DependencyStatus;
+  version: string;
+  uptime: number;
+  timestamp: string;
+  checks: Record<string, DependencyCheckResult>;
+};
+
+const HEALTH_CACHE_TTL_MS = 5_000;
 
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
   private readonly startTime = Date.now();
   private readonly version = "0.1.0"; // Should ideally be injected or read from package.json
+
+  // Short in-memory cache (5s) so the composite health check isn't hammered.
+  private cache: { expiresAt: number; value: CompositeHealth } | null = null;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -23,7 +46,8 @@ export class HealthService {
     private readonly jobRepository: JobRepository,
     private readonly cursorRepository: CursorRepository,
     private readonly sorobanRpcService: SorobanRpcService,
-    @Optional() private readonly circuitBreakerService?: CircuitBreakerService,
+    private readonly redis: RedisService,
+    private readonly sentry: SentryService,
   ) {}
 
   /**
@@ -336,129 +360,154 @@ export class HealthService {
   }
 
   /**
-   * Reports the current Horizon circuit-breaker state (admin observability).
+   * Checks Redis reachability with timeout. Reports healthy when connected,
+   * degraded when not configured (app falls back to in-memory stores), and
+   * unhealthy when configured but unreachable.
    */
-  checkHorizonCircuit(): {
-    status: "up" | "down" | "degraded";
-    state?: string;
+  async checkRedis(): Promise<{
+    status: "up" | "down" | "not_configured";
+    latency?: number;
     details?: string;
-  } {
-    if (!this.circuitBreakerService) {
-      return { status: "degraded", details: "Circuit breaker not registered" };
+    lastSuccess?: string;
+  }> {
+    if (!this.redis.isConfigured) {
+      return {
+        status: "not_configured",
+        details: "Redis not configured — using in-memory fallback",
+      };
     }
 
-    const breaker = this.circuitBreakerService.horizon;
-    const state = breaker.getState();
-    const stats = breaker.getStats();
+    const start = Date.now();
+    try {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 3000),
+      );
+      const healthy = await Promise.race([this.redis.ping(), timeout]);
+      const latency = Date.now() - start;
 
-    const status =
-      state === "closed" ? "up" : state === "half_open" ? "degraded" : "down";
+      if (!healthy) {
+        return { status: "down", details: "Redis ping failed" };
+      }
 
-    return {
-      status,
-      state,
-      details: `failures=${stats.failuresInWindow}/${stats.failureThreshold}`,
-    };
+      return {
+        status: "up",
+        latency,
+        lastSuccess: new Date().toISOString(),
+      };
+    } catch (err) {
+      const safeMessage = sanitizeErrorMessage((err as Error).message);
+      this.logger.warn(`Redis health check failed: ${safeMessage}`);
+      return { status: "down", details: safeMessage };
+    }
   }
 
   /**
-   * Returns shallow health status for /health.
+   * Maps a raw up/down/not_configured check into the composite healthy /
+   * degraded / unhealthy vocabulary.
    */
-  async getHealthStatus() {
-    return {
-      status: "ok",
+  private toDependencyStatus(
+    raw: "up" | "down" | "not_configured",
+  ): DependencyStatus {
+    if (raw === "up") return "healthy";
+    if (raw === "not_configured") return "degraded";
+    return "unhealthy";
+  }
+
+  /**
+   * Returns a composite health report for /health:
+   * { status, checks: { supabase, horizon, soroban_rpc, redis } }.
+   * Cached for 5s and raises a Sentry alert whenever any check is unhealthy.
+   */
+  async getHealthStatus(): Promise<CompositeHealth> {
+    const now = Date.now();
+    if (this.cache && this.cache.expiresAt > now) {
+      return this.cache.value;
+    }
+
+    const [supabase, horizon, sorobanRpc, redis] = await Promise.all([
+      this.checkSupabase(),
+      this.checkHorizon(),
+      this.checkSorobanRpc(),
+      this.checkRedis(),
+    ]);
+
+    const checks: Record<string, DependencyCheckResult> = {
+      supabase: {
+        status: this.toDependencyStatus(supabase.status),
+        latency: supabase.latency,
+        error: supabase.status === "down" ? supabase.details : undefined,
+        lastSuccess: supabase.lastSuccess,
+      },
+      horizon: {
+        status: this.toDependencyStatus(horizon.status),
+        latency: horizon.latency,
+        error: horizon.status === "down" ? horizon.details : undefined,
+        lastSuccess: horizon.lastSuccess,
+      },
+      soroban_rpc: {
+        status: this.toDependencyStatus(sorobanRpc.status),
+        latency: sorobanRpc.latency,
+        error: sorobanRpc.status === "down" ? sorobanRpc.details : undefined,
+        lastSuccess: sorobanRpc.lastSuccess,
+      },
+      redis: {
+        status: this.toDependencyStatus(redis.status),
+        latency: redis.latency,
+        error: redis.status === "down" ? redis.details : undefined,
+        lastSuccess: redis.lastSuccess,
+      },
+    };
+
+    const statuses = Object.values(checks).map((c) => c.status);
+    const overall: DependencyStatus = statuses.includes("unhealthy")
+      ? "unhealthy"
+      : statuses.includes("degraded")
+        ? "degraded"
+        : "healthy";
+
+    const result: CompositeHealth = {
+      status: overall,
       version: this.version,
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
+      timestamp: new Date().toISOString(),
+      checks,
     };
+
+    this.cache = { expiresAt: Date.now() + HEALTH_CACHE_TTL_MS, value: result };
+
+    if (overall !== "healthy") {
+      this.sentry.captureMessage(
+        `Health check degraded: ${overall} — ${statuses.join(", ")}`,
+        "warning",
+        {
+          supabase: checks.supabase.status,
+          horizon: checks.horizon.status,
+          soroban_rpc: checks.soroban_rpc.status,
+          redis: checks.redis.status,
+        },
+      );
+    }
+
+    return result;
   }
 
   /**
-   * Performs deep dependency checks for /ready.
+   * Readiness for /ready. Returns 200 only when every dependency is healthy.
+   * A degraded dependency (e.g. Redis not configured) is tolerated for
+   * serving, but any unhealthy dependency makes the service not ready.
    */
   async getReadinessStatus() {
-    const [supabase, env, migrations, queue, horizon, sorobanRpc, ingestion] =
-      await Promise.all([
-        this.checkSupabase(),
-        Promise.resolve(this.checkEnvironment()),
-        this.checkMigrations(),
-        this.checkQueue(),
-        this.checkHorizon(),
-        this.checkSorobanRpc(),
-        this.checkIngestionLag(),
-      ]);
+    const health = await this.getHealthStatus();
 
-    // Critical dependencies: database, migrations, queue, horizon
-    const criticalChecks = [supabase, migrations, queue, horizon];
-    const ready = criticalChecks.every((check) => check.status === "up");
+    const ready = Object.values(health.checks).every(
+      (check) => check.status === "healthy",
+    );
 
     return {
       ready,
-      timestamp: new Date().toISOString(),
-      checks: [
-        {
-          name: "supabase",
-          status: supabase.status,
-          latency: supabase.latency ? `${supabase.latency}ms` : undefined,
-          lastSuccess:
-            supabase.status === "up" ? new Date().toISOString() : undefined,
-          error: supabase.status === "down" ? supabase.details : undefined,
-        },
-        {
-          name: "environment",
-          status: env.status,
-          details: env.details,
-        },
-        {
-          name: "migrations",
-          status: migrations.status,
-          details: migrations.details,
-          lastSuccess: migrations.lastSuccess,
-          error: migrations.status === "down" ? migrations.details : undefined,
-        },
-        {
-          name: "queue",
-          status: queue.status,
-          latency: queue.latency ? `${queue.latency}ms` : undefined,
-          lastSuccess: queue.lastSuccess,
-          error: queue.status === "down" ? queue.details : undefined,
-        },
-        {
-          name: "horizon",
-          status: horizon.status,
-          latency: horizon.latency ? `${horizon.latency}ms` : undefined,
-          lastSuccess: horizon.lastSuccess,
-          error: horizon.status === "down" ? horizon.details : undefined,
-        },
-        ...(() => {
-          const circuit = this.checkHorizonCircuit();
-          return [
-            {
-              name: "horizon_circuit",
-              status: circuit.status,
-              state: circuit.state,
-              details: circuit.details,
-              error:
-                circuit.status === "down"
-                  ? "Horizon circuit breaker is open"
-                  : undefined,
-            },
-          ];
-        })(),
-        {
-          name: "soroban_rpc",
-          status: sorobanRpc.status,
-          latency: sorobanRpc.latency ? `${sorobanRpc.latency}ms` : undefined,
-          lastSuccess: sorobanRpc.lastSuccess,
-          error: sorobanRpc.status === "down" ? sorobanRpc.details : undefined,
-        },
-        {
-          name: "ingestion",
-          status: ingestion.status,
-          lagSeconds: ingestion.lagSeconds,
-          lastSuccess: ingestion.lastSuccess,
-          error: ingestion.status === "down" ? ingestion.details : undefined,
-        },
-      ],
+      status: ready ? "healthy" : health.status,
+      timestamp: health.timestamp,
+      checks: health.checks,
     };
   }
 

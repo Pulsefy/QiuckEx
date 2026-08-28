@@ -4,11 +4,12 @@ import { StellarModule } from "../stellar/stellar.module";
 import { JobQueueModule } from "../job-queue/job-queue.module";
 import { IngestionModule } from "../ingestion/ingestion.module";
 import { TransactionsModule } from "../transactions/transactions.module";
+import { SentryModule } from "../sentry";
 import { HealthController } from "./health.controller";
 import { HealthService } from "./health.service";
 
 @Module({
-  imports: [SupabaseModule, StellarModule, JobQueueModule, IngestionModule, TransactionsModule],
+  imports: [SupabaseModule, StellarModule, JobQueueModule, IngestionModule, TransactionsModule, SentryModule],
   controllers: [HealthController],
   providers: [HealthService],
   exports: [HealthService],

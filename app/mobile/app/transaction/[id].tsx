@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Alert,
     Linking,
+    FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,8 +22,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { StatusTimeline } from '../../components/transaction/StatusTimeline';
 import { CopyableRow } from '../../components/transaction/CopyableRow';
-import { findTransactionInCache } from '../../services/cache';
+import { findTransactionInCache, getCachedTransactions } from '../../services/cache';
 import type { TransactionItem } from '../../types/transaction';
+import type { ThemeTokens } from '../../src/theme/tokens';
 
 const fileSystemCompat = FileSystem as typeof FileSystem & {
     cacheDirectory?: string | null;
@@ -233,6 +235,173 @@ function buildReceiptSvg(
 </svg>
   `.trim();
 }
+
+// ---------------------------------------------------------------------------
+// RelatedTransactions — shows transactions involving same addresses
+// ---------------------------------------------------------------------------
+
+interface RelatedTransactionsProps {
+    currentId: string;
+    source: string;
+    destination: string;
+    theme: ThemeTokens;
+    onSelect: (tx: TransactionItem) => void;
+}
+
+function RelatedTransactions({
+    currentId,
+    source,
+    destination,
+    theme,
+    onSelect,
+}: RelatedTransactionsProps) {
+    const [related, setRelated] = useState<TransactionItem[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        getCachedTransactions().then((all) => {
+            if (cancelled) return;
+            const filtered = all
+                .filter(
+                    (t) =>
+                        t.pagingToken !== currentId &&
+                        (t.source === source ||
+                            t.destination === destination ||
+                            t.source === destination ||
+                            t.destination === source),
+                )
+                .slice(0, 5);
+            setRelated(filtered);
+            setLoading(false);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [currentId, source, destination]);
+
+    if (loading || related.length === 0) return null;
+
+    return (
+        <View style={styles.section}>
+            <Text
+                style={[styles.sectionTitle, { color: theme.textPrimary }]}
+            >
+                Related Transactions
+            </Text>
+            <View
+                style={[
+                    styles.card,
+                    {
+                        backgroundColor: theme.surfaceElevated,
+                        borderColor: theme.border,
+                    },
+                ]}
+            >
+                {related.map((item, index) => {
+                    const asset = formatAsset(item.asset);
+                    const isLast = index === related.length - 1;
+                    const isSuccess = item.status === 'Success';
+                    return (
+                        <TouchableOpacity
+                            key={item.pagingToken}
+                            onPress={() => onSelect(item)}
+                            activeOpacity={0.7}
+                            style={[
+                                relatedStyles.row,
+                                !isLast && {
+                                    borderBottomColor: theme.border,
+                                    borderBottomWidth: StyleSheet.hairlineWidth,
+                                },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    relatedStyles.dot,
+                                    {
+                                        backgroundColor: isSuccess
+                                            ? theme.status.successBg
+                                            : theme.status.warningBg,
+                                    },
+                                ]}
+                            >
+                                <View
+                                    style={[
+                                        relatedStyles.dotInner,
+                                        {
+                                            backgroundColor: isSuccess
+                                                ? theme.status.success
+                                                : theme.status.warning,
+                                        },
+                                    ]}
+                                />
+                            </View>
+                            <View style={relatedStyles.info}>
+                                <Text
+                                    style={[
+                                        relatedStyles.amount,
+                                        { color: theme.textPrimary },
+                                    ]}
+                                >
+                                    {item.amount}{' '}
+                                    <Text style={{ color: theme.primary }}>
+                                        {asset}
+                                    </Text>
+                                </Text>
+                                <Text
+                                    style={[
+                                        relatedStyles.date,
+                                        { color: theme.textSecondary },
+                                    ]}
+                                >
+                                    {formatDate(item.timestamp)}
+                                    {item.memo ? ` · ${item.memo}` : ''}
+                                </Text>
+                            </View>
+                            <Ionicons
+                                name="chevron-forward"
+                                size={16}
+                                color={theme.textMuted}
+                            />
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
+const relatedStyles = StyleSheet.create({
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 14,
+        gap: 12,
+    },
+    dot: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dotInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    info: {
+        flex: 1,
+        gap: 3,
+    },
+    amount: {
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    date: {
+        fontSize: 12,
+    },
+});
 
 export default function TransactionDetailScreen() {
     const { theme, isDark } = useTheme();
@@ -770,6 +939,69 @@ export default function TransactionDetailScreen() {
                         />
                     </View>
                 </View>
+
+                {/* Fee Breakdown Section */}
+                {'feeBreakdown' in tx && tx.feeBreakdown && (
+                    <View style={styles.section}>
+                        <Text
+                            style={[
+                                styles.sectionTitle,
+                                { color: theme.textPrimary },
+                            ]}
+                        >
+                            Fee Breakdown
+                        </Text>
+                        <View
+                            style={[
+                                styles.card,
+                                {
+                                    backgroundColor: theme.surfaceElevated,
+                                    borderColor: theme.border,
+                                },
+                            ]}
+                        >
+                            {[
+                                { label: 'Network Fee', value: (tx as TransactionItem & { feeBreakdown: { networkFee: string; platformFee: string; totalFee: string } }).feeBreakdown.networkFee },
+                                { label: 'Platform Fee', value: (tx as TransactionItem & { feeBreakdown: { networkFee: string; platformFee: string; totalFee: string } }).feeBreakdown.platformFee },
+                                { label: 'Total Fee', value: (tx as TransactionItem & { feeBreakdown: { networkFee: string; platformFee: string; totalFee: string } }).feeBreakdown.totalFee },
+                            ].map((row, idx, arr) => (
+                                <CopyableRow
+                                    key={row.label}
+                                    label={row.label}
+                                    value={`${row.value} XLM`}
+                                    rawValue={row.value}
+                                    theme={theme}
+                                    isLast={idx === arr.length - 1}
+                                    onCopy={() => showCopyFeedback(row.label)}
+                                />
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {/* Related Transactions Section */}
+                <RelatedTransactions
+                    currentId={tx.pagingToken}
+                    source={tx.source}
+                    destination={tx.destination}
+                    theme={theme}
+                    onSelect={(related) => {
+                        router.push({
+                            pathname: '/transaction/[id]',
+                            params: {
+                                id: related.pagingToken,
+                                amount: related.amount,
+                                asset: related.asset,
+                                memo: related.memo,
+                                timestamp: related.timestamp,
+                                txHash: related.txHash,
+                                source: related.source,
+                                destination: related.destination,
+                                status: related.status,
+                            },
+                        });
+                    }}
+                />
 
                 {/* Share CTA */}
                 <TouchableOpacity

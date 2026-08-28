@@ -31,14 +31,28 @@ export class AnalyticsController {
     summary: 'Fetch dashboard analytics report (summary, asset distribution, and time-series)',
   })
   @ApiResponse({ status: 200, description: 'Analytics report generated' })
-  async getReport(@Req() req: Request, @Query() query: TimeSeriesQueryDto) {
-    return this.analyticsService.getAnalyticsReport(
-      query.publicKey,
-      query.startDate,
-      query.endDate,
-      query.interval,
-      req.organizationContext?.organizationId,
-    );
+  async getReport(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query() query: TimeSeriesQueryDto,
+  ) {
+    const { report, cacheStatus } =
+      await this.analyticsService.getAnalyticsReportWithStatus(
+        query.publicKey,
+        query.startDate,
+        query.endDate,
+        query.interval,
+        req.organizationContext?.organizationId,
+      );
+
+    if (cacheStatus === 'stale') {
+      res.set('X-Cache-Status', 'stale');
+      res.set('X-QuickEx-Stale-Data', 'true');
+    } else {
+      res.set('X-Cache-Status', 'fresh');
+    }
+
+    return res.status(200).json(report);
   }
 
   @Get('time-series')

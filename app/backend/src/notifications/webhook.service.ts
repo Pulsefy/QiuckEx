@@ -157,6 +157,32 @@ export class WebhookService {
   }
 
   /**
+   * List deliveries parked in the dead-letter queue for a webhook's public key.
+   * Callers are expected to scope-check the webhook ID against the public key.
+   */
+  async getDeadLetter(
+    publicKey: string,
+    limit?: number,
+  ): Promise<WebhookDeliveryLogDto[]> {
+    const entries = await this.logRepo.getWebhookDlqEntries(
+      publicKey,
+      limit ? Number(limit) : 50,
+    );
+    return entries.map((entry) => ({
+      id: entry.id,
+      eventType: entry.eventType,
+      eventId: entry.eventId,
+      status: "dlq",
+      attempts: entry.attempts,
+      lastError: entry.lastError,
+      httpStatus: entry.httpStatus,
+      responseBody: entry.responseBody,
+      createdAt: entry.createdAt,
+      deliveredAt: entry.updatedAt,
+    }));
+  }
+
+  /**
    * Trigger immediate redelivery of a specific event via the replay service.
    */
   async redeliverEvent(

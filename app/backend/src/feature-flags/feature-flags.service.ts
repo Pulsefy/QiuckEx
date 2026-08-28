@@ -110,6 +110,30 @@ const DEFAULT_FLAGS: FeatureFlagRecord[] = [
     updatedAt: new Date(0).toISOString(),
     updatedBy: 'bootstrap',
   },
+  // ── Username search ranking weights (issue #28) ───────────────────────────
+  // Defaults: isFeatured and lastActiveAt have the highest priority.
+  // Weights are relative (they are normalised internally before use).
+  {
+    key: 'username.ranking_weights',
+    name: 'Username Search Ranking Weights',
+    description:
+      'Configurable weights for the username search ranking formula. ' +
+      'Fields: similarity, transactionVolume, lastActiveAt, isFeatured. ' +
+      'Weights are normalised to sum to 1 before scoring.',
+    enabled: true,
+    killSwitch: false,
+    rolloutPercentage: 100,
+    allowedUsers: [],
+    environments: ['development', 'test', 'production'],
+    metadata: {
+      similarity: 1,
+      transactionVolume: 0.5,
+      lastActiveAt: 1,
+      isFeatured: 2,
+    },
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: 'bootstrap',
+  },
 ];
 
 @Injectable()
@@ -293,16 +317,6 @@ export class FeatureFlagsService {
         storeAvailable: true,
         expiresAt: Date.now() + this.configService.featureFlagsCacheTtlMs,
       };
-
-      await this.auditService.log(
-        actor,
-        'feature_flag.updated',
-        key,
-        {
-          before: current,
-          after: persisted,
-        },
-      );
 
       return persisted;
     } catch (error) {

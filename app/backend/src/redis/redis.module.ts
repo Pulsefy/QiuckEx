@@ -1,13 +1,15 @@
 import { Global, Module } from "@nestjs/common";
-import { RedisCacheService } from "./redis-cache.service";
+
+import { RedisService } from "./redis.service";
 
 /**
- * Global Redis integration. Provides RedisCacheService, which degrades
- * gracefully to an in-memory cache when Redis is unavailable.
+ * Shared, optional Redis wrapper. Marked global so any module can inject
+ * RedisService. When REDIS_URL is not configured, RedisService degrades to a
+ * graceful no-op / in-memory fallback.
  */
 @Global()
 @Module({
-  providers: [RedisCacheService],
-  exports: [RedisCacheService],
+  providers: [RedisService],
+  exports: [RedisService],
 })
 export class RedisModule {}
