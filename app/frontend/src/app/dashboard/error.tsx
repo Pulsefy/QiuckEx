@@ -3,7 +3,6 @@
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export default function DashboardError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export default function MarketplaceItemError({
@@ -33,12 +34,12 @@ function MarketplaceItemErrorInner({ reset }: { reset: () => void }) {
         >
           Try again
         </button>
-        <a
+        <Link
           href="/marketplace"
           className="rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2"
         >
           Back to marketplace
-        </a>
+        </Link>
       </div>
     </div>
   );
