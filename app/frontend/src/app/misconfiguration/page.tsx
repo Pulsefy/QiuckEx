@@ -1,6 +1,6 @@
 "use client";
 
-import { validateEnv } from "@/lib/env";
+import { getEnvKeySpec, RUNTIME_CONFIG_DOCS_URL, validateEnv } from "@/lib/env";
 
 export default function MisconfigurationPage() {
   const validation = validateEnv();
@@ -38,12 +38,20 @@ export default function MisconfigurationPage() {
               <h3 className="font-semibold text-red-800 mb-2">
                 Missing Required Variables:
               </h3>
-              <ul className="list-disc list-inside space-y-1 text-red-700">
-                {validation.missing.map((key) => (
-                  <li key={key} className="font-mono text-sm">
-                    {key}
-                  </li>
-                ))}
+              <ul className="list-disc list-inside space-y-2 text-red-700">
+                {validation.missing.map((key) => {
+                  const spec = getEnvKeySpec(key);
+                  return (
+                    <li key={key} className="text-sm">
+                      <span className="font-mono font-semibold">{key}</span>
+                      {spec && (
+                        <span className="block pl-4 text-xs text-red-600">
+                          {spec.description} Expected: {spec.expected}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -53,21 +61,41 @@ export default function MisconfigurationPage() {
               <h3 className="font-semibold text-red-800 mb-2">
                 Invalid Variables:
               </h3>
-              <ul className="list-disc list-inside space-y-1 text-red-700">
-                {validation.invalid.map(({ key, reason }) => (
-                  <li key={key} className="text-sm">
-                    <span className="font-mono">{key}</span>: {reason}
-                  </li>
-                ))}
+              <ul className="list-disc list-inside space-y-2 text-red-700">
+                {validation.invalid.map(({ key, reason }) => {
+                  const spec = getEnvKeySpec(key);
+                  return (
+                    <li key={key} className="text-sm">
+                      <span className="font-mono font-semibold">{key}</span>:{" "}
+                      {reason}
+                      {spec && (
+                        <span className="block pl-4 text-xs text-red-600">
+                          Expected: {spec.expected}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
         </div>
 
-        <div className="text-center text-sm text-muted">
+        <div className="text-center text-sm text-muted space-y-2">
           <p>
             Please contact your system administrator or check the deployment
             configuration.
+          </p>
+          <p>
+            <a
+              href={RUNTIME_CONFIG_DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline hover:no-underline"
+            >
+              View the runtime configuration documentation
+            </a>{" "}
+            for the full list of keys and their expected values.
           </p>
         </div>
       </div>
