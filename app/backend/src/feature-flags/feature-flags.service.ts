@@ -294,16 +294,6 @@ export class FeatureFlagsService {
         expiresAt: Date.now() + this.configService.featureFlagsCacheTtlMs,
       };
 
-      await this.auditService.log(
-        actor,
-        'feature_flag.updated',
-        key,
-        {
-          before: current,
-          after: persisted,
-        },
-      );
-
       return persisted;
     } catch (error) {
       this.logger.warn(
