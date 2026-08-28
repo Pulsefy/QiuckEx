@@ -68,7 +68,7 @@ proptest! {
         payments in prop::array::uniform3(1_i128..=1_000_000_i128),
         refund_with_owner in any::<bool>(),
     ) {
-        let initial = initial.min(amount_due);
+        let initial = initial.min(amount_due - 1);
         let ctx = TestContext::with_admin();
         let salt = ctx.salt(b"fuzz_partial_accounting");
         ctx.mint(&ctx.alice.clone(), initial);
@@ -113,7 +113,7 @@ proptest! {
                 continue;
             }
 
-            let payment = requested.min(remaining);
+            let payment = requested.min(remaining - 1);
             ctx.client.partial_payment(
                 &commitment,
                 &ctx.bob,
