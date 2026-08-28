@@ -219,6 +219,13 @@ pub enum DataKey {
     /// Configurable TTL policy for escrow entries (singleton).
     /// See [`crate::ttl_policy::TtlConfig`] for the stored type.
     TtlConfig,
+    /// Registered multi-source oracle addresses (singleton, SC-W8-06).
+    /// See [`crate::oracle::fetch_aggregated_price`].
+    OracleSources,
+    /// Per-source cached oracle price, keyed by source address (SC-W8-06).
+    OracleSourcePrice(Address),
+    /// Multi-source oracle aggregation configuration (singleton, SC-W8-06).
+    OracleAggregationConfig,
 }
 
 /// Compact escrow record stored on the hot path.
@@ -864,6 +871,63 @@ pub fn set_cached_oracle_price(env: &Env, price: &CachedOraclePrice) {
     let key = DataKey::CachedOraclePrice;
     env.storage().persistent().set(&key, price);
     set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+}
+
+// -----------------------------------------------------------------------------
+// Multi-source oracle aggregation (SC-W8-06 / Issue #867)
+// -----------------------------------------------------------------------------
+
+/// Get the list of registered oracle source addresses. Empty if none registered.
+pub fn get_oracle_sources(env: &Env) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::OracleSources)
+        .unwrap_or(Vec::new(env))
+}
+
+/// Set the list of registered oracle source addresses.
+pub fn set_oracle_sources(env: &Env, sources: &Vec<Address>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::OracleSources, sources);
+}
+
+/// Get the cached price record for a specific oracle source.
+pub fn get_oracle_source_price(env: &Env, source: &Address) -> Option<CachedOraclePrice> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::OracleSourcePrice(source.clone()))
+}
+
+/// Set the cached price record for a specific oracle source. Called when
+/// that source pushes a fresh price via `record_oracle_source_price`.
+pub fn set_oracle_source_price(env: &Env, source: &Address, price: &CachedOraclePrice) {
+    let key = DataKey::OracleSourcePrice(source.clone());
+    env.storage().persistent().set(&key, price);
+    set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+}
+
+/// Get the multi-source oracle aggregation configuration.
+///
+/// Defaults to `{ min_sources: 1, max_deviation_bps: 10_000 }` (any single
+/// fresh registered source suffices, no deviation filtering) when never
+/// explicitly configured, so registering sources works out of the box
+/// before an admin tunes the policy.
+pub fn get_oracle_aggregation_config(env: &Env) -> crate::types::OracleAggregationConfig {
+    env.storage()
+        .persistent()
+        .get(&DataKey::OracleAggregationConfig)
+        .unwrap_or(crate::types::OracleAggregationConfig {
+            min_sources: 1,
+            max_deviation_bps: 10_000,
+        })
+}
+
+/// Set the multi-source oracle aggregation configuration.
+pub fn set_oracle_aggregation_config(env: &Env, config: &crate::types::OracleAggregationConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::OracleAggregationConfig, config);
 }
 
 pub fn is_hook_allowed(env: &Env, hook_contract: &Address) -> bool {

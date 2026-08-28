@@ -43,6 +43,8 @@ pub mod nonce;
 mod nonce_test;
 mod oracle;
 #[cfg(test)]
+mod oracle_aggregation_test;
+#[cfg(test)]
 mod oracle_test;
 mod pause_policy;
 #[cfg(test)]
@@ -73,8 +75,9 @@ use errors::QuickexError;
 use pause_policy::{EntryPoint, PauseChangeReason};
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
-    PendingAdminProposal, PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleAggregationConfig,
+    OracleFeeConfig, PendingAdminProposal, PerAssetFeeConfig, PrivacyAwareEscrowView, Role,
+    StealthDepositParams,
 };
 
 /// QuickEx Privacy Contract
@@ -1159,6 +1162,93 @@ impl QuickexContract {
         pause_policy::require_admin_entry_allowed(&env)?;
         admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
         oracle::record_price(&env, price_micros)
+    }
+
+    // -- Multi-source oracle aggregation (SC-W8-06 / Issue #867) --
+
+    /// Register a trusted oracle source address (**Admin or Operator only**).
+    ///
+    /// Once at least one source is registered, fee calculation switches
+    /// from the legacy single cached price to the median of registered
+    /// sources' own prices (see [`Self::get_aggregated_oracle_price`]).
+    ///
+    /// # Errors
+    /// * `OracleSourceAlreadyRegistered` - `source` is already registered
+    pub fn register_oracle_source(
+        env: Env,
+        caller: Address,
+        source: Address,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        oracle::register_source(&env, source)
+    }
+
+    /// Unregister an oracle source address (**Admin or Operator only**).
+    ///
+    /// # Errors
+    /// * `OracleSourceNotRegistered` - `source` is not registered
+    pub fn unregister_oracle_source(
+        env: Env,
+        caller: Address,
+        source: Address,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        oracle::unregister_source(&env, source)
+    }
+
+    /// List the currently-registered oracle source addresses (read-only).
+    pub fn get_oracle_sources(env: Env) -> Vec<Address> {
+        oracle::get_sources(&env)
+    }
+
+    /// Configure the multi-source aggregation policy (**Admin or Operator only**).
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - `min_sources` is 0, or `max_deviation_bps` exceeds 10_000 (100%)
+    pub fn set_oracle_aggregation_config(
+        env: Env,
+        caller: Address,
+        min_sources: u32,
+        max_deviation_bps: u32,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_any_role(&env, &caller, &[Role::Admin, Role::Operator])?;
+        oracle::set_aggregation_config(&env, min_sources, max_deviation_bps)
+    }
+
+    /// Get the current multi-source aggregation policy (read-only).
+    pub fn get_oracle_aggregation_config(env: Env) -> OracleAggregationConfig {
+        oracle::get_aggregation_config(&env)
+    }
+
+    /// Record a fresh price from a registered oracle source.
+    ///
+    /// `source` must authorize the call itself; an Admin/Operator role does
+    /// **not** substitute for the source's own signature, so a single
+    /// compromised admin key cannot forge every source's price at once.
+    ///
+    /// # Errors
+    /// * `OracleSourceNotRegistered` - `source` is not registered
+    /// * `OraclePriceInvalid` - Price is zero or negative
+    pub fn record_oracle_source_price(
+        env: Env,
+        source: Address,
+        price_micros: i128,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        oracle::record_source_price(&env, &source, price_micros)
+    }
+
+    /// Get the aggregated multi-source oracle price: the median of fresh,
+    /// non-outlier registered sources.
+    ///
+    /// # Errors
+    /// * `OraclePriceUnavailable` - No oracle fee config is set (needed for the staleness threshold)
+    /// * `OracleInsufficientSources` - Fewer than the configured minimum fresh, non-outlier sources
+    pub fn get_aggregated_oracle_price(env: Env) -> Result<(i128, u64), QuickexError> {
+        oracle::fetch_aggregated_price(&env)
     }
 
     /// Get the platform wallet address (read-only).

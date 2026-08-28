@@ -336,6 +336,36 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         payload_keys: &["allowed", "schema_version", "timestamp"],
         schema_version: EVENT_SCHEMA_VERSION,
     },
+    EventSchema {
+        name: "OracleSourceRegistered",
+        topics: &[EVENT_TOPIC_ORACLE, "OracleSourceRegistered", "source"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "OracleSourceUnregistered",
+        topics: &[EVENT_TOPIC_ORACLE, "OracleSourceUnregistered", "source"],
+        payload_keys: &["schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "OracleSourcePriceRecorded",
+        topics: &[EVENT_TOPIC_ORACLE, "OracleSourcePriceRecorded", "source"],
+        payload_keys: &["price_micros", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "OracleSourceExcluded",
+        topics: &[EVENT_TOPIC_ORACLE, "OracleSourceExcluded", "source"],
+        payload_keys: &[
+            "deviation_bps",
+            "median_price_micros",
+            "price_micros",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
 ];
 
 #[allow(dead_code)]
@@ -1306,6 +1336,108 @@ pub(crate) fn publish_hook_allowlist_changed(env: &Env, hook_contract: Address, 
         schema_version: EVENT_SCHEMA_VERSION,
         allowed,
         timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+// ---- Multi-source oracle aggregation events (SC-W8-06 / Issue #867) ----
+
+#[contractevent(topics = ["TOPIC_ORACLE", "OracleSourceRegistered"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleSourceRegisteredEvent {
+    #[topic]
+    pub source: Address,
+
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_oracle_source_registered(env: &Env, source: Address) {
+    OracleSourceRegisteredEvent {
+        source,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ORACLE", "OracleSourceUnregistered"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleSourceUnregisteredEvent {
+    #[topic]
+    pub source: Address,
+
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_oracle_source_unregistered(env: &Env, source: Address) {
+    OracleSourceUnregisteredEvent {
+        source,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+#[contractevent(topics = ["TOPIC_ORACLE", "OracleSourcePriceRecorded"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleSourcePriceRecordedEvent {
+    #[topic]
+    pub source: Address,
+
+    pub schema_version: u32,
+    pub price_micros: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_oracle_source_price_recorded(
+    env: &Env,
+    source: Address,
+    price_micros: i128,
+    recorded_at: u64,
+) {
+    OracleSourcePriceRecordedEvent {
+        source,
+        schema_version: EVENT_SCHEMA_VERSION,
+        price_micros,
+        timestamp: recorded_at,
+    }
+    .publish(env);
+}
+
+/// Emitted when [`crate::oracle::fetch_aggregated_price`] excludes a source
+/// because its price deviates from the median by more than the configured
+/// tolerance — the observability hook required by SC-W8-06's outlier
+/// exclusion requirement.
+#[contractevent(topics = ["TOPIC_ORACLE", "OracleSourceExcluded"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleSourceExcludedEvent {
+    #[topic]
+    pub source: Address,
+
+    pub schema_version: u32,
+    pub price_micros: i128,
+    pub median_price_micros: i128,
+    pub deviation_bps: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_oracle_source_excluded(
+    env: &Env,
+    source: Address,
+    price_micros: i128,
+    median_price_micros: i128,
+    deviation_bps: u32,
+    timestamp: u64,
+) {
+    OracleSourceExcludedEvent {
+        source,
+        schema_version: EVENT_SCHEMA_VERSION,
+        price_micros,
+        median_price_micros,
+        deviation_bps,
+        timestamp,
     }
     .publish(env);
 }
