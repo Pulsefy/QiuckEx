@@ -52,7 +52,10 @@ describe('AnalyticsService', () => {
     order: jest.fn(),
   };
 
-  const mockClient = {
+  const mockClient: {
+    from: jest.Mock;
+    rpc: jest.Mock;
+  } = {
     from: jest.fn(() => queryBuilder),
     rpc: jest.fn(),
   };
@@ -60,6 +63,30 @@ describe('AnalyticsService', () => {
   const mockSupabaseService = {
     getClient: jest.fn(() => mockClient),
   };
+
+  /**
+   * The real service code never calls `.maybeSingle()` on these query
+   * chains — it just `await`s the chain directly after the last filter
+   * method (`.lte()`, `.eq()`, or `.in()`). A plain `mockReturnThis()`
+   * chain is NOT awaitable to `{ data, error }` — it resolves immediately
+   * to the mock object itself. So we make the returned mock a genuine
+   * thenable: every chain method still returns `this` for chaining, but
+   * the object itself resolves to `result` when awaited, regardless of
+   * which method was called last.
+   */
+  function createSupabaseQueryMock(result: { data: unknown; error: unknown }) {
+    const mock: Record<string, unknown> = {};
+    const chainMethods = ['select', 'gte', 'lte', 'eq', 'or', 'in', 'order'];
+    chainMethods.forEach((method) => {
+      mock[method] = jest.fn(() => mock);
+    });
+    mock.maybeSingle = jest.fn().mockResolvedValue(result);
+    mock.then = (
+      resolve: (value: typeof result) => void,
+      reject: (reason?: unknown) => void,
+    ) => Promise.resolve(result).then(resolve, reject);
+    return mock;
+  }
 
   beforeEach(async () => {
     queryBuilder.select.mockReturnValue(queryBuilder);
@@ -265,15 +292,9 @@ describe('AnalyticsService', () => {
           error: null,
         });
 
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        gte: jest.fn().mockReturnThis(),
-        lte: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        or: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
-      });
+      mockClient.from.mockReturnValue(
+        createSupabaseQueryMock({ data: [], error: null }),
+      );
 
       const summary = await service.getDashboardSummary(
         'GB1234567890123456789012345678901234567890123456789012345',
@@ -318,15 +339,9 @@ describe('AnalyticsService', () => {
           error: null,
         });
 
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        gte: jest.fn().mockReturnThis(),
-        lte: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        or: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
-      });
+      mockClient.from.mockReturnValue(
+        createSupabaseQueryMock({ data: [], error: null }),
+      );
 
       const summary = await service.getDashboardSummary(
         'GB1234567890123456789012345678901234567890123456789012345',
@@ -379,15 +394,9 @@ describe('AnalyticsService', () => {
           error: null,
         });
 
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        gte: jest.fn().mockReturnThis(),
-        lte: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        or: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
-      });
+      mockClient.from.mockReturnValue(
+        createSupabaseQueryMock({ data: [], error: null }),
+      );
 
       const summary = await service.getDashboardSummary(
         'GB1234567890123456789012345678901234567890123456789012345',
@@ -442,15 +451,11 @@ describe('AnalyticsService', () => {
         { status: 'rejected' },
       ];
 
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        gte: jest.fn().mockReturnThis(),
-        lte: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        or: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: refundData, error: null }),
-      });
+      // First `from()` call inside getDashboardSummary is fetchRefundCounts
+      // ('refund_attempts'), so this is the payload that matters here.
+      mockClient.from.mockReturnValue(
+        createSupabaseQueryMock({ data: refundData, error: null }),
+      );
 
       const summary = await service.getDashboardSummary(
         'GB1234567890123456789012345678901234567890123456789012345',
@@ -496,37 +501,22 @@ describe('AnalyticsService', () => {
           error: null,
         });
 
+      // Inside getDashboardSummary, client.from() is called in this order:
+      //   1) fetchRefundCounts        -> 'refund_attempts'
+      //   2) fetchDeliveryFailureCount -> 'notification_logs'
+      //      (both started inside the same Promise.all, in that order)
+      //   3) fetchPendingPaymentCount -> 'payment_records'
+      //      (called separately, after the Promise.all above resolves)
+      // The 2-item payload needs to be on the THIRD call.
       mockClient.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          or: jest.fn().mockReturnThis(),
-          in: jest.fn().mockReturnThis(),
-          maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          or: jest.fn().mockReturnThis(),
-          in: jest.fn().mockReturnThis(),
-          maybeSingle: jest.fn().mockResolvedValue({
+        .mockReturnValueOnce(createSupabaseQueryMock({ data: [], error: null })) // refund_attempts
+        .mockReturnValueOnce(createSupabaseQueryMock({ data: [], error: null })) // notification_logs
+        .mockReturnValue(
+          createSupabaseQueryMock({
             data: [{ id: '1' }, { id: '2' }],
             error: null,
           }),
-        })
-        .mockReturnValue({
-          select: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          or: jest.fn().mockReturnThis(),
-          in: jest.fn().mockReturnThis(),
-          maybeSingle: jest.fn().mockResolvedValue({ data: [], error: null }),
-        });
+        ); // payment_records (pending)
 
       const summary = await service.getDashboardSummary(
         'GB1234567890123456789012345678901234567890123456789012345',
