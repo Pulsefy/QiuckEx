@@ -42,6 +42,27 @@ prints the size delta against the base branch.
 description explaining why. Prefer code-splitting or trimming dependencies
 before raising a budget.
 
+### Current budgets are a baseline, not a target
+
+The budgets FE-65 shipped with were roughly 2–4× below what the app actually
+builds, so the gate failed on the merge commit that introduced it. They have
+been reset to the sizes measured on `main` on 2026-08-28, which makes the check
+a **ratchet**: it catches regressions from today forward, but it does not
+certify that today's sizes are acceptable.
+
+| Route | Measured | Budget now | Original FE-65 budget |
+| --- | --- | --- | --- |
+| `/dashboard` | 834 KB | 860 KB | 225 KB |
+| `/generator` | 489 KB | 505 KB | 254 KB |
+| `/` | 432 KB | 445 KB | 186 KB |
+| `/pay` | 397 KB | 410 KB | 195 KB |
+| `/discovery` | 358 KB | 370 KB | 215 KB |
+
+Those original numbers are a reasonable ambition — 834 KB of first-load JS on
+`/dashboard` is a genuine performance problem, not a budgeting mistake. Ratchet
+the budgets back down as routes are code-split and dependencies trimmed; the
+gate will hold each improvement in place.
+
 ## Core Web Vitals (FE-66)
 
 `frontend-web-vitals.yml` builds the app in **production** mode, serves it, and

@@ -59,6 +59,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
 
+      # app/frontend installs with npm while the rest of the repo uses the pnpm
+      # workspace. Catch npm-incompatible specifiers (notably "workspace:*")
+      # here, with an actionable message, instead of letting npm ci fail with
+      # EUNSUPPORTEDPROTOCOL.
+      - name: Validate frontend dependency specifiers
+        run: node scripts/check-frontend-deps.mjs
+
       - name: Install api-client dependencies
         working-directory: ./packages/api-client
         run: npm install --no-package-lock
@@ -138,12 +145,24 @@ jobs:
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
+      # Only shipped code can cause mixed content, so test files are excluded:
+      # a stub host in a vi.mock (e.g. "http://test.local") never reaches a
+      # browser, and failing on it just teaches contributors to ignore the gate.
       - name: Check for mixed content
         run: |
           echo "Checking for hardcoded HTTP URLs in frontend code..."
-          if grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules 2>/dev/null | grep -v "http://localhost" > /dev/null 2>&1; then
+          scan() {
+            grep -rn "http://" app/frontend/src \
+              --include="*.ts" --include="*.tsx" \
+              --exclude="*.test.ts" --exclude="*.test.tsx" \
+              --exclude="*.spec.ts" --exclude="*.spec.tsx" \
+              --exclude-dir=node_modules \
+              --exclude-dir=__tests__ --exclude-dir=__mocks__ \
+              2>/dev/null | grep -v "http://localhost"
+          }
+          if scan > /dev/null 2>&1; then
             echo "❌ Found hardcoded HTTP URLs (non-localhost). This may cause mixed-content issues in production."
-            grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules | grep -v "http://localhost"
+            scan
             exit 1
           else
             echo "✅ No problematic HTTP URLs found"
