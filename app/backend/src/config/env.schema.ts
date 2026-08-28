@@ -458,6 +458,21 @@ export const envSchema = Joi.object({
     .default(false)
     .description("Admin override to disable lag guard temporarily (for emergencies)"),
 
+  // ── Dead Letter Queue Monitor ────────────────────────────────────────────
+  DLQ_MONITOR_ENABLED: Joi.boolean()
+    .default(true)
+    .description("Whether the dead letter queue depth/age monitor is enabled"),
+  DLQ_ALERT_DEPTH_THRESHOLD: Joi.number()
+    .integer()
+    .min(1)
+    .default(50)
+    .description("Dead letter queue depth (per job type) that triggers an alert"),
+  DLQ_ALERT_AGE_THRESHOLD_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(3600000)
+    .description("Age in ms of the oldest dead-lettered job (per job type) that triggers an alert"),
+
   // ── Abuse Signal Configuration ──────────────────────────────────────────
   ABUSE_SIGNAL_RETENTION_DAYS: Joi.number()
     .integer()
@@ -625,6 +640,9 @@ export interface EnvConfig {
   INDEXER_LAG_THRESHOLD_LEDGERS: number;
   INDEXER_LAG_GUARD_ENABLED: boolean;
   INDEXER_LAG_GUARD_OVERRIDE: boolean;
+  DLQ_MONITOR_ENABLED: boolean;
+  DLQ_ALERT_DEPTH_THRESHOLD: number;
+  DLQ_ALERT_AGE_THRESHOLD_MS: number;
   ABUSE_SIGNAL_RETENTION_DAYS: number;
   ABUSE_SIGNAL_SCORE_THRESHOLD: number;
   ABUSE_SIGNAL_GEO_ENABLED: boolean;
