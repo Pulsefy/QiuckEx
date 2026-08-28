@@ -301,10 +301,12 @@ pub enum HookEventKind {
 #[repr(u32)]
 pub enum Role {
     /// Full administrative access, including role management and upgrades.
+    /// Admin also inherits [`Role::Operator`] permissions.
     Admin = 1,
     /// Operational access, such as toggling pause flags and fee config.
     Operator = 2,
-    /// Authorized to resolve disputes across escrows.
+    /// Authorized to resolve disputes across escrows. This is independent of
+    /// the Admin and Operator hierarchy.
     Arbiter = 3,
 }
 

@@ -27,7 +27,7 @@ export class MetricsService implements OnModuleInit {
   private abuseSignalsHighScore: client.Counter<string>;
   private abuseSignalsByOutcome: client.Counter<string>;
   private abuseScoresHistogram: client.Histogram<string>;
-  private etagCacheTotal: client.Counter<string>;
+  private paymentLinksExpired: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -175,10 +175,9 @@ export class MetricsService implements OnModuleInit {
         buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
       });
 
-      this.etagCacheTotal = new client.Counter({
-        name: "etag_cache_total",
-        help: "ETag cache lookups broken down by route and result",
-        labelNames: ["route", "result"],
+      this.paymentLinksExpired = new client.Counter({
+        name: "paymentlinks_expired_count",
+        help: "Total number of payment links marked as expired by the expiry sweep",
       });
 
       this.register.registerMetric(this.httpRequestDuration);
@@ -204,7 +203,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.abuseSignalsHighScore);
       this.register.registerMetric(this.abuseSignalsByOutcome);
       this.register.registerMetric(this.abuseScoresHistogram);
-      this.register.registerMetric(this.etagCacheTotal);
+      this.register.registerMetric(this.paymentLinksExpired);
 
       this.initialized = true;
     } catch (error) {
@@ -451,10 +450,10 @@ export class MetricsService implements OnModuleInit {
     } catch (error) {}
   }
 
-  recordEtagCacheResult(route: "compose" | "simulate", result: "hit" | "miss") {
-    if (!this.initialized || !this.etagCacheTotal) return;
+  recordPaymentLinkExpired() {
+    if (!this.initialized || !this.paymentLinksExpired) return;
     try {
-      this.etagCacheTotal.labels(route, result).inc();
+      this.paymentLinksExpired.inc();
     } catch (error) {}
   }
 }

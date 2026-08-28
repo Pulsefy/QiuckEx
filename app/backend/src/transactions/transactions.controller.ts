@@ -29,7 +29,7 @@ import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
 import { ComposeTransactionDto, SimulateOperationDto, SubmitSignedTransactionDto } from "./dto/compose-transaction.dto";
 import { TransactionsService } from "./transaction.service";
 import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
-import { EtagCacheService, EtagCacheRoute } from "./etag-cache.service";
+import { SentryTracingService } from "../sentry/sentry-tracing.service";
 
 function correlationIdOf(req: Request): string | undefined {
   return (req as unknown as Record<string, unknown>)["correlationId"] as
@@ -51,7 +51,7 @@ export class TransactionsController {
   constructor(
     private readonly horizonService: HorizonService,
     private readonly transactionService: TransactionsService,
-    private readonly etagCache: EtagCacheService,
+    private readonly tracing: SentryTracingService,
   ) {}
 
   private hasApiKey(req: Request): boolean {
@@ -144,17 +144,12 @@ export class TransactionsController {
   @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  @ApiOperation({
-    summary: "Compose an unsigned Soroban transaction with ETag-based caching",
-  })
-  async compose(
-    @Body() dto: ComposeTransactionDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.respondWithEtagCache("compose", dto, req, res, () =>
-      this.transactionService.composeTransaction(dto),
+  async compose(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
+    const result = await this.tracing.traceCompose(
+      `compose:${dto.contractId}::${dto.method}`,
+      () => this.transactionService.composeTransaction(dto),
     );
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 
   @Post("build")
@@ -166,7 +161,10 @@ export class TransactionsController {
     summary: "Build unsigned Soroban transaction XDR with canonical memo/params",
   })
   async buildUnsignedXdr(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
-    const result = await this.transactionService.composeTransaction(dto);
+    const result = await this.tracing.traceCompose(
+      `build:${dto.contractId}::${dto.method}`,
+      () => this.transactionService.composeTransaction(dto),
+    );
     return { ...result, correlationId: correlationIdOf(req) };
   }
 
@@ -178,14 +176,12 @@ export class TransactionsController {
   @ApiOperation({
     summary: "Simulate contract operations with deterministic failure reasons",
   })
-  async simulateOperation(
-    @Body() dto: SimulateOperationDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.respondWithEtagCache("simulate", dto, req, res, () =>
-      this.transactionService.simulateOperation(dto),
+  async simulateOperation(@Body() dto: SimulateOperationDto, @Req() req: Request) {
+    const result = await this.tracing.traceSimulate(
+      `simulate:${dto.contractId}::${dto.method}`,
+      () => this.transactionService.simulateOperation(dto),
     );
+    return { ...result, correlationId: correlationIdOf(req) };
   }
 
   @Post("submit")
@@ -200,7 +196,10 @@ export class TransactionsController {
     @Body() dto: SubmitSignedTransactionDto,
     @Req() req: Request,
   ) {
-    const result = await this.transactionService.submitSignedTransaction(dto);
+    const result = await this.tracing.traceSubmit(
+      'submit',
+      () => this.transactionService.submitSignedTransaction(dto),
+    );
     return { ...result, correlationId: correlationIdOf(req) };
   }
 }

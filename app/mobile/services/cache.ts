@@ -71,6 +71,32 @@ export async function findTransactionInCache(
     }
 }
 
+/**
+ * Returns all cached transactions across all accounts (flat list).
+ * Used to find related transactions.
+ */
+export async function getCachedTransactions(): Promise<TransactionItem[]> {
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        const cacheKeys = keys.filter((k) =>
+            k.startsWith(TRANSACTIONS_CACHE_KEY_PREFIX),
+        );
+        const all: TransactionItem[] = [];
+        for (const key of cacheKeys) {
+            const raw = await AsyncStorage.getItem(key);
+            if (!raw) continue;
+            const entry = JSON.parse(raw) as {
+                data: TransactionResponse;
+                timestamp: number;
+            };
+            all.push(...entry.data.items);
+        }
+        return all;
+    } catch {
+        return [];
+    }
+}
+
 export async function invalidateOldCache(): Promise<void> {
     try {
         const keys = await AsyncStorage.getAllKeys();

@@ -11,6 +11,8 @@ import { MetricsModule } from "../metrics/metrics.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { ContractsModule } from "../contracts/contracts.module";
 import { AuditModule } from "../audit/audit.module";
+import { SentryModule } from "../sentry/sentry.module";
+import { SentryTracingService } from "../sentry/sentry-tracing.service";
 
 @Module({
   imports: [
@@ -20,6 +22,7 @@ import { AuditModule } from "../audit/audit.module";
     FeatureFlagsModule,
     ContractsModule,
     AuditModule,
+    SentryModule,
   ],
   controllers: [TransactionsController],
   providers: [
@@ -28,6 +31,7 @@ import { AuditModule } from "../audit/audit.module";
     SorobanRpcService,
     EtagCacheService,
     ApiKeyGuard,
+    SentryTracingService,
   ],
   exports: [HorizonService, TransactionsService, SorobanRpcService],
 })
