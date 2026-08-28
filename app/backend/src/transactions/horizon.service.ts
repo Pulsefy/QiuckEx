@@ -3,6 +3,7 @@ import { Horizon } from '@stellar/stellar-sdk';
 import { LRUCache } from 'lru-cache';
 import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
+import { throwMappedStellarException } from '../common/stellar-errors';
 
 @Injectable()
 export class HorizonService {
@@ -220,50 +221,8 @@ export class HorizonService {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    private handleHorizonError(error: unknown): never {
-        const err = error as { response?: { status: number; data: unknown }; message?: string };
-
-        if (err.response) {
-            const status = err.response.status;
-
-            switch (status) {
-                case 429:
-                    this.logger.error('Horizon rate limit exceeded');
-                    throw new HttpException(
-                        'Horizon service rate limit exceeded. Please try again later.',
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                    );
-
-                case 502:
-                case 503:
-                case 504:
-                    this.logger.error(`Horizon service unavailable: ${status}`);
-                    throw new HttpException(
-                        'Horizon service temporarily unavailable. Please try again later.',
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                    );
-
-                case 500:
-                    this.logger.error(`Horizon internal server error: ${status}`);
-                    throw new HttpException(
-                        'Horizon service encountered an internal error.',
-                        HttpStatus.BAD_GATEWAY,
-                    );
-
-                default:
-                    this.logger.error(`Horizon client error: ${status} - ${JSON.stringify(err.response.data)}`);
-                    throw new HttpException(
-                        'Invalid request to Horizon service',
-                        HttpStatus.BAD_REQUEST,
-                    );
-            }
-        }
-
-        this.logger.error(`Unexpected error fetching from Horizon: ${err.message || String(error)}`);
-        throw new HttpException(
-            'Internal server error while fetching transactions',
-            HttpStatus.INTERNAL_SERVER_ERROR,
-        );
+    private handleHorizonError(error: unknown, traceId?: string): never {
+      throwMappedStellarException(error, traceId);
     }
 
     getCacheStats() {
