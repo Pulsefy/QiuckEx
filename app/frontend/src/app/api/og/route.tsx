@@ -105,7 +105,7 @@ function stateLabel(state: PaymentState): string {
 // Route handler
 // ---------------------------------------------------------------------------
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<Response> {
   const { searchParams } = req.nextUrl;
 
   const rawType = searchParams.get("type") ?? "default";
@@ -123,10 +123,19 @@ export async function GET(req: NextRequest) {
       : "UNKNOWN",
   };
 
-  return new ImageResponse(renderImage(params), {
+  const image = new ImageResponse(renderImage(params), {
     width: WIDTH,
     height: HEIGHT,
   });
+
+  // 1-hour edge cache
+  const headers = new Headers(image.headers);
+  headers.set(
+    "Cache-Control",
+    "public, max-age=3600, s-maxage=3600, stale-while-revalidate=60",
+  );
+
+  return new Response(image.body, { status: image.status, headers });
 }
 
 // ---------------------------------------------------------------------------

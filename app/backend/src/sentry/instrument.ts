@@ -3,6 +3,9 @@
  * This file MUST be imported before any other modules in main.ts
  * to ensure Sentry can properly hook into Node.js internals.
  *
+ * Performance tracing is enabled for transaction paths (compose, simulate,
+ * submit) and spans are added for Horizon, Soroban RPC, and cache calls.
+ *
  * @see https://docs.sentry.io/platforms/javascript/guides/nestjs/
  */
 import * as Sentry from '@sentry/nestjs';
@@ -11,13 +14,43 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 const SENTRY_DSN = process.env.SENTRY_DSN;
 const SENTRY_ENVIRONMENT =
   process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development';
+/**
+ * Release tag sourced from SENTRY_RELEASE env var, which CI/CD should set
+ * to e.g. `quickex-backend@<git-sha>` at build time.
+ */
 const SENTRY_RELEASE = process.env.SENTRY_RELEASE || 'quickex-backend@0.1.0';
+/**
+ * Performance monitoring: capture 10% of transactions in production.
+ * Override via SENTRY_TRACES_SAMPLE_RATE env var (0.0–1.0).
+ */
 const SENTRY_TRACES_SAMPLE_RATE = parseFloat(
-  process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
+  process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1',
 );
 const SENTRY_PROFILES_SAMPLE_RATE = parseFloat(
   process.env.SENTRY_PROFILES_SAMPLE_RATE || '1.0',
 );
+
+/** Stellar public key regex: G + 55 base32 chars (56 chars total). */
+const STELLAR_PUBLIC_KEY_RE = /\bG[A-Z2-7]{55}\b/g;
+
+/** Replace Stellar public keys with a short redacted token. */
+function scrubPublicKeys(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.replace(STELLAR_PUBLIC_KEY_RE, '[STELLAR_PUBLIC_KEY]');
+  }
+  if (Array.isArray(value)) {
+    return value.map(scrubPublicKeys);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+        k,
+        scrubPublicKeys(v),
+      ]),
+    );
+  }
+  return value;
+}
 
 if (SENTRY_DSN) {
   Sentry.init({
@@ -27,13 +60,19 @@ if (SENTRY_DSN) {
 
     integrations: [nodeProfilingIntegration()],
 
-    // Performance monitoring: capture a percentage of transactions
+    /**
+     * Performance monitoring — 10% sample rate.
+     * Transactions are created automatically for HTTP requests by
+     * @sentry/nestjs via the SentryGlobalFilter integration.
+     * Additional spans for Horizon, Soroban RPC and cache operations are
+     * added manually via SentryTracingService.
+     */
     tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
 
-    // Profiling: capture performance profiles
+    // Profiling: capture performance profiles for sampled transactions
     profilesSampleRate: SENTRY_PROFILES_SAMPLE_RATE,
 
-    // Filter out sensitive data before sending to Sentry
+    // ── PII scrubbing ────────────────────────────────────────────────────
     beforeSend(event) {
       // Strip sensitive headers
       if (event.request?.headers) {
@@ -42,16 +81,17 @@ if (SENTRY_DSN) {
         delete event.request.headers['cookie'];
       }
 
-      // Strip sensitive data from request body
+      // Strip sensitive fields and Stellar public keys from request body
       if (event.request?.data) {
-        const data =
+        const raw =
           typeof event.request.data === 'string'
             ? tryParseJson(event.request.data)
             : event.request.data;
 
-        if (data && typeof data === 'object') {
-          const sanitized = { ...data };
-          const sensitiveFields = [
+        if (raw && typeof raw === 'object') {
+          // Redact well-known secret fields
+          const scrubbed = { ...(raw as Record<string, unknown>) };
+          const secretFields = [
             'password',
             'token',
             'secret',
@@ -63,13 +103,22 @@ if (SENTRY_DSN) {
             'mnemonic',
             'seed',
           ];
-          for (const field of sensitiveFields) {
-            if (field in sanitized) {
-              sanitized[field] = '[REDACTED]';
+          for (const field of secretFields) {
+            if (field in scrubbed) {
+              scrubbed[field] = '[REDACTED]';
             }
           }
-          event.request.data = sanitized;
+          // Scrub any Stellar public keys that slipped through
+          event.request.data = scrubPublicKeys(scrubbed);
         }
+      }
+
+      // Scrub public keys from extra context and message strings
+      if (event.extra) {
+        event.extra = scrubPublicKeys(event.extra) as Record<string, unknown>;
+      }
+      if (event.message) {
+        event.message = scrubPublicKeys(event.message) as string;
       }
 
       return event;
@@ -91,6 +140,10 @@ if (SENTRY_DSN) {
         } catch {
           // URL parsing failed — leave breadcrumb as-is
         }
+      }
+      // Scrub Stellar public keys from breadcrumb data
+      if (breadcrumb.data) {
+        breadcrumb.data = scrubPublicKeys(breadcrumb.data) as Record<string, unknown>;
       }
       return breadcrumb;
     },
