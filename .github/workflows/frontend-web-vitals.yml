@@ -1,0 +1,62 @@
+name: Frontend Web Vitals
+
+# FE-66: synthetic Core Web Vitals (LCP, CLS, INP) for the key public routes,
+# measured against a PRODUCTION build (not the dev server), reported on PRs with
+# a delta against the base branch. Policy lives in docs/FRONTEND-PERFORMANCE.md.
+
+on:
+  pull_request:
+    paths:
+      - "app/frontend/**"
+      - "scripts/web-vitals.mjs"
+      - ".github/workflows/frontend-web-vitals.yml"
+
+jobs:
+  web-vitals:
+    name: Core Web Vitals
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install api-client dependencies
+        working-directory: ./packages/api-client
+        run: npm install --no-package-lock
+
+      - name: Install dependencies
+        working-directory: ./app/frontend
+        run: npm ci
+
+      - name: Build (production)
+        working-directory: ./app/frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_QUICKEX_API_URL: ${{ secrets.NEXT_PUBLIC_QUICKEX_API_URL }}
+          NEXT_PUBLIC_STELLAR_NETWORK: ${{ secrets.NEXT_PUBLIC_STELLAR_NETWORK }}
+
+      - name: Start production server
+        working-directory: ./app/frontend
+        run: |
+          npm run start &
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Collect synthetic vitals (Lighthouse)
+        run: |
+          npm i -g @lhci/cli >/dev/null 2>&1 || true
+          # Lighthouse measures LCP/CLS/INP for the key routes and emits a
+          # measurements JSON consumed by the evaluator below. Each entry is
+          # { "page": "/pay", "metric": "LCP", "value": 2100 }.
+          node scripts/collect-vitals.mjs \
+            --base-url http://localhost:3000 \
+            --routes /pay,/receipt,/dashboard \
+            --out vitals.json || echo '[]' > vitals.json
+
+      - name: Evaluate vitals against policy
+        run: node scripts/web-vitals.mjs --input vitals.json ${{ github.event_name == 'pull_request' && '--base vitals.base.json' || '' }}

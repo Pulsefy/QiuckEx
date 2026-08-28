@@ -120,6 +120,11 @@ jobs:
           NEXT_PUBLIC_ERROR_REPORTING_ENABLED: ${{ secrets.NEXT_PUBLIC_ERROR_REPORTING_ENABLED }}
           NEXT_PUBLIC_APP_VERSION: ${{ secrets.NEXT_PUBLIC_APP_VERSION }}
 
+      # FE-65: measure per-route first-load JS and fail if a route exceeds its
+      # budget (plus tolerance). See docs/FRONTEND-PERFORMANCE.md.
+      - name: Enforce bundle-size budgets
+        run: node scripts/bundle-budget.mjs --dist app/frontend/.next --budgets app/frontend/bundle-budgets.json
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
