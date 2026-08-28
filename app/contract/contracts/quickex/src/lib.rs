@@ -349,20 +349,6 @@ impl QuickexContract {
         commitment::verify_amount_commitment(&env, commitment, owner, amount, salt)
     }
 
-    /// Create an escrow record and increment the global escrow counter.
-    ///
-    /// Returns the new counter value. Parameters `_from`, `_to`, `_amount` are reserved for
-    /// future use; the implementation only increments the counter.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `_from` - Reserved (depositor address for future use)
-    /// * `_to` - Reserved (recipient address for future use)
-    /// * `_amount` - Reserved (amount for future use)
-    pub fn create_escrow(env: Env, _from: Address, _to: Address, _amount: u64) -> u64 {
-        increment_escrow_counter(&env)
-    }
-
     /// Health check for deployment and monitoring.
     ///
     /// Returns `true` if the contract is deployed and callable. No state or auth required.

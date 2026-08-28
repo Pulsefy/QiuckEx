@@ -579,7 +579,9 @@ pub(crate) fn compact_escrow_storage_footprint_bytes(
 
 /// Get the next escrow counter value.
 ///
-/// **Contract**: Returns 0 if never set. Counter is used for `create_escrow`.
+/// **Contract**: Returns 0 if never set. Checked as a post-upgrade invariant
+/// (see `validate_upgrade_invariants`); no contract entrypoint reads it
+/// directly (the `create_escrow` stub that once did was removed — SC-W8-02).
 #[allow(dead_code)]
 pub fn get_escrow_counter(env: &Env) -> u64 {
     let key = DataKey::EscrowCounter;
@@ -588,7 +590,10 @@ pub fn get_escrow_counter(env: &Env) -> u64 {
 
 /// Increment and return the escrow counter.
 ///
-/// **Contract**: Atomic increment. Initial value treated as 0.
+/// **Contract**: Atomic increment. Initial value treated as 0. No contract
+/// entrypoint calls this anymore (the `create_escrow` stub that once did was
+/// removed — SC-W8-02); kept for storage-migration test coverage.
+#[allow(dead_code)]
 pub fn increment_escrow_counter(env: &Env) -> u64 {
     let key = DataKey::EscrowCounter;
     let mut count: u64 = env.storage().persistent().get(&key).unwrap_or(0);

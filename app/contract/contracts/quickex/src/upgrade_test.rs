@@ -630,14 +630,15 @@ fn upgrade_harness_legacy_symbol_privacy_key_readable_after_upgrade() {
 
 /// Regression: the escrow counter must not be touched by `migrate()`.
 ///
-/// `deposit()` does not use the escrow counter (only `create_escrow` does),
-/// so this test explicitly seeds the counter to a known non-zero value via
-/// storage and verifies it is unchanged after migration.
+/// No contract entrypoint writes the counter anymore — the `create_escrow`
+/// stub that once did was removed (SC-W8-02) — so this test seeds it
+/// directly via storage to a known non-zero value and verifies it is
+/// unchanged after migration.
 #[test]
 fn upgrade_harness_escrow_counter_survives_migration() {
     let (env, gs) = build_golden_state();
 
-    // Seed the counter to a known non-zero value (simulates prior create_escrow calls).
+    // Seed the counter to a known non-zero value directly via storage.
     env.as_contract(&gs.contract_id, || {
         for _ in 0..4 {
             crate::storage::increment_escrow_counter(&env);
