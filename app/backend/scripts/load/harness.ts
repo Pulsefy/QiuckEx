@@ -169,6 +169,7 @@ async function executeRequest(
       body: scenario.body ? JSON.stringify(scenario.body) : undefined,
       signal: controller.signal,
     });
+    await response.arrayBuffer();
     return {
       scenario: scenario.name,
       ok: response.status >= 200 && response.status < 300,
