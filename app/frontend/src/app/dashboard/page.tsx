@@ -20,8 +20,10 @@ import {
 } from "@/hooks/activityFeedApi";
 import {
   filterActivityItems,
+  hasActiveFilters,
   type ActivityFilterState,
 } from "@/lib/activityFilters";
+import { PaymentHistoryFilters } from "@/components/PaymentHistoryFilters";
 
 type DashboardResponse = {
   items: ActivityFeedItem[];
@@ -194,10 +196,7 @@ function DashboardContent() {
     [activityFilters, data?.items],
   );
 
-  const hasActivityFilters =
-    activityFilters.query.trim().length > 0 ||
-    activityFilters.status !== "All" ||
-    activityFilters.asset !== "All";
+  const hasActivityFilters = hasActiveFilters(activityFilters);
 
   const clearActivityFilters = () => {
     setActivityFilters({ query: "", status: "All", asset: "All" });
@@ -506,87 +505,13 @@ function DashboardContent() {
           ) : (
             <>
               <div className="border-b border-border bg-surface/60 p-6 sm:p-8">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                  <div className="relative w-full max-w-xl">
-                    <svg
-                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-                      />
-                    </svg>
-                    <input
-                      type="search"
-                      value={activityFilters.query}
-                      onChange={(event) =>
-                        setActivityFilters((current) => ({
-                          ...current,
-                          query: event.target.value,
-                        }))
-                      }
-                      placeholder="Search memo, hash, address or asset"
-                      aria-label="Search transaction activity"
-                      className="w-full rounded-2xl border border-border bg-card py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                      <span>Status</span>
-                      <select
-                        value={activityFilters.status}
-                        onChange={(event) =>
-                          setActivityFilters((current) => ({
-                            ...current,
-                            status: event.target.value as ActivityFilterState["status"],
-                          }))
-                        }
-                        className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                        <option value="All">All</option>
-                        <option value="Settled">Settled</option>
-                        <option value="Pending">Pending</option>
-                      </select>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                      <span>Asset</span>
-                      <select
-                        value={activityFilters.asset}
-                        onChange={(event) =>
-                          setActivityFilters((current) => ({
-                            ...current,
-                            asset: event.target.value,
-                          }))
-                        }
-                        className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                        {assetOptions.map((asset) => (
-                          <option key={asset} value={asset}>
-                            {asset}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    {hasActivityFilters ? (
-                      <button
-                        type="button"
-                        onClick={clearActivityFilters}
-                        className="rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-muted transition hover:text-foreground"
-                      >
-                        Reset
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+                <PaymentHistoryFilters
+                  allItems={data?.items ?? []}
+                  filteredItems={filteredActivityItems}
+                  filters={activityFilters}
+                  onFiltersChange={setActivityFilters}
+                  assetOptions={assetOptions}
+                />
               </div>
 
               {filteredActivityItems.length === 0 ? (

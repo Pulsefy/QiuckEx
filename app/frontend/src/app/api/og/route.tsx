@@ -105,7 +105,7 @@ function stateLabel(state: PaymentState): string {
 // Route handler
 // ---------------------------------------------------------------------------
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<Response> {
   const { searchParams } = req.nextUrl;
 
   const rawType = searchParams.get("type") ?? "default";
