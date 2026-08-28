@@ -1,0 +1,48 @@
+name: Frontend E2E (Pay → Receipt)
+
+# FE-67: browser E2E that walks link creation → testnet payment → receipt
+# against a preview / ephemeral environment. Screenshots and traces are
+# uploaded on failure; flake mitigation uses web-first assertions.
+
+on:
+  pull_request:
+    paths:
+      - "app/frontend/**"
+      - "e2e/**"
+      - ".github/workflows/frontend-e2e.yml"
+
+jobs:
+  e2e:
+    name: Pay to Receipt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install E2E dependencies
+        working-directory: ./e2e
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: ./e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run pay → receipt E2E
+        working-directory: ./e2e
+        run: npx playwright test
+        env:
+          # Points at the deployed preview / ephemeral environment for the PR.
+          BASE_URL: ${{ secrets.PREVIEW_BASE_URL || 'http://localhost:3000' }}
+
+      - name: Upload Playwright report (screenshots + traces)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7
