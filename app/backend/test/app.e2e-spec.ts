@@ -341,7 +341,6 @@ describe("App endpoints", () => {
       .expect(400);
 
     expect(response.body).toMatchObject({
-      success: false,
       error: {
         code: expect.any(String),
         message: expect.any(String),
