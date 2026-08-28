@@ -482,4 +482,32 @@ export class AppConfigService {
   get exportDownloadSecret(): string {
     return this.configService.get('EXPORT_DOWNLOAD_SECRET', { infer: true });
   }
+
+  // ── OpenTelemetry tracing (BE-113) ─────────────────────────────────────────
+  // Note: the tracing SDK itself boots in src/tracing/tracing.ts before Nest's
+  // DI container exists, so it reads process.env directly via
+  // resolveOtelConfig(). These getters exist so the rest of the app (and
+  // tests) can inspect the same settings through the usual typed config.
+
+  /** Root span sampling ratio (0.0-1.0). Kept low by default for overhead. */
+  get otelTraceSampleRate(): number {
+    return this.configService.get('OTEL_TRACE_SAMPLE_RATE', { infer: true });
+  }
+
+  get otelServiceName(): string {
+    return this.configService.get('OTEL_SERVICE_NAME', { infer: true });
+  }
+
+  /** OTLP/HTTP traces endpoint override, if explicitly configured. */
+  get otelExporterOtlpTracesEndpoint(): string | undefined {
+    return this.configService.get('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT', {
+      infer: true,
+    });
+  }
+
+  get otelExporterOtlpEndpoint(): string | undefined {
+    return this.configService.get('OTEL_EXPORTER_OTLP_ENDPOINT', {
+      infer: true,
+    });
+  }
 }
