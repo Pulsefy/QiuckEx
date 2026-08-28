@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc as SorobanRpc } from "@stellar/stellar-sdk";
 import { MetricsService } from "../metrics/metrics.service";
+import { throwMappedStellarException } from "../common/stellar-errors";
 
 @Injectable()
 export class SorobanRpcService {
@@ -139,22 +140,35 @@ export class SorobanRpcService {
         server.getAccount(publicKey),
       );
     } catch (err) {
-      throw new Error(`account "${publicKey}" does not exist on the network`);
+      // Re-map to a stable HTTP error; not-found produces 404, network issues 502.
+      throwMappedStellarException(
+        err instanceof Error && err.message.toLowerCase().includes('does not exist')
+          ? Object.assign(err, { response: { status: 404 } })
+          : err,
+      );
     }
   }
 
   async simulateTransaction(
     tx: StellarSdk.Transaction,
   ): Promise<SorobanRpc.Api.SimulateTransactionResponse> {
-    return this.executeWithFailover("simulateTransaction", (server) =>
-      server.simulateTransaction(tx),
-    );
+    try {
+      return await this.executeWithFailover("simulateTransaction", (server) =>
+        server.simulateTransaction(tx),
+      );
+    } catch (err) {
+      throwMappedStellarException(err);
+    }
   }
 
   async getNetworkPassphrase(): Promise<string> {
-    const network = await this.executeWithFailover("getNetwork", (server) =>
-      server.getNetwork(),
-    );
-    return network.passphrase;
+    try {
+      const network = await this.executeWithFailover("getNetwork", (server) =>
+        server.getNetwork(),
+      );
+      return network.passphrase;
+    } catch (err) {
+      throwMappedStellarException(err);
+    }
   }
 }
