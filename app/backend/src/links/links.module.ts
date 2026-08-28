@@ -65,7 +65,6 @@ import { UsernamesModule } from "../usernames/usernames.module";
     TransactionsModule,
     AuditModule,
     MetricsModule,
-    IdempotencyModule,
     forwardRef(() => JobQueueModule),
     UsernamesModule,
   ],
