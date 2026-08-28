@@ -1,30 +1,15 @@
 {
-  "buildCommand": "cd app/frontend && npm run build",
-  "outputDirectory": "app/frontend/.next",
-  "installCommand": "cd app/frontend && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
   "env": {
-    "NEXT_PUBLIC_QUICKEX_API_URL": {
-      "description": "Backend API base URL",
-      "value": "https://api.quickex.to"
-    },
-    "NEXT_PUBLIC_SITE_URL": {
-      "description": "Frontend site URL",
-      "value": "https://quickex.to"
-    },
-    "NEXT_PUBLIC_STELLAR_NETWORK": {
-      "description": "Stellar network (mainnet or testnet)",
-      "value": "mainnet"
-    },
-    "NEXT_PUBLIC_ERROR_REPORTING_ENABLED": {
-      "description": "Enable client error reporting",
-      "value": "true"
-    },
-    "NEXT_PUBLIC_APP_VERSION": {
-      "description": "Application version",
-      "value": "1.0.0"
-    }
+    "NEXT_PUBLIC_QUICKEX_API_URL": "https://api.quickex.to",
+    "NEXT_PUBLIC_SITE_URL": "https://quickex.to",
+    "NEXT_PUBLIC_STELLAR_NETWORK": "testnet",
+    "NEXT_PUBLIC_ERROR_REPORTING_ENABLED": "true",
+    "NEXT_PUBLIC_APP_VERSION": "1.0.0"
   },
   "git": {
     "deploymentEnabled": {
