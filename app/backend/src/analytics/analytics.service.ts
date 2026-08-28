@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AnalyticsInterval,
   ReportType,
 } from './dto/analytics-query.dto';
+import { TimeRange } from './dto/dashboard-summary.dto';
 
 type PaymentRow = Record<string, unknown>;
 type RpcSummaryRow = {
@@ -73,9 +74,82 @@ export type AnalyticsReport = {
   };
 };
 
+export type DashboardSummary = {
+  volume: {
+    totalVolumeUsd: number;
+    paymentCount: number;
+  };
+  payments: {
+    successfulCount: number;
+    failedCount: number;
+    pendingCount: number;
+  };
+  refunds: {
+    totalCount: number;
+    pendingCount: number;
+    approvedCount: number;
+  };
+  health: {
+    successRate: number;
+    deliveryFailureRate: number;
+  };
+  window: {
+    startDate: string;
+    endDate: string;
+  };
+};
+
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
+
+  async getDashboardSummary(
+    publicKey: string,
+    timeRange: TimeRange = TimeRange.WEEK,
+    startDate?: string,
+    endDate?: string,
+    organizationId?: string,
+  ): Promise<DashboardSummary> {
+    const { startIso, endIso } = this.resolveTimeRange(timeRange, startDate, endDate);
+
+    const [analyticsReport, refundCounts, deliveryFailures] = await Promise.all([
+      this.getAnalyticsReport(publicKey, startIso, endIso, AnalyticsInterval.DAILY, organizationId),
+      this.fetchRefundCounts(publicKey, startIso, endIso, organizationId),
+      this.fetchDeliveryFailureCount(publicKey, startIso, endIso, organizationId),
+    ]);
+
+    const pendingPayments = await this.fetchPendingPaymentCount(publicKey, startIso, endIso, organizationId);
+
+    return {
+      volume: {
+        totalVolumeUsd: analyticsReport.summary.totalVolumeUsd,
+        paymentCount: analyticsReport.summary.totalTransactions,
+      },
+      payments: {
+        successfulCount: analyticsReport.summary.successfulTransactions,
+        failedCount: analyticsReport.summary.failedTransactions,
+        pendingCount: pendingPayments,
+      },
+      refunds: {
+        totalCount: refundCounts.total,
+        pendingCount: refundCounts.pending,
+        approvedCount: refundCounts.approved,
+      },
+      health: {
+        successRate: analyticsReport.summary.conversionRate,
+        deliveryFailureRate: this.calculateDeliveryFailureRate(
+          analyticsReport.summary.totalTransactions,
+          deliveryFailures,
+        ),
+      },
+      window: {
+        startDate: startIso,
+        endDate: endIso,
+      },
+    };
+  }
 
   async getAnalyticsReport(
     publicKey: string,
@@ -580,6 +654,42 @@ export class AnalyticsService {
     return 0;
   }
 
+  private resolveTimeRange(
+    timeRange: TimeRange,
+    startDate?: string,
+    endDate?: string,
+  ): { startIso: string; endIso: string } {
+    if (timeRange === TimeRange.CUSTOM) {
+      return this.resolveDateWindow(startDate, endDate);
+    }
+
+    const end = new Date();
+    let start: Date;
+
+    switch (timeRange) {
+      case TimeRange.TODAY:
+        start = new Date(end);
+        start.setUTCHours(0, 0, 0, 0);
+        break;
+      case TimeRange.WEEK:
+        start = new Date(end);
+        start.setUTCDate(start.getUTCDate() - 7);
+        break;
+      case TimeRange.MONTH:
+        start = new Date(end);
+        start.setUTCDate(start.getUTCDate() - 30);
+        break;
+      default:
+        start = new Date(end);
+        start.setUTCDate(start.getUTCDate() - 7);
+    }
+
+    return {
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+    };
+  }
+
   private resolveDateWindow(startDate?: string, endDate?: string): { startIso: string; endIso: string } {
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate
@@ -658,5 +768,105 @@ export class AnalyticsService {
 
   private round2(value: number): number {
     return Math.round(value * 100) / 100;
+  }
+
+  private async fetchRefundCounts(
+    publicKey: string,
+    startIso: string,
+    endIso: string,
+    organizationId?: string,
+  ): Promise<{ total: number; pending: number; approved: number }> {
+    const client = this.supabase.getClient();
+
+    let query = client
+      .from('refund_attempts')
+      .select('status')
+      .gte('created_at', startIso)
+      .lte('created_at', endIso);
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      this.logger.warn(`Failed to fetch refund counts: ${error.message}`);
+      return { total: 0, pending: 0, approved: 0 };
+    }
+
+    const refunds = data ?? [];
+    return {
+      total: refunds.length,
+      pending: refunds.filter((r) => r.status === 'pending').length,
+      approved: refunds.filter((r) => r.status === 'approved').length,
+    };
+  }
+
+  private async fetchPendingPaymentCount(
+    publicKey: string,
+    startIso: string,
+    endIso: string,
+    organizationId?: string,
+  ): Promise<number> {
+    const client = this.supabase.getClient();
+
+    let query = client
+      .from('payment_records')
+      .select('id')
+      .or(`sender_public_key.eq.${publicKey},receiver_public_key.eq.${publicKey}`)
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+      .in('status', ['pending', 'processing']);
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      this.logger.warn(`Failed to fetch pending payment count: ${error.message}`);
+      return 0;
+    }
+
+    return data?.length ?? 0;
+  }
+
+  private async fetchDeliveryFailureCount(
+    publicKey: string,
+    startIso: string,
+    endIso: string,
+    organizationId?: string,
+  ): Promise<number> {
+    const client = this.supabase.getClient();
+
+    let query = client
+      .from('notification_logs')
+      .select('id')
+      .eq('recipient_public_key', publicKey)
+      .eq('status', 'failed')
+      .gte('created_at', startIso)
+      .lte('created_at', endIso);
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      this.logger.warn(`Failed to fetch delivery failure count: ${error.message}`);
+      return 0;
+    }
+
+    return data?.length ?? 0;
+  }
+
+  private calculateDeliveryFailureRate(totalTransactions: number, deliveryFailures: number): number {
+    if (totalTransactions === 0) {
+      return 0;
+    }
+    return this.round2((deliveryFailures / totalTransactions) * 100);
   }
 }
