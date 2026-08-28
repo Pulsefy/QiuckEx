@@ -21,6 +21,13 @@ pub fn initialize(env: &Env, admin: Address) -> Result<(), QuickexError> {
 
     // Set initial admin address (singleton for compatibility).
     storage::set_admin(env, &admin);
+    let mut signers = Vec::new(env);
+    signers.push_back(admin.clone());
+    storage::set_admin_signers(env, &signers);
+    storage::set_admin_threshold(env, 1);
+    storage::set_admin_approval_round(env, 0);
+    storage::set_admin_approval_count(env, 0);
+    storage::set_admin_approval_ready(env, false);
     storage::set_paused(env, false, 0);
     storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
 
@@ -63,10 +70,172 @@ pub fn get_admin(env: &Env) -> Option<Address> {
     storage::get_admin(env)
 }
 
+/// Initialize the contract with a threshold of signatures from `signers`.
+pub fn initialize_multisig(
+    env: &Env,
+    signers: Vec<Address>,
+    threshold: u32,
+) -> Result<(), QuickexError> {
+    if storage::is_initialized(env) || has_admin(env) {
+        return Err(QuickexError::AlreadyInitialized);
+    }
+    validate_signers(env, &signers, threshold)?;
+
+    let primary = signers.get(0).ok_or(QuickexError::Unauthorized)?;
+    storage::set_admin(env, &primary);
+    storage::set_admin_signers(env, &signers);
+    storage::set_admin_threshold(env, threshold);
+    storage::set_admin_approval_round(env, 0);
+    storage::set_admin_approval_count(env, 0);
+    storage::set_admin_approval_ready(env, false);
+    storage::set_paused(env, false, 0);
+    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
+
+    for signer in signers.iter() {
+        let mut roles = storage::get_roles(env, &signer);
+        if !roles.contains(Role::Admin) {
+            roles.push_back(Role::Admin);
+            storage::set_roles(env, &signer, &roles);
+        }
+    }
+    storage::set_initialized(env, true);
+    publish_contract_initialized(
+        env,
+        primary,
+        storage::CURRENT_CONTRACT_VERSION,
+        crate::events::EVENT_SCHEMA_VERSION,
+        false,
+    );
+    Ok(())
+}
+
+fn validate_signers(
+    env: &Env,
+    signers: &Vec<Address>,
+    threshold: u32,
+) -> Result<(), QuickexError> {
+    if signers.len() == 0 || threshold == 0 || threshold > signers.len() {
+        return Err(QuickexError::InvalidAmount);
+    }
+    let mut seen = Vec::new(env);
+    for signer in signers.iter() {
+        if seen.contains(signer) {
+            return Err(QuickexError::InvalidAmount);
+        }
+        seen.push_back(signer);
+    }
+    Ok(())
+}
+
+pub fn get_admin_signers(env: &Env) -> Vec<Address> {
+    storage::get_admin_signers(env).unwrap_or_else(|| {
+        let mut signers = Vec::new(env);
+        if let Some(admin) = storage::get_admin(env) {
+            signers.push_back(admin);
+        }
+        signers
+    })
+}
+
+pub fn get_admin_threshold(env: &Env) -> u32 {
+    storage::get_admin_threshold(env).unwrap_or(1)
+}
+
+/// Approve the next privileged admin action. A quorum is consumed by the next
+/// successful Admin-only mutation.
+pub fn approve_admin_action(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
+    require_initialized(env)?;
+    caller.require_auth();
+    let signers = get_admin_signers(env);
+    if !signers.contains(caller) {
+        return Err(QuickexError::InsufficientRole);
+    }
+
+    let round = storage::get_admin_approval_round(env);
+    if storage::get_signer_approval_round(env, caller) == round {
+        return Err(QuickexError::AdminActionAlreadyApproved);
+    }
+    storage::set_signer_approval_round(env, caller, round);
+    let count = storage::get_admin_approval_count(env).saturating_add(1);
+    storage::set_admin_approval_count(env, count);
+    if count >= get_admin_threshold(env) {
+        storage::set_admin_approval_ready(env, true);
+    }
+    Ok(count)
+}
+
+fn consume_admin_approval(env: &Env, caller: &Address) -> Result<(), QuickexError> {
+    if get_admin_threshold(env) == 1 {
+        return Ok(());
+    }
+    if !get_admin_signers(env).contains(caller) {
+        return Err(QuickexError::InsufficientRole);
+    }
+    if !storage::is_admin_approval_ready(env) {
+        return Err(QuickexError::InsufficientVotes);
+    }
+    let next_round = storage::get_admin_approval_round(env)
+        .checked_add(1)
+        .ok_or(QuickexError::InternalError)?;
+    storage::set_admin_approval_round(env, next_round);
+    storage::set_admin_approval_count(env, 0);
+    storage::set_admin_approval_ready(env, false);
+    Ok(())
+}
+
+pub fn configure_multisig(
+    env: &Env,
+    caller: &Address,
+    signers: Vec<Address>,
+    threshold: u32,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+    validate_signers(env, &signers, threshold)?;
+
+    let old_signers = get_admin_signers(env);
+    for old_signer in old_signers.iter() {
+        if !signers.contains(&old_signer) {
+            let roles = storage::get_roles(env, &old_signer);
+            let mut new_roles = Vec::new(env);
+            for role in roles {
+                if role != Role::Admin {
+                    new_roles.push_back(role);
+                }
+            }
+            storage::set_roles(env, &old_signer, &new_roles);
+        }
+    }
+    storage::set_admin_signers(env, &signers);
+    storage::set_admin_threshold(env, threshold);
+    storage::set_admin_approval_round(env, 0);
+    storage::set_admin_approval_count(env, 0);
+    storage::set_admin_approval_ready(env, false);
+    for signer in signers.iter() {
+        let mut roles = storage::get_roles(env, &signer);
+        if !roles.contains(Role::Admin) {
+            roles.push_back(Role::Admin);
+            storage::set_roles(env, &signer, &roles);
+        }
+    }
+    Ok(())
+}
+
 /// Check if an address has a specific role.
 pub fn has_role(env: &Env, address: &Address, role: Role) -> bool {
     let roles = storage::get_roles(env, address);
-    roles.contains(role)
+    roles.iter().any(|granted| role_includes(granted, role))
+}
+
+/// Return whether a granted role includes the requested permission role.
+/// Admin inherits operational permissions; dispute arbitration stays separate.
+fn role_includes(granted: Role, requested: Role) -> bool {
+    matches!(
+        (granted, requested),
+        (Role::Admin, Role::Admin)
+            | (Role::Admin, Role::Operator)
+            | (Role::Operator, Role::Operator)
+            | (Role::Arbiter, Role::Arbiter)
+    )
 }
 
 /// Require that the caller has at least one of the specified roles.
@@ -76,15 +245,23 @@ pub fn require_any_role(env: &Env, caller: &Address, roles: &[Role]) -> Result<(
     caller.require_auth();
     let user_roles = storage::get_roles(env, caller);
     for role in roles {
-        if user_roles.contains(*role) {
+        if user_roles.iter().any(|granted| role_includes(granted, *role)) {
+            if *role == Role::Admin {
+                consume_admin_approval(env, caller)?;
+            }
             return Ok(());
         }
     }
     // Fallback: legacy deployments may not have role assignments.
-    // Accept the stored admin address as matching any Admin role request.
-    if roles.contains(&Role::Admin) {
+    // Legacy deployments may have only the primary admin address. It inherits
+    // operational access, but not dispute arbitration.
+    if roles
+        .iter()
+        .any(|role| *role == Role::Admin || *role == Role::Operator)
+    {
         if let Some(admin) = storage::get_admin(env) {
             if admin == *caller {
+                consume_admin_approval(env, caller)?;
                 return Ok(());
             }
         }
@@ -139,17 +316,22 @@ pub fn set_admin(env: &Env, caller: Address, new_admin: Address) -> Result<(), Q
     require_admin(env, &caller)?;
 
     let old_admin = storage::get_admin(env).unwrap();
+    if get_admin_threshold(env) > 1 && !get_admin_signers(env).contains(&new_admin) {
+        return Err(QuickexError::InsufficientRole);
+    }
     storage::set_admin(env, &new_admin);
 
-    // Revoke Admin role from old admin.
-    let roles = storage::get_roles(env, &old_admin);
-    let mut new_roles = Vec::new(env);
-    for r in roles {
-        if r != Role::Admin {
-            new_roles.push_back(r);
+    // A multisig signer remains an Admin when the primary signer changes.
+    if get_admin_threshold(env) == 1 {
+        let roles = storage::get_roles(env, &old_admin);
+        let mut new_roles = Vec::new(env);
+        for r in roles {
+            if r != Role::Admin {
+                new_roles.push_back(r);
+            }
         }
+        storage::set_roles(env, &old_admin, &new_roles);
     }
-    storage::set_roles(env, &old_admin, &new_roles);
 
     // Grant Admin role to new admin if not already present.
     let mut roles = storage::get_roles(env, &new_admin);

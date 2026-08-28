@@ -215,6 +215,18 @@ pub enum DataKey {
     EscrowExtension(Bytes),
     /// Dispute evidence record. Keyed by (commitment, evidence_hash).
     DisputeEvidence(Bytes, BytesN<32>),
+    /// Multi-signature admin signer set (singleton).
+    AdminSigners,
+    /// Number of required admin signatures (singleton).
+    AdminThreshold,
+    /// Current multi-signature approval round (singleton).
+    AdminApprovalRound,
+    /// Number of approvals in the current round (singleton).
+    AdminApprovalCount,
+    /// Whether the current approval round has reached quorum (singleton).
+    AdminApprovalReady,
+    /// Round in which an address last approved an admin action.
+    AdminSignerApprovalRound(Address),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -643,6 +655,79 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
+}
+
+pub fn set_admin_signers(env: &Env, signers: &Vec<Address>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::AdminSigners, signers);
+}
+
+pub fn get_admin_signers(env: &Env) -> Option<Vec<Address>> {
+    env.storage().persistent().get(&DataKey::AdminSigners)
+}
+
+pub fn set_admin_threshold(env: &Env, threshold: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::AdminThreshold, &threshold);
+}
+
+pub fn get_admin_threshold(env: &Env) -> Option<u32> {
+    env.storage().persistent().get(&DataKey::AdminThreshold)
+}
+
+pub fn get_admin_approval_round(env: &Env) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AdminApprovalRound)
+        .unwrap_or(0)
+}
+
+pub fn set_admin_approval_round(env: &Env, round: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::AdminApprovalRound, &round);
+}
+
+pub fn get_admin_approval_count(env: &Env) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AdminApprovalCount)
+        .unwrap_or(0)
+}
+
+pub fn set_admin_approval_count(env: &Env, count: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::AdminApprovalCount, &count);
+}
+
+pub fn is_admin_approval_ready(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AdminApprovalReady)
+        .unwrap_or(false)
+}
+
+pub fn set_admin_approval_ready(env: &Env, ready: bool) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::AdminApprovalReady, &ready);
+}
+
+pub fn get_signer_approval_round(env: &Env, signer: &Address) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AdminSignerApprovalRound(signer.clone()))
+        .unwrap_or(u32::MAX)
+}
+
+pub fn set_signer_approval_round(env: &Env, signer: &Address, round: u32) {
+    env.storage().persistent().set(
+        &DataKey::AdminSignerApprovalRound(signer.clone()),
+        &round,
+    );
 }
 
 // -----------------------------------------------------------------------------

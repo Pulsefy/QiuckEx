@@ -54,6 +54,17 @@ fn test_operator_can_pause() {
 }
 
 #[test]
+fn test_admin_inherits_operator_permissions() {
+    let ctx = TestContext::with_admin();
+
+    ctx.client.set_paused(&ctx.admin, &true, &1u32);
+    assert!(ctx.client.is_paused());
+
+    ctx.client.set_paused(&ctx.admin, &false, &0u32);
+    assert!(!ctx.client.is_paused());
+}
+
+#[test]
 fn test_arbiter_role_resolution() {
     let ctx = TestContext::with_admin();
     let global_arbiter = ctx.bob.clone();
@@ -108,4 +119,46 @@ fn test_insufficient_role_error() {
         Err(Ok(QuickexError::InsufficientRole)) => (),
         _ => panic!("Expected InsufficientRole error"),
     }
+}
+
+#[test]
+fn test_multisig_requires_quorum_for_admin_action() {
+    let env = soroban_sdk::Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(crate::QuickexContract, ());
+    let client = crate::QuickexContractClient::new(&env, &contract_id);
+    let first = Address::generate(&env);
+    let second = Address::generate(&env);
+    let signers = soroban_sdk::vec![&env, first.clone(), second.clone()];
+
+    client.initialize_multisig(&signers, &2);
+    assert_eq!(client.get_admin_signers(), signers);
+    assert_eq!(client.get_admin_threshold(), 2);
+
+    client.approve_admin_action(&first);
+    let result = client.try_set_platform_wallet(&first, &Address::generate(&env));
+    assert!(matches!(result, Err(Ok(QuickexError::InsufficientVotes))));
+
+    client.approve_admin_action(&second);
+    client.set_platform_wallet(&first, &Address::generate(&env));
+    assert_eq!(client.get_admin_threshold(), 2);
+}
+
+#[test]
+fn test_multisig_rejects_duplicate_approval() {
+    let env = soroban_sdk::Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(crate::QuickexContract, ());
+    let client = crate::QuickexContractClient::new(&env, &contract_id);
+    let first = Address::generate(&env);
+    let second = Address::generate(&env);
+    let signers = soroban_sdk::vec![&env, first.clone(), second];
+
+    client.initialize_multisig(&signers, &2);
+    client.approve_admin_action(&first);
+    let result = client.try_approve_admin_action(&first);
+    assert!(matches!(
+        result,
+        Err(Ok(QuickexError::AdminActionAlreadyApproved))
+    ));
 }
