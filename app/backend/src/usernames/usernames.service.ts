@@ -10,6 +10,7 @@ import { decodeCursor } from "../common/pagination/cursor.util";
 import { SupabaseUniqueConstraintError } from "../supabase/supabase.errors";
 import { AppConfigService } from "../config";
 import { DiscoveryCacheService } from "./cache/discovery-cache.service";
+import { UsernameRankingService } from "./username-ranking.service";
 import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
@@ -35,6 +36,7 @@ export class UsernamesService {
     private readonly supabase: SupabaseService,
     private readonly config: AppConfigService,
     private readonly cache: DiscoveryCacheService,
+    private readonly rankingService: UsernameRankingService,
   ) {}
 
   /**
@@ -154,17 +156,12 @@ export class UsernamesService {
       createdAt: listing.created_at,
     }));
 
-    const combined = [...profileResults, ...listingResults].sort((a, b) => {
-      const scoreA = a.kind === 'profile' ? (a.similarityScore ?? 0) : 0;
-      const scoreB = b.kind === 'profile' ? (b.similarityScore ?? 0) : 0;
-      if (scoreA !== scoreB) {
-        return scoreB - scoreA;
-      }
-
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return timeB - timeA;
-    });
+    // Apply configurable ranking weights (loaded from feature_flags, cached 60 s).
+    const weights = await this.rankingService.getWeights();
+    const combined = this.rankingService.rank(
+      [...profileResults, ...listingResults],
+      weights,
+    );
 
     const hasMore = combined.length > effectiveLimit;
     const data = hasMore ? combined.slice(0, effectiveLimit) : combined;
