@@ -356,7 +356,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 2);
-    assert_eq!(EVENT_SCHEMAS.len(), 32);
+    assert_eq!(EVENT_SCHEMAS.len(), 36);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -704,14 +704,38 @@ fn test_commitment_cycle() {
     assert!(!is_valid_bad_salt);
 }
 
+/// SC-W8-02: `create_escrow(_from, _to, _amount)` was a stub — every argument
+/// was ignored (`_`-prefixed) and it only incremented an internal counter, so
+/// it "succeeded" silently no matter what was passed in, never moved funds,
+/// and never checked authorization. It has been removed; `deposit` (and its
+/// `_with_commitment` / `_partial` siblings) is the sole escrow-creation
+/// entrypoint. Unlike the removed stub, it actually validates its arguments
+/// — an invalid amount is rejected rather than silently accepted — and moves
+/// real funds under the depositor's authorization.
 #[test]
-fn test_create_escrow() {
+fn test_create_escrow_stub_removed_deposit_validates_args_and_moves_funds() {
     let (env, client) = setup();
-    let from = Address::generate(&env);
-    let to = Address::generate(&env);
-    let amount = 1_000;
-    let escrow_id = client.create_escrow(&from, &to, &amount);
-    assert!(escrow_id > 0);
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let salt = Bytes::from_slice(&env, b"sc_w8_02_salt");
+
+    // What the removed stub would have silently accepted (amount = 0) is
+    // now rejected by real argument validation.
+    let result = client.try_deposit(&token, &0, &owner, &salt, &0, &None, &0u64, &u64::MAX);
+    assert_eq!(result, Err(Ok(QuickexError::InvalidAmount)));
+
+    // A well-formed deposit succeeds and actually transfers funds — the
+    // stub never touched a token at all.
+    token::StellarAssetClient::new(&env, &token).mint(&owner, &1_000);
+    let commitment = client.deposit(&token, &1_000, &owner, &salt, &0, &None, &1u64, &u64::MAX);
+
+    let token_client = token::Client::new(&env, &token);
+    assert_eq!(token_client.balance(&owner), 0);
+    assert_eq!(token_client.balance(&client.address), 1_000);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Pending)
+    );
 }
 
 #[test]
