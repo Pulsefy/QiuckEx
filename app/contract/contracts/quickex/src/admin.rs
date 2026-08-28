@@ -303,13 +303,15 @@ pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
         return Err(QuickexError::InvalidContractVersion);
     }
 
-    let mut version = from_version;
-    while version < storage::CURRENT_CONTRACT_VERSION {
-        version = match version {
-            storage::LEGACY_CONTRACT_VERSION => migrate_legacy_to_v1(env),
-            _ => return Err(QuickexError::InvalidContractVersion),
-        };
-    }
+    // SC-W8-10 (Issue #871): apply every registered step from `from_version`
+    // up to `CURRENT_CONTRACT_VERSION`, in order, via the versioned
+    // migration registry. `?` propagates a mid-chain step failure as-is —
+    // Soroban rolls back every write this invocation made (including any
+    // earlier steps that already ran), so state is left at `from_version`,
+    // never partially migrated. See `migration.rs` for the registry and
+    // `upgrade_harness_failed_migration_leaves_version_at_prior_value` in
+    // `upgrade_test.rs` for the end-to-end proof.
+    let version = crate::migration::run(env, from_version, storage::CURRENT_CONTRACT_VERSION)?;
 
     if version != from_version {
         publish_contract_migrated(env, caller, from_version, version);
@@ -321,12 +323,6 @@ pub fn migrate(env: &Env, caller: &Address) -> Result<u32, QuickexError> {
     }
 
     Ok(version)
-}
-
-fn migrate_legacy_to_v1(env: &Env) -> u32 {
-    storage::set_contract_version(env, storage::CURRENT_CONTRACT_VERSION);
-    storage::set_initialized(env, true);
-    storage::CURRENT_CONTRACT_VERSION
 }
 
 // ─────────────────────────────────────────────────────────────────────────
