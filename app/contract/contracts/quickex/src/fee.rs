@@ -64,7 +64,10 @@ pub fn fee_from_bps_ceil(amount: i128, bps: u32) -> i128 {
 /// Calculate the platform fee for a given amount using the global config.
 ///
 /// Uses dynamic oracle pricing when configured and falls back to the static
-/// fee basis points if the oracle is unavailable or stale.
+/// fee basis points if the oracle is unavailable or stale. The dynamic price
+/// is the multi-source median (see [`oracle::fetch_effective_price`]) when
+/// any oracle sources are registered, or the legacy single cached price
+/// otherwise.
 #[allow(dead_code)]
 pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
     if amount <= 0 {
@@ -72,7 +75,9 @@ pub fn calculate_fee(env: &Env, amount: i128) -> i128 {
     }
 
     if let Some(oracle_config) = storage::get_oracle_fee_config(env) {
-        if let Ok((price_micros, _timestamp)) = oracle::fetch_price(env, &oracle_config.oracle) {
+        if let Ok((price_micros, _timestamp)) =
+            oracle::fetch_effective_price(env, &oracle_config.oracle)
+        {
             if price_micros > 0 {
                 let fee = oracle_config
                     .usd_fee_micros
@@ -114,8 +119,10 @@ pub fn calculate_fee_for_token(env: &Env, token: &Address, amount: i128) -> i128
 ///
 /// When oracle fee config is set, this function REQUIRES a fresh oracle price
 /// to compute the dynamic fee. If the price is stale or unavailable, it returns
-/// [`QuickexError::OracleStalePrice`] or [`QuickexError::OraclePriceUnavailable`]
-/// — it does NOT silently fall back to static basis points.
+/// [`QuickexError::OracleStalePrice`], [`QuickexError::OraclePriceUnavailable`],
+/// or — when sources are registered and too few are fresh/agree —
+/// [`QuickexError::OracleInsufficientSources`]. It does NOT silently fall
+/// back to static basis points on any of these.
 ///
 /// When no oracle config exists, the global static [`FeeConfig`] is used (Ok).
 pub fn calculate_fee_price_aware(
@@ -129,7 +136,7 @@ pub fn calculate_fee_price_aware(
     if storage::get_oracle_fee_config(env).is_some() {
         // Oracle is configured — require a fresh price.
         let oracle_config = storage::get_oracle_fee_config(env).unwrap();
-        let (price_micros, _) = oracle::fetch_price(env, &oracle_config.oracle)?;
+        let (price_micros, _) = oracle::fetch_effective_price(env, &oracle_config.oracle)?;
         if price_micros > 0 {
             let fee = oracle_config
                 .usd_fee_micros
