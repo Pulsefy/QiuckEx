@@ -322,6 +322,21 @@ fn create_test_token(env: &Env) -> Address {
         .address()
 }
 
+fn assert_partial_accounting(
+    ctx: &crate::test_context::TestContext,
+    deposited: i128,
+    settled: i128,
+    refunded: i128,
+    fees: i128,
+) {
+    let outstanding = token::Client::new(&ctx.env, &ctx.token).balance(&ctx.client.address);
+    assert_eq!(
+        settled + refunded + outstanding + fees,
+        deposited,
+        "partial escrow accounting invariant violated"
+    );
+}
+
 fn assert_contract_error<T>(
     result: Result<Result<T, ConversionError>, Result<QuickexError, InvokeError>>,
     expected: QuickexError,
@@ -3938,6 +3953,110 @@ fn test_multi_payment_sequence() {
     let details = client.get_escrow_details(&commitment, &owner).unwrap();
     assert_eq!(details.amount_paid, Some(1000));
     assert_eq!(details.amount_due, Some(1000));
+}
+
+#[test]
+fn test_partial_payment_accounting_with_fee_rounding() {
+    let ctx = crate::test_context::TestContext::with_fees(333);
+    let amount_due: i128 = 10_003;
+    let initial_payment: i128 = 1_001;
+    let salt = ctx.salt(b"partial_accounting_fee");
+
+    ctx.mint(&ctx.alice.clone(), initial_payment);
+    ctx.mint(&ctx.bob.clone(), amount_due - initial_payment);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &amount_due,
+        &initial_payment,
+        &ctx.alice,
+        &salt,
+        &0,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    assert_partial_accounting(&ctx, initial_payment, 0, 0, 0);
+
+    let mut deposited = initial_payment;
+    for (idx, payment) in [2_001_i128, 3_001, 4_000].into_iter().enumerate() {
+        ctx.client.partial_payment(
+            &commitment,
+            &ctx.bob,
+            &payment,
+            &(idx as u64),
+            &u64::MAX,
+        );
+        deposited += payment;
+        assert_partial_accounting(&ctx, deposited, 0, 0, 0);
+    }
+
+    let fee = amount_due * 333 / 10_000;
+    ctx.client.withdraw(
+        &ctx.token,
+        &amount_due,
+        &commitment,
+        &ctx.alice,
+        &salt,
+        &0,
+        &u64::MAX,
+    );
+    assert_partial_accounting(&ctx, amount_due, amount_due - fee, 0, fee);
+}
+
+#[test]
+fn test_partial_payment_timeout_refunds_only_paid_amount() {
+    let ctx = crate::test_context::TestContext::with_admin();
+    let amount_due: i128 = 1_000;
+    let initial_payment: i128 = 275;
+    let timeout = 10;
+    let salt = ctx.salt(b"partial_accounting_timeout");
+
+    ctx.mint(&ctx.alice.clone(), initial_payment);
+    ctx.mint(&ctx.bob.clone(), 125);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &amount_due,
+        &initial_payment,
+        &ctx.alice,
+        &salt,
+        &timeout,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    ctx.client
+        .partial_payment(&commitment, &ctx.bob, &125, &0, &u64::MAX);
+    assert_partial_accounting(&ctx, 400, 0, 0, 0);
+
+    ctx.advance_time(timeout);
+    assert_contract_error(
+        ctx.client
+            .try_partial_payment(&commitment, &ctx.bob, &1, &1, &u64::MAX),
+        QuickexError::EscrowExpired,
+    );
+    assert_partial_accounting(&ctx, 400, 0, 0, 0);
+
+    ctx.client.finalize_expired_escrow(&commitment);
+    assert_partial_accounting(&ctx, 400, 0, 400, 0);
+}
+
+#[test]
+fn test_deposit_partial_rejects_initial_overpayment() {
+    let ctx = crate::test_context::TestContext::with_admin();
+    ctx.mint(&ctx.alice.clone(), 101);
+
+    let result = ctx.client.try_deposit_partial(
+        &ctx.token,
+        &100,
+        &101,
+        &ctx.alice,
+        &ctx.salt(b"partial_initial_overpayment"),
+        &0,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    assert_contract_error(result, QuickexError::Overpayment);
 }
 
 // ============================================================================

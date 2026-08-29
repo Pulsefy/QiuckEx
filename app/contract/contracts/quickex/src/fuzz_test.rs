@@ -11,6 +11,7 @@
 //! | INV-5 | Terminal states are final — `Spent`/`Refunded` block all further transitions. |
 //! | INV-6 | No overpayment — `partial_payment` rejects amounts exceeding the remainder. |
 //! | INV-7 | Nonce uniqueness — replaying a `(signer, nonce)` pair always fails.      |
+//! | INV-8 | Partial escrow accounting conserves every deposited token.             |
 //!
 //! # Adding a new invariant
 //!
@@ -57,6 +58,88 @@ fn time_advance_strategy() -> impl Strategy<Value = u64> {
 // ---------------------------------------------------------------------------
 // INV-1: No early withdrawal
 // ---------------------------------------------------------------------------
+
+proptest! {
+    /// INV-8: generated partial payments and timeout refunds conserve funds.
+    #[test]
+    fn inv8_partial_accounting_conservation(
+        amount_due in 2_i128..=1_000_000_i128,
+        initial in 1_i128..=1_000_000_i128,
+        payments in prop::array::uniform3(1_i128..=1_000_000_i128),
+        refund_with_owner in any::<bool>(),
+    ) {
+        let initial = initial.min(amount_due - 1);
+        let ctx = TestContext::with_admin();
+        let salt = ctx.salt(b"fuzz_partial_accounting");
+        ctx.mint(&ctx.alice.clone(), initial);
+        for payment in payments {
+            ctx.mint(&ctx.bob.clone(), payment);
+        }
+
+        let commitment = ctx.client.deposit_partial(
+            &ctx.token,
+            &amount_due,
+            &initial,
+            &ctx.alice,
+            &salt,
+            &1,
+            &None,
+            &0,
+            &u64::MAX,
+        );
+        let assert_invariant = |deposited: i128, refunded: i128| {
+            let outstanding = ctx.balance(&ctx.client.address);
+            prop_assert_eq!(
+                refunded + outstanding,
+                deposited,
+                "INV-8 violated: refunded + outstanding != deposited"
+            );
+            Ok(())
+        };
+
+        let mut deposited = initial;
+        assert_invariant(deposited, 0)?;
+        for (idx, requested) in payments.into_iter().enumerate() {
+            let remaining = amount_due - deposited;
+            let nonce = idx as u64;
+            if remaining == 0 {
+                prop_assert!(ctx.client.try_partial_payment(
+                    &commitment,
+                    &ctx.bob,
+                    &requested,
+                    &nonce,
+                    &u64::MAX,
+                ).is_err());
+                assert_invariant(deposited, 0)?;
+                continue;
+            }
+
+            let payment = if remaining == 1 {
+                remaining
+            } else {
+                requested.min(remaining - 1)
+            };
+            ctx.client.partial_payment(
+                &commitment,
+                &ctx.bob,
+                &payment,
+                &nonce,
+                &u64::MAX,
+            );
+            deposited += payment;
+            assert_invariant(deposited, 0)?;
+        }
+
+        ctx.advance_time(1);
+        if refund_with_owner {
+            ctx.client
+                .refund(&commitment, &ctx.alice, &0, &u64::MAX);
+        } else {
+            ctx.client.finalize_expired_escrow(&commitment);
+        }
+        assert_invariant(deposited, deposited)?;
+    }
+}
 
 proptest! {
     /// INV-1: withdraw MUST fail with EscrowExpired when now >= expires_at.
