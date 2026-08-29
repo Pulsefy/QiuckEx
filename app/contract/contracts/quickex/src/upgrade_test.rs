@@ -630,14 +630,15 @@ fn upgrade_harness_legacy_symbol_privacy_key_readable_after_upgrade() {
 
 /// Regression: the escrow counter must not be touched by `migrate()`.
 ///
-/// `deposit()` does not use the escrow counter (only `create_escrow` does),
-/// so this test explicitly seeds the counter to a known non-zero value via
-/// storage and verifies it is unchanged after migration.
+/// No contract entrypoint writes the counter anymore — the `create_escrow`
+/// stub that once did was removed (SC-W8-02) — so this test seeds it
+/// directly via storage to a known non-zero value and verifies it is
+/// unchanged after migration.
 #[test]
 fn upgrade_harness_escrow_counter_survives_migration() {
     let (env, gs) = build_golden_state();
 
-    // Seed the counter to a known non-zero value (simulates prior create_escrow calls).
+    // Seed the counter to a known non-zero value directly via storage.
     env.as_contract(&gs.contract_id, || {
         for _ in 0..4 {
             crate::storage::increment_escrow_counter(&env);
@@ -946,4 +947,46 @@ fn upgrade_safety_gate_non_admin_blocked() {
     // Non-admin attempts set_upgrade_window → fails.
     let result = client.try_set_upgrade_window(&non_admin, &1u64, &0u64);
     assert!(result.is_err(), "set_upgrade_window by non-admin must fail");
+}
+
+/// SC-W8-10 (Issue #871): a migration that fails must leave the stored
+/// version exactly where it started, not partially advanced.
+///
+/// This exercises Soroban's atomic-invocation rollback through the real
+/// `migrate()` entrypoint: the version-1 step itself runs successfully and
+/// writes `ContractVersion`, but the post-upgrade invariant check (fee_bps
+/// deliberately corrupted here) then fails, so the whole invocation —
+/// including that already-written version bump — is discarded.
+#[test]
+fn upgrade_harness_failed_migration_leaves_version_at_prior_value() {
+    let (env, gs) = build_golden_state();
+    // Swap in the current WASM but do NOT migrate yet — unlike
+    // `seed_admin_role`, which already calls `migrate()` once. This test
+    // needs the very first migrate attempt (legacy -> v1) to be the one
+    // that fails, so `before` is genuinely `LEGACY_CONTRACT_VERSION`.
+    let client = upgrade_to_current(&env, &gs.contract_id);
+
+    env.as_contract(&gs.contract_id, || {
+        crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 99999 });
+    });
+
+    let before = client.get_version();
+    assert_eq!(before, LEGACY_CONTRACT_VERSION);
+
+    let result = client.try_migrate(&gs.admin);
+    assert_eq!(result, Err(Ok(QuickexError::InternalError)));
+
+    let after = client.get_version();
+    assert_eq!(
+        after, before,
+        "a failed migrate() must not leave the version partially advanced"
+    );
+
+    // The contract is still usable and can complete the migration once the
+    // underlying problem is fixed — the failure was not fatal to the contract.
+    env.as_contract(&gs.contract_id, || {
+        crate::storage::set_fee_config(&env, &FeeConfig { fee_bps: 200 });
+    });
+    let version = client.migrate(&gs.admin);
+    assert_eq!(version, CURRENT_CONTRACT_VERSION);
 }

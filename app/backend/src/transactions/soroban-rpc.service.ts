@@ -3,7 +3,10 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc as SorobanRpc } from "@stellar/stellar-sdk";
+import type { Span } from "@opentelemetry/api";
+
 import { MetricsService } from "../metrics/metrics.service";
+import { withSpan } from "../tracing/trace-span.util";
 
 @Injectable()
 export class SorobanRpcService {
@@ -95,6 +98,22 @@ export class SorobanRpcService {
     operation: string,
     call: (server: SorobanRpc.Server) => Promise<T>,
   ): Promise<T> {
+    return withSpan(
+      `soroban_rpc.${operation}`,
+      {
+        'rpc.system': 'soroban-rpc',
+        'rpc.method': operation,
+        'server.address': this.getActiveUrl(),
+      },
+      (span) => this.executeWithFailoverAttempts(operation, call, span),
+    );
+  }
+
+  private async executeWithFailoverAttempts<T>(
+    operation: string,
+    call: (server: SorobanRpc.Server) => Promise<T>,
+    span: Span,
+  ): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt += 1) {
@@ -108,6 +127,9 @@ export class SorobanRpcService {
           `${operation}:${url}`,
           (Date.now() - startedAt) / 1000,
         );
+        if (attempt > 1) {
+          span.setAttribute('rpc.retry_count', attempt - 1);
+        }
         return result;
       } catch (error) {
         lastError = error;
@@ -115,6 +137,11 @@ export class SorobanRpcService {
           'soroban_rpc',
           this.isTransientError(error) ? 'transient' : 'non_transient',
         );
+        span.addEvent('soroban_rpc.attempt_failed', {
+          attempt,
+          'server.address': url,
+          message: (error as Error)?.message ?? String(error),
+        });
         if (!this.isTransientError(error) || attempt >= this.maxRetries) {
           break;
         }
