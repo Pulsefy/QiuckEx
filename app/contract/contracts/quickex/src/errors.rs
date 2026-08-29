@@ -88,6 +88,13 @@ pub enum QuickexError {
     OraclePriceUnavailable = 601,
     /// The cached oracle price is zero or negative, which is invalid.
     OraclePriceInvalid = 602,
+    /// An oracle source is already registered for this configuration.
+    OracleSourceAlreadyRegistered = 603,
+    /// No oracle source is registered for the requested configuration.
+    OracleSourceNotRegistered = 604,
+    /// The requested oracle aggregation cannot proceed because there are not enough
+    /// valid registered sources to satisfy the minimum quorum.
+    OracleInsufficientSources = 605,
     // Replay protection (500-599)
     /// The (signer, nonce) pair has already been consumed; replay detected.
     NonceAlreadyUsed = 500,
