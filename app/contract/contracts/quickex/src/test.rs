@@ -3978,9 +3978,14 @@ fn test_partial_payment_accounting_with_fee_rounding() {
     assert_partial_accounting(&ctx, initial_payment, 0, 0, 0);
 
     let mut deposited = initial_payment;
-    for payment in [2_001_i128, 3_001, 4_000] {
-        ctx.client
-            .partial_payment(&commitment, &ctx.bob, &payment, &0, &u64::MAX);
+    for (idx, payment) in [2_001_i128, 3_001, 4_000].into_iter().enumerate() {
+        ctx.client.partial_payment(
+            &commitment,
+            &ctx.bob,
+            &payment,
+            &(idx as u64),
+            &u64::MAX,
+        );
         deposited += payment;
         assert_partial_accounting(&ctx, deposited, 0, 0, 0);
     }
@@ -4026,7 +4031,7 @@ fn test_partial_payment_timeout_refunds_only_paid_amount() {
     ctx.advance_time(timeout);
     assert_contract_error(
         ctx.client
-            .try_partial_payment(&commitment, &ctx.bob, &1, &0, &u64::MAX),
+            .try_partial_payment(&commitment, &ctx.bob, &1, &1, &u64::MAX),
         QuickexError::EscrowExpired,
     );
     assert_partial_accounting(&ctx, 400, 0, 0, 0);
