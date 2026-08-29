@@ -32,7 +32,6 @@
 //! reentrancy as currently wired; it's an aspirational belt-and-suspenders
 //! guarantee rather than the actual enforcement mechanism here.
 
-#![cfg(test)]
 #![allow(dead_code)]
 
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, InvokeError};
