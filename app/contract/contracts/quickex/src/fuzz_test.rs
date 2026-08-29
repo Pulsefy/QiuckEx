@@ -99,26 +99,31 @@ proptest! {
 
         let mut deposited = initial;
         assert_invariant(deposited, 0)?;
-        for requested in payments {
+        for (idx, requested) in payments.into_iter().enumerate() {
             let remaining = amount_due - deposited;
+            let nonce = idx as u64;
             if remaining == 0 {
                 prop_assert!(ctx.client.try_partial_payment(
                     &commitment,
                     &ctx.bob,
                     &requested,
-                    &0,
+                    &nonce,
                     &u64::MAX,
                 ).is_err());
                 assert_invariant(deposited, 0)?;
                 continue;
             }
 
-            let payment = requested.min(remaining - 1);
+            let payment = if remaining == 1 {
+                remaining
+            } else {
+                requested.min(remaining - 1)
+            };
             ctx.client.partial_payment(
                 &commitment,
                 &ctx.bob,
                 &payment,
-                &0,
+                &nonce,
                 &u64::MAX,
             );
             deposited += payment;
