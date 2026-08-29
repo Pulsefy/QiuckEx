@@ -24,7 +24,7 @@ import { PrivacyModule } from "../privacy/privacy.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { AuditModule } from "../audit/audit.module";
 import { MetricsModule } from "../metrics/metrics.module";
-import { IdempotencyModule } from "../common/idempotency/idempotency.module";
+import { UsernamesModule } from "../usernames/usernames.module";
 
 @Module({
   controllers: [
@@ -65,8 +65,8 @@ import { IdempotencyModule } from "../common/idempotency/idempotency.module";
     TransactionsModule,
     AuditModule,
     MetricsModule,
-    IdempotencyModule,
     forwardRef(() => JobQueueModule),
+    UsernamesModule,
   ],
 })
 export class LinksModule {}

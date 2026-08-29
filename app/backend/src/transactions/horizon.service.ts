@@ -3,6 +3,7 @@ import { Horizon } from '@stellar/stellar-sdk';
 import { LRUCache } from 'lru-cache';
 import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
+import { withSpan } from '../tracing/trace-span.util';
 
 @Injectable()
 export class HorizonService {
@@ -84,7 +85,14 @@ export class HorizonService {
         const wasInBackoff = backoffInfo !== undefined;
 
         try {
-            const result = await this.fetchFromHorizonWithRetry(accountId, asset, limit, cursor, cacheKey);
+            const result = await withSpan(
+                'horizon.getPayments',
+                {
+                    'rpc.system': 'horizon',
+                    'horizon.account_id': accountId,
+                },
+                () => this.fetchFromHorizonWithRetry(accountId, asset, limit, cursor, cacheKey),
+            );
 
             if (!wasInBackoff) {
                 this.cache.set(cacheKey, result);
