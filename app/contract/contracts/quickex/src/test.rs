@@ -4003,13 +4003,8 @@ fn test_partial_payment_accounting_with_fee_rounding() {
 
     let mut deposited = initial_payment;
     for (idx, payment) in [2_001_i128, 3_001, 4_000].into_iter().enumerate() {
-        ctx.client.partial_payment(
-            &commitment,
-            &ctx.bob,
-            &payment,
-            &(idx as u64),
-            &u64::MAX,
-        );
+        ctx.client
+            .partial_payment(&commitment, &ctx.bob, &payment, &(idx as u64), &u64::MAX);
         deposited += payment;
         assert_partial_accounting(&ctx, deposited, 0, 0, 0);
     }
