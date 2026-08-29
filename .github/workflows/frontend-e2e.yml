@@ -1,0 +1,69 @@
+name: Frontend E2E (Pay → Receipt)
+
+# FE-67: browser E2E that walks link creation → testnet payment → receipt
+# against a preview / ephemeral environment. Screenshots and traces are
+# uploaded on failure; flake mitigation uses web-first assertions.
+
+on:
+  pull_request:
+    paths:
+      - "app/frontend/**"
+      - "e2e/**"
+      - ".github/workflows/frontend-e2e.yml"
+
+jobs:
+  e2e:
+    name: Pay to Receipt
+    runs-on: ubuntu-latest
+    steps:
+      # This flow needs a fully deployed environment: it creates a payment
+      # link, pays it on testnet, and reads the receipt. Nothing in this job
+      # serves the app, so without PREVIEW_BASE_URL the suite would run against
+      # a dead localhost:3000 and fail every time. Skip cleanly instead, and
+      # start enforcing automatically once the secret is configured.
+      - name: Check preview environment
+        id: preview
+        env:
+          PREVIEW_BASE_URL: ${{ secrets.PREVIEW_BASE_URL }}
+        run: |
+          if [ -n "$PREVIEW_BASE_URL" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Pay to Receipt E2E skipped::PREVIEW_BASE_URL is not configured, so there is no deployed environment to test. Set the secret to enable this suite."
+          fi
+
+      - name: Checkout code
+        if: steps.preview.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.preview.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install E2E dependencies
+        if: steps.preview.outputs.configured == 'true'
+        working-directory: ./e2e
+        run: npm install
+
+      - name: Install Playwright browsers
+        if: steps.preview.outputs.configured == 'true'
+        working-directory: ./e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run pay → receipt E2E
+        if: steps.preview.outputs.configured == 'true'
+        working-directory: ./e2e
+        run: npx playwright test
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_BASE_URL }}
+
+      - name: Upload Playwright report (screenshots + traces)
+        if: ${{ !cancelled() && steps.preview.outputs.configured == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7

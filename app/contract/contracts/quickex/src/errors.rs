@@ -88,12 +88,12 @@ pub enum QuickexError {
     OraclePriceUnavailable = 601,
     /// The cached oracle price is zero or negative, which is invalid.
     OraclePriceInvalid = 602,
-    // Internal/unexpected conditions (900-999)
-    InternalError = 900,
-    InvalidTimeout = 901,
     // Replay protection (500-599)
     /// The (signer, nonce) pair has already been consumed; replay detected.
     NonceAlreadyUsed = 500,
     /// The signature's valid_until timestamp has passed; signature expired.
     SignatureExpired = 501,
+    // Internal/unexpected conditions (900-999)
+    InternalError = 900,
+    InvalidTimeout = 901,
 }
