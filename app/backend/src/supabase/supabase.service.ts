@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 import { AppConfigService } from "../config";
+import { createTracedFetch } from "../tracing/traced-fetch";
 import {
   EscrowDbStatus,
   EscrowRecord,
@@ -92,6 +93,12 @@ export class SupabaseService {
     this.client = createClient(url, anonKey, {
       auth: {
         persistSession: false,
+      },
+      global: {
+        // Instruments every PostgREST/RPC call this client makes with a
+        // db.* span, so all ~30 query methods below get tracing for free
+        // instead of each being wrapped individually.
+        fetch: createTracedFetch("db.supabase"),
       },
     });
 
