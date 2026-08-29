@@ -266,44 +266,6 @@ curl http://localhost:4000/ready
 
 Open `http://localhost:4000/docs` in your browser.
 
-### Run the backend load harness
-
-Start the backend, then run the repeatable link and receipt scenario locally:
-
-```bash
-pnpm --filter @quickex/backend load
-```
-
-The harness exercises `POST /links/metadata`, `GET /payment-links/status`, and
-`GET /v1/receipts/tx/:txHash` concurrently. It prints JSON plus a summary for
-each scenario with request count, throughput, error rate, and p50/p95/p99
-latency. A non-zero exit code means a configured baseline threshold was missed.
-
-Configure a preview or local run with environment variables:
-
-```bash
-BASE_URL=http://localhost:4000 \
-CONCURRENCY=10 DURATION_SECONDS=30 TIMEOUT_MS=5000 \
-USERNAME=load-test-user AMOUNT=1 ASSET=XLM MEMO=load-test \
-TX_HASH=<known-stellar-transaction-hash> \
-pnpm --filter @quickex/backend load
-```
-
-Use `REQUESTS` instead of `DURATION_SECONDS` for a fixed-size run. Set
-`API_KEY` for environments using the higher-rate-limit API key. Thresholds are
-stored in `scripts/load/baseline.json`; override the file with `BASELINE_FILE`.
-The default baseline is intentionally a starting point and should be updated
-only with representative measurements from the same environment.
-
-#### Adding a load scenario
-
-Add a `ScenarioConfig` entry in `scripts/load/run.ts`, using a unique
-`ScenarioName`, path, method, and optional JSON body. Add matching thresholds
-to `scripts/load/baseline.json`. The harness automatically collects latency,
-errors, throughput, and percentiles for every configured scenario. For a new
-endpoint requiring dynamic fixtures, add its environment variables in
-`run.ts` and document them alongside the command above.
-
 ## Architecture
 
 ```
