@@ -562,6 +562,57 @@ export const envSchema = Joi.object({
       "HMAC-SHA256 secret used to sign and verify export download tokens. " +
         "Must be at least 32 characters. Rotate by cycling this value.",
     ),
+
+  // ---------------------------------------------------------------------------
+  // OpenTelemetry distributed tracing (BE-113; optional, defaults to enabled)
+  // ---------------------------------------------------------------------------
+
+  OTEL_ENABLED: Joi.boolean()
+    .optional()
+    .description(
+      "Enable OpenTelemetry tracing. Defaults to true, except NODE_ENV=test.",
+    ),
+
+  OTEL_SERVICE_NAME: Joi.string()
+    .empty("")
+    .default("quickex-backend")
+    .description("Service name reported on traces (service.name resource attribute)"),
+
+  OTEL_SERVICE_VERSION: Joi.string()
+    .empty("")
+    .optional()
+    .description("Service version reported on traces; falls back to APP_VERSION"),
+
+  OTEL_ENVIRONMENT: Joi.string()
+    .empty("")
+    .optional()
+    .description("deployment.environment.name resource attribute; falls back to NODE_ENV"),
+
+  OTEL_EXPORTER_OTLP_ENDPOINT: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description(
+      "Base OTLP endpoint; /v1/traces is appended. Default: http://localhost:4318/v1/traces",
+    ),
+
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .empty("")
+    .optional()
+    .description("Full OTLP/HTTP traces endpoint; overrides OTEL_EXPORTER_OTLP_ENDPOINT"),
+
+  OTEL_TRACE_SAMPLE_RATE: Joi.number()
+    .min(0)
+    .max(1)
+    .default(0.1)
+    .description(
+      "Root span sampling ratio (0.0-1.0). Kept low by default to keep tracing overhead acceptable under load.",
+    ),
+
+  OTEL_DEBUG: Joi.boolean()
+    .default(false)
+    .description("Enable verbose OpenTelemetry SDK diagnostic logging"),
 });
 
 /**
@@ -656,4 +707,12 @@ export interface EnvConfig {
   SEP24_POLL_BATCH_SIZE: number;
   EXPORT_ARTIFACT_TTL_HOURS: number;
   EXPORT_DOWNLOAD_SECRET: string;
+  OTEL_ENABLED?: boolean;
+  OTEL_SERVICE_NAME: string;
+  OTEL_SERVICE_VERSION?: string;
+  OTEL_ENVIRONMENT?: string;
+  OTEL_EXPORTER_OTLP_ENDPOINT?: string;
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string;
+  OTEL_TRACE_SAMPLE_RATE: number;
+  OTEL_DEBUG: boolean;
 }
