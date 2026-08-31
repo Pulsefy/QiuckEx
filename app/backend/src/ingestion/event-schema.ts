@@ -1,4 +1,13 @@
-export const QUICKEX_EVENT_SCHEMA_VERSION = 2;
+/**
+ * Canonical QuickEx event schema version.
+ *
+ * History:
+ *   v1 – legacy events (no `schema_version` payload key)
+ *   v2 – added `schema_version` to every event payload
+ *   v3 – added deterministic `receipt_reference` to escrow lifecycle events
+ *        (SC-W7-07)
+ */
+export const QUICKEX_EVENT_SCHEMA_VERSION = 3;
 
 export const QUICKEX_EVENT_TOPICS = {
   admin: "TOPIC_ADMIN",
@@ -29,28 +38,42 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
       "amount_due",
       "amount_paid",
       "expires_at",
+      "receipt_reference",
       "schema_version",
       "timestamp",
       "token",
     ],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   EscrowWithdrawn: {
     topic: QUICKEX_EVENT_TOPICS.escrow,
     eventName: "EscrowWithdrawn",
     indexedFields: ["escrow_id", "owner"],
-    payloadKeys: ["amount", "fee", "schema_version", "timestamp", "token"],
+    payloadKeys: [
+      "amount",
+      "fee",
+      "receipt_reference",
+      "schema_version",
+      "timestamp",
+      "token",
+    ],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   EscrowRefunded: {
     topic: QUICKEX_EVENT_TOPICS.escrow,
     eventName: "EscrowRefunded",
     indexedFields: ["escrow_id", "owner"],
-    payloadKeys: ["amount", "schema_version", "timestamp", "token"],
+    payloadKeys: [
+      "amount",
+      "receipt_reference",
+      "schema_version",
+      "timestamp",
+      "token",
+    ],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   PrivacyToggled: {
     topic: QUICKEX_EVENT_TOPICS.privacy,
@@ -58,7 +81,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     indexedFields: ["owner"],
     payloadKeys: ["enabled", "schema_version", "timestamp"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   ContractPaused: {
     topic: QUICKEX_EVENT_TOPICS.admin,
@@ -66,7 +89,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     indexedFields: ["admin"],
     payloadKeys: ["paused", "schema_version", "timestamp"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   AdminChanged: {
     topic: QUICKEX_EVENT_TOPICS.admin,
@@ -74,7 +97,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     indexedFields: ["old_admin", "new_admin"],
     payloadKeys: ["schema_version", "timestamp"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   ContractUpgraded: {
     topic: QUICKEX_EVENT_TOPICS.admin,
@@ -82,7 +105,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     indexedFields: ["new_wasm_hash", "admin"],
     payloadKeys: ["schema_version", "timestamp"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   EphemeralKeyRegistered: {
     topic: QUICKEX_EVENT_TOPICS.stealth,
@@ -97,7 +120,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
       "token",
     ],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
   StealthWithdrawn: {
     topic: QUICKEX_EVENT_TOPICS.stealth,
@@ -105,7 +128,7 @@ export const QUICKEX_EVENT_SCHEMA_CONTRACTS = {
     indexedFields: ["stealth_address", "recipient"],
     payloadKeys: ["amount", "schema_version", "timestamp", "token"],
     schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-    compatibleVersions: [QUICKEX_EVENT_SCHEMA_VERSION],
+    compatibleVersions: [2, QUICKEX_EVENT_SCHEMA_VERSION],
   },
 } as const satisfies Record<string, EventSchemaContract>;
 

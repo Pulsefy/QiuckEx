@@ -267,4 +267,109 @@ describe('JobRepository - Basic Verification', () => {
       });
     });
   });
+
+  describe('countByTypeAndStatus', () => {
+    it('should return the count for a given type and status', async () => {
+      const mockEqStatus = jest.fn().mockResolvedValue({ count: 7, error: null });
+      const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
+
+      mockSupabaseClient.from.mockReturnValue({ select: mockSelect });
+
+      const count = await repository.countByTypeAndStatus(
+        JobType.WEBHOOK_DELIVERY,
+        JobStatus.FAILED,
+      );
+
+      expect(count).toBe(7);
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('jobs');
+      expect(mockSelect).toHaveBeenCalledWith('*', { count: 'exact', head: true });
+      expect(mockEqType).toHaveBeenCalledWith('type', JobType.WEBHOOK_DELIVERY);
+      expect(mockEqStatus).toHaveBeenCalledWith('status', JobStatus.FAILED);
+    });
+
+    it('should return 0 when the query errors', async () => {
+      const mockEqStatus = jest.fn().mockResolvedValue({
+        count: null,
+        error: { message: 'db error' },
+      });
+      const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
+
+      mockSupabaseClient.from.mockReturnValue({ select: mockSelect });
+
+      const count = await repository.countByTypeAndStatus(
+        JobType.WEBHOOK_DELIVERY,
+        JobStatus.FAILED,
+      );
+
+      expect(count).toBe(0);
+    });
+  });
+
+  describe('getOldestAgeSeconds', () => {
+    it('should return the age in seconds of the oldest matching job', async () => {
+      const now = new Date('2026-01-01T00:10:00.000Z');
+      const createdAt = new Date('2026-01-01T00:00:00.000Z').toISOString();
+
+      const mockLimit = jest.fn().mockResolvedValue({
+        data: [{ created_at: createdAt }],
+        error: null,
+      });
+      const mockOrder = jest.fn().mockReturnValue({ limit: mockLimit });
+      const mockEqStatus = jest.fn().mockReturnValue({ order: mockOrder });
+      const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
+
+      mockSupabaseClient.from.mockReturnValue({ select: mockSelect });
+
+      const ageSeconds = await repository.getOldestAgeSeconds(
+        JobType.WEBHOOK_DELIVERY,
+        JobStatus.FAILED,
+        now,
+      );
+
+      expect(ageSeconds).toBe(600);
+      expect(mockSelect).toHaveBeenCalledWith('created_at');
+      expect(mockEqType).toHaveBeenCalledWith('type', JobType.WEBHOOK_DELIVERY);
+      expect(mockEqStatus).toHaveBeenCalledWith('status', JobStatus.FAILED);
+    });
+
+    it('should return null when there are no matching jobs', async () => {
+      const mockLimit = jest.fn().mockResolvedValue({ data: [], error: null });
+      const mockOrder = jest.fn().mockReturnValue({ limit: mockLimit });
+      const mockEqStatus = jest.fn().mockReturnValue({ order: mockOrder });
+      const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
+
+      mockSupabaseClient.from.mockReturnValue({ select: mockSelect });
+
+      const ageSeconds = await repository.getOldestAgeSeconds(
+        JobType.WEBHOOK_DELIVERY,
+        JobStatus.FAILED,
+      );
+
+      expect(ageSeconds).toBeNull();
+    });
+
+    it('should return null when the query errors', async () => {
+      const mockLimit = jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'db error' },
+      });
+      const mockOrder = jest.fn().mockReturnValue({ limit: mockLimit });
+      const mockEqStatus = jest.fn().mockReturnValue({ order: mockOrder });
+      const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
+
+      mockSupabaseClient.from.mockReturnValue({ select: mockSelect });
+
+      const ageSeconds = await repository.getOldestAgeSeconds(
+        JobType.WEBHOOK_DELIVERY,
+        JobStatus.FAILED,
+      );
+
+      expect(ageSeconds).toBeNull();
+    });
+  });
 });

@@ -228,6 +228,29 @@ export class WebhookDeliveryStatusDto {
   @ApiPropertyOptional() lastReplayAt?: string;
 }
 
+export class WebhookDeliveryAttemptDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() webhookId!: string;
+  @ApiPropertyOptional() endpointUrl?: string;
+  @ApiProperty() eventType!: string;
+  @ApiProperty() eventId!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() attempts!: number;
+  @ApiProperty() retryCount!: number;
+  @ApiPropertyOptional() lastError?: string;
+  @ApiPropertyOptional() httpStatus?: number;
+  @ApiPropertyOptional() responseBody?: string;
+  @ApiPropertyOptional() payloadMetadata?: Record<string, unknown>;
+  @ApiProperty() createdAt!: string;
+  @ApiPropertyOptional() updatedAt?: string;
+  @ApiPropertyOptional() deliveredAt?: string;
+}
+
+export class WebhookDeliveryAttemptDetailDto extends WebhookDeliveryAttemptDto {
+  @ApiPropertyOptional({ type: Object, additionalProperties: true })
+  payloadMetadata!: Record<string, unknown>;
+}
+
 export class WebhookReplayLogDto {
   @ApiProperty() id!: string;
   @ApiProperty() eventType!: string;

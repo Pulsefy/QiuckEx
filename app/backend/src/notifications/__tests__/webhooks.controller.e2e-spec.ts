@@ -35,6 +35,12 @@ describe("WebhooksController (e2e)", () => {
         totalFailed: 0,
         pendingRetries: 0,
       }),
+      listDeliveryAttempts: jest.fn().mockResolvedValue({
+        data: [],
+        next_cursor: null,
+        has_more: false,
+      }),
+      getDeliveryAttempt: jest.fn().mockResolvedValue(null),
       redeliverEvent: jest.fn().mockResolvedValue({
         queued: true,
         deliverySuccess: true,
@@ -297,6 +303,64 @@ describe("WebhooksController (e2e)", () => {
       return request(app.getHttpServer())
         .post(`/webhooks/${PUBLIC_KEY}/nonexistent/redeliver`)
         .send({ eventId: "tx_abc123", eventType: "payment.received" })
+        .expect(404);
+    });
+  });
+
+  describe("GET /webhooks/:publicKey/:id/attempts", () => {
+    it("should list filtered delivery attempts for the endpoint", () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValueOnce({
+        id: WEBHOOK_ID,
+        publicKey: PUBLIC_KEY,
+        webhookUrl: "https://example.com/webhook",
+        secret: "whsec_test",
+        events: null,
+        minAmountStroops: "0",
+        enabled: true,
+      });
+      (mockWebhookService.listDeliveryAttempts as jest.Mock).mockResolvedValueOnce({
+        data: [
+          {
+            id: "attempt-1",
+            webhookId: WEBHOOK_ID,
+            eventType: "payment.received",
+            eventId: "tx_abc123",
+            status: "failed",
+            attempts: 3,
+            retryCount: 2,
+            lastError: "Authorization: Bearer sk_live_secret_123",
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T10:05:00Z",
+            payloadMetadata: { token: "[REDACTED]" },
+          },
+        ],
+        next_cursor: null,
+        has_more: false,
+      });
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/${WEBHOOK_ID}/attempts?status=failed&eventType=payment.received`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data).toHaveLength(1);
+          expect(res.body.data[0].retryCount).toBe(2);
+          expect(res.body.data[0].payloadMetadata.token).toBe("[REDACTED]");
+        });
+    });
+
+    it("should return 404 when the endpoint does not belong to the public key", () => {
+      (mockWebhookService.getWebhook as jest.Mock).mockResolvedValueOnce({
+        id: WEBHOOK_ID,
+        publicKey: "GDIFFERENT",
+        webhookUrl: "https://example.com/webhook",
+        secret: "whsec_test",
+        events: null,
+        minAmountStroops: "0",
+        enabled: true,
+      });
+
+      return request(app.getHttpServer())
+        .get(`/webhooks/${PUBLIC_KEY}/${WEBHOOK_ID}/attempts`)
         .expect(404);
     });
   });

@@ -82,6 +82,8 @@ export interface IndexerMetadata {
   confirmedAt?: string;
   /** QuickEx internal receipt ID (stable across retries) */
   receiptId?: string;
+  /** Deterministic on-chain receipt reference from the contract event (schema v3+). */
+  receiptReference?: string;
   senderUsername?: string;
   receiverUsername?: string;
   network: "testnet" | "mainnet";
@@ -143,6 +145,7 @@ export class ReceiptNormalizer {
       operationIndex,
       type,
       status,
+      receiptReference: indexer.receiptReference ?? null,
 
       // Timestamps (stable: use indexer submittedAt for failed txs so
       // timestamps don't shift on testnet retries)

@@ -35,6 +35,11 @@ export interface EscrowDepositedEvent extends BaseContractEvent {
   amount: bigint;
   amountPaid?: bigint;
   expiresAt: bigint;
+  /**
+   * Deterministic on-chain receipt reference (32-byte hex digest) emitted by
+   * the contract since schema v3. Null for v1/v2 events.
+   */
+  receiptReference?: string | null;
 }
 
 export interface EscrowWithdrawnEvent extends BaseContractEvent {
@@ -43,6 +48,11 @@ export interface EscrowWithdrawnEvent extends BaseContractEvent {
   owner: string;
   token: string;
   amount: bigint;
+  /**
+   * Deterministic on-chain receipt reference (32-byte hex digest) emitted by
+   * the contract since schema v3. Null for v1/v2 events.
+   */
+  receiptReference?: string | null;
 }
 
 export interface EscrowRefundedEvent extends BaseContractEvent {
@@ -51,6 +61,11 @@ export interface EscrowRefundedEvent extends BaseContractEvent {
   owner: string;
   token: string;
   amount: bigint;
+  /**
+   * Deterministic on-chain receipt reference (32-byte hex digest) emitted by
+   * the contract since schema v3. Null for v1/v2 events.
+   */
+  receiptReference?: string | null;
 }
 
 export interface PrivacyToggledEvent extends BaseContractEvent {

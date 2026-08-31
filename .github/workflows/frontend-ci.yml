@@ -15,10 +15,12 @@ on:
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
-  lint-and-type-check:
-    name: Lint, Type Check and Test
+  i18n-parity:
+    name: i18n Key Parity
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: app/frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +31,47 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails the build when any frontend locale is missing a key present in the
+      # base locale (en) or contains a dead key absent from the base locale.
+      - name: Check frontend i18n key parity
+        run: node scripts/check-i18n-parity.mjs
+
+      # Same invariant, enforced as a unit test for fast local feedback.
+      - name: Run i18n parity unit test
+        run: npx vitest run __tests__/i18n-parity.test.ts
+
+  lint-and-type-check:
+    name: Lint, Type Check and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Node 22, not 20: jsdom@30 bundles undici@8, whose CacheStorage
+      # constructor calls the node:worker_threads `markAsUncloneable` builtin
+      # unconditionally (no feature-detection/fallback). That builtin only
+      # landed in Node 20.13.0/21.7.0, and CI's Node 20 install predates it,
+      # so any jsdom-environment test (e.g. the a11y suite below) crashed
+      # with "webidl.util.markAsUncloneable is not a function" the moment
+      # jsdom instantiated its Cache API. Node 22 carries it.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      # app/frontend installs with npm while the rest of the repo uses the pnpm
+      # workspace. Catch npm-incompatible specifiers (notably "workspace:*")
+      # here, with an actionable message, instead of letting npm ci fail with
+      # EUNSUPPORTEDPROTOCOL.
+      - name: Validate frontend dependency specifiers
+        run: node scripts/check-frontend-deps.mjs
 
       - name: Install api-client dependencies
         working-directory: ./packages/api-client
@@ -56,6 +99,14 @@ jobs:
       - name: Run Unit Tests
         working-directory: ./app/frontend
         run: npm test || npx vitest run
+
+      # #766: automated axe-core a11y audit of the QR/payment components
+      # (generator, pay page, payment states, QR preview). Run as its own
+      # step, like the i18n parity check above, so it isn't silently skipped
+      # by the wider unit test suite.
+      - name: Run accessibility (a11y) checks
+        working-directory: ./app/frontend
+        run: npx vitest run __tests__/a11y-payment-flow.test.tsx
 
   build:
     name: Build Frontend
@@ -91,6 +142,11 @@ jobs:
           NEXT_PUBLIC_ERROR_REPORTING_ENABLED: ${{ secrets.NEXT_PUBLIC_ERROR_REPORTING_ENABLED }}
           NEXT_PUBLIC_APP_VERSION: ${{ secrets.NEXT_PUBLIC_APP_VERSION }}
 
+      # FE-65: measure per-route first-load JS and fail if a route exceeds its
+      # budget (plus tolerance). See docs/FRONTEND-PERFORMANCE.md.
+      - name: Enforce bundle-size budgets
+        run: node scripts/bundle-budget.mjs --dist app/frontend/.next --budgets app/frontend/bundle-budgets.json
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -104,12 +160,24 @@ jobs:
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
+      # Only shipped code can cause mixed content, so test files are excluded:
+      # a stub host in a vi.mock (e.g. "http://test.local") never reaches a
+      # browser, and failing on it just teaches contributors to ignore the gate.
       - name: Check for mixed content
         run: |
           echo "Checking for hardcoded HTTP URLs in frontend code..."
-          if grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules 2>/dev/null | grep -v "http://localhost" > /dev/null 2>&1; then
+          scan() {
+            grep -rn "http://" app/frontend/src \
+              --include="*.ts" --include="*.tsx" \
+              --exclude="*.test.ts" --exclude="*.test.tsx" \
+              --exclude="*.spec.ts" --exclude="*.spec.tsx" \
+              --exclude-dir=node_modules \
+              --exclude-dir=__tests__ --exclude-dir=__mocks__ \
+              2>/dev/null | grep -v "http://localhost"
+          }
+          if scan > /dev/null 2>&1; then
             echo "❌ Found hardcoded HTTP URLs (non-localhost). This may cause mixed-content issues in production."
-            grep -r "http://" app/frontend/src --include="*.ts" --include="*.tsx" --exclude-dir=node_modules | grep -v "http://localhost"
+            scan
             exit 1
           else
             echo "✅ No problematic HTTP URLs found"

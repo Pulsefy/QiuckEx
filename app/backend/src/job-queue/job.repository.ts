@@ -318,6 +318,68 @@ export class JobRepository {
   }
 
   /**
+   * Count jobs of a given type and status
+   *
+   * Used by the dead letter queue monitor to report per-type queue depth
+   * (e.g. pending backlog, DLQ depth) as metrics.
+   *
+   * @param type - Job type
+   * @param status - Job status
+   * @returns Number of matching jobs
+   */
+  async countByTypeAndStatus(type: JobType, status: JobStatus): Promise<number> {
+    const { count, error } = await this.client
+      .from('jobs')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', type)
+      .eq('status', status);
+
+    if (error) {
+      this.logger.warn(`countByTypeAndStatus failed for ${type}/${status}: ${error.message}`);
+      return 0;
+    }
+
+    return count ?? 0;
+  }
+
+  /**
+   * Age in seconds of the oldest job of a given type and status
+   *
+   * Used by the dead letter queue monitor to report how long the oldest
+   * pending or dead-lettered job of a type has been waiting.
+   *
+   * @param type - Job type
+   * @param status - Job status
+   * @param now - Reference time (defaults to current time)
+   * @returns Age in seconds, or null if there are no matching jobs
+   */
+  async getOldestAgeSeconds(
+    type: JobType,
+    status: JobStatus,
+    now: Date = new Date(),
+  ): Promise<number | null> {
+    const { data, error } = await this.client
+      .from('jobs')
+      .select('created_at')
+      .eq('type', type)
+      .eq('status', status)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (error) {
+      this.logger.warn(`getOldestAgeSeconds failed for ${type}/${status}: ${error.message}`);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    const ageMs = now.getTime() - new Date((data[0] as { created_at: string }).created_at).getTime();
+    return Math.max(0, Math.round(ageMs / 1000));
+  }
+
+  /**
    * Map a database row to a Job object
    * 
    * @param row - Database row

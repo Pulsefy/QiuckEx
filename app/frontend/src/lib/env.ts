@@ -11,6 +11,41 @@ const requiredEnvVars = [
 
 type RequiredEnvVar = typeof requiredEnvVars[number];
 
+/**
+ * Link to the runtime configuration documentation, surfaced on the
+ * misconfiguration page for remediation guidance.
+ */
+export const RUNTIME_CONFIG_DOCS_URL =
+  "https://github.com/Pulsefy/QiuckEx/blob/main/docs/RUNTIME-CONFIG-MATRIX.md";
+
+/**
+ * Human-readable specification for each known configuration key. Only key
+ * names and their *expected shape* are described here — never actual values —
+ * so the misconfiguration page can guide contributors without leaking secrets.
+ */
+export type EnvKeySpec = {
+  /** Short description of what the variable is for. */
+  description: string;
+  /** Expected shape or allowed values (no real secrets/tokens). */
+  expected: string;
+};
+
+export const ENV_SPEC: Record<string, EnvKeySpec> = {
+  NEXT_PUBLIC_QUICKEX_API_URL: {
+    description: "Base URL of the QuickEx API the frontend talks to.",
+    expected: "A valid absolute URL, e.g. https://api.quickex.example",
+  },
+  NEXT_PUBLIC_STELLAR_NETWORK: {
+    description: "Target Stellar network for links and payments.",
+    expected: 'One of "testnet" or "mainnet"',
+  },
+};
+
+/** Look up the expected-shape spec for a configuration key, if known. */
+export function getEnvKeySpec(key: string): EnvKeySpec | undefined {
+  return ENV_SPEC[key];
+}
+
 // Validate environment variables
 export function validateEnv() {
   const missing: RequiredEnvVar[] = [];

@@ -5,6 +5,7 @@ import { ReconciliationWorkerService } from "./reconciliation-worker.service";
 import { BackfillService } from "./backfill.service";
 import { AutoMatchService } from "./auto-match.service";
 import { UnmatchedQueueRepository } from "./unmatched-queue.repository";
+import { ReconciliationRunRepository } from "./reconciliation-run.repository";
 import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
 
 describe("ReconciliationController", () => {
@@ -13,6 +14,7 @@ describe("ReconciliationController", () => {
   let backfill: jest.Mocked<BackfillService>;
   let autoMatch: jest.Mocked<AutoMatchService>;
   let unmatchedQueue: jest.Mocked<UnmatchedQueueRepository>;
+  let runHistory: jest.Mocked<ReconciliationRunRepository>;
 
   beforeEach(async () => {
     const mockWorker = {
@@ -39,6 +41,11 @@ describe("ReconciliationController", () => {
       dismiss: jest.fn(),
     };
 
+    const mockRunHistory = {
+      listRuns: jest.fn(),
+      findById: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReconciliationController],
       providers: [
@@ -46,6 +53,7 @@ describe("ReconciliationController", () => {
         { provide: BackfillService, useValue: mockBackfill },
         { provide: AutoMatchService, useValue: mockAutoMatch },
         { provide: UnmatchedQueueRepository, useValue: mockUnmatchedQueue },
+        { provide: ReconciliationRunRepository, useValue: mockRunHistory },
       ],
     })
       .overrideGuard(NetworkSafetyGuard)
@@ -61,6 +69,9 @@ describe("ReconciliationController", () => {
     unmatchedQueue = module.get(
       UnmatchedQueueRepository,
     ) as jest.Mocked<UnmatchedQueueRepository>;
+    runHistory = module.get(
+      ReconciliationRunRepository,
+    ) as jest.Mocked<ReconciliationRunRepository>;
   });
 
   it("should be defined", () => {
@@ -295,6 +306,75 @@ describe("ReconciliationController", () => {
       await expect(
         controller.dismissUnmatched("missing", { resolvedBy: "GABC" }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("run history (BE-124)", () => {
+    it("lists runs with parsing and clamping of pagination", async () => {
+      runHistory.listRuns.mockResolvedValue({
+        items: [],
+        total: 0,
+        hasMore: false,
+      } as never);
+
+      await controller.listHistory("500", "0", undefined);
+
+      expect(runHistory.listRuns).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 0,
+        status: undefined,
+      });
+    });
+
+    it("passes through a valid status filter", async () => {
+      runHistory.listRuns.mockResolvedValue({
+        items: [],
+        total: 0,
+        hasMore: false,
+      } as never);
+
+      await controller.listHistory("10", "0", "drift");
+
+      expect(runHistory.listRuns).toHaveBeenCalledWith({
+        limit: 10,
+        offset: 0,
+        status: "drift",
+      });
+    });
+
+    it("ignores an invalid status filter", async () => {
+      runHistory.listRuns.mockResolvedValue({
+        items: [],
+        total: 0,
+        hasMore: false,
+      } as never);
+
+      await controller.listHistory("10", "0", "not-a-status");
+
+      expect(runHistory.listRuns).toHaveBeenCalledWith({
+        limit: 10,
+        offset: 0,
+        status: undefined,
+      });
+    });
+
+    it("returns a single run summary when found", async () => {
+      runHistory.findById.mockResolvedValue({
+        runId: "run-1",
+        status: "drift",
+      } as never);
+
+      const result = await controller.getRun("run-1");
+
+      expect(result).toEqual({ runId: "run-1", status: "drift" });
+    });
+
+    it("throws NotFoundException when run not found", async () => {
+      runHistory.findById.mockResolvedValue(null);
+
+      await expect(controller.getRun("missing")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

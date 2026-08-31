@@ -28,6 +28,8 @@ export class MetricsService implements OnModuleInit {
   private outboxDepth: client.Gauge<string>;
   private outboxDispatchLagSeconds: client.Gauge<string>;
   private outboxDispatchTotal: client.Counter<string>;
+  private reconciliationDriftActive: client.Gauge<string>;
+  private reconciliationConsecutiveFailures: client.Gauge<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -179,6 +181,16 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["event_type", "outcome"],
       });
 
+      this.reconciliationDriftActive = new client.Gauge({
+        name: "reconciliation_drift_active",
+        help: "Whether the latest reconciliation run exceeded drift thresholds (1) or not (0)",
+      });
+
+      this.reconciliationConsecutiveFailures = new client.Gauge({
+        name: "reconciliation_consecutive_failures",
+        help: "Number of consecutive failed or skipped reconciliation runs",
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -203,6 +215,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.outboxDepth);
       this.register.registerMetric(this.outboxDispatchLagSeconds);
       this.register.registerMetric(this.outboxDispatchTotal);
+      this.register.registerMetric(this.reconciliationDriftActive);
+      this.register.registerMetric(this.reconciliationConsecutiveFailures);
 
       this.initialized = true;
     } catch (error) {
@@ -452,6 +466,22 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.outboxDispatchTotal) return;
     try {
       this.outboxDispatchTotal.labels(eventType, outcome).inc();
+    } catch (error) {}
+  }
+
+  /** Set whether the latest reconciliation run exceeded drift thresholds (BE-124). */
+  setReconciliationDriftActive(active: 0 | 1) {
+    if (!this.initialized || !this.reconciliationDriftActive) return;
+    try {
+      this.reconciliationDriftActive.set(active);
+    } catch (error) {}
+  }
+
+  /** Set the current consecutive failed/skipped reconciliation run count (BE-124). */
+  setReconciliationConsecutiveFailures(count: number) {
+    if (!this.initialized || !this.reconciliationConsecutiveFailures) return;
+    try {
+      this.reconciliationConsecutiveFailures.set(count);
     } catch (error) {}
   }
 }

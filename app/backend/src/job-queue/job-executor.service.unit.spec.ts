@@ -22,8 +22,7 @@ describe('JobExecutor', () => {
   let repository: jest.Mocked<JobRepository>;
   let registry: jest.Mocked<JobRegistry>;
   let cancellationStore: jest.Mocked<CancellationStore>;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let _metrics: jest.Mocked<JobQueueMetricsService>;
+  let metrics: jest.Mocked<JobQueueMetricsService>;
 
   beforeEach(async () => {
     // Create mock implementations
@@ -67,6 +66,7 @@ describe('JobExecutor', () => {
       updateJobsRunningCount: jest.fn(),
       updateJobsDlqCount: jest.fn(),
       recordJobExecutionDuration: jest.fn(),
+      incrementJobsRetried: jest.fn(),
     };
 
     // Provide sensible defaults on repository so tests need only override specific behaviours
@@ -87,7 +87,7 @@ describe('JobExecutor', () => {
     repository = module.get(JobRepository) as jest.Mocked<JobRepository>;
     registry = module.get(JobRegistry) as jest.Mocked<JobRegistry>;
     cancellationStore = module.get(CancellationStore) as jest.Mocked<CancellationStore>;
-    _metrics = module.get(JobQueueMetricsService) as jest.Mocked<JobQueueMetricsService>;
+    metrics = module.get(JobQueueMetricsService) as jest.Mocked<JobQueueMetricsService>;
   });
 
   describe('processDueJobs', () => {
@@ -495,6 +495,46 @@ describe('JobExecutor', () => {
       expect(cancellationStore.clearCancellation).toHaveBeenCalledWith('job-1');
     });
 
+    it('should emit success metrics when handler succeeds', async () => {
+      // Arrange
+      const mockJob = createMockJob('job-1', JobType.WEBHOOK_DELIVERY);
+      repository.findDueJobs.mockResolvedValue([mockJob]);
+
+      const mockHandler = {
+        execute: jest.fn().mockResolvedValue(undefined),
+        validate: jest.fn().mockResolvedValue(undefined),
+        onFailure: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const mockToken = {
+        isCancelled: jest.fn().mockReturnValue(false),
+        throwIfCancelled: jest.fn(),
+      };
+
+      registry.getPolicy.mockReturnValue({
+        maxAttempts: 3,
+        backoffStrategy: 'exponential',
+        initialDelayMs: 1000,
+        maxDelayMs: 60000,
+        visibilityTimeoutMs: 300000,
+      });
+      registry.getHandler.mockReturnValue(mockHandler);
+      cancellationStore.createToken.mockReturnValue(mockToken);
+      repository.updateJobStatus.mockResolvedValue();
+
+      // Act
+      await executor.processDueJobs();
+
+      // Assert: completion metrics recorded, no retry/DLQ metrics
+      expect(metrics.incrementJobsCompleted).toHaveBeenCalledWith(JobType.WEBHOOK_DELIVERY);
+      expect(metrics.recordJobExecutionDuration).toHaveBeenCalledWith(
+        JobType.WEBHOOK_DELIVERY,
+        expect.any(Number),
+      );
+      expect(metrics.incrementJobsRetried).not.toHaveBeenCalled();
+      expect(metrics.incrementJobsFailed).not.toHaveBeenCalled();
+    });
+
     it('should log successful job completion with duration', async () => {
       // Arrange
       const mockJob = createMockJob('job-1', JobType.WEBHOOK_DELIVERY);
@@ -592,8 +632,12 @@ describe('JobExecutor', () => {
       // Allow 100ms tolerance for test execution time
       expect(retryDelayMs).toBeGreaterThanOrEqual(900);
       expect(retryDelayMs).toBeLessThanOrEqual(1100);
-      
+
       expect(cancellationStore.clearCancellation).toHaveBeenCalledWith('job-1');
+
+      // Verify retry metric was emitted (not a permanent failure yet)
+      expect(metrics.incrementJobsRetried).toHaveBeenCalledWith(JobType.WEBHOOK_DELIVERY);
+      expect(metrics.incrementJobsFailed).not.toHaveBeenCalled();
     });
 
     it('should move job to DLQ when attempts >= maxAttempts', async () => {
@@ -646,8 +690,13 @@ describe('JobExecutor', () => {
         mockJob,
         expect.objectContaining({ message: 'Permanent failure' }),
       );
-      
+
       expect(cancellationStore.clearCancellation).toHaveBeenCalledWith('job-1');
+
+      // Verify DLQ metrics were emitted, and no retry metric for the terminal transition
+      expect(metrics.incrementJobsFailed).toHaveBeenCalledWith(JobType.WEBHOOK_DELIVERY);
+      expect(metrics.updateJobsDlqCount).toHaveBeenCalledWith(JobType.WEBHOOK_DELIVERY, 1);
+      expect(metrics.incrementJobsRetried).not.toHaveBeenCalled();
     });
 
     it('should log failure with attempt information', async () => {

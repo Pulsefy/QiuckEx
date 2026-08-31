@@ -158,3 +158,22 @@ button:disabled {
   opacity: .6;
   cursor: not-allowed;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reduced motion (FE-69)
+   Respect the OS `prefers-reduced-motion: reduce` setting for motion-sensitive
+   users. Applied globally so every animated surface is covered by shared CSS
+   rather than patched per page. Content stays fully usable; no information is
+   conveyed by motion alone.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

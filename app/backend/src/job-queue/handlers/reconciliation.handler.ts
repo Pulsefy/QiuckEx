@@ -179,8 +179,17 @@ export class ReconciliationHandler implements JobHandler<ReconciliationPayload> 
       error.stack,
     );
 
-    // Note: Reconciliation failures are typically transient (Horizon unavailable)
-    // and will be retried on the next cron tick. No additional action needed here.
-    // Operators should monitor reconciliation failure metrics and alerts.
+    // Persist the failed run so the consecutive-failure alerting path (BE-124)
+    // can escalate when runs keep failing. Reconciliation is retried on the
+    // next cron tick, so no extra cleanup is needed here.
+    try {
+      await this.reconciliationService.recordFailedRun(error.message, {
+        batchSize: job.payload.batchSize,
+      });
+    } catch (hookError) {
+      this.logger.error(
+        `Failed to record reconciliation failure (jobId: ${job.id}): ${(hookError as Error).message}`,
+      );
+    }
   }
 }

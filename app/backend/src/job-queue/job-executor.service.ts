@@ -305,6 +305,7 @@ export class JobExecutor implements OnModuleInit {
       // Update gauge metrics: running -> pending
       this.metrics.updateJobsRunningCount(job.type, -1);
       this.metrics.updateJobsPendingCount(job.type, 1);
+      this.metrics.incrementJobsRetried(job.type);
 
       this.logger.log(
         `Job ${job.id} scheduled for retry in ${retryDelayMs}ms (type: ${job.type}, attempt: ${newAttempts}/${policy.maxAttempts})`,

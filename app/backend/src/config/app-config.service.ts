@@ -248,6 +248,53 @@ export class AppConfigService {
   }
 
   /**
+   * Whether the scheduled reconciliation worker is enabled (BE-124).
+   */
+  get reconciliationEnabled(): boolean {
+    return this.configService.get("RECONCILIATION_ENABLED", { infer: true });
+  }
+
+  /**
+   * Cron expression for scheduled reconciliation runs (BE-124).
+   */
+  get reconciliationCronExpression(): string {
+    return this.configService.get("RECONCILIATION_CRON_EXPRESSION", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Payment count discrepancy that raises a drift alert when exceeded (BE-124).
+   */
+  get reconciliationDriftCountThreshold(): number {
+    return this.configService.get("RECONCILIATION_DRIFT_COUNT_THRESHOLD", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Payment amount discrepancy (in stroops) that raises a drift alert when
+   * exceeded. Kept as a string so it can preserve full precision for BigInt
+   * comparisons (BE-124).
+   */
+  get reconciliationDriftAmountThresholdStroops(): string {
+    return this.configService.get(
+      "RECONCILIATION_DRIFT_AMOUNT_THRESHOLD_STROOPS",
+      { infer: true },
+    );
+  }
+
+  /**
+   * Consecutive failed or skipped reconciliation runs that raise an alert (BE-124).
+   */
+  get reconciliationConsecutiveFailureAlertThreshold(): number {
+    return this.configService.get(
+      "RECONCILIATION_CONSECUTIVE_FAILURE_ALERT_THRESHOLD",
+      { infer: true },
+    );
+  }
+
+  /**
    * QuickEx Soroban contract id (optional). Used for ingestion and soroban preflight.
    */
   get quickexContractId(): string | undefined {
@@ -323,6 +370,27 @@ export class AppConfigService {
    */
   get indexerLagGuardOverride(): boolean {
     return this.configService.get("INDEXER_LAG_GUARD_OVERRIDE", { infer: true });
+  }
+
+  /**
+   * Whether the dead letter queue depth/age monitor is enabled
+   */
+  get dlqMonitorEnabled(): boolean {
+    return this.configService.get("DLQ_MONITOR_ENABLED", { infer: true });
+  }
+
+  /**
+   * Dead letter queue depth (per job type) that triggers an alert
+   */
+  get dlqAlertDepthThreshold(): number {
+    return this.configService.get("DLQ_ALERT_DEPTH_THRESHOLD", { infer: true });
+  }
+
+  /**
+   * Age in ms of the oldest dead-lettered job (per job type) that triggers an alert
+   */
+  get dlqAlertAgeThresholdMs(): number {
+    return this.configService.get("DLQ_ALERT_AGE_THRESHOLD_MS", { infer: true });
   }
 
   /**
@@ -445,5 +513,48 @@ export class AppConfigService {
         ? "Test SDF Network ; September 2015"
         : "Public Global Stellar Network ; September 2015")
     );
+  }
+
+  // ── Export artifact storage (BE-102) ───────────────────────────────────────
+
+  /** Retention period for export artifacts in object storage (hours). */
+  get exportArtifactTtlHours(): number {
+    return this.configService.get('EXPORT_ARTIFACT_TTL_HOURS', { infer: true });
+  }
+
+  /**
+   * HMAC-SHA256 secret used to sign export download tokens.
+   * Must be at least 32 characters.  Rotate by cycling this env var.
+   */
+  get exportDownloadSecret(): string {
+    return this.configService.get('EXPORT_DOWNLOAD_SECRET', { infer: true });
+  }
+
+  // ── OpenTelemetry tracing (BE-113) ─────────────────────────────────────────
+  // Note: the tracing SDK itself boots in src/tracing/tracing.ts before Nest's
+  // DI container exists, so it reads process.env directly via
+  // resolveOtelConfig(). These getters exist so the rest of the app (and
+  // tests) can inspect the same settings through the usual typed config.
+
+  /** Root span sampling ratio (0.0-1.0). Kept low by default for overhead. */
+  get otelTraceSampleRate(): number {
+    return this.configService.get('OTEL_TRACE_SAMPLE_RATE', { infer: true });
+  }
+
+  get otelServiceName(): string {
+    return this.configService.get('OTEL_SERVICE_NAME', { infer: true });
+  }
+
+  /** OTLP/HTTP traces endpoint override, if explicitly configured. */
+  get otelExporterOtlpTracesEndpoint(): string | undefined {
+    return this.configService.get('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT', {
+      infer: true,
+    });
+  }
+
+  get otelExporterOtlpEndpoint(): string | undefined {
+    return this.configService.get('OTEL_EXPORTER_OTLP_ENDPOINT', {
+      infer: true,
+    });
   }
 }

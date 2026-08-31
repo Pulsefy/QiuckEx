@@ -87,6 +87,12 @@ export interface NormalizedReceipt {
   operationIndex: number;
   type: ReceiptType;
   status: ReceiptStatus;
+  /**
+   * Deterministic on-chain receipt reference emitted by the QuickEx contract
+   * (schema v3+). Populated by the indexer/ingestion layer when the contract
+   * event is available; null for payments/legacy events.
+   */
+  receiptReference: string | null;
 
   // ── Stable timestamps ────────────────────────────────────────────────────
   /** ISO-8601; ledger close time (success/pending) or submission time (failed) */

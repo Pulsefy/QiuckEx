@@ -30,6 +30,8 @@ import {
   WebhookStatsDto,
   RedeliverWebhookDto,
   WebhookDeliveryStatusDto,
+  WebhookDeliveryAttemptDto,
+  WebhookDeliveryAttemptDetailDto,
   WebhookReplayLogDto,
   WebhookRedeliverResponseDto,
   VerifyWebhookSignatureDto,
@@ -313,6 +315,76 @@ export class WebhooksController {
     );
 
     return result;
+  }
+
+  @Get(":publicKey/:id/attempts")
+  @ApiOperation({
+    summary: "List webhook delivery attempts for endpoint",
+    description:
+      "Paginated history of webhook delivery attempts with optional filtering by status and event type.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiQuery({ name: "status", required: false, description: "Filter by delivery status" })
+  @ApiQuery({ name: "eventType", required: false, description: "Filter by event type" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (1-100)" })
+  @ApiQuery({ name: "cursor", required: false, description: "Opaque pagination cursor" })
+  @ApiResponse({
+    status: 200,
+    description: "Webhook delivery attempts",
+    type: [WebhookDeliveryAttemptDto],
+  })
+  async listDeliveryAttempts(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Query("status") status?: string,
+    @Query("eventType") eventType?: string,
+    @Query("limit") limit?: number,
+    @Query("cursor") cursor?: string,
+  ): Promise<{ data: WebhookDeliveryAttemptDto[]; next_cursor: string | null; has_more: boolean }> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    return this.webhookService.listWebhookDeliveryAttempts(publicKey, {
+      endpointId: id,
+      status,
+      eventType,
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+    });
+  }
+
+  @Get(":publicKey/:id/attempts/:attemptId")
+  @ApiOperation({
+    summary: "Get a single webhook delivery attempt",
+    description: "Returns the delivery attempt detail including redacted payload metadata.",
+  })
+  @ApiParam({ name: "publicKey", description: "Stellar public key (G...)" })
+  @ApiParam({ name: "id", description: "Webhook ID (UUID)" })
+  @ApiParam({ name: "attemptId", description: "Attempt ID (UUID)" })
+  @ApiResponse({
+    status: 200,
+    description: "Webhook delivery attempt detail",
+    type: WebhookDeliveryAttemptDetailDto,
+  })
+  async getDeliveryAttempt(
+    @Param("publicKey") publicKey: string,
+    @Param("id") id: string,
+    @Param("attemptId") attemptId: string,
+  ): Promise<WebhookDeliveryAttemptDetailDto> {
+    const webhook = await this.webhookService.getWebhook(id);
+    if (!webhook || webhook.publicKey !== publicKey) {
+      throw new NotFoundException("Webhook not found");
+    }
+
+    const attempt = await this.webhookService.getWebhookDeliveryAttempt(publicKey, id, attemptId);
+    if (!attempt) {
+      throw new NotFoundException("Delivery attempt not found");
+    }
+
+    return attempt;
   }
 
   @Get(":publicKey/:id/deliveries/:eventType/:eventId")

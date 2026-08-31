@@ -21,7 +21,14 @@ import {
 } from '@nestjs/swagger';
 
 import { MarketplaceService } from './marketplace.service';
-import { ListUsernameDto, PlaceBidDto, AcceptBidDto, CancelListingDto, MarketplaceListingDetailDto } from './dto';
+import {
+  ListUsernameDto,
+  PlaceBidDto,
+  AcceptBidDto,
+  CancelListingDto,
+  MarketplaceListingDetailDto,
+  GetMarketplaceListingsDto,
+} from './dto';
 import { MarketplaceError, MarketplaceErrorCode } from './errors';
 
 @ApiTags('marketplace')
@@ -53,24 +60,24 @@ export class MarketplaceController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all active listings' })
+  @ApiOperation({ summary: 'Get active listings with sort, filter, and pagination' })
   @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page (1-100)' })
   @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
-  @ApiResponse({ status: 200, description: 'List of active listings' })
-  async getActiveListings(
-    @Query('limit') limit = 20,
-    @Query('cursor') cursor?: string,
-  ) {
-    const result = await this.marketplaceService.getActiveListings(
-      Number(limit),
-      cursor ?? null,
-    );
-    return {
-      listings: result.listings,
-      total: result.total,
-      next_cursor: result.next_cursor,
-      has_more: result.has_more,
-    };
+  @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'ending_soon', 'price_asc', 'price_desc'] })
+  @ApiQuery({ name: 'min_price', required: false, description: 'Minimum asking price (inclusive)' })
+  @ApiQuery({ name: 'max_price', required: false, description: 'Maximum asking price (inclusive)' })
+  @ApiQuery({ name: 'username', required: false, description: 'Filter by username substring' })
+  @ApiResponse({ status: 200, description: 'List of active listings with bid summary data' })
+  @ApiResponse({ status: 400, description: 'Invalid sort, filter, or pagination parameters' })
+  async getActiveListings(@Query() query: GetMarketplaceListingsDto) {
+    try {
+      return await this.marketplaceService.queryListings(query);
+    } catch (err) {
+      if (err instanceof MarketplaceError) {
+        this.throwHttp(err);
+      }
+      throw err;
+    }
   }
 
   @Get(':listingId/detail')

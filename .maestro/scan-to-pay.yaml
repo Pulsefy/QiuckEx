@@ -1,30 +1,47 @@
-# MOB-71: End-to-End Flow for Scan-to-Pay
-# Injects a deterministic QR payload via deep link and verifies receipt reference.
+# MOB-71 (narrowed): deep-link grammar and route resolution for scan-to-pay.
+#
+# SCOPE: this flow covers deep-link parsing -> route resolution only.
+#
+# Payment execution is deliberately NOT covered. `payment-confirmation` gates its
+# render on a live contract-registry fetch (hooks/useContractRegistry.ts) and then
+# hands off to an external wallet app via URI. Neither a backend nor a wallet
+# exists on a bare CI emulator, so the tap-through-to-receipt path is untestable
+# here. The receipt-reference assertion that previously lived in this file
+# asserted a feature that was never implemented.
 
-appId: com.pulsefy.quickex
+appId: to.quickex.app.dev
 ---
-# Start from a clean app state
-- clearState
-
-# Launch the app
 - launchApp:
     clearState: true
 
-# Simulate scanning a QR code with a known payload.
-# The deep link carries a payment reference that must appear on the receipt.
-- openLink: "quickex://pay/testuser/50?asset=USDC&memo=CI-TEST&reference=REF-2026-001"
+# Deep links are QUEUED, not routed, until onboarding completes -- see
+# `canRouteDeepLink` in app/_layout.tsx. Note that "Skip" does not mark
+# onboarding complete (it only navigates), so the flow must be run to the end
+# or no link will ever resolve.
+- extendedWaitUntil:
+    visible: "Welcome to QuickEx"
+    timeout: 30000
+- tapOn: "Get Started"
+- tapOn: "I Understand"
+- tapOn: "Got It"
+- tapOn: "Connect Real Wallet"
 
-# Confirm the payment details are shown
-- assertVisible: "Confirm Payment"
-- assertVisible: "50"
-- assertVisible: "USDC"
-- assertVisible: "CI-TEST"
+# A well-formed payment link must resolve to the payment-confirmation route.
+# Grammar (utils/parse-payment-link.ts): the username is the URL *host*, and
+# `amount` is a required query param.
+- openLink: "quickex://testuser?amount=50&asset=USDC&memo=CI-TEST"
 
-# Execute the payment
-- tapOn: "Confirm"
+# payment-confirmation renders one of several states depending on whether the
+# contract registry resolves. Any of them proves the link parsed and routed to
+# the correct screen, which is what this flow asserts; registry availability is
+# not deterministic in CI and is not what is under test here.
+- extendedWaitUntil:
+    visible: ".*(Confirm Payment|Verifying secure contracts|Contract registry unavailable|Contract definition missing).*"
+    timeout: 30000
 
-# Wait for the receipt screen
-- assertVisible: "Payment Successful"
-
-# Verify the receipt reference matches the initiated payment reference
-- assertVisible: "REF-2026-001"
+# A link missing the required `amount` param must be rejected, not routed to payment.
+- openLink: "quickex://testuser?asset=USDC"
+- extendedWaitUntil:
+    visible: "Unable to open link"
+    timeout: 15000
+- assertNotVisible: "Confirm Payment"

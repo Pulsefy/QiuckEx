@@ -132,6 +132,80 @@ export interface Sep24TransactionRecord {
   terminal_at: string | null;
 }
 
+// ─── Anchor capabilities (discovered from stellar.toml) ─────────────────────
+
+/**
+ * Anchor capabilities discovered by parsing the anchor's stellar.toml.
+ * Returned by {@link AnchorClientService.discoverAnchorCapabilities}.
+ */
+export interface AnchorCapabilities {
+  /** The SEP-10 auth server URL ("TRANSFER_SERVER_SEP0010"). */
+  authServer: string;
+  /** The SEP-24 transfer server URL ("TRANSFER_SERVER_SEP0024"). */
+  transferServer: string;
+  /** Asset codes that the anchor declares as supported for SEP-24. */
+  supportedAssets: string[];
+}
+
+// ─── SEP-24 interactive initiation response ───────────────────────────────────
+
+/**
+ * The anchor's response to a SEP-24 POST /transactions/{type}/interactive
+ * request.  Only the fields our client needs are represented.
+ */
+export interface Sep24InteractiveResponse {
+  type: 'interactive_customer_info_needed';
+  url: string;
+  /** Transaction id assigned by the anchor (returned in some implementations). */
+  id?: string;
+  /** Human-readable next step guidance from the anchor. */
+  message?: string;
+}
+
+// ─── Error classes ────────────────────────────────────────────────────────────
+
+/**
+ * Thrown when the anchor's stellar.toml cannot be fetched or is missing
+ * required SEP-24 / SEP-10 fields.
+ */
+export class AnchorDiscoveryError extends Error {
+  readonly anchorDomain: string;
+  constructor(anchorDomain: string, reason: string) {
+    super(`Anchor discovery failed for ${anchorDomain}: ${reason}`);
+    this.name = 'AnchorDiscoveryError';
+    this.anchorDomain = anchorDomain;
+  }
+}
+
+/**
+ * Thrown when SEP-10 authentication with the anchor fails.
+ */
+export class Sep10AuthError extends Error {
+  readonly anchorDomain: string;
+  readonly httpStatus: number | null;
+  constructor(anchorDomain: string, reason: string, httpStatus: number | null = null) {
+    super(`SEP-10 auth failed for ${anchorDomain}: ${reason}`);
+    this.name = 'Sep10AuthError';
+    this.anchorDomain = anchorDomain;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/**
+ * Thrown when SEP-24 transaction initiation fails (unsupported asset,
+ * unreachable anchor, malformed response, etc.).
+ */
+export class Sep24InitiationError extends Error {
+  readonly anchorDomain: string;
+  readonly httpStatus: number | null;
+  constructor(anchorDomain: string, reason: string, httpStatus: number | null = null) {
+    super(`SEP-24 initiation failed for ${anchorDomain}: ${reason}`);
+    this.name = 'Sep24InitiationError';
+    this.anchorDomain = anchorDomain;
+    this.httpStatus = httpStatus;
+  }
+}
+
 // ─── Anchor HTTP response shape ────────────────────────────────────────────────
 
 /**

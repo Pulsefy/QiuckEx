@@ -7,6 +7,7 @@ import { RecurringPaymentProcessor } from '../stellar/recurring-payment-processo
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
 import { RecurringPaymentPayload } from '../job-queue/types/job-payloads.types';
+import { UsernamesService } from '../usernames/usernames.service';
 
 @Injectable()
 export class RecurringPaymentsScheduler implements OnModuleInit {
@@ -21,6 +22,7 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
     private readonly paymentProcessor: RecurringPaymentProcessor,
     private readonly eventEmitter: EventEmitter2,
     private readonly jobQueueService: JobQueueService,
+    private readonly usernamesService: UsernamesService,
   ) {
     this.maxRetries = parseInt(process.env.RECURRING_PAYMENT_MAX_RETRY || '3');
     this.retryBackoffMs = parseInt(process.env.RECURRING_PAYMENT_RETRY_BACKOFF_MS || '60000');
@@ -132,7 +134,21 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
       const recipientAddress = link.destination || (await this.resolveUsernameToAddress(link.username!));
 
       if (!recipientAddress) {
-        throw new Error('Could not resolve recipient address');
+        this.logger.warn(`Could not resolve recipient for link ${link.id} (username: ${link.username})`);
+
+        await this.schedulerService.pauseRecurringLink(link.id);
+
+        await this.notifyUser(link, execution, 'failed', undefined, `Username unresolvable or unclaimed: ${link.username}`);
+
+        this.eventEmitter.emit('recurring.payment.failed', {
+          executionId,
+          linkId: link.id,
+          failureReason: `Username unresolvable or unclaimed: ${link.username}`,
+          retryCount: execution.retry_count,
+          permanent: true,
+        });
+
+        return;
       }
 
       // Enqueue payment job via JobQueueService
@@ -221,11 +237,19 @@ export class RecurringPaymentsScheduler implements OnModuleInit {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async resolveUsernameToAddress(_username: string): Promise<string | null> {
-    // TODO: Integrate with usernames module to resolve username to Stellar address
-    // For now, return null - in production this would query the usernames table
-    this.logger.warn('Username resolution not yet implemented');
-    return null;
+  private async resolveUsernameToAddress(username: string): Promise<string | null> {
+    try {
+      const profile = await this.usernamesService.getPublicProfile(username);
+      if (profile) {
+        this.logger.log(`Resolved username ${username} to address ${profile.public_key}`);
+        return profile.public_key;
+      }
+      this.logger.warn(`Username not found: ${username}`);
+      return null;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error resolving username ${username}: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
+      return null;
+    }
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatAssetAmount, formatDateTime } from "@/lib/formatting";
 
 interface PaymentLinkStatus {
   username: string;
@@ -63,7 +64,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
           <div className="flex justify-between items-center py-3 border-b border-border">
             <dt className="text-muted">Amount Paid</dt>
             <dd className="text-3xl font-bold text-success">
-              {status.amount} {status.asset}
+              {formatAssetAmount(status.amount, status.asset)}
             </dd>
           </div>
 
@@ -77,9 +78,7 @@ export function PaidPaymentState({ status }: PaidPaymentStateProps) {
           {status.paidAt && (
             <div className="flex justify-between items-center py-3 border-b border-border">
               <dt className="text-muted">Completed At</dt>
-              <dd className="text-sm">
-                {new Date(status.paidAt).toLocaleString()}
-              </dd>
+              <dd className="text-sm">{formatDateTime(status.paidAt)}</dd>
             </div>
           )}
         </dl>

@@ -18,6 +18,7 @@ import {
   fetchActivityFeed,
   type ActivityFeedItem,
 } from "@/hooks/activityFeedApi";
+import { formatCurrency } from "@/lib/formatting";
 
 type DashboardResponse = {
   items: ActivityFeedItem[];
@@ -47,15 +48,6 @@ function shortAddress(key: string): string {
 const FOCUS_RING_CLASS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-function formatCurrency(val: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(val);
-}
-
 function DashboardContent() {
   const searchParams = useSearchParams();
   const { data, error, loading, callApi } = useApi<DashboardResponse>();
@@ -75,7 +67,8 @@ function DashboardContent() {
       const data = await fetchAnalytics("30d");
       setMetricsData(data);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to load backend metrics";
+      const message =
+        err instanceof Error ? err.message : "Failed to load backend metrics";
       setMetricsError(message);
     } finally {
       setMetricsLoading(false);
@@ -88,8 +81,8 @@ function DashboardContent() {
 
   useEffect(() => {
     void callApi(() => fetchActivityFeed(20));
-    void fetchUserBids().then(setUserBids).catch(() => setUserBids([]));
-    void fetchUserListings().then(setUserListings).catch(() => setUserListings([]));
+    void fetchUserBids().then(setUserBids);
+    void fetchUserListings().then(setUserListings);
   }, [callApi, feedRetryCount]);
 
   useEffect(() => {
@@ -237,7 +230,10 @@ function DashboardContent() {
       <div className="fixed bottom-[-20%] right-[-30%] h-[50%] w-[50%] rounded-full bg-purple-500/5 blur-[100px]" />
 
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-72 flex-col border-r border-border bg-card backdrop-blur-3xl md:flex">
-        <nav className="flex-1 space-y-2 px-4 py-20" aria-label="Dashboard navigation">
+        <nav
+          className="flex-1 space-y-2 px-4 py-20"
+          aria-label="Dashboard navigation"
+        >
           <Link
             href="/dashboard"
             aria-current="page"
@@ -266,7 +262,10 @@ function DashboardContent() {
         </nav>
       </aside>
 
-      <main id="dashboard-main" className="relative z-10 p-4 sm:p-6 md:ml-72 md:p-12">
+      <main
+        id="dashboard-main"
+        className="relative z-10 p-4 sm:p-6 md:ml-72 md:p-12"
+      >
         <header className="mb-10 flex flex-col gap-6 md:mb-16 md:flex-row md:items-start md:justify-between">
           <div>
             <nav className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-subtle md:mb-4">
@@ -323,7 +322,9 @@ function DashboardContent() {
             </>
           ) : metricsError ? (
             <div className="col-span-full rounded-3xl border border-red-500/20 bg-surface p-6 text-center">
-              <p className="text-sm font-semibold text-danger">Failed to load backend metrics: {metricsError}</p>
+              <p className="text-sm font-semibold text-danger">
+                Failed to load backend metrics: {metricsError}
+              </p>
               <button
                 onClick={() => void loadMetrics()}
                 className="mt-3 rounded-xl bg-indigo-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-400"
@@ -343,14 +344,18 @@ function DashboardContent() {
                 </p>
                 <div className="flex items-baseline gap-2">
                   <p className="text-4xl font-semibold text-foreground">
-                    {formatCurrency(metricsData?.summary.totalVolume ?? 0)}
+                    {formatCurrency(
+                      metricsData?.summary.totalVolume ?? 0,
+                      "USD",
+                    )}
                   </p>
                   <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-success">
                     Live Backend Data
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-subtle">
-                  Avg tx size: {formatCurrency(metricsData?.summary.avgTxSize ?? 0)}
+                  Avg tx size:{" "}
+                  {formatCurrency(metricsData?.summary.avgTxSize ?? 0, "USD")}
                 </p>
               </div>
 
@@ -370,11 +375,14 @@ function DashboardContent() {
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-strong">
                   <div
                     className="h-full bg-indigo-400 transition-all duration-500"
-                    style={{ width: `${Math.min(Math.max(metricsData?.summary.conversionRate ?? 100, 0), 100)}%` }}
+                    style={{
+                      width: `${Math.min(Math.max(metricsData?.summary.conversionRate ?? 100, 0), 100)}%`,
+                    }}
                   />
                 </div>
                 <p className="mt-2 text-xs text-subtle">
-                  {metricsData?.summary.successfulTx ?? 0} settled, {metricsData?.summary.failedTx ?? 0} failed
+                  {metricsData?.summary.successfulTx ?? 0} settled,{" "}
+                  {metricsData?.summary.failedTx ?? 0} failed
                 </p>
               </div>
 
@@ -384,11 +392,15 @@ function DashboardContent() {
                   Available Payout
                 </p>
                 <p className="text-4xl font-semibold text-white">
-                  {formatCurrency((metricsData?.summary.totalVolume ?? 0) * 0.85).replace("$", "")}{" "}
+                  {formatCurrency(
+                    (metricsData?.summary.totalVolume ?? 0) * 0.85,
+                    "USD",
+                  ).replace("$", "")}{" "}
                   <span className="text-xl opacity-80">USDC</span>
                 </p>
                 <p className="mt-3 text-xs text-white/90">
-                  {metricsData?.summary.refundCount ?? 0} refunds • Estimated settlement: 3 seconds
+                  {metricsData?.summary.refundCount ?? 0} refunds • Estimated
+                  settlement: 3 seconds
                 </p>
               </div>
             </>
@@ -406,7 +418,9 @@ function DashboardContent() {
         >
           <div className="flex flex-col justify-between gap-4 border-b border-border p-6 sm:flex-row sm:p-10">
             <div>
-              <h2 className="text-2xl font-semibold text-foreground">Activity Feed</h2>
+              <h2 className="text-2xl font-semibold text-foreground">
+                Activity Feed
+              </h2>
               <p className="mt-1 text-sm text-muted">
                 Live payment history fetched from the Stellar network.
               </p>
@@ -481,9 +495,13 @@ function DashboardContent() {
                   </caption>
                   <thead>
                     <tr className="border-b border-border text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">
-                      <th className="px-6 py-4 sm:px-10 sm:py-6">Transaction</th>
+                      <th className="px-6 py-4 sm:px-10 sm:py-6">
+                        Transaction
+                      </th>
                       <th className="px-6 py-4 sm:px-10 sm:py-6">Amount</th>
-                      <th className="px-6 py-4 sm:px-10 sm:py-6">Memo / Status</th>
+                      <th className="px-6 py-4 sm:px-10 sm:py-6">
+                        Memo / Status
+                      </th>
                       <th className="px-6 py-4 sm:px-10 sm:py-6">From / To</th>
                       <th className="px-6 py-4 sm:px-10 sm:py-6">Date</th>
                     </tr>
@@ -491,8 +509,7 @@ function DashboardContent() {
 
                   <tbody className="divide-y divide-border">
                     {(data?.items ?? []).map((item, index) => {
-                      const isHighlighted =
-                        item.id === highlightedTransaction;
+                      const isHighlighted = item.id === highlightedTransaction;
 
                       return (
                         <tr
@@ -644,9 +661,7 @@ function DashboardContent() {
                 My Listings
               </h3>
               {userListings.length === 0 ? (
-                <p className="text-sm text-muted">
-                  No usernames listed yet.
-                </p>
+                <p className="text-sm text-muted">No usernames listed yet.</p>
               ) : (
                 <div className="space-y-3">
                   {userListings.map((listing) => (
@@ -697,9 +712,7 @@ function DashboardContent() {
 
 export default function Dashboard() {
   return (
-    <Suspense
-      fallback={<p className="text-muted">Loading dashboard...</p>}
-    >
+    <Suspense fallback={<p className="text-muted">Loading dashboard...</p>}>
       <DashboardContent />
     </Suspense>
   );

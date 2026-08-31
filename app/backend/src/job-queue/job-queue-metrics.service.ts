@@ -28,11 +28,15 @@ export class JobQueueMetricsService implements OnModuleInit {
   private jobsCompletedTotal: client.Counter<string>;
   private jobsFailedTotal: client.Counter<string>;
   private jobsCancelledTotal: client.Counter<string>;
+  private jobsRetriedTotal: client.Counter<string>;
 
   // Gauge metrics
   private jobsPendingCount: client.Gauge<string>;
   private jobsRunningCount: client.Gauge<string>;
   private jobsDlqCount: client.Gauge<string>;
+  private jobsDlqOldestAgeSeconds: client.Gauge<string>;
+  private jobsPendingOldestAgeSeconds: client.Gauge<string>;
+  private jobsDlqAlertActive: client.Gauge<string>;
 
   // Histogram metric
   private jobExecutionDuration: client.Histogram<string>;
@@ -103,6 +107,38 @@ export class JobQueueMetricsService implements OnModuleInit {
         name: 'jobs_dlq_count',
         help: 'Current number of jobs in dead letter queue',
         labelNames: ['type'],
+        registers: [register],
+      });
+
+      // Counter: jobs_retried_total
+      this.jobsRetriedTotal = new client.Counter({
+        name: 'jobs_retried_total',
+        help: 'Total number of job retry attempts scheduled (excludes the final DLQ transition)',
+        labelNames: ['type'],
+        registers: [register],
+      });
+
+      // Gauge: jobs_dlq_oldest_age_seconds
+      this.jobsDlqOldestAgeSeconds = new client.Gauge({
+        name: 'jobs_dlq_oldest_age_seconds',
+        help: 'Age in seconds of the oldest job currently in the dead letter queue',
+        labelNames: ['type'],
+        registers: [register],
+      });
+
+      // Gauge: jobs_pending_oldest_age_seconds
+      this.jobsPendingOldestAgeSeconds = new client.Gauge({
+        name: 'jobs_pending_oldest_age_seconds',
+        help: 'Age in seconds of the oldest pending job waiting in the queue',
+        labelNames: ['type'],
+        registers: [register],
+      });
+
+      // Gauge: jobs_dlq_alert_active
+      this.jobsDlqAlertActive = new client.Gauge({
+        name: 'jobs_dlq_alert_active',
+        help: 'Whether a dead letter queue alert is currently firing for a job type (1=firing, 0=clear)',
+        labelNames: ['type', 'reason'],
         registers: [register],
       });
 
@@ -272,9 +308,9 @@ export class JobQueueMetricsService implements OnModuleInit {
 
   /**
    * Record job execution duration
-   * 
+   *
    * Called when a job completes (successfully or with failure).
-   * 
+   *
    * @param type - Job type
    * @param durationSeconds - Duration in seconds
    */
@@ -285,6 +321,80 @@ export class JobQueueMetricsService implements OnModuleInit {
 
     try {
       this.jobExecutionDuration.labels(type).observe(durationSeconds);
+    } catch (error) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Increment jobs_retried_total counter
+   *
+   * Called when a job fails but is scheduled for another attempt (not yet DLQ).
+   *
+   * @param type - Job type
+   */
+  incrementJobsRetried(type: JobType): void {
+    if (!this.initialized || !this.jobsRetriedTotal) {
+      return;
+    }
+
+    try {
+      this.jobsRetriedTotal.labels(type).inc();
+    } catch (error) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Set jobs_dlq_oldest_age_seconds gauge
+   *
+   * @param type - Job type
+   * @param ageSeconds - Age of the oldest DLQ job in seconds
+   */
+  setDlqOldestAgeSeconds(type: JobType, ageSeconds: number): void {
+    if (!this.initialized || !this.jobsDlqOldestAgeSeconds) {
+      return;
+    }
+
+    try {
+      this.jobsDlqOldestAgeSeconds.labels(type).set(ageSeconds);
+    } catch (error) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Set jobs_pending_oldest_age_seconds gauge
+   *
+   * @param type - Job type
+   * @param ageSeconds - Age of the oldest pending job in seconds
+   */
+  setPendingOldestAgeSeconds(type: JobType, ageSeconds: number): void {
+    if (!this.initialized || !this.jobsPendingOldestAgeSeconds) {
+      return;
+    }
+
+    try {
+      this.jobsPendingOldestAgeSeconds.labels(type).set(ageSeconds);
+    } catch (error) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Set jobs_dlq_alert_active gauge
+   *
+   * @param type - Job type
+   * @param reason - Which threshold triggered the alert ('depth' or 'age')
+   * @param active - Whether the alert is currently firing
+   */
+  setDlqAlertActive(type: JobType, reason: 'depth' | 'age', active: boolean): void {
+    if (!this.initialized || !this.jobsDlqAlertActive) {
+      return;
+    }
+
+    try {
+      this.jobsDlqAlertActive.labels(type, reason).set(active ? 1 : 0);
     } catch (error) {
       // Silently fail
     }

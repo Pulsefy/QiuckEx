@@ -144,3 +144,46 @@ export interface ReconciliationReport {
     details: string;
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// BE-124: Persisted run history + drift alerting
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Outcome of a reconciliation run once classified for persistence/alerting. */
+export type ReconciliationRunStatus = 'success' | 'drift' | 'failed' | 'skipped';
+
+/**
+ * Per-record drift detail persisted with each run so operators can see exactly
+ * which escrows/payments diverged and why, without a separate report store.
+ */
+export interface ReconciliationDriftDetail {
+  entityType: 'escrow' | 'payment';
+  id: string;
+  onChainState: OnChainState;
+  previousDbStatus: string | null;
+  resolvedDbStatus: string | null;
+  action: ReconciliationAction;
+  irreconcilableReason?: string;
+}
+
+/** Persistent summary of a single reconciliation run (BE-124). */
+export interface ReconciliationRunSummary {
+  runId: string;
+  status: ReconciliationRunStatus;
+  batchSize?: number;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  escrowsProcessed: number;
+  escrowsIrreconcilable: number;
+  paymentsProcessed: number;
+  paymentsIrreconcilable: number;
+  countDiscrepancy: number;
+  amountDiscrepancy: string;
+  driftExceeded: boolean;
+  alertSeverity?: 'warning' | 'critical';
+  alertMessage?: string;
+  failureReason?: string;
+  skippedReason?: string;
+  driftDetails: ReconciliationDriftDetail[];
+}

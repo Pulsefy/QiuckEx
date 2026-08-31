@@ -9,67 +9,86 @@ import {
   UseGuards,
   Req,
   Query,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiHeader,
   ApiQuery,
-} from '@nestjs/swagger';
-import { Request } from 'express';
-import { RefundsService } from './refunds.service';
-import { InitiateRefundDto } from './dto/initiate-refund.dto';
-import { CheckEligibilityDto } from './dto/check-eligibility.dto';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
-import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
-import { NetworkSafetyGuard } from '../feature-flags/network-safety.guard';
-import { RequiresFlag } from '../feature-flags/requires-flag.decorator';
-import { CursorPaginationQueryDto, paginatedResponse } from '../dto/pagination/pagination.dto';
+} from "@nestjs/swagger";
+import { Request } from "express";
+import { RefundsService } from "./refunds.service";
+import { InitiateRefundDto } from "./dto/initiate-refund.dto";
+import { CheckEligibilityDto } from "./dto/check-eligibility.dto";
+import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+import { RequireScopes } from "../auth/decorators/require-scopes.decorator";
+import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
+import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
+import { EmergencyClassification } from "../feature-flags/emergency-entrypoint-registry";
+import {
+  CursorPaginationQueryDto,
+  paginatedResponse,
+} from "../dto/pagination/pagination.dto";
 
 interface ApiKeyRequest extends Request {
   apiKey: { id: string };
 }
 
-@ApiTags('admin/refunds')
+@ApiTags("admin/refunds")
 @ApiHeader({
-  name: 'X-API-Key',
-  description: 'Admin API key with refunds:write scope',
+  name: "X-API-Key",
+  description: "Admin API key with refunds:write scope",
   required: true,
 })
 @UseGuards(ApiKeyGuard)
-@RequireScopes('refunds:write')
-@Controller('admin/refunds')
+@RequireScopes("refunds:write")
+@Controller("admin/refunds")
 export class RefundsController {
   constructor(private readonly refundsService: RefundsService) {}
 
-  @Post('check-eligibility')
+  @Post("check-eligibility")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Check refund eligibility',
-    description: 'Audit endpoint that explains refund eligibility decisions without attempting a refund. Returns reason codes and detailed explanations for support/admin users.',
+    summary: "Check refund eligibility",
+    description:
+      "Audit endpoint that explains refund eligibility decisions without attempting a refund. Returns reason codes and detailed explanations for support/admin users.",
   })
   @ApiResponse({
     status: 200,
-    description: 'Eligibility check completed',
+    description: "Eligibility check completed",
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
-        eligible: { type: 'boolean', description: 'Whether the entity is eligible for refund' },
-        reasonCode: {
-          type: 'string',
-          enum: ['ELIGIBLE', 'INVALID_STATE', 'ENTITY_NOT_FOUND', 'ALREADY_REFUNDED', 'TOO_OLD', 'CONTRACT_NOT_READY', 'INDEXER_NOT_SYNCED'],
-          description: 'Stable reason code for the eligibility decision',
+        eligible: {
+          type: "boolean",
+          description: "Whether the entity is eligible for refund",
         },
-        message: { type: 'string', description: 'Human-readable explanation of the decision' },
+        reasonCode: {
+          type: "string",
+          enum: [
+            "ELIGIBLE",
+            "INVALID_STATE",
+            "ENTITY_NOT_FOUND",
+            "ALREADY_REFUNDED",
+            "TOO_OLD",
+            "CONTRACT_NOT_READY",
+            "INDEXER_NOT_SYNCED",
+          ],
+          description: "Stable reason code for the eligibility decision",
+        },
+        message: {
+          type: "string",
+          description: "Human-readable explanation of the decision",
+        },
         details: {
-          type: 'object',
-          description: 'Additional context about the eligibility check',
+          type: "object",
+          description: "Additional context about the eligibility check",
           properties: {
-            currentState: { type: 'string' },
-            ageInDays: { type: 'number' },
-            maxAgeInDays: { type: 'number' },
-            existingRefundId: { type: 'string' },
+            currentState: { type: "string" },
+            ageInDays: { type: "number" },
+            maxAgeInDays: { type: "number" },
+            existingRefundId: { type: "string" },
           },
         },
       },
@@ -82,45 +101,57 @@ export class RefundsController {
   @Post()
   @HttpCode(HttpStatus.OK)
   @UseGuards(NetworkSafetyGuard)
-  @RequiresFlag('mainnet.refunds')
-  @ApiOperation({ summary: 'Initiate a refund (idempotent)' })
-  @ApiResponse({ status: 200, description: 'Refund attempt created or existing attempt returned' })
-  @ApiResponse({ status: 409, description: 'Entity is not in a refundable state' })
-  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
-  async initiate(
-    @Body() dto: InitiateRefundDto,
-    @Req() req: ApiKeyRequest,
-  ) {
+  @RequiresFlag("mainnet.refunds")
+  @EmergencyClassification(
+    "blocked",
+    "Initiates a refund on mainnet — a contract write; must be halted while the network safety gate is active.",
+  )
+  @ApiOperation({ summary: "Initiate a refund (idempotent)" })
+  @ApiResponse({
+    status: 200,
+    description: "Refund attempt created or existing attempt returned",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Entity is not in a refundable state",
+  })
+  @ApiResponse({ status: 503, description: "Blocked by mainnet safety gate" })
+  async initiate(@Body() dto: InitiateRefundDto, @Req() req: ApiKeyRequest) {
     const actorId: string = req.apiKey.id;
     return this.refundsService.initiateRefund(dto, actorId);
   }
 
-  @Post(':id/approve')
+  @Post(":id/approve")
   @HttpCode(HttpStatus.OK)
   @UseGuards(NetworkSafetyGuard)
-  @RequiresFlag('mainnet.refunds')
-  @ApiOperation({ summary: 'Approve a pending refund' })
-  @ApiResponse({ status: 200, description: 'Refund approved' })
-  @ApiResponse({ status: 409, description: 'Refund is not in pending state' })
-  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
-  async approve(
-    @Param('id') id: string,
-    @Req() req: ApiKeyRequest,
-  ) {
+  @RequiresFlag("mainnet.refunds")
+  @EmergencyClassification(
+    "blocked",
+    "Approves and executes a pending refund on mainnet; same write-path risk as initiate.",
+  )
+  @ApiOperation({ summary: "Approve a pending refund" })
+  @ApiResponse({ status: 200, description: "Refund approved" })
+  @ApiResponse({ status: 409, description: "Refund is not in pending state" })
+  @ApiResponse({ status: 503, description: "Blocked by mainnet safety gate" })
+  async approve(@Param("id") id: string, @Req() req: ApiKeyRequest) {
     const actorId: string = req.apiKey.id;
     return this.refundsService.approveRefund(id, actorId);
   }
 
-  @Post(':id/reject')
+  @Post(":id/reject")
   @HttpCode(HttpStatus.OK)
   @UseGuards(NetworkSafetyGuard)
-  @RequiresFlag('mainnet.refunds')
-  @ApiOperation({ summary: 'Reject a pending refund' })
-  @ApiResponse({ status: 200, description: 'Refund rejected' })
-  @ApiResponse({ status: 409, description: 'Refund is not in pending state' })
-  @ApiResponse({ status: 503, description: 'Blocked by mainnet safety gate' })
+  @RequiresFlag("mainnet.refunds")
+  @EmergencyClassification(
+    "blocked",
+    "Rejects a pending refund — mutates refund state; blocked during emergency to preserve a stable audit trail until the incident is resolved.",
+  )
+  @ApiOperation({ summary: "Reject a pending refund" })
+  @ApiResponse({ status: 200, description: "Refund rejected" })
+  @ApiResponse({ status: 409, description: "Refund is not in pending state" })
+  @ApiResponse({ status: 503, description: "Blocked by mainnet safety gate" })
   async reject(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @Body() body: { notes?: string },
     @Req() req: ApiKeyRequest,
   ) {
@@ -129,15 +160,22 @@ export class RefundsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all refund attempts' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (1-100)' })
-  @ApiResponse({ status: 200, description: 'List of refund attempts' })
+  @ApiOperation({ summary: "List all refund attempts" })
+  @ApiQuery({
+    name: "cursor",
+    required: false,
+    description: "Opaque pagination cursor",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Items per page (1-100)",
+  })
+  @ApiResponse({ status: 200, description: "List of refund attempts" })
   async list(@Query() query: CursorPaginationQueryDto) {
-    const { data, next_cursor, has_more } = await this.refundsService.listRefunds(
-      query.cursor,
-      query.limit,
-    );
+    const { data, next_cursor, has_more } =
+      await this.refundsService.listRefunds(query.cursor, query.limit);
     return paginatedResponse(data, next_cursor, has_more, query.limit);
   }
 }

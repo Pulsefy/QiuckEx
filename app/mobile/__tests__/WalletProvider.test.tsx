@@ -85,6 +85,18 @@ jest.mock("../contexts/EnvironmentContext", () => ({
   }),
 }));
 
+// Device-token registration is exercised by the lifecycle service; in this
+// unit-test we want connect/disconnect to remain synchronous and free of
+// the network, so the whole module is stubbed out.
+jest.mock("../services/device-token-registration", () => ({
+  registerDeviceToken: jest.fn(async () => ({ status: "registered", token: "mock-token", alreadyRegistered: false })),
+  deregisterDeviceToken: jest.fn(async () => ({ status: "deregistered" })),
+  reconcileInstallation: jest.fn(async () => ({ status: "unchanged" })),
+  handlePermissionRevoked: jest.fn(async () => undefined),
+  getPermissionStatus: jest.fn(async () => "granted"),
+  flushDeviceTokenQueue: jest.fn(async () => undefined),
+}));
+
 jest.mock("../hooks/use-security", () => ({
   useSecurity: () => ({
     saveSensitiveSessionToken: jest.fn(async () => {}),

@@ -140,7 +140,7 @@ describe("MetricsService", () => {
         labelNames: ["service", "error_type"],
       });
 
-      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(24);
+      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(26);
     });
 
     it("should handle initialization errors gracefully", () => {

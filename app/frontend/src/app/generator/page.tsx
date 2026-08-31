@@ -1313,9 +1313,9 @@ export default function Generator() {
             </div>
 
             <div className="space-y-4 p-8 rounded-3xl bg-card border border-border backdrop-blur-xl">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted">
                 Canonical query (from API)
-              </label>
+              </p>
 
               <div className="bg-card border border-border p-4 rounded-xl font-mono text-muted text-xs break-all min-h-[3rem]">
                 {canonicalPreview ?? (
@@ -1832,6 +1832,13 @@ export default function Generator() {
                   {customers.map((customer) => (
                     <div key={customer.id} className="rounded-2xl border border-border-strong bg-surface px-4 py-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control --
+                            The checkbox is nested inside this label, which is a valid
+                            association; the rule can't statically see accessible text
+                            through the customer name/email/route paragraphs below, but
+                            the browser computes it correctly at runtime and screen
+                            readers announce all of it. An aria-label here would override
+                            (not add to) that text and silently drop the email/route info. */}
                         <label className="flex items-start gap-3">
                           <input
                             type="checkbox"

@@ -10,6 +10,10 @@ This contract provides the foundational privacy and escrow capabilities for the 
 - **Escrow Services**: Secure holding of assets during transactions
 - **Audit Trails**: Maintainable history of privacy state changes
 
+## Contract reference
+
+- Entrypoint API reference: [doc/CONTRACT_ENTRYPOINT_REFERENCE.md](doc/CONTRACT_ENTRYPOINT_REFERENCE.md)
+
 ## Prerequisites
 
 - Rust 1.70 or higher
@@ -134,19 +138,23 @@ required fields.
 ## Main Flows
 
 ### 1. Deployment & initialisation
+
 1. Deploy the contract WASM.
 2. Call `initialize(admin)` once to set the admin (required for pause, upgrade, admin transfer).
 
 ### 2. Deposit → Withdraw (escrow)
+
 1. **Deposit**: Call `deposit(token, amount, owner, salt)` or `deposit_with_commitment(from, token, amount, commitment)`. The owner/from must authorize the token transfer.
 2. Store the returned commitment (or the one you provided) securely; it is required to withdraw.
 3. **Withdraw**: Call `withdraw(_token, amount, _commitment, to, salt)` with `to` as the recipient. The commitment is recomputed from `to`, `amount`, and `salt`; it must match an existing pending escrow. `to` must authorize.
 
 ### 3. Privacy
+
 - **Boolean**: `set_privacy(owner, enabled)` and `get_privacy(owner)` for on/off privacy.
 - **Level-based**: `enable_privacy(account, level)`, `privacy_status(account)`, `privacy_history(account)` for numeric levels.
 
 ### 4. Admin
+
 - `set_paused(caller, new_state)` – pause/unpause (caller must be admin).
 - `propose_admin_transfer(caller, new_admin, delay_secs)` – start a timelocked admin transfer (**Admin only**).
 - `accept_admin_transfer(caller)` – complete a pending admin transfer once its delay has elapsed (must be called by the proposed admin).
@@ -157,6 +165,7 @@ required fields.
 - `get_version()` – inspect the stored schema version (`0` means a legacy deployment with no version key yet).
 
 ### 5. Read-only queries
+
 - `get_commitment_state(commitment)` – escrow status (Pending/Spent/Expired).
 - `verify_proof_view(amount, salt, owner)` – verify withdrawal params without submitting a tx.
 - `get_escrow_details(commitment)` – full escrow entry.
@@ -179,6 +188,7 @@ The contract uses persistent storage with the following structure:
 - `DataKey::PrivacyHistory(Address)` - Stores privacy history for each account
 
 The `EscrowEntry` struct contains:
+
 - `token: Address` - The token address
 - `amount: i128` - The escrowed amount
 - `owner: Address` - The owner of the escrow
@@ -186,6 +196,7 @@ The `EscrowEntry` struct contains:
 - `created_at: u64` - The ledger timestamp when created
 
 Helper functions:
+
 - `put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry)` - Store an escrow entry
 - `get_escrow(env: &Env, commitment: &Bytes)` - Retrieve an escrow entry
 - `has_escrow(env: &Env, commitment: &Bytes)` - Check if an escrow entry exists
@@ -223,11 +234,11 @@ The amount commitment functions provide a **placeholder** for X-Ray privacy shie
 
 Commitments are computed as `SHA256(owner_bytes || amount_bytes || salt_bytes)`:
 
-| Component | Size | Format | Description |
-|-----------|------|--------|-------------|
-| Owner | Variable | XDR-serialized Address | Soroban address bytes |
-| Amount | 16 bytes | Big-endian i128 | Transaction amount value |
-| Salt | 0-256 bytes | Raw bytes | Randomness for uniqueness |
+| Component | Size        | Format                 | Description               |
+| --------- | ----------- | ---------------------- | ------------------------- |
+| Owner     | Variable    | XDR-serialized Address | Soroban address bytes     |
+| Amount    | 16 bytes    | Big-endian i128        | Transaction amount value  |
+| Salt      | 0-256 bytes | Raw bytes              | Randomness for uniqueness |
 
 **Result**: 32-byte SHA256 hash
 
@@ -289,6 +300,7 @@ assert!(!client.verify_amount_commitment(&commitment, &other_owner, &amount, &sa
 ## View Functions (Read-Only RPC Calls)
 
 ### Check Commitment State
+
 ```bash
 stellar contract invoke \
   --id <CONTRACT_ID> \
@@ -298,6 +310,7 @@ stellar contract invoke \
 ```
 
 ### Verify Proof Before Withdrawal
+
 ```bash
 stellar contract invoke \
   --id <CONTRACT_ID> \
@@ -309,6 +322,7 @@ stellar contract invoke \
 ```
 
 ### Get Full Escrow Details
+
 ```bash
 soroban contract invoke \
   --id <CONTRACT_ID> \
@@ -317,10 +331,12 @@ soroban contract invoke \
   --commitment <COMMITMENT_HASH>
 ```
 
-
 ### Roadmap
 
 1. **Current (v0.1)**: Deterministic SHA256 commitments
 2. **Future (v0.2)**: Pedersen commitments with proper range proofs
 3. **Target (v1.0)**: Full zero-knowledge privacy via Zether or Circom
-````
+
+```
+
+```

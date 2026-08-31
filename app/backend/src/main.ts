@@ -1,3 +1,7 @@
+// OpenTelemetry MUST be imported before everything else so it can patch
+// http/express/undici before those modules are required elsewhere.
+import "./tracing/tracing";
+
 // Sentry instrumentation MUST be imported before everything else
 import "./sentry/instrument";
 

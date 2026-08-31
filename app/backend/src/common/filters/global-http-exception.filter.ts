@@ -10,16 +10,15 @@ import { ThrottlerException } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { AppConfigService } from "../../config";
 import { MetricsService } from "../../metrics/metrics.service";
+import { ErrorCatalog } from "../errors";
 
 interface ErrorResponseBody {
-  success: false;
   error: {
     code: string;
     message: string | string[];
     /** Stable alias for correlationId — used by clients to trace requests */
     request_id?: string;
     correlationId?: string;
-    fields?: unknown;
     details?: unknown;
   };
 }
@@ -62,7 +61,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     ] as string | undefined;
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
-    let code = "INTERNAL_SERVER_ERROR";
+    let code: string = "INTERNAL_SERVER_ERROR";
     let message: string | string[] = "An unexpected error occurred";
     let details: unknown = undefined;
 
@@ -100,18 +99,18 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
 
       if (typeof res === "string") {
         message = res;
+        code = this.getCodeForStatus(status);
       } else if (typeof res === "object" && res !== null) {
         // ✅ VALIDATION ERRORS
         if ("fields" in res) {
           const validation = res as ValidationExceptionPayload;
 
           return response.status(status).json({
-            success: false,
             error: {
               code: "VALIDATION_ERROR",
               message: validation.message ?? "Validation failed",
-              fields: validation.fields ?? [],
               ...(correlationId ? { request_id: correlationId, correlationId } : {}),
+              details: { fields: validation.fields ?? [] }
             },
           });
         }
@@ -119,7 +118,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
         // ✅ BUSINESS ERRORS
         const business = res as BusinessExceptionPayload;
 
-        code = business.code ?? exception.name;
+        code = business.code ?? this.getCodeForStatus(status);
         message = business.message ?? exception.message;
 
         if (business.field) {
@@ -128,6 +127,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = isProduction ? "Internal server error" : exception.message;
+      code = "INTERNAL_SERVER_ERROR";
 
       // Log the full stack for server errors
       this.logger.error(
@@ -137,16 +137,20 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     }
 
     const body: ErrorResponseBody = {
-      success: false,
       error: {
         code,
         message,
         ...(correlationId ? { request_id: correlationId, correlationId } : {}),
-        ...(details && !isProduction ? { details } : {}),
+        ...(details ? { details } : {}),
       },
     };
 
     response.status(status).json(body);
+  }
+
+  private getCodeForStatus(status: number): string {
+    const entry = Object.values(ErrorCatalog).find(e => e.status === status);
+    return entry ? entry.code : "INTERNAL_SERVER_ERROR";
   }
 
   private getRetryAfterSeconds(response: Response): number {

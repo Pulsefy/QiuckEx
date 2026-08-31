@@ -7,6 +7,7 @@ import { ErrorReportingShell } from "@/components/ErrorReportingShell";
 import { ThemeProvider, themeInitScript } from "@/components/ThemeProvider";
 import { BootstrapProvider } from "@/contexts/BootstrapContext";
 import { FeatureFlagProvider } from "@/contexts/FeatureFlagContext";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
 const siteUrl =
@@ -62,6 +63,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="bg-background text-foreground antialiased">
+        <ServiceWorkerRegistration />
         <StagingBanner />
         <ThemeProvider>
           <BootstrapProvider>

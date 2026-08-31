@@ -38,6 +38,8 @@ describe("WebhookService", () => {
 
     mockLogRepo = {
       getWebhookDeliveryLogs: jest.fn(),
+      getWebhookDeliveryAttemptsPaginated: jest.fn(),
+      getWebhookDeliveryAttempt: jest.fn(),
       getWebhookStats: jest.fn(),
     };
 
@@ -251,6 +253,44 @@ describe("WebhookService", () => {
       const result = await service.regenerateSecret("nonexistent", PUBLIC_KEY);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("listWebhookDeliveryAttempts", () => {
+    it("should paginate and redact payload metadata for filtered attempts", async () => {
+      mockLogRepo.getWebhookDeliveryAttemptsPaginated.mockResolvedValue({
+        data: [
+          {
+            id: "attempt-1",
+            eventType: "payment.received",
+            eventId: "tx_123",
+            status: "failed",
+            attempts: 3,
+            lastError: "Authorization: Bearer sk_live_secret_123",
+            httpStatus: 500,
+            responseBody: JSON.stringify({ token: "sk_live_secret_123", detail: "ok" }),
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T10:05:00Z",
+            deliveredAt: null,
+          },
+        ],
+        next_cursor: "next-page",
+        has_more: true,
+      });
+
+      const result = await service.listWebhookDeliveryAttempts(PUBLIC_KEY, {
+        status: "failed",
+        eventType: "payment.received",
+        limit: 10,
+        cursor: "cursor-1",
+      });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].retryCount).toBe(2);
+      expect(result.data[0].payloadMetadata).toBeDefined();
+      expect(JSON.stringify(result.data[0].payloadMetadata)).not.toContain("sk_live_secret_123");
+      expect(result.next_cursor).toBe("next-page");
+      expect(result.has_more).toBe(true);
     });
   });
 

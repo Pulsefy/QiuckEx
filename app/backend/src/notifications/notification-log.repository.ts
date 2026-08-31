@@ -340,6 +340,174 @@ export class NotificationLogRepository {
     }));
   }
 
+  async getWebhookDeliveryAttemptsPaginated(
+    publicKey: string,
+    filters: {
+      endpointId?: string;
+      status?: string;
+      eventType?: string;
+      limit?: number;
+      cursor?: string;
+    } = {},
+  ): Promise<{
+    data: Array<{
+      id: string;
+      webhookId?: string;
+      endpointUrl?: string;
+      eventType: NotificationEventType;
+      eventId: string;
+      status: string;
+      attempts: number;
+      lastError?: string;
+      httpStatus?: number;
+      responseBody?: string;
+      createdAt: string;
+      updatedAt?: string;
+      deliveredAt?: string;
+    }>;
+    next_cursor: string | null;
+    has_more: boolean;
+  }> {
+    const effectiveLimit = Math.min(100, Math.max(1, filters.limit ?? 50));
+    let query = this.supabase
+      .getClient()
+      .from("notification_log")
+      .select(
+        "id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, updated_at, webhook_delivered_at",
+      )
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook");
+
+    if (filters.status) {
+      query = query.eq("status", filters.status);
+    }
+    if (filters.eventType) {
+      query = query.eq("event_type", filters.eventType);
+    }
+
+    if (filters.cursor) {
+      try {
+        const json = Buffer.from(filters.cursor, "base64url").toString("utf-8");
+        const parsed = JSON.parse(json);
+        if (typeof parsed.pk === "string" && typeof parsed.id === "string") {
+          query = query
+            .lt("created_at", parsed.pk)
+            .or(`created_at.eq.${parsed.pk},id.lt.${parsed.id}`);
+        }
+      } catch {
+        // invalid cursor
+      }
+    }
+
+    query = query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(effectiveLimit + 1);
+
+    const { data, error } = await query;
+    if (error) {
+      this.logger.error(`Failed to fetch webhook attempt history for ${publicKey}: ${error.message}`);
+      return { data: [], next_cursor: null, has_more: false };
+    }
+
+    type WebhookAttemptRow = {
+      id: string;
+      event_type: string;
+      event_id: string;
+      status: string;
+      attempts: number | null;
+      last_error: string | null;
+      webhook_response_status: number | null;
+      webhook_response_body: string | null;
+      created_at: string;
+      updated_at: string | null;
+      webhook_delivered_at: string | null;
+    };
+
+    const rows = (data ?? []) as WebhookAttemptRow[];
+    const hasMore = rows.length > effectiveLimit;
+    const pageRows = hasMore ? rows.slice(0, effectiveLimit) : rows;
+
+    const mapped = pageRows.map((r) => ({
+      id: r.id,
+      endpointUrl: undefined,
+      eventType: r.event_type as NotificationEventType,
+      eventId: r.event_id,
+      status: r.status,
+      attempts: Number(r.attempts ?? 0),
+      lastError: r.last_error ?? undefined,
+      httpStatus: r.webhook_response_status ?? undefined,
+      responseBody: r.webhook_response_body ?? undefined,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at ?? r.created_at,
+      deliveredAt: r.webhook_delivered_at ?? undefined,
+    }));
+
+    let nextCursor: string | null = null;
+    if (hasMore && pageRows.length > 0) {
+      const last = pageRows[pageRows.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ pk: last.created_at, id: last.id }),
+        "utf-8",
+      ).toString("base64url");
+    }
+
+    return { data: mapped, next_cursor: nextCursor, has_more: hasMore };
+  }
+
+  async getWebhookDeliveryAttempt(
+    publicKey: string,
+    endpointId: string,
+    attemptId: string,
+  ): Promise<{
+    id: string;
+    webhookId?: string;
+    endpointUrl?: string;
+    eventType: NotificationEventType;
+    eventId: string;
+    status: string;
+    attempts: number;
+    lastError?: string;
+    httpStatus?: number;
+    responseBody?: string;
+    createdAt: string;
+    updatedAt?: string;
+    deliveredAt?: string;
+  } | null> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from("notification_log")
+      .select(
+        "id, event_type, event_id, status, attempts, last_error, webhook_response_status, webhook_response_body, created_at, updated_at, webhook_delivered_at",
+      )
+      .eq("public_key", publicKey)
+      .eq("channel", "webhook")
+      .eq("id", attemptId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`Failed to fetch webhook attempt ${attemptId}: ${error.message}`);
+      return null;
+    }
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      webhookId: endpointId,
+      endpointUrl: undefined,
+      eventType: data.event_type as NotificationEventType,
+      eventId: data.event_id,
+      status: data.status,
+      attempts: Number(data.attempts ?? 0),
+      lastError: data.last_error ?? undefined,
+      httpStatus: data.webhook_response_status ?? undefined,
+      responseBody: data.webhook_response_body ?? undefined,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at ?? data.created_at,
+      deliveredAt: data.webhook_delivered_at ?? undefined,
+    };
+  }
+
   /** Cursor-paginated variant of getWebhookDeliveryLogs. */
   async getWebhookDeliveryLogsPaginated(
     publicKey: string,

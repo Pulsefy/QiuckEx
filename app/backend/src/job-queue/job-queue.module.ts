@@ -15,6 +15,7 @@ import { CancellationStore } from "./cancellation-token";
 import { JobQueueInitializer } from "./job-queue-initializer.service";
 import { JobAdminController } from "./job-admin.controller";
 import { JobQueueMetricsService } from "./job-queue-metrics.service";
+import { DeadLetterQueueMonitorService } from "./dead-letter-monitor.service";
 import { SupabaseModule } from "../supabase/supabase.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { LinksModule } from "../links/links.module";
@@ -24,6 +25,7 @@ import { AuthModule } from "../auth/auth.module";
 import { MetricsModule } from "../metrics/metrics.module";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { FiatRampsModule } from "../fiat-ramps/fiat-ramps.module";
+import { ExportStorageModule } from "../exports/export-storage.module";
 import {
   WebhookDeliveryHandler,
   RecurringPaymentHandler,
@@ -57,6 +59,7 @@ import {
     AuthModule,
     MetricsModule,
     ApiKeysModule,
+    ExportStorageModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => LinksModule),
     forwardRef(() => ReconciliationModule),
@@ -73,6 +76,7 @@ import {
     CancellationStore,
     JobQueueInitializer,
     JobQueueMetricsService,
+    DeadLetterQueueMonitorService,
     WebhookDeliveryHandler,
     RecurringPaymentHandler,
     ExportGenerationHandler,

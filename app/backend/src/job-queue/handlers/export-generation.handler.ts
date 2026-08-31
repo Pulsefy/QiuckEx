@@ -13,6 +13,7 @@ import { ExportGenerationPayload } from '../types/job-payloads.types';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { NotificationService } from '../../notifications/notification.service';
 import { ExportCompletedPayload } from '../../notifications/types/notification.types';
+import { ExportStorageService } from '../../exports/export-storage.service';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -39,6 +40,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notificationService: NotificationService,
+    private readonly exportStorageService: ExportStorageService,
   ) {}
 
   /**
@@ -308,11 +310,51 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         break;
       }
 
-      case 'download':
-        // TODO: Implement download link generation (store in S3/Supabase Storage)
-        // For now, just log
-        this.logger.log(`Download link generation not yet implemented for user ${userId}`);
+      case 'download': {
+        // Upload artifact to object storage and issue a signed download token.
+        const { storageKey, sizeBytes } = await this.exportStorageService.uploadArtifact({
+          jobId,
+          userId,
+          content: exportData,
+          format: format as 'csv' | 'json',
+          exportType,
+        });
+
+        const { token, expiresAt } = this.exportStorageService.issueDownloadToken({
+          jobId,
+          userId,
+        });
+
+        this.logger.log(
+          `Export artifact stored (key=${storageKey}, size=${sizeBytes}B, expiresAt=${new Date(expiresAt * 1000).toISOString()}, jobId=${jobId})`,
+        );
+
+        // Notify the user that their download link is ready.
+        const downloadPayload: ExportCompletedPayload = {
+          eventType: 'export.completed',
+          eventId: `export:${jobId}`,
+          recipientPublicKey: userId,
+          title: `Your ${exportType} export is ready to download`,
+          body: `Your ${(format as string).toUpperCase()} export of ${recordCount} ${recordCount === 1 ? 'record' : 'records'} is ready. Use the download token to retrieve it.`,
+          occurredAt: new Date().toISOString(),
+          exportType,
+          format,
+          recordCount,
+          jobId,
+          metadata: {
+            jobId,
+            exportType,
+            format,
+            recordCount,
+            sizeBytes,
+            downloadToken: token,
+            tokenExpiresAt: expiresAt,
+          },
+        };
+
+        await this.notificationService.deliverExportEmail(downloadPayload);
         break;
+      }
 
       default:
         throw new PermanentJobError(`Unsupported delivery method: ${deliveryMethod}`);

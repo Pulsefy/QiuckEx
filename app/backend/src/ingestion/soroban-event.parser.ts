@@ -22,8 +22,8 @@ import {
 } from "./event-schema";
 
 /** Maximum schema version this indexer understands. */
-export const MAX_SUPPORTED_SCHEMA_VERSION = 2;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
+export const MAX_SUPPORTED_SCHEMA_VERSION = 3;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3] as const;
 
 export type UnknownSchemaVersionHandler = (
   eventName: SorobanEventType,
@@ -252,6 +252,7 @@ export class SorobanEventParser {
       | "amount"
       | "amountPaid"
       | "expiresAt"
+      | "receiptReference"
     >,
     indexedOffset: number,
   ): Omit<EscrowDepositedEvent, "eventId"> {
@@ -268,6 +269,7 @@ export class SorobanEventParser {
       amount: BigInt(scValToNative(map["amount_due"] ?? map["amount"])),
       amountPaid: BigInt(scValToNative(map["amount_paid"] ?? map["amount"])),
       expiresAt: BigInt(scValToNative(map["expires_at"])),
+      receiptReference: this.decodeOptionalBytes32Hex(map["receipt_reference"]),
     };
   }
 
@@ -276,7 +278,13 @@ export class SorobanEventParser {
     data: xdr.ScVal,
     base: Omit<
       EscrowWithdrawnEvent,
-      "eventId" | "eventType" | "commitment" | "owner" | "token" | "amount"
+      | "eventId"
+      | "eventType"
+      | "commitment"
+      | "owner"
+      | "token"
+      | "amount"
+      | "receiptReference"
     >,
     indexedOffset: number,
   ): Omit<EscrowWithdrawnEvent, "eventId"> {
@@ -291,6 +299,7 @@ export class SorobanEventParser {
       owner,
       token: this.decodeAddress(map["token"]),
       amount: BigInt(scValToNative(map["amount"])),
+      receiptReference: this.decodeOptionalBytes32Hex(map["receipt_reference"]),
     };
   }
 
@@ -299,7 +308,13 @@ export class SorobanEventParser {
     data: xdr.ScVal,
     base: Omit<
       EscrowRefundedEvent,
-      "eventId" | "eventType" | "commitment" | "owner" | "token" | "amount"
+      | "eventId"
+      | "eventType"
+      | "commitment"
+      | "owner"
+      | "token"
+      | "amount"
+      | "receiptReference"
     >,
     indexedOffset: number,
   ): Omit<EscrowRefundedEvent, "eventId"> {
@@ -314,6 +329,7 @@ export class SorobanEventParser {
       owner,
       token: this.decodeAddress(map["token"]),
       amount: BigInt(scValToNative(map["amount"])),
+      receiptReference: this.decodeOptionalBytes32Hex(map["receipt_reference"]),
     };
   }
 
@@ -517,6 +533,20 @@ export class SorobanEventParser {
   private decodeBytes32Hex(val: xdr.ScVal): string {
     const bytes: Buffer = scValToNative(val);
     return bytes.toString("hex");
+  }
+
+  /**
+   * Decodes the deterministic `receipt_reference` payload field.
+   * Older schema versions (v1/v2) do not carry the field, so a missing
+   * value is decoded as null instead of failing the parse.
+   */
+  private decodeOptionalBytes32Hex(val: xdr.ScVal | undefined): string | null {
+    if (val === undefined) return null;
+    try {
+      return this.decodeBytes32Hex(val);
+    } catch {
+      return null;
+    }
   }
 
   /**

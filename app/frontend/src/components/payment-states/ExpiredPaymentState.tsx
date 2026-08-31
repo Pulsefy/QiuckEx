@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatAssetAmount, formatDate } from "@/lib/formatting";
 
 interface PaymentLinkStatus {
   username: string;
@@ -56,7 +57,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
           <div className="flex justify-between items-center py-3 border-b border-border">
             <dt className="text-muted">Amount</dt>
             <dd className="text-2xl font-bold">
-              {status.amount} {status.asset}
+              {formatAssetAmount(status.amount, status.asset)}
             </dd>
           </div>
 
@@ -70,9 +71,7 @@ export function ExpiredPaymentState({ status }: ExpiredPaymentStateProps) {
           {status.expiresAt && (
             <div className="flex justify-between items-center py-3 border-b border-border">
               <dt className="text-muted">Expired On</dt>
-              <dd className="text-sm">
-                {new Date(status.expiresAt).toLocaleDateString()}
-              </dd>
+              <dd className="text-sm">{formatDate(status.expiresAt)}</dd>
             </div>
           )}
         </dl>

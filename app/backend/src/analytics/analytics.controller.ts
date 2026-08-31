@@ -9,6 +9,7 @@ import {
   TimeSeriesQueryDto,
   ReportFormat,
 } from './dto/analytics-query.dto';
+import { DashboardSummaryQueryDto } from './dto/dashboard-summary.dto';
 
 @ApiTags('analytics')
 @UseGuards(ApiKeyGuard)
@@ -111,5 +112,20 @@ export class AnalyticsController {
     res.header('Content-Type', 'text/csv');
     res.attachment(filename);
     return res.send(csv);
+  }
+
+  @Get('dashboard-summary')
+  @ApiOperation({
+    summary: 'Fetch compact dashboard summary metrics for header cards',
+  })
+  @ApiResponse({ status: 200, description: 'Dashboard summary generated' })
+  async getDashboardSummary(@Req() req: Request, @Query() query: DashboardSummaryQueryDto) {
+    return this.analyticsService.getDashboardSummary(
+      query.publicKey,
+      query.timeRange,
+      query.startDate,
+      query.endDate,
+      req.organizationContext?.organizationId,
+    );
   }
 }

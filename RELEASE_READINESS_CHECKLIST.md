@@ -11,6 +11,8 @@ Related documents:
 - [app/contract/documentation/deployment-playbook.md](app/contract/documentation/deployment-playbook.md) — deploy, key management, rollback, and mitigation playbook
 - [app/mobile/RELEASE_CHECKLIST.md](app/mobile/RELEASE_CHECKLIST.md) — mobile pipeline, permissions, and privacy review
 - [app/backend/SMOKE_TESTS.md](app/backend/SMOKE_TESTS.md) — smoke test suites and remote-target usage
+- [docs/TESTNET-INCIDENT-RUNBOOK.md](docs/TESTNET-INCIDENT-RUNBOOK.md) — what to do when something breaks *after* release: detection signals, mitigation, and the specific tooling per scenario
+- [docs/BACKEND-MODULE-MAP.md](docs/BACKEND-MODULE-MAP.md) — backend module ownership and allowed dependency directions
 
 ---
 
@@ -157,8 +159,11 @@ Know the rollback path **before** shipping. In order of preference (mitigate bef
 4. **Frontend rollback**: revert to the previous Vercel deployment — see [VERCEL_DEPLOYMENT_GUIDE.md](app/frontend/VERCEL_DEPLOYMENT_GUIDE.md)
 5. **Mobile**: internal-distribution builds can be superseded by re-issuing the previous build profile; production store rollouts should be halted before promoting a replacement
 
+If an incident is already underway rather than anticipated, switch to the [Testnet Incident Response Runbook](docs/TESTNET-INCIDENT-RUNBOOK.md), which covers Soroban RPC outage, indexer lag, stuck payments, webhook backlog, and a bad contract deploy — including when to use the `testnet.contract_writes` write kill switch, and the reconciliation and support-bundle steps that close an incident out.
+
 Pre-release rollback checklist:
 
 - [ ] The previous known-good contract version/WASM hash is recorded and available in the registry history
 - [ ] The rollback or pause path for this specific release is written in the release PR
 - [ ] Monitoring hooks are in place for the rollout window: `health_check`, `get_deployment_metadata`, pause/upgrade events, schema-version mismatches, indexer lag metrics
+- [ ] The on-call operator for the rollout window knows where the [incident runbook](docs/TESTNET-INCIDENT-RUNBOOK.md) is and holds an admin-scoped API key
