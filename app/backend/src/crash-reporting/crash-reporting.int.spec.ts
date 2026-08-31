@@ -4,14 +4,25 @@ import { RedactionService } from './redaction.service';
 import { CrashReportingRepository } from './crash-reporting.repository';
 
 /**
+ * Deterministic per-test seed data.
+ */
+const createTestSeed = () => ({
+  userId: 'user-123',
+  reportId: 'report-123',
+  updatedAt: new Date('2026-05-26T10:00:00.000Z'),
+});
+
+/**
  * Integration tests for crash reporting with real redaction
  * These tests validate the end-to-end flow including redaction
  */
 describe('CrashReporting Integration', () => {
   let service: CrashReportingService;
   let repository: jest.Mocked<CrashReportingRepository>;
+  let seed: ReturnType<typeof createTestSeed>;
 
   beforeEach(async () => {
+    seed = createTestSeed();
     const mockRepository = {
       createCrashReport: jest.fn(),
       getUserSettings: jest.fn(),
@@ -32,6 +43,14 @@ describe('CrashReporting Integration', () => {
 
     service = module.get<CrashReportingService>(CrashReportingService);
     repository = module.get(CrashReportingRepository);
+
+    repository.getUserSettings.mockResolvedValue({
+      userId: seed.userId,
+      crashReportingEnabled: true,
+      updatedAt: seed.updatedAt,
+    });
+    repository.createCrashReport.mockResolvedValue(seed.reportId);
+    repository.getCrashReportsByUser.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -40,19 +59,12 @@ describe('CrashReporting Integration', () => {
 
   describe('End-to-end crash capture with redaction', () => {
     it('should never leak Stellar secret keys in any scenario', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.createCrashReport.mockResolvedValue('report-123');
-
       const secretKey = 'SBZVMB74Z76QZ3ZOY3XRXEPNQN754WKRGMAG4OQIPOOB6QMHIDCNVYKY';
 
       // Scenario 1: Secret in error message
       service.captureLogLine('Normal log line');
       const error1 = new Error(`Failed to sign transaction with key ${secretKey}`);
-      await service.captureCrash('user-123', error1);
+      await service.captureCrash(seed.userId, error1);
 
       let capturedReport = repository.createCrashReport.mock.calls[0][0];
       expect(JSON.stringify(capturedReport)).not.toContain(secretKey);
@@ -61,7 +73,7 @@ describe('CrashReporting Integration', () => {
       service.clearLogBuffer();
       service.captureLogLine(`Using secret key: ${secretKey}`);
       const error2 = new Error('Transaction failed');
-      await service.captureCrash('user-123', error2);
+      await service.captureCrash(seed.userId, error2);
 
       capturedReport = repository.createCrashReport.mock.calls[1][0];
       expect(JSON.stringify(capturedReport)).not.toContain(secretKey);
@@ -73,25 +85,18 @@ describe('CrashReporting Integration', () => {
         stellarSecretKey: secretKey,
         config: { key: secretKey },
       };
-      await service.captureCrash('user-123', error3, context);
+      await service.captureCrash(seed.userId, error3, context);
 
       capturedReport = repository.createCrashReport.mock.calls[2][0];
       expect(JSON.stringify(capturedReport)).not.toContain(secretKey);
     });
 
     it('should never leak API keys in any scenario', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.createCrashReport.mockResolvedValue('report-123');
-
       const apiKey = 'test_key_1234567890abcdefghijklmnop';
 
       // Scenario 1: API key in error
       const error1 = new Error(`API request failed with key ${apiKey}`);
-      await service.captureCrash('user-123', error1);
+      await service.captureCrash(seed.userId, error1);
 
       let capturedReport = repository.createCrashReport.mock.calls[0][0];
       expect(JSON.stringify(capturedReport)).not.toContain(apiKey);
@@ -100,26 +105,19 @@ describe('CrashReporting Integration', () => {
       service.clearLogBuffer();
       service.captureLogLine(`Authorization: Bearer ${apiKey}`);
       const error2 = new Error('Auth failed');
-      await service.captureCrash('user-123', error2);
+      await service.captureCrash(seed.userId, error2);
 
       capturedReport = repository.createCrashReport.mock.calls[1][0];
       expect(JSON.stringify(capturedReport)).not.toContain(apiKey);
     });
 
     it('should never leak PII (emails, IPs) in any scenario', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.createCrashReport.mockResolvedValue('report-123');
-
       const email = 'sensitive@example.com';
       const ip = '203.0.113.42';
 
       // Scenario 1: PII in error
       const error1 = new Error(`User ${email} from ${ip} failed authentication`);
-      await service.captureCrash('user-123', error1);
+      await service.captureCrash(seed.userId, error1);
 
       let capturedReport = repository.createCrashReport.mock.calls[0][0];
       expect(JSON.stringify(capturedReport)).not.toContain(email);
@@ -129,7 +127,7 @@ describe('CrashReporting Integration', () => {
       service.clearLogBuffer();
       service.captureLogLine(`Request from ${ip} for user ${email}`);
       const error2 = new Error('Request failed');
-      await service.captureCrash('user-123', error2);
+      await service.captureCrash(seed.userId, error2);
 
       capturedReport = repository.createCrashReport.mock.calls[1][0];
       expect(JSON.stringify(capturedReport)).not.toContain(email);
@@ -137,13 +135,6 @@ describe('CrashReporting Integration', () => {
     });
 
     it('should handle complex nested sensitive data', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.createCrashReport.mockResolvedValue('report-123');
-
       const sensitiveData = {
         user: {
           email: 'user@example.com',
@@ -162,7 +153,7 @@ describe('CrashReporting Integration', () => {
       };
 
       const error = new Error('Complex error');
-      await service.captureCrash('user-123', error, sensitiveData);
+      await service.captureCrash(seed.userId, error, sensitiveData);
 
       const capturedReport = repository.createCrashReport.mock.calls[0][0];
       const reportJson = JSON.stringify(capturedReport);
@@ -180,13 +171,6 @@ describe('CrashReporting Integration', () => {
     });
 
     it('should preserve non-sensitive data while redacting sensitive data', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.createCrashReport.mockResolvedValue('report-123');
-
       const mixedData = {
         requestId: 'req-12345',
         method: 'POST',
@@ -198,7 +182,7 @@ describe('CrashReporting Integration', () => {
       };
 
       const error = new Error('Mixed data error');
-      await service.captureCrash('user-123', error, mixedData);
+      await service.captureCrash(seed.userId, error, mixedData);
 
       const capturedReport = repository.createCrashReport.mock.calls[0][0];
       const context = capturedReport.context as Record<string, unknown>;
@@ -218,13 +202,6 @@ describe('CrashReporting Integration', () => {
 
   describe('Log export with redaction', () => {
     it('should export logs with all sensitive data redacted', async () => {
-      repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
-        crashReportingEnabled: true,
-        updatedAt: new Date(),
-      });
-      repository.getCrashReportsByUser.mockResolvedValue([]);
-
       // Add logs with sensitive data
       service.captureLogLine('User logged in: user@example.com');
       service.captureLogLine('API key used: test_key_1234567890');
@@ -232,7 +209,7 @@ describe('CrashReporting Integration', () => {
       service.captureLogLine('Request from IP: 192.168.1.1');
       service.captureLogLine('Normal log without sensitive data');
 
-      const logExport = await service.exportLogs('user-123');
+      const logExport = await service.exportLogs(seed.userId);
 
       expect(logExport).toBeDefined();
       const logsJson = JSON.stringify(logExport?.currentLogs);
@@ -257,16 +234,16 @@ describe('CrashReporting Integration', () => {
   describe('Privacy compliance', () => {
     it('should not capture any data if user has not opted in', async () => {
       repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
+        userId: seed.userId,
         crashReportingEnabled: false,
-        updatedAt: new Date(),
+        updatedAt: seed.updatedAt,
       });
 
       service.captureLogLine('Sensitive log with user@example.com');
       const error = new Error('Error with test_key_1234567890');
       const context = { apiKey: 'test_key_secret' };
 
-      const result = await service.captureCrash('user-123', error, context);
+      const result = await service.captureCrash(seed.userId, error, context);
 
       expect(result).toBeNull();
       expect(repository.createCrashReport).not.toHaveBeenCalled();
@@ -274,13 +251,13 @@ describe('CrashReporting Integration', () => {
 
     it('should not export logs if user has not opted in', async () => {
       repository.getUserSettings.mockResolvedValue({
-        userId: 'user-123',
+        userId: seed.userId,
         crashReportingEnabled: false,
-        updatedAt: new Date(),
+        updatedAt: seed.updatedAt,
       });
 
       service.captureLogLine('Log line');
-      const result = await service.exportLogs('user-123');
+      const result = await service.exportLogs(seed.userId);
 
       expect(result).toBeNull();
       expect(repository.getCrashReportsByUser).not.toHaveBeenCalled();
