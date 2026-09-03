@@ -228,6 +228,19 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "DisputeQuorumTimeout",
+        topics: &[EVENT_TOPIC_DISPUTE, "DisputeQuorumTimeout", "escrow_id"],
+        payload_keys: &[
+            "amount",
+            "deadline",
+            "fresh_votes",
+            "required_votes",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "EmergencyModeActivated",
         topics: &[EVENT_TOPIC_ADMIN, "EmergencyModeActivated", "admin"],
         payload_keys: &["schema_version", "timestamp"],
@@ -332,6 +345,18 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         name: "FeeConfigChanged",
         topics: &[EVENT_TOPIC_ADMIN, "FeeConfigChanged"],
         payload_keys: &["fee_bps", "old_fee_bps", "schema_version", "timestamp"],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
+        name: "FeeWithdrawn",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeWithdrawn", "token"],
+        payload_keys: &[
+            "actor",
+            "amount",
+            "recipient",
+            "schema_version",
+            "timestamp",
+        ],
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
@@ -1329,6 +1354,42 @@ pub(crate) fn publish_dispute_resolved(
     .publish(env);
 }
 
+/// Emitted when a dispute resolves via the quorum-timeout fallback rather
+/// than a genuine majority vote.
+#[contractevent(topics = ["TOPIC_DISPUTE", "DisputeQuorumTimeout"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisputeQuorumTimeoutEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    pub schema_version: u32,
+    pub fresh_votes: u32,
+    pub required_votes: u32,
+    pub deadline: u64,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_dispute_quorum_timeout(
+    env: &Env,
+    commitment: BytesN<32>,
+    fresh_votes: u32,
+    required_votes: u32,
+    deadline: u64,
+    amount: i128,
+) {
+    DisputeQuorumTimeoutEvent {
+        escrow_id: commitment,
+        schema_version: EVENT_SCHEMA_VERSION,
+        fresh_votes,
+        required_votes,
+        deadline,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
 // ---- Fee Router v2 events (Issue #305) -----
 
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeCollectorRotated"])]
@@ -1349,6 +1410,37 @@ pub(crate) fn publish_fee_collector_rotated(
     FeeCollectorRotatedEvent {
         new_collector,
         rotation_index,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+/// Emitted when accrued protocol fees are withdrawn from the treasury.
+#[contractevent(topics = ["TOPIC_ADMIN", "FeeWithdrawn"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWithdrawnEvent {
+    #[topic]
+    pub token: Address,
+    pub actor: Address,
+    pub amount: i128,
+    pub recipient: Address,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_fee_withdrawn(
+    env: &Env,
+    token: Address,
+    actor: Address,
+    amount: i128,
+    recipient: Address,
+) {
+    FeeWithdrawnEvent {
+        token,
+        actor,
+        amount,
+        recipient,
         schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }

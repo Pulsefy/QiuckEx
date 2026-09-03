@@ -17,6 +17,9 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
+mod dispute_quorum;
+#[cfg(test)]
+mod dispute_quorum_test;
 #[cfg(test)]
 mod error_codes_test;
 mod errors;
@@ -31,6 +34,8 @@ mod fee_router;
 mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
+#[cfg(test)]
+mod fee_treasury_test;
 #[cfg(test)]
 mod fuzz_test;
 mod hook;
@@ -151,67 +156,38 @@ impl QuickexContract {
         escrow::withdraw(&env, amount, to, salt, nonce, valid_until)
     }
 
-    /// Set a numeric privacy level for an account (legacy/level-based API).
-    ///
-    /// Records the level in storage and appends it to the account's privacy history.
-    /// For boolean on/off privacy, prefer [`set_privacy`](QuickexContract::set_privacy).
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account to configure
-    /// * `privacy_level` - Numeric level (0 = off, higher = more privacy; interpretation is application-specific)
-    pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        set_privacy_level(&env, &account, privacy_level);
-        add_privacy_history(&env, &account, privacy_level);
-        true
+    /// Deprecated numeric-level shim (`0`/`1`) over `set_privacy`; same auth,
+    /// idempotency error, and event, so the two styles can never disagree.
+    pub fn enable_privacy(
+        env: Env,
+        account: Address,
+        privacy_level: u32,
+    ) -> Result<bool, QuickexError> {
+        admin::require_initialized(&env)?;
+        pause_policy::require_entry_allowed(&env, EntryPoint::SetPrivacy)?;
+        privacy::enable_privacy(&env, account, privacy_level)
     }
 
-    /// Get the current numeric privacy level for an account.
-    ///
-    /// Returns `None` if no level has been set.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account to query
+    /// Deprecated shim: canonical privacy state projected into `Option<{0, 1}>`
+    /// (`None` if never touched). Can never disagree with `get_privacy`.
     pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
-        get_privacy_level(&env, &account)
+        privacy::privacy_status(&env, account)
     }
 
-    /// Get the history of privacy level changes for an account.
-    ///
-    /// Returns a vector of levels in chronological order (oldest first).
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `account` - The account to query
+    /// Deprecated audit history of levels requested via `enable_privacy`,
+    /// newest first. Purely additive; not authoritative.
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
-        get_privacy_history(&env, &account)
+        privacy::privacy_history(&env, account)
     }
 
-    /// Enable or disable privacy for an account.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `owner` - The account address to configure
-    /// * `enabled` - `true` to enable privacy, `false` to disable
-    ///
-    /// # Errors
-    /// * `ContractPaused` - Contract is currently paused
-    /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
+    /// Enable or disable privacy for an account (canonical API).
     pub fn set_privacy(env: Env, owner: Address, enabled: bool) -> Result<(), QuickexError> {
         admin::require_initialized(&env)?;
         pause_policy::require_entry_allowed(&env, EntryPoint::SetPrivacy)?;
         privacy::set_privacy(&env, owner, enabled)
     }
 
-    /// Check the current privacy status of an account
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `owner` - The account address to query
-    ///
-    /// # Returns
-    /// * `bool` - Current privacy status (true = enabled)
+    /// Current privacy status of an account (canonical API).
     pub fn get_privacy(env: Env, owner: Address) -> bool {
         privacy::get_privacy(&env, owner)
     }
@@ -760,20 +736,8 @@ impl QuickexContract {
 
     /// Cast a vote on a disputed escrow (multi-sig mode).
     ///
-    /// Only callable by one of the assigned arbiters. Each arbiter can vote once.
-    /// When the threshold is reached, anyone can call `resolve_dispute_multi_sig`.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `caller` - The arbiter casting the vote (must authorize)
-    /// * `commitment` - 32-byte commitment hash identifying the escrow
-    /// * `resolve_for_owner` - If true, voting to refund to owner; if false, voting to pay recipient
-    ///
-    /// # Errors
-    /// * `CommitmentNotFound` - No escrow exists for the commitment
-    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
-    /// * `NotAnArbiter` - Caller is not one of the assigned arbiters
-    /// * `ArbiterAlreadyVoted` - Caller has already voted on this dispute
+    /// Only an assigned arbiter may vote, once, before the dispute's frozen
+    /// quorum deadline; a vote also goes stale after that same window.
     pub fn vote_for_dispute(
         env: Env,
         caller: Address,
@@ -794,20 +758,8 @@ impl QuickexContract {
         )
     }
 
-    /// Resolve a disputed escrow using multi-sig arbitration.
-    ///
-    /// Can be called by anyone once the threshold is met. The outcome is determined
-    /// by majority vote among the votes cast.
-    ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `commitment` - 32-byte commitment hash identifying the escrow
-    /// * `recipient` - Address to receive funds when resolving for recipient
-    ///
-    /// # Errors
-    /// * `CommitmentNotFound` - No escrow exists for the commitment
-    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
-    /// * `InsufficientVotes` - Threshold has not been reached yet
+    /// Resolve a disputed escrow by multi-sig majority once quorum is met
+    /// with fresh votes. See `resolve_dispute_timeout` for the fallback.
     pub fn resolve_dispute_multi_sig(
         env: Env,
         commitment: BytesN<32>,
@@ -816,6 +768,32 @@ impl QuickexContract {
         pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
         hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute_multi_sig(&env, commitment, recipient)
+    }
+
+    /// Fallback once a multi-sig dispute's deadline passes with quorum still
+    /// unmet: refunds the owner so funds can't stay stuck indefinitely.
+    pub fn resolve_dispute_timeout(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
+        hook::assert_not_reentrant(&env)?;
+        escrow::resolve_dispute_timeout(&env, commitment)
+    }
+
+    /// Current dispute-quorum policy (read-only). See `dispute_quorum` module docs.
+    pub fn get_dispute_quorum_config(env: Env) -> dispute_quorum::DisputeQuorumConfig {
+        dispute_quorum::get_quorum_config(&env)
+    }
+
+    /// Set the dispute-quorum policy (**Admin only**). Only affects disputes
+    /// opened after this call; an in-flight dispute's quorum/deadline were
+    /// already frozen when it opened.
+    pub fn set_dispute_quorum_config(
+        env: Env,
+        caller: Address,
+        config: dispute_quorum::DisputeQuorumConfig,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_admin(&env, &caller)?;
+        dispute_quorum::set_quorum_config(&env, config)
     }
 
     /// Initialize the contract with an admin address (one-time only).
@@ -1284,6 +1262,26 @@ impl QuickexContract {
     /// Read current active fee collector (rotation-aware).
     pub fn get_active_fee_collector(env: Env) -> Option<Address> {
         fee_router::active_collector(&env)
+    }
+
+    /// Accrued, admin-withdrawable protocol fee balance for `token` (read-only).
+    /// Never includes escrowed principal.
+    pub fn get_accrued_fee_balance(env: Env, token: Address) -> i128 {
+        storage::get_accrued_fee_balance(&env, &token)
+    }
+
+    /// Withdraw accrued protocol fees for `token` to `recipient` (**Admin only**).
+    /// Can never touch escrowed principal, which is never credited to the ledger.
+    pub fn withdraw_fees(
+        env: Env,
+        caller: Address,
+        token: Address,
+        amount: i128,
+        recipient: Address,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::WithdrawFees)?;
+        hook::assert_not_reentrant(&env)?;
+        admin::withdraw_fees(&env, &caller, token, amount, recipient)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).

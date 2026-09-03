@@ -2,14 +2,14 @@ use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_admin_transfer_accepted, publish_admin_transfer_cancelled,
     publish_admin_transfer_proposed, publish_contract_initialized, publish_contract_migrated,
-    publish_contract_paused, publish_fee_collector_rotated, publish_per_asset_fee_set,
-    publish_upgrade_completed, publish_upgrade_started,
+    publish_contract_paused, publish_fee_collector_rotated, publish_fee_withdrawn,
+    publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee;
 use crate::fee_router;
 use crate::storage;
 use crate::types::{FeeConfig, PendingAdminProposal, PerAssetFeeConfig, Role};
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{token, Address, Env, Vec};
 
 /// Initialize the contract with an admin address.
 ///
@@ -523,6 +523,44 @@ pub fn rotate_fee_collector(
     let next_index = fee_router::rotate_collector(env, &new_collector);
     publish_fee_collector_rotated(env, new_collector, next_index);
     Ok(next_index)
+}
+
+/// Withdraw accrued protocol fees for `token` to `recipient` (**Admin only**;
+/// Issue #866 / SC-W8-05).
+///
+/// Draws exclusively from the accrued-fee treasury ledger
+/// (`storage::AccruedFees`), which is only ever credited from the
+/// platform-fee portion of a settlement that had no configured collector to
+/// forward to (see `fee_router::route_payout*`). Escrowed principal is never
+/// credited to this ledger, so a withdrawal can never touch it — enforced
+/// structurally, not just by convention.
+///
+/// # Errors
+/// - [`QuickexError::InvalidAmount`] – `amount` is zero or negative.
+/// - [`QuickexError::Overpayment`] – `amount` exceeds the token's accrued
+///   balance (reused here rather than a dedicated variant — see the
+///   capacity note on [`QuickexError`]).
+/// - [`QuickexError::InsufficientRole`] – caller is not admin.
+pub fn withdraw_fees(
+    env: &Env,
+    caller: &Address,
+    token: Address,
+    amount: i128,
+    recipient: Address,
+) -> Result<(), QuickexError> {
+    require_admin(env, caller)?;
+
+    if amount <= 0 {
+        return Err(QuickexError::InvalidAmount);
+    }
+
+    storage::subtract_accrued_fee(env, &token, amount)?;
+
+    let token_client = token::Client::new(env, &token);
+    token_client.transfer(&env.current_contract_address(), &recipient, &amount);
+
+    publish_fee_withdrawn(env, token, caller.clone(), amount, recipient);
+    Ok(())
 }
 
 /// Set whether a hook contract is allowed to be registered (**Admin only**).

@@ -39,6 +39,7 @@ pub enum EntryPoint {
     SetPrivacy = 13,
     CleanupEscrow = 14,
     ExtendEscrowTtl = 15,
+    WithdrawFees = 16,
 }
 
 impl EntryPoint {
@@ -53,6 +54,7 @@ impl EntryPoint {
             EntryPoint::Withdraw | EntryPoint::StealthWithdraw => Some(PauseFlag::Withdrawal),
             EntryPoint::Refund => Some(PauseFlag::Refund),
             EntryPoint::SetPrivacy => Some(PauseFlag::SetPrivacy),
+            EntryPoint::WithdrawFees => Some(PauseFlag::FeeWithdrawal),
             EntryPoint::Dispute
             | EntryPoint::ResolveDispute
             | EntryPoint::VoteForDispute
@@ -63,6 +65,10 @@ impl EntryPoint {
     }
 
     /// Whether this entry point is on the emergency-mode allowlist.
+    ///
+    /// `WithdrawFees` is deliberately excluded: it moves protocol revenue,
+    /// not user funds, so it should stay blocked during an emergency freeze
+    /// like other non-fund-recovery admin actions.
     pub fn is_emergency_safe(self) -> bool {
         matches!(
             self,

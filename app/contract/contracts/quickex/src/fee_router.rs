@@ -29,7 +29,11 @@
 //! new address. Old escrows automatically pay out to the new collector at
 //! settlement time — there is no per-escrow frozen collector.
 //!
-//! Fallback chain: `FeeCollector(index)` → `PlatformWallet` → (no-op if neither set).
+//! Fallback chain: `FeeCollector(index)` → `PlatformWallet` → accrued fee
+//! treasury (Issue #866 / SC-W8-05): if neither is set, the platform portion
+//! is credited to a per-token accrued-fee ledger in the contract's own
+//! storage instead of being transferred anywhere, and becomes withdrawable
+//! via `admin::withdraw_fees` / `QuickexContract::withdraw_fees`.
 //!
 //! ## XLM / SAC consistency
 //!
@@ -144,6 +148,12 @@ pub fn route_payout(
         if platform_fee > 0 {
             if let Some(collector) = active_collector(env) {
                 token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
+            } else {
+                // No collector configured: retain the platform portion in the
+                // contract as a queryable, admin-withdrawable accrued fee
+                // balance (Issue #866 / SC-W8-05) instead of leaving it
+                // silently unaccounted for in the contract's token balance.
+                storage::add_accrued_fee(env, token, platform_fee);
             }
         }
     }
@@ -197,6 +207,12 @@ pub fn route_payout_price_aware(
         if platform_fee > 0 {
             if let Some(collector) = active_collector(env) {
                 token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
+            } else {
+                // No collector configured: retain the platform portion in the
+                // contract as a queryable, admin-withdrawable accrued fee
+                // balance (Issue #866 / SC-W8-05) instead of leaving it
+                // silently unaccounted for in the contract's token balance.
+                storage::add_accrued_fee(env, token, platform_fee);
             }
         }
     }

@@ -276,6 +276,10 @@ fn test_paused_storage() {
     });
 }
 
+/// Issue #862 (SC-W8-01): `PrivacyLevel` is now a read-only migration
+/// fallback with no dedicated setter — legacy data is simulated here via a
+/// raw storage write, matching how a pre-consolidation deployment would have
+/// left it. See `crate::privacy` for the canonical boolean state.
 #[test]
 fn test_privacy_storage() {
     let env = Env::default();
@@ -284,17 +288,18 @@ fn test_privacy_storage() {
         let account = Address::generate(&env);
         let privacy_level = 5u32;
 
-        // Test setting privacy level
-        set_privacy_level(&env, &account, privacy_level);
+        // Simulate a legacy numeric level, as pre-consolidation code would have written.
+        env.storage()
+            .persistent()
+            .set(&DataKey::PrivacyLevel(account.clone()), &privacy_level);
         assert_eq!(get_privacy_level(&env, &account).unwrap(), privacy_level);
 
-        // Test updating privacy level
-        let new_privacy_level = 10u32;
-        set_privacy_level(&env, &account, new_privacy_level);
-        assert_eq!(
-            get_privacy_level(&env, &account).unwrap(),
-            new_privacy_level
-        );
+        // clear_privacy_level removes it, as happens once the account is
+        // migrated onto the canonical key.
+        clear_privacy_level(&env, &account);
+        assert!(get_privacy_level(&env, &account).is_none());
+        // Clearing an already-absent key is a no-op, not an error.
+        clear_privacy_level(&env, &account);
 
         // Test privacy history
         add_privacy_history(&env, &account, 15u32);

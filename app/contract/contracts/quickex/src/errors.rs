@@ -7,6 +7,10 @@ use soroban_sdk::contracterror;
 /// - 200-299: auth/admin failures
 /// - 300-399: state, escrow, and commitment violations
 /// - 900-999: internal/unexpected conditions
+// Capped at 50 cases by Soroban's spec format (`LengthExceedsMax` if
+// exceeded); near that ceiling — prefer reusing a close variant over adding
+// a new one. (Plain comment, not `///`: doc comments here are embedded in
+// the on-chain contract spec and count toward the WASM size budget.)
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -14,6 +18,7 @@ pub enum QuickexError {
     // Validation failures (100-199)
     InvalidAmount = 100,
     InvalidSalt = 101,
+    /// `enable_privacy`'s `privacy_level` was not `0` or `1`.
     InvalidPrivacyLevel = 102,
     /// Batch size exceeds the maximum allowed limit.
     BatchSizeExceeded = 103,
@@ -74,6 +79,8 @@ pub enum QuickexError {
     /// The requested TTL value violates the configured policy bounds
     /// (either below the minimum or above the maximum allowed ledgers).
     TtlOutOfBounds = 324,
+    /// Dispute-quorum config (`quorum` or `vote_ttl_secs`) violates hard bounds.
+    QuorumOutOfBounds = 325,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,
