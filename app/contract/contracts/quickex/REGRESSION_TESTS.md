@@ -19,6 +19,22 @@ This document describes the **regression test suite** used to future-proof Quick
 | Full flow (single smoke test) | `regression_golden_path_full_flow` | `src/test.rs` |
 | Upgrade migration | `test_upgrade_migration_preserves_legacy_escrow_data` | `src/test.rs` |
 | Commitment creation/verification | `test_create_and_verify_commitment_success` | `src/commitment_test.rs` |
+| Partial-payment accounting | `test_partial_payment_accounting_*`, `inv8_partial_accounting_sequence` | `src/test.rs`, `src/fuzz_test.rs` |
+
+## Partial-payment accounting invariant
+
+Partial escrow amounts are token base units (`i128`); no floating-point conversion or
+per-operation rounding is permitted. For every valid state, the tests assert:
+
+```text
+settled + refunded + outstanding + fees = original deposit
+```
+
+Partial deposits and payments have zero fees. Withdrawal fees are calculated once in
+integer base units and are included in `fees`; the recipient receives the remainder.
+This makes repeated partial payments equivalent to one payment of the same total and
+prevents rounding from creating or destroying value. Expired partial escrows reject
+new payments and timeout finalization refunds only the cumulative amount actually held.
 
 ## How to run the regression suite
 

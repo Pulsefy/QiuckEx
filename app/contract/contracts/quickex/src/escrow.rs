@@ -340,6 +340,7 @@ pub fn deposit_with_commitment(
 ///
 /// # Errors
 /// - [`InvalidAmount`] – initial_payment ≤ 0 or amount_due ≤ 0.
+/// - [`Overpayment`] – initial_payment exceeds amount_due.
 /// - [`InvalidSalt`] – salt > 1024 bytes.
 #[allow(clippy::too_many_arguments)]
 pub fn deposit_partial(
@@ -359,6 +360,9 @@ pub fn deposit_partial(
     }
     if amount_due <= 0 {
         return Err(QuickexError::InvalidAmount);
+    }
+    if initial_payment > amount_due {
+        return Err(QuickexError::Overpayment);
     }
 
     owner.require_auth();
@@ -435,6 +439,7 @@ pub fn deposit_partial(
 /// - [`InvalidAmount`] – payment_amount ≤ 0.
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
 /// - [`AlreadySpent`] – escrow already in a terminal state.
+/// - [`EscrowExpired`] – escrow has passed its expiry.
 /// - [`Overpayment`] – payment_amount exceeds the remaining amount due.
 pub fn partial_payment(
     env: &Env,
@@ -465,6 +470,10 @@ pub fn partial_payment(
     // INV-5: terminal states are final
     if entry.status != EscrowStatus::Pending {
         return Err(QuickexError::AlreadySpent);
+    }
+
+    if is_expired(env, &entry) {
+        return Err(QuickexError::EscrowExpired);
     }
 
     // Calculate remaining amount due

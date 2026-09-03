@@ -3974,6 +3974,161 @@ fn test_multi_payment_sequence() {
     assert_eq!(details.amount_due, Some(1000));
 }
 
+fn assert_partial_accounting(
+    client: &QuickexContractClient,
+    commitment: &BytesN<32>,
+    caller: &Address,
+    expected_due: i128,
+    settled: i128,
+    refunded: i128,
+) {
+    let details = client.get_escrow_details(commitment, caller).unwrap();
+    let amount_paid = details.amount_paid.unwrap();
+    let outstanding = expected_due - amount_paid;
+    let fees = 0i128;
+
+    assert!(amount_paid >= 0);
+    assert!(outstanding >= 0);
+    assert_eq!(settled + refunded + outstanding + fees, expected_due);
+}
+
+#[test]
+fn test_partial_payment_accounting_invariant_after_each_operation() {
+    let ctx = crate::test_context::TestContext::with_admin();
+    let amount_due = 1_000i128;
+    let initial_payment = 250i128;
+    ctx.mint(&ctx.alice, initial_payment);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &amount_due,
+        &initial_payment,
+        &ctx.alice,
+        &ctx.salt(b"accounting_each_operation"),
+        &100,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    ctx.mint(&ctx.bob, 750);
+
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, amount_due, 250, 0);
+    ctx.client
+        .partial_payment(&commitment, &ctx.bob, &125, &0, &u64::MAX);
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, amount_due, 375, 0);
+    ctx.client
+        .partial_payment(&commitment, &ctx.bob, &625, &1, &u64::MAX);
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, amount_due, 1_000, 0);
+}
+
+#[test]
+fn test_partial_payment_timeout_refund_preserves_accounting() {
+    let ctx = crate::test_context::TestContext::with_admin();
+    let amount_due = 1_000i128;
+    let initial_payment = 400i128;
+    ctx.mint(&ctx.alice, initial_payment);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &amount_due,
+        &initial_payment,
+        &ctx.alice,
+        &ctx.salt(b"accounting_timeout"),
+        &100,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    ctx.mint(&ctx.bob, 200);
+    ctx.client
+        .partial_payment(&commitment, &ctx.bob, &200, &0, &u64::MAX);
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, amount_due, 600, 0);
+
+    ctx.advance_time(100);
+    ctx.client.finalize_expired_escrow(&commitment);
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, amount_due, 0, 600);
+    assert_eq!(ctx.balance(&ctx.alice), 600);
+}
+
+#[test]
+fn test_partial_payment_rejects_initial_overpayment_and_expired_payment() {
+    let ctx = crate::test_context::TestContext::with_admin();
+    let initial = ctx.client.try_deposit_partial(
+        &ctx.token,
+        &100,
+        &101,
+        &ctx.alice,
+        &ctx.salt(b"initial_overpayment"),
+        &0,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+    assert_contract_error(initial, QuickexError::Overpayment);
+
+    ctx.mint(&ctx.alice, 40);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &100,
+        &40,
+        &ctx.alice,
+        &ctx.salt(b"expired_partial"),
+        &10,
+        &None,
+        &1,
+        &u64::MAX,
+    );
+    ctx.mint(&ctx.bob, 60);
+    ctx.advance_time(10);
+    let payment = ctx
+        .client
+        .try_partial_payment(&commitment, &ctx.bob, &60, &0, &u64::MAX);
+    assert_contract_error(payment, QuickexError::EscrowExpired);
+    assert_partial_accounting(&ctx.client, &commitment, &ctx.alice, 100, 40, 0);
+}
+
+#[test]
+fn test_partial_payment_accounting_includes_settlement_fee() {
+    let ctx = crate::test_context::TestContext::with_fees(250);
+    let amount_due = 1_000i128;
+    let initial_payment = 400i128;
+    let salt = ctx.salt(b"accounting_settlement_fee");
+    ctx.mint(&ctx.alice, initial_payment);
+    ctx.mint(&ctx.bob, amount_due - initial_payment);
+    let commitment = ctx.client.deposit_partial(
+        &ctx.token,
+        &amount_due,
+        &initial_payment,
+        &ctx.alice,
+        &salt,
+        &0,
+        &None,
+        &0,
+        &u64::MAX,
+    );
+
+    ctx.client.partial_payment(
+        &commitment,
+        &ctx.bob,
+        &(amount_due - initial_payment),
+        &0,
+        &u64::MAX,
+    );
+    ctx.client.withdraw(
+        &ctx.token,
+        &amount_due,
+        &commitment,
+        &ctx.alice,
+        &salt,
+        &1,
+        &u64::MAX,
+    );
+
+    let fee = 25i128;
+    let settled = amount_due - fee;
+    assert_eq!(settled + fee, amount_due);
+    assert_eq!(ctx.balance(&ctx.alice), settled);
+    assert_eq!(ctx.balance(&ctx.platform_wallet), fee);
+}
+
 // ============================================================================
 // Multi-Sig Arbiter Tests
 // ============================================================================

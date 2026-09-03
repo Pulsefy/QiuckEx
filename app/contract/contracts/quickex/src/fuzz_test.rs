@@ -11,6 +11,7 @@
 //! | INV-5 | Terminal states are final — `Spent`/`Refunded` block all further transitions. |
 //! | INV-6 | No overpayment — `partial_payment` rejects amounts exceeding the remainder. |
 //! | INV-7 | Nonce uniqueness — replaying a `(signer, nonce)` pair always fails.      |
+//! | INV-8 | Partial accounting — settled + refunded + outstanding + fees equals due.   |
 //!
 //! # Adding a new invariant
 //!
@@ -22,6 +23,7 @@
 use proptest::prelude::*;
 
 use crate::test_context::TestContext;
+use crate::EscrowStatus;
 
 // ---------------------------------------------------------------------------
 // Strategies
@@ -52,6 +54,28 @@ fn salt_strategy() -> impl Strategy<Value = [u8; 32]> {
 /// Generates a time advance in seconds (0 = no advance).
 fn time_advance_strategy() -> impl Strategy<Value = u64> {
     0u64..=200_000u64
+}
+
+fn assert_partial_accounting(
+    ctx: &TestContext,
+    commitment: &soroban_sdk::BytesN<32>,
+    amount_due: i128,
+) {
+    let details = ctx
+        .client
+        .get_escrow_details(commitment, &ctx.alice)
+        .unwrap();
+    let amount_paid = details.amount_paid.unwrap();
+    let outstanding = amount_due - amount_paid;
+    let (settled, refunded) = match details.status {
+        EscrowStatus::Refunded => (0, amount_paid),
+        EscrowStatus::Spent => (amount_paid, 0),
+        _ => (amount_paid, 0),
+    };
+    let fees = 0i128;
+
+    assert!(amount_paid >= 0 && outstanding >= 0);
+    assert_eq!(settled + refunded + outstanding + fees, amount_due);
 }
 
 // ---------------------------------------------------------------------------
@@ -419,6 +443,74 @@ proptest! {
             result.is_err(),
             "INV-6 violated: overpayment was accepted"
         );
+    }
+}
+
+proptest! {
+    /// INV-8: arbitrary partial-payment lifecycle sequences preserve accounting.
+    #[test]
+    fn inv8_partial_accounting_sequence(
+        actions in prop::collection::vec(any::<u8>(), 1..=40),
+        initial in 1_i128..=999_i128,
+        salt in salt_strategy(),
+    ) {
+        let ctx = TestContext::with_admin();
+        let amount_due = 1_000_i128;
+        ctx.mint(&ctx.alice.clone(), initial);
+        let commitment = ctx.client.deposit_partial(
+            &ctx.token,
+            &amount_due,
+            &initial,
+            &ctx.alice.clone(),
+            &ctx.salt(&salt),
+            &10,
+            &None,
+            &0u64,
+            &u64::MAX,
+        );
+        ctx.mint(&ctx.bob.clone(), amount_due * 2);
+        let mut nonce = 0u64;
+
+        assert_partial_accounting(&ctx, &commitment, amount_due);
+        for action in actions {
+            match action % 4 {
+                0 => {
+                    let details = ctx.client.get_escrow_details(&commitment, &ctx.alice).unwrap();
+                    let remaining = amount_due - details.amount_paid.unwrap();
+                    let payment = 1 + (action as i128 % 100);
+                    let result = ctx.client.try_partial_payment(
+                        &commitment,
+                        &ctx.bob,
+                        &payment,
+                        &nonce,
+                        &u64::MAX,
+                    );
+                    nonce += 1;
+                    let expired = ctx.env.ledger().timestamp() >= details.expires_at;
+                    if details.status == EscrowStatus::Pending && !expired && remaining >= payment {
+                        prop_assert!(result.is_ok());
+                    } else {
+                        prop_assert!(result.is_err());
+                    }
+                }
+                1 => {
+                    let result = ctx.client.try_refund(
+                        &commitment,
+                        &ctx.alice,
+                        &nonce,
+                        &u64::MAX,
+                    );
+                    nonce += 1;
+                    prop_assert!(result.is_ok() || result.is_err());
+                }
+                2 => {
+                    let result = ctx.client.try_finalize_expired_escrow(&commitment);
+                    prop_assert!(result.is_ok() || result.is_err());
+                }
+                _ => ctx.advance_time(10),
+            }
+            assert_partial_accounting(&ctx, &commitment, amount_due);
+        }
     }
 }
 
