@@ -39,7 +39,6 @@ pub enum EntryPoint {
     SetPrivacy = 13,
     CleanupEscrow = 14,
     ExtendEscrowTtl = 15,
-    /// Fee treasury withdrawal (Issue #866 / SC-W8-05).
     WithdrawFees = 16,
 }
 

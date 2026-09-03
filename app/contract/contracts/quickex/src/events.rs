@@ -354,7 +354,6 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
             "actor",
             "amount",
             "recipient",
-            "remaining_balance",
             "schema_version",
             "timestamp",
         ],
@@ -1355,10 +1354,8 @@ pub(crate) fn publish_dispute_resolved(
     .publish(env);
 }
 
-/// Emitted when a multi-sig dispute is resolved via the quorum-timeout
-/// fallback (Issue #865 / SC-W8-04) rather than a genuine majority vote —
-/// distinguishable from [`DisputeResolvedEvent`] for indexers that need to
-/// tell the two resolution paths apart.
+/// Emitted when a dispute resolves via the quorum-timeout fallback rather
+/// than a genuine majority vote.
 #[contractevent(topics = ["TOPIC_DISPUTE", "DisputeQuorumTimeout"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DisputeQuorumTimeoutEvent {
@@ -1419,8 +1416,7 @@ pub(crate) fn publish_fee_collector_rotated(
     .publish(env);
 }
 
-/// Emitted when accrued protocol fees are withdrawn from the treasury
-/// (Issue #866 / SC-W8-05).
+/// Emitted when accrued protocol fees are withdrawn from the treasury.
 #[contractevent(topics = ["TOPIC_ADMIN", "FeeWithdrawn"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeWithdrawnEvent {
@@ -1429,7 +1425,6 @@ pub struct FeeWithdrawnEvent {
     pub actor: Address,
     pub amount: i128,
     pub recipient: Address,
-    pub remaining_balance: i128,
     pub schema_version: u32,
     pub timestamp: u64,
 }
@@ -1440,14 +1435,12 @@ pub(crate) fn publish_fee_withdrawn(
     actor: Address,
     amount: i128,
     recipient: Address,
-    remaining_balance: i128,
 ) {
     FeeWithdrawnEvent {
         token,
         actor,
         amount,
         recipient,
-        remaining_balance,
         schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }

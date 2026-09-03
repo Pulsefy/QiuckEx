@@ -7,12 +7,10 @@ use soroban_sdk::contracterror;
 /// - 200-299: auth/admin failures
 /// - 300-399: state, escrow, and commitment violations
 /// - 900-999: internal/unexpected conditions
-///
-/// **Capacity warning:** Soroban's `#[contracterror]` spec (`ScSpecUdtErrorEnumV0`)
-/// hard-caps a single error enum at 50 cases (`VecM<_, 50>`); exceeding it fails
-/// the build with `LengthExceedsMax`. This enum is very close to that ceiling —
-/// prefer reusing an existing, semantically-close variant over adding a new one
-/// unless the distinction is genuinely load-bearing for callers.
+// Capped at 50 cases by Soroban's spec format (`LengthExceedsMax` if
+// exceeded); near that ceiling — prefer reusing a close variant over adding
+// a new one. (Plain comment, not `///`: doc comments here are embedded in
+// the on-chain contract spec and count toward the WASM size budget.)
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -20,7 +18,7 @@ pub enum QuickexError {
     // Validation failures (100-199)
     InvalidAmount = 100,
     InvalidSalt = 101,
-    /// `enable_privacy`'s `privacy_level` was not `0` or `1` (Issue #862 / SC-W8-01).
+    /// `enable_privacy`'s `privacy_level` was not `0` or `1`.
     InvalidPrivacyLevel = 102,
     /// Batch size exceeds the maximum allowed limit.
     BatchSizeExceeded = 103,

@@ -137,7 +137,6 @@ pub enum PauseFlag {
     DepositWithCommitment = 8,
     SetPrivacy = 16,
     CreateAmountCommitment = 32,
-    /// Fee treasury withdrawal (Issue #866 / SC-W8-05).
     FeeWithdrawal = 64,
 }
 
@@ -181,10 +180,9 @@ pub enum DataKey {
     UpgradeWindowEnd,
     /// Flag indicating an upgrade is in progress (between start_upgrade and complete_upgrade).
     UpgradeInProgress,
-    /// Deprecated numeric privacy level per account; read-only migration
-    /// fallback. See [`DataKey::PrivacyEnabled`] for the canonical state.
+    /// Deprecated numeric privacy level; read-only migration fallback.
     PrivacyLevel(Address),
-    /// Deprecated `enable_privacy` audit history per account. Not authoritative.
+    /// Deprecated `enable_privacy` audit history. Not authoritative.
     PrivacyHistory(Address),
     /// Stealth escrow entry keyed by the 32-byte stealth address (Privacy v2).
     StealthEscrow(BytesN<32>),
@@ -206,8 +204,7 @@ pub enum DataKey {
     HookRegistry,
     /// Reentrancy guard to prevent callback-based reentry during hook execution.
     ReentrancyGuard,
-    /// Canonical boolean privacy flag per account (Issue #862 / SC-W8-01).
-    /// Single source of truth for `set_privacy`/`get_privacy`/`enable_privacy`/`privacy_status`.
+    /// Canonical boolean privacy flag; single source of truth.
     PrivacyEnabled(Address),
     /// 32-byte WASM hash stored at the last `upgrade()` call (singleton).
     WasmHash,
@@ -237,16 +234,12 @@ pub enum DataKey {
     OracleSourcePrice(Address),
     /// Multi-source oracle aggregation configuration (singleton, SC-W8-06).
     OracleAggregationConfig,
-    /// Admin-configurable dispute quorum / vote-TTL policy (singleton, SC-W8-04).
-    /// See [`crate::dispute_quorum::DisputeQuorumConfig`].
+    /// Admin-configurable dispute quorum / vote-TTL policy (singleton).
     DisputeQuorumConfig,
-    /// Per-dispute frozen quorum snapshot, keyed by commitment (SC-W8-04).
-    /// See [`crate::dispute_quorum::DisputeQuorumSnapshot`].
+    /// Per-dispute frozen quorum snapshot, keyed by commitment.
     DisputeQuorum(Bytes),
-    /// Accrued, admin-withdrawable protocol fee balance per token (Issue #866
-    /// / SC-W8-05). Only ever credited from the platform-fee portion of a
-    /// settlement that had no configured collector to forward to — never
-    /// from escrowed principal. See `fee_router` and `admin::withdraw_fees`.
+    /// Accrued, admin-withdrawable protocol fee balance per token. Only ever
+    /// credited when a settlement has no configured collector; never principal.
     AccruedFees(Address),
 }
 

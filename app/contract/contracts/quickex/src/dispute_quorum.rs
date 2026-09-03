@@ -68,17 +68,10 @@ pub const DEFAULT_VOTE_TTL_SECS: u64 = 7 * 24 * 3_600;
 // Global, admin-configurable quorum policy
 // ---------------------------------------------------------------------------
 
-/// On-chain dispute-quorum policy, stored under [`DataKey::DisputeQuorumConfig`].
-///
-/// When absent, [`DisputeQuorumConfig::default_config`] applies.
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DisputeQuorumConfig {
-    /// Number of fresh arbiter votes required to resolve a multi-sig dispute,
-    /// clamped per-dispute to the number of assigned arbiters.
     pub quorum: u32,
-    /// How long a cast vote stays fresh, and how long a dispute's voting
-    /// window stays open after it is opened, in seconds.
     pub vote_ttl_secs: u64,
 }
 
@@ -135,22 +128,11 @@ pub fn set_quorum_config(env: &Env, config: DisputeQuorumConfig) -> Result<(), Q
 // Per-dispute frozen snapshot
 // ---------------------------------------------------------------------------
 
-/// The quorum policy frozen for one specific dispute the moment it opened.
-///
-/// Stored under [`DataKey::DisputeQuorum`]\(commitment\). Immutable for the
-/// lifetime of the dispute: later changes to [`DisputeQuorumConfig`] never
-/// affect an already-open dispute (Issue #865 AC4).
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DisputeQuorumSnapshot {
-    /// Fresh votes required to resolve, clamped to `[1, arbiters.len()]` at
-    /// the moment the dispute opened.
     pub required_votes: u32,
-    /// The `vote_ttl_secs` in effect when the dispute opened; used both to
-    /// decide whether an individual vote is still fresh and to compute `deadline`.
     pub vote_ttl_secs: u64,
-    /// `disputed_at + vote_ttl_secs`. Voting closes at this timestamp; past
-    /// it, `resolve_dispute_timeout` becomes available if quorum was missed.
     pub deadline: u64,
 }
 

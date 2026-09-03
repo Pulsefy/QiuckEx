@@ -559,15 +559,7 @@ pub fn withdraw_fees(
     let token_client = token::Client::new(env, &token);
     token_client.transfer(&env.current_contract_address(), &recipient, &amount);
 
-    let remaining_balance = storage::get_accrued_fee_balance(env, &token);
-    publish_fee_withdrawn(
-        env,
-        token,
-        caller.clone(),
-        amount,
-        recipient,
-        remaining_balance,
-    );
+    publish_fee_withdrawn(env, token, caller.clone(), amount, recipient);
     Ok(())
 }
 
