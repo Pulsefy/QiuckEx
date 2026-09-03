@@ -71,7 +71,7 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint": "eslint \"{src,test,perf}/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "test": "jest --config jest.config.ts",
     "test:unit": "jest --config jest.unit.config.ts",
@@ -84,6 +84,7 @@
     "test:fuzz:ci": "jest --config jest.fuzz.config.ts --runInBand",
     "test:smoke": "jest --config jest.e2e.config.ts test/smoke.e2e-spec.ts --testTimeout=30000",
     "test:smoke:soroban": "jest --config jest.e2e.config.ts test/smoke-soroban-horizon.e2e-spec.ts --testTimeout=30000",
-    "test:smoke:all": "jest --config jest.e2e.config.ts test/smoke*.e2e-spec.ts --testTimeout=30000"
+    "test:smoke:all": "jest --config jest.e2e.config.ts test/smoke*.e2e-spec.ts --testTimeout=30000",
+    "perf:load": "ts-node perf/load-harness.ts"
   }
 }
