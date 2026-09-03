@@ -1,5 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { CronJob } from 'cron';
 
 import { AppConfigService } from '../config/app-config.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -11,17 +16,21 @@ import { ReconciliationPayload } from '../job-queue/types/job-payloads.types';
 /**
  * ReconciliationWorkerService
  *
- * Runs on a configurable cron schedule (default: every 5 minutes).
- * Enqueues reconciliation jobs via the unified job queue system.
- * The visibility timeout prevents concurrent reconciliation jobs.
+ * Runs reconciliation on a configurable schedule (BE-124) — the cron
+ * expression defaults to every 5 minutes and can be overridden via
+ * RECONCILIATION_CRON_EXPRESSION, with the whole worker toggled via
+ * RECONCILIATION_ENABLED.
  *
- * The worker is self-serialising: if a previous run is still in progress
- * when the next tick fires, the new tick is skipped to prevent thundering
- * herds against the Horizon API.
+ * Each tick enqueues a reconciliation job through the unified job queue
+ * system; the actual run (and its persisted summary) is handled by the
+ * ReconciliationHandler. The worker is self-serialising: if a previous run is
+ * still in progress when the next tick fires, the tick is skipped and recorded
+ * so consecutive skipped/failed runs are alertable (BE-124).
  */
 @Injectable()
-export class ReconciliationWorkerService {
+export class ReconciliationWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ReconciliationWorkerService.name);
+  private cronJob: CronJob | null = null;
   private isRunning = false;
   private lastReport: ReconciliationReport | null = null;
 
@@ -32,18 +41,57 @@ export class ReconciliationWorkerService {
   ) {}
 
   // ---------------------------------------------------------------------------
-  // Scheduled job — every 5 minutes by default.
-  // Override via RECONCILIATION_CRON_EXPRESSION env var for custom scheduling.
+  // Scheduling (BE-124) — dynamic cron from RECONCILIATION_CRON_EXPRESSION so
+  // the schedule is configurable without a deploy, instead of the previous
+  // hard-coded every-5-minutes decorator.
   // ---------------------------------------------------------------------------
 
-  @Cron(CronExpression.EVERY_5_MINUTES, {
-    name: 'reconciliation-worker',
-    timeZone: 'UTC',
-  })
-  async handleCron(): Promise<void> {
+  onModuleInit(): void {
+    if (!this.config.reconciliationEnabled) {
+      this.logger.log(
+        'Scheduled reconciliation worker disabled via RECONCILIATION_ENABLED',
+      );
+      return;
+    }
+
+    const expression = this.config.reconciliationCronExpression;
+    try {
+      this.cronJob = new CronJob(
+        expression,
+        () => void this.handleTick(),
+        null,
+        true,
+        'UTC',
+      );
+      this.logger.log(
+        `Scheduled reconciliation worker initialized (cron: ${expression})`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to initialize reconciliation worker cron ('${expression}'): ${(err as Error).message}`,
+      );
+    }
+  }
+
+  onModuleDestroy(): void {
+    if (this.cronJob) {
+      this.cronJob.stop();
+      this.cronJob = null;
+      this.logger.log('Scheduled reconciliation worker stopped');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cron tick — enqueue a reconciliation job.
+  // ---------------------------------------------------------------------------
+
+  private async handleTick(): Promise<void> {
     if (this.isRunning) {
       this.logger.warn(
         'Reconciliation tick skipped — previous run still in progress',
+      );
+      await this.reconciliationService.recordSkippedRun(
+        'Previous reconciliation run still in progress',
       );
       return;
     }
@@ -53,9 +101,6 @@ export class ReconciliationWorkerService {
 
     try {
       const batchSize = this.config.reconciliationBatchSize;
-      
-      // Enqueue reconciliation job via JobQueueService
-      // Requirements: 10.2, 10.4
       const payload: ReconciliationPayload = {
         batchSize,
         // startLedger and endLedger are optional - not used in current implementation
@@ -67,14 +112,15 @@ export class ReconciliationWorkerService {
       );
 
       this.logger.log(`Reconciliation job enqueued: ${jobId} (batchSize: ${batchSize})`);
-      
-      // Note: The actual reconciliation execution is now handled by the job queue system.
-      // The visibility timeout (5 minutes) prevents concurrent reconciliation jobs.
     } catch (err) {
+      const message = (err as Error).message;
       this.logger.error(
-        `Failed to enqueue reconciliation job: ${(err as Error).message}`,
+        `Failed to enqueue reconciliation job: ${message}`,
         (err as Error).stack,
       );
+      await this.reconciliationService.recordFailedRun(message, {
+        batchSize: this.config.reconciliationBatchSize,
+      });
     } finally {
       this.isRunning = false;
     }
@@ -91,8 +137,18 @@ export class ReconciliationWorkerService {
     this.isRunning = true;
     try {
       const batchSize = this.config.reconciliationBatchSize;
-      this.lastReport = await this.reconciliationService.runReconciliation(batchSize);
-      return this.lastReport;
+      try {
+        this.lastReport = await this.reconciliationService.runReconciliation(batchSize);
+        return this.lastReport;
+      } catch (err) {
+        const message = (err as Error).message;
+        this.logger.error(
+          `Manual reconciliation run failed: ${message}`,
+          (err as Error).stack,
+        );
+        await this.reconciliationService.recordFailedRun(message, { batchSize });
+        throw err;
+      }
     } finally {
       this.isRunning = false;
     }

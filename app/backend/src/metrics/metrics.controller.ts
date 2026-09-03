@@ -9,12 +9,12 @@ import { MetricsService } from "./metrics.service";
 import { MetricsGuard } from "./metrics.guard";
 
 @ApiTags("metrics")
+@UseGuards(MetricsGuard)
 @Controller("metrics")
 export class MetricsController {
   constructor(private metricsService: MetricsService) {}
 
   @Get()
-  @UseGuards(MetricsGuard)
   @ApiOperation({
     summary: "Get Prometheus metrics",
     description:

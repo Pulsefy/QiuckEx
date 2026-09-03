@@ -52,6 +52,8 @@ mod pause_policy;
 mod pause_policy_test;
 mod privacy;
 #[cfg(test)]
+mod receipt_reference_test;
+#[cfg(test)]
 mod role_test;
 #[cfg(test)]
 mod smoke_test;

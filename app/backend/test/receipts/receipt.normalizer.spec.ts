@@ -122,6 +122,27 @@ describe("ReceiptNormalizer", () => {
       expect(receipt.receiptId).toBe("rcpt_abcdef123456_0");
     });
 
+    it("passes through the deterministic receipt reference from indexer metadata", () => {
+      const receiptReference = "cafebabe".repeat(8);
+      const receipt = normalizer.normalize(
+        BASE_PAYMENT_OP,
+        BASE_TX,
+        null,
+        { ...BASE_INDEXER, receiptReference },
+      );
+      expect(receipt.receiptReference).toBe(receiptReference);
+    });
+
+    it("defaults receiptReference to null when the indexer omits it", () => {
+      const receipt = normalizer.normalize(
+        BASE_PAYMENT_OP,
+        BASE_TX,
+        null,
+        BASE_INDEXER,
+      );
+      expect(receipt.receiptReference).toBeNull();
+    });
+
     it("resolves sender/receiver usernames", () => {
       const receipt = normalizer.normalize(
         BASE_PAYMENT_OP,

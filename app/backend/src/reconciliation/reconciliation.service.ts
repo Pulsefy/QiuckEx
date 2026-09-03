@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppConfigService } from '../config/app-config.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { SentryService } from '../sentry/sentry.service';
+import { ReconciliationRunRepository } from './reconciliation-run.repository';
 import {
   EscrowDbStatus,
   EscrowRecord,
@@ -14,13 +16,22 @@ import {
   PaymentRecord,
   PaymentReconciliationResult,
   ReconciliationAction,
+  ReconciliationDriftDetail,
   ReconciliationReport,
+  ReconciliationRunStatus,
+  ReconciliationRunSummary,
 } from './types/reconciliation.types';
 
 @Injectable()
 export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
   private readonly server: Horizon.Server;
+
+  /**
+   * Tracks whether the consecutive failed/skipped run alert is currently
+   * firing, so it is raised once per streak instead of on every tick (BE-124).
+   */
+  private consecutiveFailureAlerted = false;
 
   /** Statuses that need to be reconciled against the chain. */
   private readonly ACTIONABLE_ESCROW_STATUSES: EscrowDbStatus[] = [
@@ -37,6 +48,8 @@ export class ReconciliationService {
     private readonly config: AppConfigService,
     private readonly supabase: SupabaseService,
     private readonly metrics: MetricsService,
+    private readonly runRepository: ReconciliationRunRepository,
+    private readonly sentry: SentryService,
   ) {
     const horizonUrl =
       config.network === 'mainnet'
@@ -80,8 +93,20 @@ export class ReconciliationService {
     // Add totals comparison for payments
     report.totalsComparison = await this.comparePaymentTotals(runId);
 
-    // Generate alert if discrepancies exceed threshold
-    report.alert = this.generateDiscrepancyAlert(report);
+    // Classify the run (clean vs drift) and raise an alert when configured
+    // drift thresholds are exceeded (BE-124).
+    const classification = this.classifyRun(report);
+    report.alert = classification.alert;
+    this.metrics.setReconciliationDriftActive(
+      classification.status === 'drift' ? 1 : 0,
+    );
+
+    // Persist a summary for this run. Persistence is best-effort — a failed
+    // history write must never take down reconciliation itself.
+    await this.persistRunSummary(report, classification, batchSize);
+
+    // A completed (even drift-flagged) run breaks any consecutive-failure streak.
+    await this.evaluateConsecutiveFailures();
 
     this.logReport(report);
     return report;
@@ -408,8 +433,20 @@ export class ReconciliationService {
         BigInt(expectedTotalAmount) - BigInt(observedTotalAmount)
       ).toString();
 
-      // Threshold: alert if count discrepancy > 5 or amount discrepancy > 0
-      const exceedsThreshold = countDiscrepancy > 5 || amountDiscrepancy !== '0';
+      // Drift thresholds are configurable (BE-124): alert when the count
+      // discrepancy exceeds the configured count threshold or the absolute
+      // amount discrepancy exceeds the configured stroop threshold.
+      const countThreshold = this.config.reconciliationDriftCountThreshold;
+      const amountThreshold = BigInt(
+        this.config.reconciliationDriftAmountThresholdStroops,
+      );
+      const absAmountDiscrepancy = amountDiscrepancy.startsWith('-')
+        ? -BigInt(amountDiscrepancy)
+        : BigInt(amountDiscrepancy);
+
+      const exceedsThreshold =
+        countDiscrepancy > countThreshold ||
+        absAmountDiscrepancy > amountThreshold;
 
       this.logger.log(
         `[${runId}] Payment totals comparison: expected=${expectedCount}/${expectedTotalAmount}, observed=${observedCount}/${observedTotalAmount}, exceedsThreshold=${exceedsThreshold}`,
@@ -435,37 +472,255 @@ export class ReconciliationService {
   }
 
   /**
-   * Generate alert if discrepancies exceed configured threshold.
+   * Classify a finished run as clean or drifting and, when drift exceeds the
+   * configured thresholds, raise an alert through the monitoring path
+   * (metrics + Sentry + structured logs).
    */
-  private generateDiscrepancyAlert(report: ReconciliationReport): { severity: 'critical' | 'warning'; message: string; details: string } | undefined {
+  private classifyRun(
+    report: ReconciliationReport,
+  ): { status: Extract<ReconciliationRunStatus, 'success' | 'drift'>; alert?: ReconciliationReport['alert'] } {
     if (!report.totalsComparison?.payments.exceedsThreshold) {
-      return undefined;
+      return { status: 'success' };
     }
 
-    const { payments } = report.totalsComparison;
-    const { countDiscrepancy, amountDiscrepancy } = payments;
+    const { countDiscrepancy, amountDiscrepancy } = report.totalsComparison.payments;
 
-    // Critical if amount discrepancy or high count discrepancy
-    const isCritical = amountDiscrepancy !== '0' || countDiscrepancy > 10;
+    const amountThreshold = BigInt(
+      this.config.reconciliationDriftAmountThresholdStroops,
+    );
+    const absAmountDiscrepancy = amountDiscrepancy.startsWith('-')
+      ? -BigInt(amountDiscrepancy)
+      : BigInt(amountDiscrepancy);
+    const amountExceeds = absAmountDiscrepancy > amountThreshold;
 
-    const message = isCritical
-      ? 'Critical payment discrepancy detected'
-      : 'Payment discrepancy detected';
+    // Critical when money is off (amount drift) or the count discrepancy is
+    // more than double the configured count threshold; otherwise a warning.
+    const isCritical =
+      amountExceeds || countDiscrepancy > this.config.reconciliationDriftCountThreshold * 2;
 
-    const details = `Count discrepancy: ${countDiscrepancy}, Amount discrepancy: ${amountDiscrepancy}`;
+    const alert: ReconciliationReport['alert'] = {
+      severity: isCritical ? 'critical' : 'warning',
+      message: isCritical
+        ? 'Critical payment discrepancy detected'
+        : 'Payment discrepancy detected',
+      details: `Count discrepancy: ${countDiscrepancy}, Amount discrepancy: ${amountDiscrepancy}`,
+    };
 
-    this.logger.error(
-      `[${report.runId}] ${message}: ${details}`,
+    this.raiseDriftAlert(report.runId, alert);
+    return { status: 'drift', alert };
+  }
+
+  private raiseDriftAlert(runId: string, alert: ReconciliationReport['alert']): void {
+    if (!alert) return;
+
+    this.logger.error(`[${runId}] ${alert.message}: ${alert.details}`);
+
+    this.metrics.recordError(
+      'reconciliation',
+      alert.severity === 'critical' ? 'critical_drift' : 'warning_drift',
     );
 
-    // Record metric for alert
-    this.metrics.recordError('reconciliation', isCritical ? 'critical_discrepancy' : 'warning_discrepancy');
+    this.sentry.captureMessage(
+      `[reconciliation] ${alert.message}`,
+      alert.severity === 'critical' ? 'fatal' : 'warning',
+      {
+        runId,
+        details: alert.details,
+        severity: alert.severity,
+      },
+    );
+  }
 
-    return {
-      severity: isCritical ? ('critical' as const) : ('warning' as const),
-      message,
-      details,
+  // ---------------------------------------------------------------------------
+  // BE-124: Run history persistence + consecutive failure alerting
+  // ---------------------------------------------------------------------------
+
+  private async persistRunSummary(
+    report: ReconciliationReport,
+    classification: { status: ReconciliationRunStatus; alert?: ReconciliationReport['alert'] },
+    batchSize: number,
+  ): Promise<void> {
+    const totals = report.totalsComparison?.payments;
+
+    const summary: ReconciliationRunSummary = {
+      runId: report.runId,
+      status: classification.status,
+      batchSize,
+      startedAt: report.startedAt,
+      completedAt: report.completedAt,
+      durationMs: report.durationMs,
+      escrowsProcessed: report.escrows.processed,
+      escrowsIrreconcilable: report.escrows.irreconcilable,
+      paymentsProcessed: report.payments.processed,
+      paymentsIrreconcilable: report.payments.irreconcilable,
+      countDiscrepancy: totals?.countDiscrepancy ?? 0,
+      amountDiscrepancy: totals?.amountDiscrepancy ?? '0',
+      driftExceeded: totals?.exceedsThreshold ?? false,
+      alertSeverity: classification.alert?.severity,
+      alertMessage: classification.alert?.message,
+      driftDetails: this.buildDriftDetails(report),
     };
+
+    try {
+      await this.runRepository.save(summary);
+    } catch (err) {
+      this.logger.warn(
+        `[${report.runId}] Failed to persist run summary: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private buildDriftDetails(report: ReconciliationReport): ReconciliationDriftDetail[] {
+    const details: ReconciliationDriftDetail[] = [];
+
+    for (const r of report.escrows.results) {
+      if (r.action === ReconciliationAction.NoOp) continue;
+      details.push({
+        entityType: 'escrow',
+        id: r.id,
+        onChainState: r.onChainState,
+        previousDbStatus: r.previousDbStatus,
+        resolvedDbStatus: r.resolvedDbStatus,
+        action: r.action,
+        irreconcilableReason: r.irreconcilableReason,
+      });
+    }
+
+    for (const r of report.payments.results) {
+      if (r.action === ReconciliationAction.NoOp) continue;
+      details.push({
+        entityType: 'payment',
+        id: r.id,
+        onChainState: r.onChainState,
+        previousDbStatus: r.previousDbStatus,
+        resolvedDbStatus: r.resolvedDbStatus,
+        action: r.action,
+        irreconcilableReason: r.irreconcilableReason,
+      });
+    }
+
+    return details;
+  }
+
+  /**
+   * Persist a failed run (e.g. a job execution failure, enqueue failure, or
+   * manual-trigger exception) so the consecutive-failure alerting path can
+   * see it. Best-effort — never throws back to the caller.
+   */
+  async recordFailedRun(
+    failureReason: string,
+    context?: { batchSize?: number },
+  ): Promise<void> {
+    const runId = uuidv4();
+    this.logger.error(`[${runId}] Reconciliation run failed: ${failureReason}`);
+    this.metrics.recordError('reconciliation', 'run_failed');
+
+    const summary: ReconciliationRunSummary = {
+      runId,
+      status: 'failed',
+      batchSize: context?.batchSize,
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: null,
+      escrowsProcessed: 0,
+      escrowsIrreconcilable: 0,
+      paymentsProcessed: 0,
+      paymentsIrreconcilable: 0,
+      countDiscrepancy: 0,
+      amountDiscrepancy: '0',
+      driftExceeded: false,
+      failureReason,
+      driftDetails: [],
+    };
+
+    try {
+      await this.runRepository.save(summary);
+    } catch (err) {
+      this.logger.warn(
+        `[${runId}] Failed to persist failed run summary: ${(err as Error).message}`,
+      );
+    }
+
+    await this.evaluateConsecutiveFailures();
+  }
+
+  /**
+   * Persist a skipped run (e.g. a cron tick skipped because a previous run was
+   * still in progress) so the consecutive-failure alerting path can see it.
+   */
+  async recordSkippedRun(
+    skippedReason: string,
+    context?: { batchSize?: number },
+  ): Promise<void> {
+    const runId = uuidv4();
+    this.logger.warn(`[${runId}] Reconciliation run skipped: ${skippedReason}`);
+    this.metrics.recordError('reconciliation', 'run_skipped');
+
+    const summary: ReconciliationRunSummary = {
+      runId,
+      status: 'skipped',
+      batchSize: context?.batchSize,
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: null,
+      escrowsProcessed: 0,
+      escrowsIrreconcilable: 0,
+      paymentsProcessed: 0,
+      paymentsIrreconcilable: 0,
+      countDiscrepancy: 0,
+      amountDiscrepancy: '0',
+      driftExceeded: false,
+      skippedReason,
+      driftDetails: [],
+    };
+
+    try {
+      await this.runRepository.save(summary);
+    } catch (err) {
+      this.logger.warn(
+        `[${runId}] Failed to persist skipped run summary: ${(err as Error).message}`,
+      );
+    }
+
+    await this.evaluateConsecutiveFailures();
+  }
+
+  /**
+   * Evaluate the current consecutive failed/skipped run streak and raise an
+   * alert when it reaches the configured threshold. The alert fires once per
+   * new streak (not on every tick) so operators are not spammed.
+   */
+  async evaluateConsecutiveFailures(): Promise<void> {
+    let consecutive: number;
+    try {
+      consecutive = await this.runRepository.countConsecutiveIncompleteRuns();
+    } catch (err) {
+      this.logger.warn(
+        `Unable to read reconciliation run history: ${(err as Error).message}`,
+      );
+      return;
+    }
+
+    this.metrics.setReconciliationConsecutiveFailures(consecutive);
+
+    const threshold = this.config.reconciliationConsecutiveFailureAlertThreshold;
+
+    if (consecutive >= threshold && !this.consecutiveFailureAlerted) {
+      this.consecutiveFailureAlerted = true;
+      const message =
+        `Reconciliation has ${consecutive} consecutive failed/skipped run(s) ` +
+        `(threshold: ${threshold})`;
+
+      this.logger.error(message);
+      this.metrics.recordError('reconciliation', 'consecutive_failures');
+      this.sentry.captureMessage(
+        `[reconciliation] ${message}`,
+        'warning',
+        { consecutiveFailures: consecutive, threshold },
+      );
+    } else if (consecutive < threshold) {
+      this.consecutiveFailureAlerted = false;
+    }
   }
 
   private logReport(report: ReconciliationReport): void {

@@ -355,7 +355,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
-    assert_eq!(EVENT_SCHEMA_VERSION, 2);
+    assert_eq!(EVENT_SCHEMA_VERSION, 3);
     assert_eq!(EVENT_SCHEMAS.len(), 36);
 
     let escrow_deposited = EVENT_SCHEMAS
@@ -372,6 +372,7 @@ fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
             "amount_due",
             "amount_paid",
             "expires_at",
+            "receipt_reference",
             "schema_version",
             "timestamp",
             "token"
@@ -861,6 +862,9 @@ fn test_event_snapshot_escrow_deposited_schema() {
     assert!(data_map.get(Symbol::new(&env, "amount_paid")).is_some());
     assert!(data_map.get(Symbol::new(&env, "expires_at")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+    assert!(data_map
+        .get(Symbol::new(&env, "receipt_reference"))
+        .is_some());
 }
 
 #[test]
@@ -907,6 +911,9 @@ fn test_event_snapshot_escrow_withdrawn_schema() {
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+    assert!(data_map
+        .get(Symbol::new(&env, "receipt_reference"))
+        .is_some());
 }
 
 #[test]
@@ -958,6 +965,9 @@ fn test_event_snapshot_escrow_refunded_schema() {
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
+    assert!(data_map
+        .get(Symbol::new(&env, "receipt_reference"))
+        .is_some());
 }
 
 #[test]

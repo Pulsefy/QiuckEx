@@ -1,5 +1,9 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import * as client from "prom-client";
+import {
+  assertMetricLabelsBounded,
+  boundedMetricLabel,
+} from "./metric-label-guard";
 
 @Injectable()
 export class MetricsService implements OnModuleInit {
@@ -28,6 +32,8 @@ export class MetricsService implements OnModuleInit {
   private outboxDepth: client.Gauge<string>;
   private outboxDispatchLagSeconds: client.Gauge<string>;
   private outboxDispatchTotal: client.Counter<string>;
+  private reconciliationDriftActive: client.Gauge<string>;
+  private reconciliationConsecutiveFailures: client.Gauge<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -179,6 +185,16 @@ export class MetricsService implements OnModuleInit {
         labelNames: ["event_type", "outcome"],
       });
 
+      this.reconciliationDriftActive = new client.Gauge({
+        name: "reconciliation_drift_active",
+        help: "Whether the latest reconciliation run exceeded drift thresholds (1) or not (0)",
+      });
+
+      this.reconciliationConsecutiveFailures = new client.Gauge({
+        name: "reconciliation_consecutive_failures",
+        help: "Number of consecutive failed or skipped reconciliation runs",
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -203,11 +219,31 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.outboxDepth);
       this.register.registerMetric(this.outboxDispatchLagSeconds);
       this.register.registerMetric(this.outboxDispatchTotal);
+      this.register.registerMetric(this.reconciliationDriftActive);
+      this.register.registerMetric(this.reconciliationConsecutiveFailures);
+
+      // BE-115: fail fast at boot if any registered metric uses a label source
+      // that is not covered by the bounded-label policy.
+      this.assertAllMetricLabelsBounded();
 
       this.initialized = true;
     } catch (error) {
       console.error("Failed to initialize metrics:", error);
       this.initialized = false;
+    }
+  }
+
+  /**
+   * BE-115: every label name registered on a metric must have a bounded
+   * policy (see metric-label-guard.ts). Throws when a new metric is added
+   * with an unbounded label source so the test suite catches it immediately.
+   */
+  private assertAllMetricLabelsBounded(): void {
+    for (const metric of this.register.getMetricsAsArray()) {
+      const labelNames = (metric as { labelNames?: readonly string[] }).labelNames;
+      if (labelNames) {
+        assertMetricLabelsBounded(labelNames);
+      }
     }
   }
 
@@ -278,7 +314,9 @@ export class MetricsService implements OnModuleInit {
     }
 
     try {
-      this.ingestionLagSeconds.labels(contractId).set(lagSeconds);
+      this.ingestionLagSeconds
+        .labels(boundedMetricLabel("contract_id", contractId))
+        .set(lagSeconds);
     } catch (error) {}
   }
 
@@ -336,7 +374,11 @@ export class MetricsService implements OnModuleInit {
     }
     try {
       this.sorobanRpcFailoverTotal
-        .labels(fromEndpoint, toEndpoint, reason)
+        .labels(
+          boundedMetricLabel("from_endpoint", fromEndpoint),
+          boundedMetricLabel("to_endpoint", toEndpoint),
+          boundedMetricLabel("reason", reason),
+        )
         .inc();
     } catch (error) {}
   }
@@ -347,7 +389,9 @@ export class MetricsService implements OnModuleInit {
     }
     try {
       for (const url of allEndpoints) {
-        this.sorobanRpcActiveEndpoint.labels(url).set(url === endpoint ? 1 : 0);
+        this.sorobanRpcActiveEndpoint
+          .labels(boundedMetricLabel("endpoint", url))
+          .set(url === endpoint ? 1 : 0);
       }
     } catch (error) {}
   }
@@ -356,7 +400,10 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.sorobanIndexerUnknownSchemaVersion) return;
     try {
       this.sorobanIndexerUnknownSchemaVersion
-        .labels(eventName, String(schemaVersion))
+        .labels(
+          boundedMetricLabel("event_name", eventName),
+          boundedMetricLabel("schema_version", String(schemaVersion)),
+        )
         .inc();
     } catch (error) {}
   }
@@ -426,7 +473,9 @@ export class MetricsService implements OnModuleInit {
         const scoreRange =
           score >= 80 ? "80-100" : score >= 50 ? "50-79" : "30-49";
         const topTag = tags[0] ?? "none";
-        this.abuseSignalsHighScore?.labels(scoreRange, topTag).inc();
+        this.abuseSignalsHighScore
+          ?.labels(scoreRange, boundedMetricLabel("top_tag", topTag))
+          .inc();
       }
     } catch (error) {}
   }
@@ -452,6 +501,22 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.outboxDispatchTotal) return;
     try {
       this.outboxDispatchTotal.labels(eventType, outcome).inc();
+    } catch (error) {}
+  }
+
+  /** Set whether the latest reconciliation run exceeded drift thresholds (BE-124). */
+  setReconciliationDriftActive(active: 0 | 1) {
+    if (!this.initialized || !this.reconciliationDriftActive) return;
+    try {
+      this.reconciliationDriftActive.set(active);
+    } catch (error) {}
+  }
+
+  /** Set the current consecutive failed/skipped reconciliation run count (BE-124). */
+  setReconciliationConsecutiveFailures(count: number) {
+    if (!this.initialized || !this.reconciliationConsecutiveFailures) return;
+    try {
+      this.reconciliationConsecutiveFailures.set(count);
     } catch (error) {}
   }
 }

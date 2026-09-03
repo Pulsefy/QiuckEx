@@ -50,6 +50,7 @@ function makeRaw(
 const OWNER = "GDQERHRWJYV7JHRP5V7DWJVI6Y5ABZP3YRH7DKYJRBEGJQKE6IQEOSY2";
 const TOKEN = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const COMMITMENT_HEX = "deadbeef".repeat(8);
+const RECEIPT_REFERENCE_HEX = "cafebabe".repeat(8);
 
 describe("SorobanEventParser", () => {
   let parser: SorobanEventParser;
@@ -70,6 +71,7 @@ describe("SorobanEventParser", () => {
         amount_due: nativeToScVal(5_000_000n, { type: "i128" }),
         amount_paid: nativeToScVal(2_500_000n, { type: "i128" }),
         expires_at: nativeToScVal(1800000000n, { type: "u64" }),
+        receipt_reference: bytesVal(RECEIPT_REFERENCE_HEX),
         schema_version: nativeToScVal(QUICKEX_EVENT_SCHEMA_VERSION, {
           type: "u32",
         }),
@@ -88,6 +90,7 @@ describe("SorobanEventParser", () => {
       expect(result.amount).toBe(5_000_000n);
       expect(result.amountPaid).toBe(2_500_000n);
       expect(result.expiresAt).toBe(1800000000n);
+      expect(result.receiptReference).toBe(RECEIPT_REFERENCE_HEX);
       expect(result.contractTimestamp).toBe(1700000000n);
     });
 
@@ -114,6 +117,7 @@ describe("SorobanEventParser", () => {
       expect(result.amount).toBe(5_000_000n);
       expect(result.amountPaid).toBe(5_000_000n);
       expect(result.expiresAt).toBe(1800000000n);
+      expect(result.receiptReference).toBeNull();
       expect(result.contractTimestamp).toBe(1700000000n);
     });
   });
@@ -231,12 +235,13 @@ describe("SorobanEventParser", () => {
           "amount_due",
           "amount_paid",
           "expires_at",
+          "receipt_reference",
           "schema_version",
           "timestamp",
           "token",
         ],
         schemaVersion: QUICKEX_EVENT_SCHEMA_VERSION,
-        compatibleVersions: [1, QUICKEX_EVENT_SCHEMA_VERSION],
+        compatibleVersions: [1, 2, QUICKEX_EVENT_SCHEMA_VERSION],
       });
 
       for (const contract of Object.values(QUICKEX_EVENT_SCHEMA_CONTRACTS)) {

@@ -282,6 +282,34 @@ export const envSchema = Joi.object({
       "Max records per entity type processed per reconciliation run",
     ),
 
+  // Scheduled reconciliation run + drift alerting (BE-124)
+  RECONCILIATION_ENABLED: Joi.boolean()
+    .default(true)
+    .description("Enable the scheduled reconciliation worker (BE-124)"),
+  RECONCILIATION_CRON_EXPRESSION: Joi.string()
+    .default("*/5 * * * *")
+    .description("Cron expression for scheduled reconciliation runs (BE-124)"),
+  RECONCILIATION_DRIFT_COUNT_THRESHOLD: Joi.number()
+    .integer()
+    .min(0)
+    .default(5)
+    .description(
+      "Payment count discrepancy that raises a drift alert when exceeded (BE-124)",
+    ),
+  RECONCILIATION_DRIFT_AMOUNT_THRESHOLD_STROOPS: Joi.string()
+    .empty("")
+    .default("0")
+    .description(
+      "Payment amount discrepancy (in stroops) that raises a drift alert when exceeded (BE-124)",
+    ),
+  RECONCILIATION_CONSECUTIVE_FAILURE_ALERT_THRESHOLD: Joi.number()
+    .integer()
+    .min(1)
+    .default(3)
+    .description(
+      "Consecutive failed or skipped reconciliation runs that raise an alert (BE-124)",
+    ),
+
   // Rate limiting — optional bcrypt-hashed API keys (comma-separated)
   // Generate a hash: node -e "require('bcrypt').hash('MY_KEY', 10).then(console.log)"
   API_KEYS: Joi.string()
@@ -662,6 +690,11 @@ export interface EnvConfig {
   SENDGRID_FROM_EMAIL?: string;
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
+  RECONCILIATION_ENABLED: boolean;
+  RECONCILIATION_CRON_EXPRESSION: string;
+  RECONCILIATION_DRIFT_COUNT_THRESHOLD: number;
+  RECONCILIATION_DRIFT_AMOUNT_THRESHOLD_STROOPS: string;
+  RECONCILIATION_CONSECUTIVE_FAILURE_ALERT_THRESHOLD: number;
   API_KEYS?: string;
   RATE_LIMIT_PUBLIC_BURST_LIMIT: number;
   RATE_LIMIT_PUBLIC_BURST_TTL_MS: number;

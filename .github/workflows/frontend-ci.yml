@@ -52,10 +52,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Node 22, not 20: jsdom@30 bundles undici@8, whose CacheStorage
+      # constructor calls the node:worker_threads `markAsUncloneable` builtin
+      # unconditionally (no feature-detection/fallback). That builtin only
+      # landed in Node 20.13.0/21.7.0, and CI's Node 20 install predates it,
+      # so any jsdom-environment test (e.g. the a11y suite below) crashed
+      # with "webidl.util.markAsUncloneable is not a function" the moment
+      # jsdom instantiated its Cache API. Node 22 carries it.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
 
@@ -92,6 +99,14 @@ jobs:
       - name: Run Unit Tests
         working-directory: ./app/frontend
         run: npm test || npx vitest run
+
+      # #766: automated axe-core a11y audit of the QR/payment components
+      # (generator, pay page, payment states, QR preview). Run as its own
+      # step, like the i18n parity check above, so it isn't silently skipped
+      # by the wider unit test suite.
+      - name: Run accessibility (a11y) checks
+        working-directory: ./app/frontend
+        run: npx vitest run __tests__/a11y-payment-flow.test.tsx
 
   build:
     name: Build Frontend

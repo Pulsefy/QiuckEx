@@ -248,6 +248,53 @@ export class AppConfigService {
   }
 
   /**
+   * Whether the scheduled reconciliation worker is enabled (BE-124).
+   */
+  get reconciliationEnabled(): boolean {
+    return this.configService.get("RECONCILIATION_ENABLED", { infer: true });
+  }
+
+  /**
+   * Cron expression for scheduled reconciliation runs (BE-124).
+   */
+  get reconciliationCronExpression(): string {
+    return this.configService.get("RECONCILIATION_CRON_EXPRESSION", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Payment count discrepancy that raises a drift alert when exceeded (BE-124).
+   */
+  get reconciliationDriftCountThreshold(): number {
+    return this.configService.get("RECONCILIATION_DRIFT_COUNT_THRESHOLD", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Payment amount discrepancy (in stroops) that raises a drift alert when
+   * exceeded. Kept as a string so it can preserve full precision for BigInt
+   * comparisons (BE-124).
+   */
+  get reconciliationDriftAmountThresholdStroops(): string {
+    return this.configService.get(
+      "RECONCILIATION_DRIFT_AMOUNT_THRESHOLD_STROOPS",
+      { infer: true },
+    );
+  }
+
+  /**
+   * Consecutive failed or skipped reconciliation runs that raise an alert (BE-124).
+   */
+  get reconciliationConsecutiveFailureAlertThreshold(): number {
+    return this.configService.get(
+      "RECONCILIATION_CONSECUTIVE_FAILURE_ALERT_THRESHOLD",
+      { infer: true },
+    );
+  }
+
+  /**
    * QuickEx Soroban contract id (optional). Used for ingestion and soroban preflight.
    */
   get quickexContractId(): string | undefined {

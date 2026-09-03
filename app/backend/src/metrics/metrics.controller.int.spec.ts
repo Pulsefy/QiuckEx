@@ -156,15 +156,10 @@ describe('MetricsController', () => {
   });
 
   describe('guard integration', () => {
-    it('should have MetricsGuard applied to getMetrics endpoint', () => {
-      const guards = Reflect.getMetadata('__guards__', MetricsController.prototype.getMetrics);
+    it('should have MetricsGuard applied at controller level (protects both endpoints)', () => {
+      const guards = Reflect.getMetadata('__guards__', MetricsController);
       expect(guards).toBeDefined();
       expect(guards[0]).toBe(MetricsGuard);
-    });
-
-    it('should not have guard on getContentType endpoint', () => {
-      const guards = Reflect.getMetadata('__guards__', MetricsController.prototype.getContentType);
-      expect(guards).toBeUndefined();
     });
   });
 

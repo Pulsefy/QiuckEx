@@ -7,6 +7,7 @@ const mockRegistry = {
   registerMetric: jest.fn(),
   metrics: jest.fn().mockResolvedValue("mock metrics"),
   contentType: "text/plain",
+  getMetricsAsArray: jest.fn().mockReturnValue([]),
 };
 
 const mockHistogram = {
@@ -140,7 +141,7 @@ describe("MetricsService", () => {
         labelNames: ["service", "error_type"],
       });
 
-      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(24);
+      expect(mockRegistry.registerMetric).toHaveBeenCalledTimes(26);
     });
 
     it("should handle initialization errors gracefully", () => {

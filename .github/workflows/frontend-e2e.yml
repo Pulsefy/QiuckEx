@@ -53,6 +53,8 @@ jobs:
         working-directory: ./e2e
         run: npx playwright install --with-deps chromium
 
+      # Runs every spec under e2e/tests, including a11y-pay-flow.spec.ts
+      # (#766: axe-core audit of the generator and pay pages).
       - name: Run pay → receipt E2E
         if: steps.preview.outputs.configured == 'true'
         working-directory: ./e2e
