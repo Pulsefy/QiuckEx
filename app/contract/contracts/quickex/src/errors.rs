@@ -14,6 +14,7 @@ pub enum QuickexError {
     // Validation failures (100-199)
     InvalidAmount = 100,
     InvalidSalt = 101,
+    /// `enable_privacy`'s `privacy_level` was not `0` or `1` (Issue #862 / SC-W8-01).
     InvalidPrivacyLevel = 102,
     /// Batch size exceeds the maximum allowed limit.
     BatchSizeExceeded = 103,

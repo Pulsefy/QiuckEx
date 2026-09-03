@@ -15,14 +15,15 @@
 //! | [`ContractVersion`](DataKey::ContractVersion) | `u32` | Stored schema/version marker for upgrade migrations. |
 //! | [`Admin`](DataKey::Admin) | `Address`     | Contract admin address. Set during initialisation, transferable by admin. |
 //! | [`Paused`](DataKey::Paused) | `bool`       | Global pause flag. When true, critical operations may be blocked. |
-//! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | Numeric privacy level per account (0 = off). Used by `enable_privacy`. |
-//! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Per-account history of privacy level changes (chronological). |
+//! | [`PrivacyEnabled`](DataKey::PrivacyEnabled) | `bool` | **Canonical** privacy state per account (Issue #862 / SC-W8-01). Single source of truth for `set_privacy`/`get_privacy`/`enable_privacy`/`privacy_status`. |
+//! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | **Deprecated.** Legacy numeric privacy level (0 = off, nonzero = on). Read as a migration fallback only; cleared the first time the account's state is written through any privacy entrypoint. |
+//! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Append-only audit log of every `{0, 1}` value ever requested through `enable_privacy`, newest first. Not authoritative. |
 //!
 //! ## Related Keys (legacy compatibility)
 //!
 //! | Key                    | Format                    | Value Type | Description |
 //! |------------------------|---------------------------|------------|-------------|
-//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy boolean privacy on/off key. Read as a fallback and migrated to [`DataKey::PrivacyEnabled`] on write. |
+//! | `privacy_enabled`      | `(Symbol, Address)`       | `bool`     | Legacy boolean privacy on/off key (pre-typed-`DataKey`). Read as a fallback and migrated to [`DataKey::PrivacyEnabled`] on write. |
 //!
 //! ## Relations
 //!
@@ -30,8 +31,13 @@
 //!   (`SHA256(owner || amount || salt)`). The stored [`EscrowEntry`] contains token, amount, owner,
 //!   status, and created_at.
 //! - **Admin ↔ Paused**: Admin can set the paused flag. Both are singleton keys.
-//! - **PrivacyLevel ↔ PrivacyHistory**: Same account may have both; level is current, history is append-only.
-//! - **PrivacyLevel / PrivacyHistory ↔ PrivacyEnabled**: Separate APIs; level-based vs boolean. Both persist per `Address`.
+//! - **PrivacyEnabled ↔ PrivacyLevel ↔ `privacy_enabled` (legacy Symbol key)**: All three describe the
+//!   same logical account state. [`DataKey::PrivacyEnabled`] is authoritative; the other two are read-only
+//!   migration fallbacks consulted (in that order) only when the canonical key is absent, and are cleared
+//!   as soon as the account is written through [`crate::privacy`]. This makes it impossible for
+//!   `get_privacy`/`set_privacy` and `enable_privacy`/`privacy_status` to disagree about one account.
+//! - **PrivacyLevel ↔ PrivacyHistory**: History is a append-only log fed by `enable_privacy`; it does not
+//!   itself determine state.
 //!
 //! ## Backwards Compatibility
 //!
@@ -172,9 +178,10 @@ pub enum DataKey {
     UpgradeWindowEnd,
     /// Flag indicating an upgrade is in progress (between start_upgrade and complete_upgrade).
     UpgradeInProgress,
-    /// Numeric privacy level per account.
+    /// Deprecated numeric privacy level per account; read-only migration
+    /// fallback. See [`DataKey::PrivacyEnabled`] for the canonical state.
     PrivacyLevel(Address),
-    /// Privacy level change history per account.
+    /// Deprecated `enable_privacy` audit history per account. Not authoritative.
     PrivacyHistory(Address),
     /// Stealth escrow entry keyed by the 32-byte stealth address (Privacy v2).
     StealthEscrow(BytesN<32>),
@@ -196,7 +203,8 @@ pub enum DataKey {
     HookRegistry,
     /// Reentrancy guard to prevent callback-based reentry during hook execution.
     ReentrancyGuard,
-    /// Boolean privacy flag per account.
+    /// Canonical boolean privacy flag per account (Issue #862 / SC-W8-01).
+    /// Single source of truth for `set_privacy`/`get_privacy`/`enable_privacy`/`privacy_status`.
     PrivacyEnabled(Address),
     /// 32-byte WASM hash stored at the last `upgrade()` call (singleton).
     WasmHash,
@@ -781,25 +789,35 @@ pub fn is_paused(env: &Env) -> bool {
 }
 
 // -----------------------------------------------------------------------------
-// Privacy helpers (level-based API)
+// Privacy helpers (deprecated level-based API; see `crate::privacy` for the
+// canonical boolean state consolidated under Issue #862 / SC-W8-01)
 // -----------------------------------------------------------------------------
 
-/// Set privacy level for an account.
-pub fn set_privacy_level(env: &Env, account: &Address, level: u32) {
-    let key = DataKey::PrivacyLevel(account.clone());
-    env.storage().persistent().set(&key, &level);
-}
-
-/// Get privacy level for an account.
+/// Get the deprecated numeric privacy level for an account, if ever set.
+///
+/// Read-only migration fallback; new writes no longer go through this key.
 pub fn get_privacy_level(env: &Env, account: &Address) -> Option<u32> {
     let key = DataKey::PrivacyLevel(account.clone());
     env.storage().persistent().get(&key)
 }
 
-/// Add to privacy history for an account.
+/// Remove the deprecated numeric privacy level for an account, if present.
+///
+/// Called once the account's state has been written through the canonical
+/// [`crate::privacy`] API, so future reads can never fall back to stale data.
+pub fn clear_privacy_level(env: &Env, account: &Address) {
+    let key = DataKey::PrivacyLevel(account.clone());
+    if env.storage().persistent().has(&key) {
+        env.storage().persistent().remove(&key);
+    }
+}
+
+/// Add to the deprecated `enable_privacy` audit history for an account.
 ///
 /// **Contract**: Pushes `level` to the front of the history (newest first).
-/// History is unbounded; consider capping in future if needed.
+/// History is unbounded; consider capping in future if needed. This log is
+/// purely additive and does not itself determine canonical privacy state —
+/// see [`crate::privacy`].
 pub fn add_privacy_history(env: &Env, account: &Address, level: u32) {
     let key = DataKey::PrivacyHistory(account.clone());
     let mut history: Vec<u32> = env

@@ -151,44 +151,62 @@ impl QuickexContract {
         escrow::withdraw(&env, amount, to, salt, nonce, valid_until)
     }
 
-    /// Set a numeric privacy level for an account (legacy/level-based API).
+    /// Set privacy for an account via the deprecated numeric-level API
+    /// (Issue #862 / SC-W8-01: consolidated onto the canonical boolean state).
     ///
-    /// Records the level in storage and appends it to the account's privacy history.
-    /// For boolean on/off privacy, prefer [`set_privacy`](QuickexContract::set_privacy).
+    /// `privacy_level` must be `0` (disabled) or `1` (enabled); any other
+    /// value returns `InvalidPrivacyLevel`. This is a thin shim over
+    /// [`set_privacy`](QuickexContract::set_privacy) — same auth requirement,
+    /// same `PrivacyAlreadySet` idempotency error, same event — so the two
+    /// call styles can never disagree about an account's privacy state.
+    /// Prefer [`set_privacy`](QuickexContract::set_privacy) for new integrations.
     ///
     /// # Arguments
     /// * `env` - The contract environment
-    /// * `account` - The account to configure
-    /// * `privacy_level` - Numeric level (0 = off, higher = more privacy; interpretation is application-specific)
-    pub fn enable_privacy(env: Env, account: Address, privacy_level: u32) -> bool {
-        set_privacy_level(&env, &account, privacy_level);
-        add_privacy_history(&env, &account, privacy_level);
-        true
+    /// * `account` - The account to configure (must authorize)
+    /// * `privacy_level` - `0` = disabled, `1` = enabled
+    ///
+    /// # Errors
+    /// * `InvalidPrivacyLevel` - `privacy_level` is not `0` or `1`
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `PrivacyAlreadySet` - Privacy state is already at the requested value
+    pub fn enable_privacy(
+        env: Env,
+        account: Address,
+        privacy_level: u32,
+    ) -> Result<bool, QuickexError> {
+        admin::require_initialized(&env)?;
+        pause_policy::require_entry_allowed(&env, EntryPoint::SetPrivacy)?;
+        privacy::enable_privacy(&env, account, privacy_level)
     }
 
-    /// Get the current numeric privacy level for an account.
-    ///
-    /// Returns `None` if no level has been set.
+    /// Get the current privacy state for an account via the deprecated
+    /// numeric-level API. Returns `None` if the account has never touched
+    /// any privacy entrypoint, otherwise the canonical boolean state
+    /// projected into `{0, 1}` — it can never disagree with
+    /// [`get_privacy`](QuickexContract::get_privacy).
     ///
     /// # Arguments
     /// * `env` - The contract environment
     /// * `account` - The account to query
     pub fn privacy_status(env: Env, account: Address) -> Option<u32> {
-        get_privacy_level(&env, &account)
+        privacy::privacy_status(&env, account)
     }
 
-    /// Get the history of privacy level changes for an account.
+    /// Get the deprecated audit history of levels requested via
+    /// [`enable_privacy`](QuickexContract::enable_privacy).
     ///
-    /// Returns a vector of levels in chronological order (oldest first).
+    /// Returns a vector of levels, newest first. Purely additive; does not
+    /// itself determine an account's canonical privacy state.
     ///
     /// # Arguments
     /// * `env` - The contract environment
     /// * `account` - The account to query
     pub fn privacy_history(env: Env, account: Address) -> Vec<u32> {
-        get_privacy_history(&env, &account)
+        privacy::privacy_history(&env, account)
     }
 
-    /// Enable or disable privacy for an account.
+    /// Enable or disable privacy for an account (canonical API).
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -204,7 +222,7 @@ impl QuickexContract {
         privacy::set_privacy(&env, owner, enabled)
     }
 
-    /// Check the current privacy status of an account
+    /// Check the current privacy status of an account (canonical API).
     ///
     /// # Arguments
     /// * `env` - The contract environment

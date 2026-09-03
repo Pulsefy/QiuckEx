@@ -26,7 +26,7 @@
 use crate::{
     errors::QuickexError,
     events::EVENT_SCHEMA_VERSION,
-    storage::{CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION, PRIVACY_ENABLED_KEY},
+    storage::{DataKey, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION, PRIVACY_ENABLED_KEY},
     types::FeeConfig,
     EscrowStatus, QuickexContract, QuickexContractClient,
 };
@@ -625,6 +625,63 @@ fn upgrade_harness_legacy_symbol_privacy_key_readable_after_upgrade() {
     assert!(
         client.get_privacy(&user),
         "legacy Symbol-based privacy key must still be readable via fallback after upgrade"
+    );
+}
+
+/// Issue #862 (SC-W8-01): an account whose privacy state was set only through
+/// the deprecated numeric-level `enable_privacy` API before the consolidation
+/// must be readable — and consistent — through both call styles after the
+/// upgrade, and must converge onto the canonical key once touched.
+#[test]
+fn upgrade_harness_deprecated_privacy_level_migrates_to_canonical_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LegacyV0Contract, ());
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    {
+        let client = LegacyV0ContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+    }
+
+    // Seed only the deprecated numeric level key, simulating a pre-consolidation
+    // account that was never touched by the boolean `set_privacy` API.
+    env.as_contract(&contract_id, || {
+        let level_key = DataKey::PrivacyLevel(user.clone());
+        env.storage().persistent().set(&level_key, &1u32);
+    });
+
+    env.register_at(&contract_id, QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+    client.migrate(&admin);
+
+    // Both call styles agree, with no direct write yet.
+    assert!(
+        client.get_privacy(&user),
+        "legacy numeric level=1 must be readable as canonical `true` via get_privacy"
+    );
+    assert_eq!(
+        client.privacy_status(&user),
+        Some(1),
+        "privacy_status must agree with get_privacy for a legacy-only account"
+    );
+
+    // Touching the account through either API migrates it onto the canonical
+    // key and clears the deprecated numeric level permanently.
+    client.set_privacy(&user, &false);
+    assert!(!client.get_privacy(&user));
+    assert_eq!(client.privacy_status(&user), Some(0));
+
+    let level_still_present = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .has(&DataKey::PrivacyLevel(user.clone()))
+    });
+    assert!(
+        !level_still_present,
+        "deprecated PrivacyLevel key must be cleared once the account is migrated"
     );
 }
 

@@ -150,8 +150,10 @@ required fields.
 
 ### 3. Privacy
 
-- **Boolean**: `set_privacy(owner, enabled)` and `get_privacy(owner)` for on/off privacy.
-- **Level-based**: `enable_privacy(account, level)`, `privacy_status(account)`, `privacy_history(account)` for numeric levels.
+Privacy state is a single canonical boolean per account (Issue #862 / SC-W8-01), stored under `DataKey::PrivacyEnabled`. It is impossible for the two call styles below to disagree about the same account.
+
+- **Canonical**: `set_privacy(owner, enabled)` and `get_privacy(owner)`.
+- **Deprecated shim**: `enable_privacy(account, level)` (`level` must be `0` or `1`), `privacy_status(account)`, `privacy_history(account)`. These delegate to the same underlying state and error handling as `set_privacy`/`get_privacy` — prefer the canonical pair for new integrations. Accounts whose state was last written through this deprecated API before the consolidation are transparently migrated onto the canonical key the first time either API touches them.
 
 ### 4. Admin
 
@@ -184,8 +186,9 @@ The contract uses persistent storage with the following structure:
 - `DataKey::EscrowCounter` - Tracks the number of escrows created
 - `DataKey::Admin` - Stores the admin address
 - `DataKey::Paused` - Stores the paused state of the contract
-- `DataKey::PrivacyLevel(Address)` - Stores privacy level for each account
-- `DataKey::PrivacyHistory(Address)` - Stores privacy history for each account
+- `DataKey::PrivacyEnabled(Address)` - Canonical boolean privacy state for each account (single source of truth)
+- `DataKey::PrivacyLevel(Address)` - Deprecated numeric privacy level; read-only migration fallback
+- `DataKey::PrivacyHistory(Address)` - Append-only audit history from the deprecated `enable_privacy` shim
 
 The `EscrowEntry` struct contains:
 
@@ -203,9 +206,11 @@ Helper functions:
 
 ### Privacy Management
 
-- `enable_privacy(account: Address, level: u32)` - Enable privacy for an account
-- `privacy_status(account: Address)` - Get privacy status for an account
-- `privacy_history(account: Address)` - Get privacy change history
+- `set_privacy(owner: Address, enabled: bool)` - Canonical entrypoint; enable/disable privacy for an account
+- `get_privacy(owner: Address)` - Canonical entrypoint; get current privacy state for an account
+- `enable_privacy(account: Address, privacy_level: u32)` - Deprecated shim (`privacy_level` must be `0` or `1`); delegates to `set_privacy`
+- `privacy_status(account: Address)` - Deprecated shim; get canonical privacy state as `Option<u32>`
+- `privacy_history(account: Address)` - Deprecated audit history of levels requested via `enable_privacy`
 
 ### Escrow
 

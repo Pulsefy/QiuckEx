@@ -11,8 +11,9 @@
 //!
 //! | Section                          | Paths covered                                  |
 //! |----------------------------------|------------------------------------------------|
-//! | Level-based privacy API          | `enable_privacy`, `privacy_status`,            |
-//! |                                  | `privacy_history` (level ordering, edge cases) |
+//! | Deprecated privacy shim          | `enable_privacy`, `privacy_status`,            |
+//! |                                  | `privacy_history` consolidated onto the        |
+//! |                                  | canonical boolean state (Issue #862)           |
 //! | `deposit_with_commitment` errors | `CommitmentAlreadyExists`, arbiter storage     |
 //! | Refund edge cases                | `EscrowNotExpired` (no-expiry + before-expiry) |
 //! | `verify_proof_view` expiry       | Returns `false` for expired, pending escrow    |
@@ -31,63 +32,107 @@ use crate::{
 use soroban_sdk::{testutils::Events, BytesN, TryIntoVal};
 
 // ============================================================================
-// Level-based privacy API (enable_privacy / privacy_status / privacy_history)
+// Deprecated numeric privacy shim (enable_privacy / privacy_status /
+// privacy_history), consolidated onto the canonical boolean state in
+// `crate::privacy` (Issue #862 / SC-W8-01).
 // ============================================================================
 
-/// `enable_privacy` sets the numeric level and records an entry in history.
+/// `enable_privacy` sets the canonical boolean state and records an entry in
+/// history; `privacy_status` reports it back projected into `{0, 1}`.
 #[test]
-fn test_enable_privacy_sets_level_and_records_history() {
-    let ctx = TestContext::new();
+fn test_enable_privacy_sets_canonical_state_and_records_history() {
+    let ctx = TestContext::with_admin();
     let account = ctx.alice.clone();
 
-    // Default: no level set, empty history
+    // Default: no state set, empty history
     assert_eq!(ctx.client.privacy_status(&account), None);
     assert_eq!(ctx.client.privacy_history(&account).len(), 0);
 
     // Enable privacy at level 1
-    let ok = ctx.client.enable_privacy(&account, &1);
-    assert!(ok);
+    let enabled = ctx.client.enable_privacy(&account, &1);
+    assert!(enabled);
     assert_eq!(ctx.client.privacy_status(&account), Some(1));
     assert_eq!(ctx.client.privacy_history(&account).len(), 1);
+
+    // The canonical boolean API agrees.
+    assert!(ctx.client.get_privacy(&account));
 }
 
-/// Multiple `enable_privacy` calls each append to history (newest first).
+/// `privacy_level` outside `{0, 1}` is rejected rather than silently coerced,
+/// since the canonical representation is boolean.
+#[test]
+fn test_enable_privacy_rejects_out_of_range_level() {
+    let ctx = TestContext::with_admin();
+    let result = ctx.client.try_enable_privacy(&ctx.alice, &2);
+    assert_qx_err(result, QuickexError::InvalidPrivacyLevel);
+}
+
+/// Each successful `enable_privacy` call appends to history (newest first);
+/// repeating the same level is rejected, exactly like `set_privacy`.
 #[test]
 fn test_enable_privacy_history_appends_newest_first() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::with_admin();
     let account = ctx.alice.clone();
 
+    ctx.client.enable_privacy(&account, &1);
     ctx.client.enable_privacy(&account, &0);
     ctx.client.enable_privacy(&account, &1);
-    ctx.client.enable_privacy(&account, &2);
 
     let history = ctx.client.privacy_history(&account);
     // `add_privacy_history` uses `push_front` → newest value at index 0
-    assert_eq!(history.get(0), Some(2u32));
-    assert_eq!(history.get(1), Some(1u32));
-    assert_eq!(history.get(2), Some(0u32));
+    assert_eq!(history.get(0), Some(1u32));
+    assert_eq!(history.get(1), Some(0u32));
+    assert_eq!(history.get(2), Some(1u32));
 
-    // privacy_status reflects the most-recently-set level
-    assert_eq!(ctx.client.privacy_status(&account), Some(2));
+    // privacy_status reflects the most-recently-set state
+    assert_eq!(ctx.client.privacy_status(&account), Some(1));
+
+    // Repeating the current value fails closed, same as `set_privacy`.
+    let result = ctx.client.try_enable_privacy(&account, &1);
+    assert_qx_err(result, QuickexError::PrivacyAlreadySet);
 }
 
-/// Level 0 is a valid privacy level (represents "off" for the numeric API).
+/// Level 0 is a valid privacy level (maps to canonical `false`). Since a
+/// never-touched account already defaults to `false`, requesting `0` first
+/// requires moving off that default (`1`) — same `PrivacyAlreadySet`
+/// idempotency rule `set_privacy` applies to a fresh account.
 #[test]
 fn test_enable_privacy_level_zero_is_valid() {
-    let ctx = TestContext::new();
-    ctx.client.enable_privacy(&ctx.bob.clone(), &0);
-    assert_eq!(ctx.client.privacy_status(&ctx.bob), Some(0));
-    assert_eq!(ctx.client.privacy_history(&ctx.bob).len(), 1);
+    let ctx = TestContext::with_admin();
+    let bob = ctx.bob.clone();
+
+    ctx.client.enable_privacy(&bob, &1);
+    ctx.client.enable_privacy(&bob, &0);
+
+    assert_eq!(ctx.client.privacy_status(&bob), Some(0));
+    assert_eq!(ctx.client.privacy_history(&bob).len(), 2);
+    assert!(!ctx.client.get_privacy(&bob));
 }
 
 /// `enable_privacy` for a different account does not affect another account.
 #[test]
 fn test_enable_privacy_is_per_account() {
-    let ctx = TestContext::new();
-    ctx.client.enable_privacy(&ctx.alice.clone(), &5);
-    assert_eq!(ctx.client.privacy_status(&ctx.alice), Some(5));
-    // Bob's level is unaffected
+    let ctx = TestContext::with_admin();
+    ctx.client.enable_privacy(&ctx.alice.clone(), &1);
+    assert_eq!(ctx.client.privacy_status(&ctx.alice), Some(1));
+    // Bob's state is unaffected
     assert_eq!(ctx.client.privacy_status(&ctx.bob), None);
+}
+
+/// The two call styles can never disagree: toggling through `set_privacy`
+/// is visible through `privacy_status`, and vice versa.
+#[test]
+fn test_privacy_apis_stay_consistent_across_call_styles() {
+    let ctx = TestContext::with_admin();
+    let account = ctx.alice.clone();
+
+    ctx.client.set_privacy(&account, &true);
+    assert_eq!(ctx.client.privacy_status(&account), Some(1));
+    assert!(ctx.client.get_privacy(&account));
+
+    ctx.client.enable_privacy(&account, &0);
+    assert!(!ctx.client.get_privacy(&account));
+    assert_eq!(ctx.client.privacy_status(&account), Some(0));
 }
 
 // ============================================================================
