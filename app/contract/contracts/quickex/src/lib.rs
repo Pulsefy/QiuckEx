@@ -35,6 +35,8 @@ mod fee_router_test;
 #[cfg(test)]
 mod fee_test;
 #[cfg(test)]
+mod fee_treasury_test;
+#[cfg(test)]
 mod fuzz_test;
 mod hook;
 #[cfg(test)]
@@ -1366,6 +1368,45 @@ impl QuickexContract {
     /// Read current active fee collector (rotation-aware).
     pub fn get_active_fee_collector(env: Env) -> Option<Address> {
         fee_router::active_collector(&env)
+    }
+
+    /// Get the accrued, admin-withdrawable protocol fee balance for `token`
+    /// (read-only; Issue #866 / SC-W8-05).
+    ///
+    /// This is only ever credited from the platform-fee portion of a
+    /// settlement that had no configured collector to forward to (see
+    /// `get_active_fee_collector`) — it never includes escrowed principal.
+    pub fn get_accrued_fee_balance(env: Env, token: Address) -> i128 {
+        storage::get_accrued_fee_balance(&env, &token)
+    }
+
+    /// Withdraw accrued protocol fees for `token` to `recipient` (**Admin only**).
+    ///
+    /// Draws exclusively from the accrued-fee treasury for `token`; can never
+    /// touch escrowed principal, which is never credited to that ledger.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `caller` - Must be admin
+    /// * `token` - The token contract address to withdraw
+    /// * `amount` - Amount to withdraw; must be positive and at most the accrued balance
+    /// * `recipient` - Address to receive the withdrawn fees
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - `amount` is zero or negative
+    /// * `Overpayment` - `amount` exceeds the token's accrued fee balance
+    /// * `InsufficientRole` - Caller is not admin
+    /// * `ContractPaused` / `OperationPaused` - Blocked by pause or emergency mode policy
+    pub fn withdraw_fees(
+        env: Env,
+        caller: Address,
+        token: Address,
+        amount: i128,
+        recipient: Address,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::WithdrawFees)?;
+        hook::assert_not_reentrant(&env)?;
+        admin::withdraw_fees(&env, &caller, token, amount, recipient)
     }
 
     /// Get the status of an escrow by its commitment hash (read-only).

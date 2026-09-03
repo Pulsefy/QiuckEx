@@ -348,6 +348,19 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "FeeWithdrawn",
+        topics: &[EVENT_TOPIC_ADMIN, "FeeWithdrawn", "token"],
+        payload_keys: &[
+            "actor",
+            "amount",
+            "recipient",
+            "remaining_balance",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "PartialPayment",
         topics: &[EVENT_TOPIC_ESCROW, "PartialPayment", "escrow_id", "payer"],
         payload_keys: &[
@@ -1400,6 +1413,41 @@ pub(crate) fn publish_fee_collector_rotated(
     FeeCollectorRotatedEvent {
         new_collector,
         rotation_index,
+        schema_version: EVENT_SCHEMA_VERSION,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+/// Emitted when accrued protocol fees are withdrawn from the treasury
+/// (Issue #866 / SC-W8-05).
+#[contractevent(topics = ["TOPIC_ADMIN", "FeeWithdrawn"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeWithdrawnEvent {
+    #[topic]
+    pub token: Address,
+    pub actor: Address,
+    pub amount: i128,
+    pub recipient: Address,
+    pub remaining_balance: i128,
+    pub schema_version: u32,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_fee_withdrawn(
+    env: &Env,
+    token: Address,
+    actor: Address,
+    amount: i128,
+    recipient: Address,
+    remaining_balance: i128,
+) {
+    FeeWithdrawnEvent {
+        token,
+        actor,
+        amount,
+        recipient,
+        remaining_balance,
         schema_version: EVENT_SCHEMA_VERSION,
         timestamp: env.ledger().timestamp(),
     }

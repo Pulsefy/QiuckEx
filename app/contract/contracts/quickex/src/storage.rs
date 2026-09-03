@@ -55,6 +55,7 @@ use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, Vec};
 #[cfg(test)]
 use soroban_sdk::xdr::ToXdr;
 
+use crate::errors::QuickexError;
 use crate::types::{
     CachedOraclePrice, DisputeVote, EscrowEntry, FeeConfig, PendingAdminProposal, Role,
     StealthEscrowEntry,
@@ -136,6 +137,8 @@ pub enum PauseFlag {
     DepositWithCommitment = 8,
     SetPrivacy = 16,
     CreateAmountCommitment = 32,
+    /// Fee treasury withdrawal (Issue #866 / SC-W8-05).
+    FeeWithdrawal = 64,
 }
 
 // -----------------------------------------------------------------------------
@@ -240,6 +243,11 @@ pub enum DataKey {
     /// Per-dispute frozen quorum snapshot, keyed by commitment (SC-W8-04).
     /// See [`crate::dispute_quorum::DisputeQuorumSnapshot`].
     DisputeQuorum(Bytes),
+    /// Accrued, admin-withdrawable protocol fee balance per token (Issue #866
+    /// / SC-W8-05). Only ever credited from the platform-fee portion of a
+    /// settlement that had no configured collector to forward to — never
+    /// from escrowed principal. See `fee_router` and `admin::withdraw_fees`.
+    AccruedFees(Address),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -873,6 +881,48 @@ pub fn set_platform_wallet(env: &Env, wallet: &Address) {
     env.storage()
         .persistent()
         .set(&DataKey::PlatformWallet, wallet);
+}
+
+// -----------------------------------------------------------------------------
+// Accrued fee treasury (Issue #866 / SC-W8-05)
+// -----------------------------------------------------------------------------
+
+/// Get the accrued, admin-withdrawable protocol fee balance for `token`.
+///
+/// Defaults to `0` if the token has never accrued an un-forwarded fee.
+pub fn get_accrued_fee_balance(env: &Env, token: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AccruedFees(token.clone()))
+        .unwrap_or(0)
+}
+
+/// Credit `amount` to `token`'s accrued fee balance.
+///
+/// Called only from `fee_router` when a settlement's platform-fee portion
+/// has no configured collector to forward to; never from escrow principal.
+pub fn add_accrued_fee(env: &Env, token: &Address, amount: i128) {
+    let key = DataKey::AccruedFees(token.clone());
+    let current = get_accrued_fee_balance(env, token);
+    env.storage()
+        .persistent()
+        .set(&key, &current.saturating_add(amount));
+    set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+}
+
+/// Debit `amount` from `token`'s accrued fee balance.
+///
+/// # Errors
+/// - [`QuickexError::Overpayment`] – `amount` exceeds the current accrued balance.
+pub fn subtract_accrued_fee(env: &Env, token: &Address, amount: i128) -> Result<(), QuickexError> {
+    let key = DataKey::AccruedFees(token.clone());
+    let current = get_accrued_fee_balance(env, token);
+    if amount > current {
+        return Err(QuickexError::Overpayment);
+    }
+    env.storage().persistent().set(&key, &(current - amount));
+    set_or_extend_ttl(env, &key, RecordType::FeeConfig);
+    Ok(())
 }
 
 pub fn get_oracle_fee_config(env: &Env) -> Option<crate::types::OracleFeeConfig> {
