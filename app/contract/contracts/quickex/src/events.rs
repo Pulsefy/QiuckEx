@@ -228,6 +228,19 @@ pub const EVENT_SCHEMAS: &[EventSchema] = &[
         schema_version: EVENT_SCHEMA_VERSION,
     },
     EventSchema {
+        name: "DisputeQuorumTimeout",
+        topics: &[EVENT_TOPIC_DISPUTE, "DisputeQuorumTimeout", "escrow_id"],
+        payload_keys: &[
+            "amount",
+            "deadline",
+            "fresh_votes",
+            "required_votes",
+            "schema_version",
+            "timestamp",
+        ],
+        schema_version: EVENT_SCHEMA_VERSION,
+    },
+    EventSchema {
         name: "EmergencyModeActivated",
         topics: &[EVENT_TOPIC_ADMIN, "EmergencyModeActivated", "admin"],
         payload_keys: &["schema_version", "timestamp"],
@@ -1323,6 +1336,44 @@ pub(crate) fn publish_dispute_resolved(
         schema_version: EVENT_SCHEMA_VERSION,
         total_votes,
         threshold,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+}
+
+/// Emitted when a multi-sig dispute is resolved via the quorum-timeout
+/// fallback (Issue #865 / SC-W8-04) rather than a genuine majority vote —
+/// distinguishable from [`DisputeResolvedEvent`] for indexers that need to
+/// tell the two resolution paths apart.
+#[contractevent(topics = ["TOPIC_DISPUTE", "DisputeQuorumTimeout"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisputeQuorumTimeoutEvent {
+    #[topic]
+    pub escrow_id: BytesN<32>,
+
+    pub schema_version: u32,
+    pub fresh_votes: u32,
+    pub required_votes: u32,
+    pub deadline: u64,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+pub(crate) fn publish_dispute_quorum_timeout(
+    env: &Env,
+    commitment: BytesN<32>,
+    fresh_votes: u32,
+    required_votes: u32,
+    deadline: u64,
+    amount: i128,
+) {
+    DisputeQuorumTimeoutEvent {
+        escrow_id: commitment,
+        schema_version: EVENT_SCHEMA_VERSION,
+        fresh_votes,
+        required_votes,
+        deadline,
         amount,
         timestamp: env.ledger().timestamp(),
     }

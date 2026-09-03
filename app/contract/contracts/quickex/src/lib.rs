@@ -17,6 +17,9 @@ mod commitment;
 mod commitment_test;
 #[cfg(test)]
 mod coverage_test;
+mod dispute_quorum;
+#[cfg(test)]
+mod dispute_quorum_test;
 #[cfg(test)]
 mod error_codes_test;
 mod errors;
@@ -779,7 +782,10 @@ impl QuickexContract {
     /// Cast a vote on a disputed escrow (multi-sig mode).
     ///
     /// Only callable by one of the assigned arbiters. Each arbiter can vote once.
-    /// When the threshold is reached, anyone can call `resolve_dispute_multi_sig`.
+    /// When quorum is reached, anyone can call `resolve_dispute_multi_sig`.
+    /// Voting closes at the dispute's frozen quorum-snapshot deadline
+    /// (Issue #865 / SC-W8-04); a vote also stops counting toward quorum
+    /// once it goes stale relative to that same window.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -789,7 +795,8 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `CommitmentNotFound` - No escrow exists for the commitment
-    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status, or the
+    ///   dispute's voting deadline has passed
     /// * `NotAnArbiter` - Caller is not one of the assigned arbiters
     /// * `ArbiterAlreadyVoted` - Caller has already voted on this dispute
     pub fn vote_for_dispute(
@@ -814,8 +821,10 @@ impl QuickexContract {
 
     /// Resolve a disputed escrow using multi-sig arbitration.
     ///
-    /// Can be called by anyone once the threshold is met. The outcome is determined
-    /// by majority vote among the votes cast.
+    /// Can be called by anyone once quorum is met with fresh (non-expired)
+    /// votes. The outcome is determined by majority among those fresh votes.
+    /// If quorum cannot be reached before the dispute's deadline, see
+    /// `resolve_dispute_timeout` for the documented fallback path.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -825,7 +834,7 @@ impl QuickexContract {
     /// # Errors
     /// * `CommitmentNotFound` - No escrow exists for the commitment
     /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
-    /// * `InsufficientVotes` - Threshold has not been reached yet
+    /// * `InsufficientVotes` - Quorum has not been reached yet
     pub fn resolve_dispute_multi_sig(
         env: Env,
         commitment: BytesN<32>,
@@ -834,6 +843,61 @@ impl QuickexContract {
         pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
         hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute_multi_sig(&env, commitment, recipient)
+    }
+
+    /// Fallback resolution for a multi-sig dispute that missed quorum before
+    /// its voting deadline (Issue #865 / SC-W8-04).
+    ///
+    /// Callable by anyone once the dispute's frozen quorum deadline has
+    /// passed with too few fresh votes to resolve via `resolve_dispute_multi_sig`.
+    /// Deterministically refunds the owner, guaranteeing funds are never
+    /// permanently stuck behind a quorum arbiters failed to reach in time.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `commitment` - 32-byte commitment hash identifying the escrow
+    ///
+    /// # Errors
+    /// * `CommitmentNotFound` - No escrow exists for the commitment
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status; also
+    ///   returned if the voting deadline hasn't passed yet, or if fresh votes
+    ///   already meet quorum (use `resolve_dispute_multi_sig` instead)
+    /// * `NoArbiter` - Not a multi-sig dispute
+    pub fn resolve_dispute_timeout(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
+        hook::assert_not_reentrant(&env)?;
+        escrow::resolve_dispute_timeout(&env, commitment)
+    }
+
+    /// Get the current dispute-quorum policy (read-only).
+    ///
+    /// See `dispute_quorum` module docs for how this interacts with
+    /// already-open disputes (Issue #865 / SC-W8-04).
+    pub fn get_dispute_quorum_config(env: Env) -> dispute_quorum::DisputeQuorumConfig {
+        dispute_quorum::get_quorum_config(&env)
+    }
+
+    /// Set the dispute-quorum policy (**Admin only**).
+    ///
+    /// Only affects disputes opened *after* this call; an in-flight dispute's
+    /// quorum and deadline were already frozen when it opened and cannot be
+    /// retroactively changed (Issue #865 / SC-W8-04 AC4).
+    ///
+    /// The new `config` must satisfy
+    /// `MIN_QUORUM ≤ quorum ≤ MAX_QUORUM` and
+    /// `MIN_VOTE_TTL_SECS ≤ vote_ttl_secs ≤ MAX_VOTE_TTL_SECS`.
+    ///
+    /// # Errors
+    /// - `QuorumOutOfBounds` – `quorum` or `vote_ttl_secs` violates hard bounds.
+    /// - `InsufficientRole` – caller is not admin.
+    pub fn set_dispute_quorum_config(
+        env: Env,
+        caller: Address,
+        config: dispute_quorum::DisputeQuorumConfig,
+    ) -> Result<(), QuickexError> {
+        pause_policy::require_admin_entry_allowed(&env)?;
+        admin::require_admin(&env, &caller)?;
+        dispute_quorum::set_quorum_config(&env, config)
     }
 
     /// Initialize the contract with an admin address (one-time only).

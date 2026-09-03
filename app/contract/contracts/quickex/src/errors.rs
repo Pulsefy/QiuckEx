@@ -7,6 +7,12 @@ use soroban_sdk::contracterror;
 /// - 200-299: auth/admin failures
 /// - 300-399: state, escrow, and commitment violations
 /// - 900-999: internal/unexpected conditions
+///
+/// **Capacity warning:** Soroban's `#[contracterror]` spec (`ScSpecUdtErrorEnumV0`)
+/// hard-caps a single error enum at 50 cases (`VecM<_, 50>`); exceeding it fails
+/// the build with `LengthExceedsMax`. This enum is very close to that ceiling —
+/// prefer reusing an existing, semantically-close variant over adding a new one
+/// unless the distinction is genuinely load-bearing for callers.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -75,6 +81,8 @@ pub enum QuickexError {
     /// The requested TTL value violates the configured policy bounds
     /// (either below the minimum or above the maximum allowed ledgers).
     TtlOutOfBounds = 324,
+    /// Dispute-quorum config (`quorum` or `vote_ttl_secs`) violates hard bounds.
+    QuorumOutOfBounds = 325,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

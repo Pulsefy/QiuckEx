@@ -234,6 +234,12 @@ pub enum DataKey {
     OracleSourcePrice(Address),
     /// Multi-source oracle aggregation configuration (singleton, SC-W8-06).
     OracleAggregationConfig,
+    /// Admin-configurable dispute quorum / vote-TTL policy (singleton, SC-W8-04).
+    /// See [`crate::dispute_quorum::DisputeQuorumConfig`].
+    DisputeQuorumConfig,
+    /// Per-dispute frozen quorum snapshot, keyed by commitment (SC-W8-04).
+    /// See [`crate::dispute_quorum::DisputeQuorumSnapshot`].
+    DisputeQuorum(Bytes),
 }
 
 /// Compact escrow record stored on the hot path.
@@ -1123,12 +1129,24 @@ pub fn has_dispute_vote(env: &Env, commitment: &Bytes, arbiter: &Address) -> boo
     env.storage().persistent().has(&key)
 }
 
-/// Count the number of votes for a disputed escrow.
-pub fn count_dispute_votes(env: &Env, commitment: &Bytes, arbiters: &Vec<Address>) -> u32 {
+/// Count the number of *fresh* votes for a disputed escrow (Issue #865 / SC-W8-04).
+///
+/// A vote only counts toward quorum while `now <= voted_at + vote_ttl_secs`;
+/// a stale vote is silently excluded rather than treated as an error, so a
+/// slow-moving dispute cannot be resolved on long-expired opinions.
+pub fn count_dispute_votes(
+    env: &Env,
+    commitment: &Bytes,
+    arbiters: &Vec<Address>,
+    vote_ttl_secs: u64,
+) -> u32 {
+    let now = env.ledger().timestamp();
     let mut count = 0;
     for arbiter in arbiters.iter() {
-        if has_dispute_vote(env, commitment, &arbiter) {
-            count += 1;
+        if let Some(vote) = get_dispute_vote(env, commitment, &arbiter) {
+            if now <= vote.voted_at.saturating_add(vote_ttl_secs) {
+                count += 1;
+            }
         }
     }
     count
