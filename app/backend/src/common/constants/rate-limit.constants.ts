@@ -17,6 +17,6 @@ export const RATE_LIMITs = {
   },
 };
 
-export type RateLimitGroup = keyof typeof RATE_LIMITS;
+export type RateLimitGroup = keyof typeof RATE_LIMITs;
 
 export const DEFAULT_RATE_LIMIT_GROUP: RateLimitGroup = 'public-read';
