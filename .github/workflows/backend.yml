@@ -6,9 +6,8 @@ on:
       - "app/backend/**"
   pull_request:
     branches: [main, develop]
-    paths: 
+    paths:
       - "app/backend/**"
-
 jobs:
   build-and-test:
     name: Build and Test
@@ -16,7 +15,6 @@ jobs:
     defaults:
       run:
         working-directory: app/backend
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -27,30 +25,24 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ci_test -d quickex_test"
+          --health-cmd "pgisready -U ci_test -d quickex_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@Z5
-
+        uses: actions/checkout@v5
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "24"
-
       - name: Install pnpm
-        uses: pnpm/action-setupe@v5
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-
       - name: Lint
         run: pnpm run lint
-
       - name: Build
         run: pnpm run build
