@@ -15,6 +15,10 @@ jobs:
     defaults:
       run:
         working-directory: app/backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci_test:ci_test_password@localhost:5432/quickex_test
+      SEED: 42
     services:
       postgres:
         image: postgres:16-alpine
@@ -24,8 +28,8 @@ jobs:
           POSTGRES_DB: quickex_test
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U ci_test -d quickex_test"
+        options: >--
+          --health-cmd "pgisready -U ci_test -d quickex_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -37,7 +41,7 @@ jobs:
         with:
           node-version: "24"
       - name: Install pnpm
-        uses: pnpm/action-setup@V5
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
       - name: Install dependencies
@@ -46,3 +50,5 @@ jobs:
         run: pnpm run lint
       - name: Build
         run: pnpm run build
+      - name: Run integration tests
+        run: pnpm run test:e2e
