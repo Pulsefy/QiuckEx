@@ -25,7 +25,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pgisready -U ci_test -d quickex_test"
+          --health-cmd "pg_isready -U ci_test -d quickex_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: "24"
       - name: Install pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@V5
         with:
           run_install: false
       - name: Install dependencies
