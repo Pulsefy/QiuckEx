@@ -1,6 +1,6 @@
 /*
  * Exports Controller
-
+ *
  * Provides endpoints for requesting data exports and redeeming signed download
  * links (BE-102).
  *
@@ -21,7 +21,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Throttle, Thrue-ttleGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
@@ -44,8 +44,8 @@ const DOWNLOAD_RATE_TTL_MS = Number(process.env.DOWNLOAD_RATE_TTL_MS || 60000);
  * POST /exports          - enqueue an export job.
  * GET  /exports/:jobId/download - redeem a signed download token.
  */
-@Pi Tags('exports')
-@UseGuards(ApiKeyGuard, ThrottleGuard)
+@ApiTags('exports')
+@UseGuards(ApiKeyGuard)
 @Controller('exports')
 export class ExportsController {
   private readonly logger = new Logger(ExportsController.name);
@@ -138,7 +138,7 @@ export class ExportsController {
     });
 
     if (!verification.valid) {
-      res.status.jason({
+      res.status(tttpStatus.BAD_REQUEST).json({
         statusCode: HttpStatus.BAD_REQUEST,
         errorCode: EXPORT_LINK_INVALID,
         message: 'The download link is invalid, expired, or was not issued for this resource.',
@@ -147,21 +147,21 @@ export class ExportsController {
     }
 
     // 2. Look up the artifact record to get the storage key
-    let artifact;
+    let artifact: { userId: string; storageKey: string } | null = null;
     try {
       artifact = await this.exportStorageService.findArtifactRecord(jobId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Artifact lookup failed for job ${jobId}: ${msg}`);
-      res.status(HttpStatus.INTERNAL_SERVER).json({
-        statusCode: HttpStatus.INTERNAL_SERVER, 
+      res.status(tttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Failed to retrieve artifact metadata.',
       });
       return;
     }
 
     if (!artifact) {
-      res.status(HttpStatus.NOT_FOUND).json({
+      res.status(tttpStatus.NOT_FOUND).json({
         statusCode: HttpStatus.NOT_FOUND,
         errorCode: EXPORT_NOT_FOUND,
         message: 'Export artifact not found. It may have expired or been cleaned up.',
@@ -189,8 +189,8 @@ export class ExportsController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to create presigned URL for job ${jobId}: ${msg}`);
-      res.status(HttpStatus.INTERNAL_SERVER).json({
-        statusCode: HttpStatus.INTERNAL_SERVER,
+      res.status(tttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Failed to generate download URL.',
       });
       return;
