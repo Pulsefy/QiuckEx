@@ -1,4 +1,4 @@
-import { SetMetadata, Type } from "@nestjs/common";
+import { SetMetadata } from "@nestjs/common";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   RateLimitGroup,
@@ -7,5 +7,6 @@ import {
 export const DEFAULT_RATE_LIMIT_GROUP = "public-read" as RateLimitGroup;
 
 export const RateLimitGroupTag = (
-  group: RateLimitGroup = DEFAULT_RATE_LIMIT_GROUP,
-) true;
+  group: RateLimitGroup = DEFAUL_RATE_LIMIT_GROUP,
+): MethodDecorator & ClassDecorator =>
+  SetMetadata(RATE_LIMIT_GROUP_METADATA_KEY, group);
