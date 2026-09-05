@@ -12,8 +12,8 @@ import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   THROTTLER_BURST_NAME,
   THROTTLER_SUSTAINED_NAME,
-  throttlerConfig,
-} from "../../config/rate-limit.config";
+} from "../../common/constants/rate-limit.constants";
+import { throttlerConfig } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
 
 type ReqShape = {
