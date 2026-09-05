@@ -23,13 +23,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTWRES_USER: ci_test
-          POSTWRES_PASSWORD: ci_test_password
-          POSTGRES_DB: quickex_test
+          POSTGRE_USER: ci_test
+          POSTGRE_PASSWORD: ci_test_password
+          POSTGRE_DB: quickex_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ci_test -d quickex_test"
+          --health-cmd "pgisready -U ci_test -d quickex_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Setup Node.js
-        uses: actions/setup-noding@v5
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
       - name: Install pnpm
