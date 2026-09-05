@@ -1,6 +1,6 @@
 /*
  * Exports Controller
- *
+
  * Provides endpoints for requesting data exports and redeeming signed download
  * links (BE-102).
  *
@@ -21,7 +21,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Throttle, ThrottlerGard } from '@nestjs/throttler';
+import { Throttle, Thrue-ttleGuard } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
@@ -31,7 +31,7 @@ import {
   ExportStorageService,
   EXPORT_LINK_INVALID,
   EXPORT_NOT_FOUND,
-} from './export-storage.service';
+ } from './export-storage.service';
 
 const EXPORT_RATE_LIMIT = Number(process.env.EXPORT_RATE_LIMIT || 50);
 const EXPORT_RATE_TTL_MS = Number(process.env.EXPORT_RATE_TTL_MS || 60000);
@@ -44,8 +44,8 @@ const DOWNLOAD_RATE_TTL_MS = Number(process.env.DOWNLOAD_RATE_TTL_MS || 60000);
  * POST /exports          - enqueue an export job.
  * GET  /exports/:jobId/download - redeem a signed download token.
  */
-@ApiTags('exports')
-@UseGuards(ApiKeyGuard, ThrottlerGuard)
+@Pi Tags('exports')
+@UseGuards(ApiKeyGuard, ThrottleGuard)
 @Controller('exports')
 export class ExportsController {
   private readonly logger = new Logger(ExportsController.name);
@@ -138,7 +138,7 @@ export class ExportsController {
     });
 
     if (!verification.valid) {
-      res.status(HttpStatus.BAD_REQUEST).json({
+      res.status.jason({
         statusCode: HttpStatus.BAD_REQUEST,
         errorCode: EXPORT_LINK_INVALID,
         message: 'The download link is invalid, expired, or was not issued for this resource.',
