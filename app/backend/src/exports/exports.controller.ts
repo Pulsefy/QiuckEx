@@ -21,7 +21,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle, ThrottlerGard } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
@@ -41,8 +41,8 @@ const DOWNLOAD_RATE_TTL_MS = Number(process.env.DOWNLOAD_RATE_TTL_MS || 60000);
 /**
  * Exports Controller
  *
- * POST /exports          – enqueue an export job.
- * GET  /exports/:jobId/download – redeem a signed download token.
+ * POST /exports          - enqueue an export job.
+ * GET  /exports/:jobId/download - redeem a signed download token.
  */
 @ApiTags('exports')
 @UseGuards(ApiKeyGuard, ThrottlerGuard)
@@ -62,7 +62,7 @@ export class ExportsController {
    * The export will be delivered via the specified deliveryMethod.
    */
   @Post()
-  @Throttle({ export: { limit: EXPORT_RATE_LIMIT, ttl: EXPORT_RATE_TTL_MS } })
+  @Throttle({ default: { limit: EXPORT_RATE_LIMIT, ttl: EXPORT_RATE_TTL_MS } })
   @ApiOperation({ summary: 'Request a data export' })
   @ApiResponse({
     status: 201,
@@ -119,7 +119,7 @@ export class ExportsController {
    * callers do not receive signal about which condition triggered the rejection.
    */
   @Get(':jobId/download')
-  @Throttle({ download: { limit: DOWNLOAD_RATE_LIMIT, ttl: DOWNLOAD_RATE_TTL_MS } })
+  @Throttle({ default: { limit: DOWNLOAD_RATE_LIMIT, ttl: DOWNLOAD_RATE_TTL_MS } })
   @ApiOperation({ summary: 'Redeem a signed export download link' })
   @ApiResponse({ status: 302, description: 'Redirect to presigned download URL' })
   @ApiResponse({ status: 400, description: 'Token invalid, expired, or tampered' })
@@ -153,8 +153,8 @@ export class ExportsController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Artifact lookup failed for job ${jobId}: ${msg}`);
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+      res.status(HttpStatus.INTERNAL_SERVER).json({
+        statusCode: HttpStatus.INTERNAL_SERVER, 
         message: 'Failed to retrieve artifact metadata.',
       });
       return;
@@ -189,8 +189,8 @@ export class ExportsController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to create presigned URL for job ${jobId}: ${msg}`);
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+      res.status(HttpStatus.INTERNAL_SERVER).json({
+        statusCode: HttpStatus.INTERNAL_SERVER,
         message: 'Failed to generate download URL.',
       });
       return;
