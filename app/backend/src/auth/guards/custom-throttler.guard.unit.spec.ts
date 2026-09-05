@@ -247,7 +247,7 @@ describe("CustomThrottlerGuard", () => {
 
     expect(response.setHeader).toHaveBeenCalledWith(
       "Retry-After",
-      Math.ceil(throttlerConfig.groups.public.burst.ttlMs / 1000).toString(),
+      Math.ceil(throttlerConfig.groups.publicRead.burst.ttlMs / 1000).toString(),
     );
   });
 
