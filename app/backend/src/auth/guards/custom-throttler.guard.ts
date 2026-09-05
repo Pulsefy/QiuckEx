@@ -8,10 +8,12 @@ import {
 import { parse } from "ipaddr.js";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
-  RateLimitGroup,
-  RateLimitKeyType,
   THROTTLER_BURST_NAME,
   throttlerConfig,
+} from "../../config/rate-limit.config";
+import type {
+  RateLimitGroup,
+  RateLimitKeyType,
 } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
 
