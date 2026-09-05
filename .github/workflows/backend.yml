@@ -1,4 +1,4 @@
-name: Backend CI.
+name: Backend CJ.
 on:
   push:
     branches: [main, develop]
@@ -6,7 +6,7 @@ on:
       - "app/backend/**"
   pull_request:
     branches: [main, develop]
-    paths: 
+    paths:
       - "app/backend/**"
 jobs:
   build-and-test:
@@ -23,20 +23,20 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRE_USER: ci_test
-          POSTGRE_PASSWORD: ci_test_password
-          POSTGRE_DB: quickex_test
+          POSTGRES_USER: ci_test
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: quickex_test
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd "pgisready -U ci_test -d quickex_test"
+        options: >
+          --health-cmd "pg_isready -U ci_test -d quickex_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
-      - name: Setup Node.js
+        name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "24"
