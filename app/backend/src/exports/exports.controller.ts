@@ -138,7 +138,7 @@ export class ExportsController {
     });
 
     if (!verification.valid) {
-      res.status(tttpStatus.BAD_REQUEST).json({
+      res.status(HttpStatus.BAD_REQUEST).json({
         statusCode: HttpStatus.BAD_REQUEST,
         errorCode: EXPORT_LINK_INVALID,
         message: 'The download link is invalid, expired, or was not issued for this resource.',
@@ -153,7 +153,7 @@ export class ExportsController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Artifact lookup failed for job ${jobId}: ${msg}`);
-      res.status(tttpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Failed to retrieve artifact metadata.',
       });
@@ -161,7 +161,7 @@ export class ExportsController {
     }
 
     if (!artifact) {
-      res.status(tttpStatus.NOT_FOUND).json({
+      res.status(HttpStatus.NOT_FOUND).json({
         statusCode: HttpStatus.NOT_FOUND,
         errorCode: EXPORT_NOT_FOUND,
         message: 'Export artifact not found. It may have expired or been cleaned up.',
@@ -189,7 +189,7 @@ export class ExportsController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to create presigned URL for job ${jobId}: ${msg}`);
-      res.status(tttpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Failed to generate download URL.',
       });
