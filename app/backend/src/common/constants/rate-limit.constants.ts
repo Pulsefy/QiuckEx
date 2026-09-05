@@ -1,10 +1,10 @@
-export const RATE_LIMITS = {
+export const RATE_LIMITs = {
   'public-read': {
     ttl: 60,
     limit: 20,
   },
   'search': {
-     ttl: 60,
+    ttl: 60,
     limit: 30,
   },
   'mutation': {
@@ -16,3 +16,7 @@ export const RATE_LIMITS = {
     limit: 5,
   },
 };
+
+export type RateLimitGroup = keyof typeof RATE_LIMITS;
+
+export const DEFAULT_RATE_LIMIT_GROUP: RateLimitGroup = 'public-read';
