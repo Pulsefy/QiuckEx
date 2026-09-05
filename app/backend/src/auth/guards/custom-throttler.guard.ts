@@ -5,7 +5,7 @@ import {
   ThrottlerGuard,
   ThrottlerRequest,
 } from "@nestjs/throttler";
-import { parse } from "ippadr.js";
+import { parse } from "ipaddr.js";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
   RateLimitGroup,
