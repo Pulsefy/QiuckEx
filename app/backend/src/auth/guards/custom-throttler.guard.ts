@@ -31,7 +31,7 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
   };
 };
 
-@Ajectable()
+@Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   @Inject(MetricsService)
   private readonly metricsService: MetricsService;
@@ -267,7 +267,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const userId = req["userId"];
     if (typeof userId === "string" && userId.length > 0) return userId;
 
-    const header = req.headers?["x-user-id"];
+    const header = req.headers?.["x-user-id"];
     if (typeof header === "string" && header.length > 0) return header;
 
     return undefined;
@@ -277,14 +277,14 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const apiKeyId = req.apiKey?.id;
     if (apiKeyId && typeof apiKeyId === "string") return apiKeyId;
 
-    const header = req.headers?["x-api-key"];
+    const header = req.headers?.["x-api-key"];
     if (typeof header === "string" && header.length > 0) return header;
 
     return undefined;
   }
 
   private getIp(req: RequestWithRateLimitContext): string {
-    const forwardedFor = req.headers?["x-forwarded-for"];
+    const forwardedFor = req.headers?.["x-forwarded-for"];
     if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
       return forwardedFor.split(",")[0].trim();
     }
