@@ -21,7 +21,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Throttle, ThrottlerGaurd } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
@@ -35,6 +35,8 @@ import {
 
 const EXPORT_RATE_LIMIT = Number(process.env.EXPORT_RATE_LIMIT || 50);
 const EXPORT_RATE_TTL_MS = Number(process.env.EXPORT_RATE_TTL_MS || 60000);
+const DOWNLOAD_RATE_LIMIT = Number(process.env.DOWNLOAD_RATE_LIMIT || 100);
+const DOWNLOAD_RATE_TTL_MS = Number(process.env.DOWNLOAD_RATE_TTL_MS || 60000);
 
 /**
  * Exports Controller
@@ -42,7 +44,7 @@ const EXPORT_RATE_TTL_MS = Number(process.env.EXPORT_RATE_TTL_MS || 60000);
  * POST /exports          – enqueue an export job.
  * GET  /exports/:jobId/download – redeem a signed download token.
  */
-@Tags('exports')
+@ApiTags('exports')
 @UseGuards(ApiKeyGuard, ThrottlerGuard)
 @Controller('exports')
 export class ExportsController {
@@ -117,6 +119,7 @@ export class ExportsController {
    * callers do not receive signal about which condition triggered the rejection.
    */
   @Get(':jobId/download')
+  @Throttle({ download: { limit: DOWNLOAD_RATE_LIMIT, ttl: DOWNLOAD_RATE_TTL_MS } })
   @ApiOperation({ summary: 'Redeem a signed export download link' })
   @ApiResponse({ status: 302, description: 'Redirect to presigned download URL' })
   @ApiResponse({ status: 400, description: 'Token invalid, expired, or tampered' })
