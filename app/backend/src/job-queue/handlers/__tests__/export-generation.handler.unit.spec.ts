@@ -6,6 +6,13 @@ import {
 import { SupabaseService } from "../../../supabase/supabase.service";
 import { NotificationService } from "../../../notifications/notification.service";
 import { ExportStorageService } from "../../../exports/export-storage.service";
+import { ExportRepository } from "../../../exports/export.repository";
+import {
+  ExportDeliveryMethod,
+  ExportFormat,
+  ExportStatus,
+  ExportType,
+} from "../../../exports/enums/export.enums";
 import { Job, CancellationToken, JobStatus } from "../../types";
 import { ExportGenerationPayload } from "../../types/job-payloads.types";
 import type { ExportCompletedPayload } from "../../../notifications/types/notification.types";
@@ -47,10 +54,10 @@ function makeJob(
     type: "EXPORT_GENERATION" as unknown as Job<ExportGenerationPayload>["type"],
     payload: {
       userId: "GUSER123",
-      exportType: "transactions",
+      exportType: ExportType.TRANSACTIONS,
       filters: {},
-      format: "csv",
-      deliveryMethod: "email",
+      format: ExportFormat.CSV,
+      deliveryMethod: ExportDeliveryMethod.EMAIL,
       ...overrides,
     },
     status: JobStatus.PENDING,
@@ -75,8 +82,13 @@ function makeCancellationToken(): CancellationToken {
 describe("ExportGenerationHandler – email delivery (BE-101)", () => {
   let handler: ExportGenerationHandler;
   let notificationService: jest.Mocked<NotificationService>;
+  let exportRepository: { transition: jest.Mock };
 
   beforeEach(async () => {
+    exportRepository = {
+      transition: jest.fn().mockResolvedValue({}),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExportGenerationHandler,
@@ -97,6 +109,10 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
             uploadArtifact: jest.fn().mockResolvedValue({ storageKey: 'exports/GUSER123/job-42.csv', sizeBytes: 10 }),
             issueDownloadToken: jest.fn().mockReturnValue({ token: 'test-token', expiresAt: Math.floor(Date.now() / 1000) + 3600 }),
           },
+        },
+        {
+          provide: ExportRepository,
+          useValue: exportRepository,
         },
       ],
     }).compile();
@@ -127,6 +143,17 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
       expect(payload.recordCount).toBe(2);
       expect(payload.jobId).toBe("job-42");
       expect(payload.eventId).toBe("export:job-42");
+      expect(exportRepository.transition).toHaveBeenNthCalledWith(
+        1,
+        "job-42",
+        ExportStatus.RUNNING,
+      );
+      expect(exportRepository.transition).toHaveBeenNthCalledWith(
+        2,
+        "job-42",
+        ExportStatus.COMPLETED,
+        { deliveryReference: "email:export:job-42" },
+      );
     });
 
     it("completes the job when the templated email is delivered", async () => {
@@ -135,7 +162,7 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
         templateVersionId: "tpl-version-7",
       });
 
-      const job = makeJob({ deliveryMethod: "email", format: "json" });
+      const job = makeJob({ deliveryMethod: ExportDeliveryMethod.EMAIL, format: ExportFormat.JSON });
 
       await expect(
         handler.execute(job, makeCancellationToken()),
@@ -187,7 +214,7 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
         templateVersionId: undefined,
       });
 
-      const job = makeJob({ deliveryMethod: "download" });
+      const job = makeJob({ deliveryMethod: ExportDeliveryMethod.DOWNLOAD });
 
       await expect(
         handler.execute(job, makeCancellationToken()),
@@ -195,7 +222,7 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
     });
 
     it("does not send an email for webhook deliveries", async () => {
-      const job = makeJob({ deliveryMethod: "webhook" });
+      const job = makeJob({ deliveryMethod: ExportDeliveryMethod.WEBHOOK });
 
       await expect(
         handler.execute(job, makeCancellationToken()),
@@ -208,10 +235,10 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
     it("passes for a valid email delivery payload", async () => {
       const payload: ExportGenerationPayload = {
         userId: "GUSER123",
-        exportType: "payments",
+        exportType: ExportType.PAYMENTS,
         filters: {},
-        format: "csv",
-        deliveryMethod: "email",
+        format: ExportFormat.CSV,
+        deliveryMethod: ExportDeliveryMethod.EMAIL,
       };
 
       await expect(handler.validate(payload)).resolves.toBeUndefined();
@@ -246,6 +273,11 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
         "transactions", // exportType
         "csv",        // format
         "database connection refused", // safe reason (single-line message)
+      );
+      expect(exportRepository.transition).toHaveBeenCalledWith(
+        "job-42",
+        ExportStatus.FAILED,
+        { failureReason: "database connection refused" },
       );
     });
 

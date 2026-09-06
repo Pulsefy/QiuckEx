@@ -1,37 +1,37 @@
-/**
- * Request Export DTO
- * 
- * Data transfer object for export request endpoint.
- */
+import {
+  IsString,
+  IsEnum,
+  IsObject,
+  IsOptional,
+  IsNotEmpty,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ExportDeliveryMethod,
+  ExportFormat,
+  ExportType,
+} from '../enums/export.enums';
 
-import { IsString, IsEnum, IsObject, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-
-/**
- * Request Export DTO
- * 
- * Defines the structure for export requests.
- */
 export class RequestExportDto {
   @ApiProperty({
     description: 'User ID requesting the export',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsString()
-  userId: string;
+  @IsNotEmpty()
+  userId!: string;
 
   @ApiProperty({
     description: 'Type of data to export',
-    enum: ['transactions', 'links', 'payments'],
-    example: 'transactions',
+    enum: ExportType,
+    example: ExportType.TRANSACTIONS,
   })
-  @IsEnum(['transactions', 'links', 'payments'])
-  exportType: 'transactions' | 'links' | 'payments';
+  @IsEnum(ExportType)
+  exportType!: ExportType;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Filters to apply to the export query',
     example: { status: 'completed', startDate: '2024-01-01' },
-    required: false,
   })
   @IsObject()
   @IsOptional()
@@ -39,17 +39,17 @@ export class RequestExportDto {
 
   @ApiProperty({
     description: 'Output format for the export',
-    enum: ['csv', 'json'],
-    example: 'csv',
+    enum: ExportFormat,
+    example: ExportFormat.CSV,
   })
-  @IsEnum(['csv', 'json'])
-  format: 'csv' | 'json';
+  @IsEnum(ExportFormat)
+  format!: ExportFormat;
 
   @ApiProperty({
     description: 'How to deliver the export',
-    enum: ['webhook', 'email', 'download'],
-    example: 'download',
+    enum: ExportDeliveryMethod,
+    example: ExportDeliveryMethod.DOWNLOAD,
   })
-  @IsEnum(['webhook', 'email', 'download'])
-  deliveryMethod: 'webhook' | 'email' | 'download';
+  @IsEnum(ExportDeliveryMethod)
+  deliveryMethod!: ExportDeliveryMethod;
 }

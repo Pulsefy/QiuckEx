@@ -16,6 +16,11 @@ import {
   ReconciliationPayload,
   StellarReconnectPayload,
 } from '../index';
+import {
+  ExportDeliveryMethod,
+  ExportFormat,
+  ExportType,
+} from '../../exports/enums/export.enums';
 
 describe('Job Queue Types', () => {
   describe('JobType enum', () => {
@@ -123,13 +128,13 @@ describe('Job Queue Types', () => {
     it('should allow creating ExportGenerationPayload', () => {
       const payload: ExportGenerationPayload = {
         userId: 'user_123',
-        exportType: 'transactions',
+        exportType: ExportType.TRANSACTIONS,
         filters: { startDate: '2024-01-01' },
-        format: 'csv',
-        deliveryMethod: 'download',
+        format: ExportFormat.CSV,
+        deliveryMethod: ExportDeliveryMethod.DOWNLOAD,
       };
 
-      expect(payload.exportType).toBe('transactions');
+      expect(payload.exportType).toBe(ExportType.TRANSACTIONS);
     });
 
     it('should allow creating ReconciliationPayload', () => {
