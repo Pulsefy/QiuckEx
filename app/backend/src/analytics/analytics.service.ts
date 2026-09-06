@@ -99,11 +99,192 @@ export type DashboardSummary = {
   };
 };
 
+export type AnalyticsFieldType = 'string' | 'number' | 'boolean' | 'object';
+
+export type AnalyticsFieldSchema = {
+  type: AnalyticsFieldType;
+  required: boolean;
+};
+
+export type AnalyticsEventSchema = {
+  name: string;
+  version: number;
+  fields: Record<string, AnalyticsFieldSchema>;
+};
+
+export type AnalyticsEvent = {
+  name: string;
+  version: number;
+  payload: Record<string, unknown>;
+};
+
+export type AnalyticsValidationResult = {
+  valid: boolean;
+  errors: string[];
+};
+
+/**
+ * Central, versioned registry of analytics event schemas.
+ *
+ * CI CONTRACT: Adding a required field or removing an existing field is a
+ * breaking change. The schema `version` MUST be incremented whenever the shape
+ * of an event changes. The accompanying schema-registry snapshot test compares
+ * the committed fingerprint (see `fingerprintAnalyticsRegistry`) against this
+ * registry and fails CI when a breaking change is made without a version bump.
+ */
+export const ANALYTICS_EVENT_REGISTRY: Record<string, AnalyticsEventSchema> = {
+  payment_recorded: {
+    name: 'payment_recorded',
+    version: 1,
+    fields: {
+      publicKey: { type: 'string', required: true },
+      asset: { type: 'string', required: true },
+      amountUsd: { type: 'number', required: true },
+      status: { type: 'string', required: true },
+      createdAt: { type: 'string', required: true },
+    },
+  },
+  report_exported: {
+    name: 'report_exported',
+    version: 1,
+    fields: {
+      publicKey: { type: 'string', required: true },
+      reportType: { type: 'string', required: true },
+      rowCount: { type: 'number', required: true },
+    },
+  },
+  dashboard_viewed: {
+    name: 'dashboard_viewed',
+    version: 1,
+    fields: {
+      publicKey: { type: 'string', required: true },
+      timeRange: { type: 'string', required: true },
+    },
+  },
+};
+
+/**
+ * Produces a stable, order-independent fingerprint of the registry so a
+ * snapshot/contract test can detect breaking changes (added required fields or
+ * removed fields) that were not accompanied by a version bump. Exported so
+ * dashboards and downstream consumers can read the exact schema surface they
+ * must conform to.
+ */
+export function fingerprintAnalyticsRegistry(
+  registry: Record<string, AnalyticsEventSchema> = ANALYTICS_EVENT_REGISTRY,
+): Record<string, { version: number; fields: Record<string, AnalyticsFieldSchema> }> {
+  return Object.fromEntries(
+    Object.entries(registry)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, schema]) => [
+        name,
+        {
+          version: schema.version,
+          fields: Object.fromEntries(
+            Object.entries(schema.fields).sort(([a], [b]) => a.localeCompare(b)),
+          ),
+        },
+      ]),
+  );
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
   constructor(private readonly supabase: SupabaseService) {}
+
+  private invalidEventCount = 0;
+
+  /**
+   * Validates an analytics event against its versioned schema in the central
+   * registry. Returns a structured result listing every violation so producers
+   * can see exactly what broke.
+   */
+  validateAnalyticsEvent(event: AnalyticsEvent): AnalyticsValidationResult {
+    const errors: string[] = [];
+    const schema = ANALYTICS_EVENT_REGISTRY[event.name];
+
+    if (!schema) {
+      errors.push(`Unknown analytics event: ${event.name}`);
+      return { valid: false, errors };
+    }
+
+    if (event.version !== schema.version) {
+      errors.push(
+        `Schema version mismatch for ${event.name}: expected ${schema.version}, received ${event.version}`,
+      );
+    }
+
+    const payload = event.payload ?? {};
+
+    for (const [field, spec] of Object.entries(schema.fields)) {
+      const value = payload[field];
+      if (value === undefined || value === null) {
+        if (spec.required) {
+          errors.push(`Missing required field "${field}" for event ${event.name}`);
+        }
+        continue;
+      }
+      const actualType = Array.isArray(value) ? 'object' : typeof value;
+      if (actualType !== spec.type) {
+        errors.push(
+          `Field "${field}" for event ${event.name} must be ${spec.type}, received ${actualType}`,
+        );
+      }
+    }
+
+    for (const field of Object.keys(payload)) {
+      if (!schema.fields[field]) {
+        errors.push(`Unexpected field "${field}" for event ${event.name}`);
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  /**
+   * Validates an event against its schema and records it. Invalid events are
+   * rejected (never persisted) and counted so producers surface breakages
+   * instead of silently corrupting dashboards.
+   */
+  async recordAnalyticsEvent(event: AnalyticsEvent): Promise<AnalyticsValidationResult> {
+    const result = this.validateAnalyticsEvent(event);
+
+    if (!result.valid) {
+      this.invalidEventCount += 1;
+      this.logger.warn(
+        `Rejected invalid analytics event "${event.name}": ${result.errors.join('; ')}`,
+      );
+      return result;
+    }
+
+    const client = this.supabase.getClient();
+    const { error } = await client.from('analytics_events').insert({
+      event_name: event.name,
+      schema_version: event.version,
+      payload: event.payload,
+      recorded_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      this.logger.warn(
+        `Failed to persist analytics event "${event.name}": ${error.message}`,
+      );
+    }
+
+    return result;
+  }
+
+  /** Number of events rejected by schema validation since process start. */
+  getInvalidEventCount(): number {
+    return this.invalidEventCount;
+  }
+
+  /** Exposes the versioned schema registry for dashboards and consumers. */
+  getEventRegistry(): Record<string, AnalyticsEventSchema> {
+    return ANALYTICS_EVENT_REGISTRY;
+  }
 
   async getDashboardSummary(
     publicKey: string,

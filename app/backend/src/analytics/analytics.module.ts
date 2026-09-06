@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module } from '@nestj/common';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { AnalyticsController } from './analytics.controller';
@@ -11,4 +11,3 @@ import { AnalyticsService } from './analytics.service';
   exports: [AnalyticsService],
 })
 export class AnalyticsModule {}
-
