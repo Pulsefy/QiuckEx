@@ -10,6 +10,7 @@ import { ApiKeysService } from "../../api-keys/api-keys.service";
 import { ApiKeyScope } from "../../api-keys/api-keys.types";
 import { throttlerConfig } from "../../config/rate-limit.config";
 import { REQUIRED_SCOPES_KEY } from "../decorators/require-scopes.decorator";
+import { REQUIRED_ANY_SCOPE_KEY } from "../decorators/require-any-scope.decorator";
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -55,13 +56,31 @@ export class ApiKeyGuard implements CanActivate {
       this.reflector.getAllAndOverride<ApiKeyScope[]>(REQUIRED_SCOPES_KEY, [
         context.getHandler(),
         context.getClass(),
-      ]) ?? [];
+      ]);
 
-    for (const scope of requiredScopes) {
-      if (!hasScope(scope)) {
+    if (requiredScopes) {
+      for (const scope of requiredScopes) {
+        if (!hasScope(scope)) {
+          throw new ForbiddenException({
+            error: "INSUFFICIENT_SCOPE",
+            message: `API key missing required scope: ${scope}`,
+          });
+        }
+      }
+    }
+
+    const requiredAnyScope =
+      this.reflector.getAllAndOverride<ApiKeyScope[]>(REQUIRED_ANY_SCOPE_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+    if (requiredAnyScope && requiredAnyScope.length > 0) {
+      const hasAny = requiredAnyScope.some(scope => hasScope(scope));
+      if (!hasAny) {
         throw new ForbiddenException({
           error: "INSUFFICIENT_SCOPE",
-          message: `API key missing required scope: ${scope}`,
+          message: `API key missing one of required scopes: ${requiredAnyScope.join(', ')}`,
         });
       }
     }

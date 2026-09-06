@@ -16,6 +16,7 @@ export interface BranchPreviewEnvironment {
   expiresAt?: Date;
   autoExpiredAt?: Date;
   autoExpiryReason?: string;
+  ownerId?: string;
 }
 
 export interface CreateBranchPreviewDto {
@@ -27,6 +28,7 @@ export interface CreateBranchPreviewDto {
   ttlMs?: number;
   isShared?: boolean;
   expiryExempt?: boolean;
+  ownerId?: string;
 }
 
 export interface UpdateBranchPreviewDto {
@@ -38,6 +40,7 @@ export interface UpdateBranchPreviewDto {
   ttlMs?: number;
   isShared?: boolean;
   expiryExempt?: boolean;
+  ownerId?: string;
 }
 
 export class BranchPreviewResponseDto {

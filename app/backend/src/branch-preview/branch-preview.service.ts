@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { BranchPreviewCache } from './branch-preview.cache';
 import { BranchPreviewRepository } from './branch-preview.repository';
@@ -79,6 +79,7 @@ export class BranchPreviewService {
       {
         branchName: preview.branchName,
         apiUrl: preview.apiUrl,
+        ownerId: preview.ownerId,
       },
       requestId,
     );
@@ -93,8 +94,23 @@ export class BranchPreviewService {
     id: string,
     dto: UpdateBranchPreviewDto,
     actorId: string,
+    scopes: string[],
     requestId?: string,
   ): Promise<BranchPreviewEnvironment> {
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new Error(`Branch preview ${id} not found`);
+    }
+
+    const isAdmin = scopes.includes('admin');
+    const isReviewer = scopes.includes('branch_preview:reviewer');
+    const isOwner = existing.ownerId === actorId || scopes.includes('branch_preview:owner');
+
+    if (!isAdmin && !isReviewer && !isOwner) {
+      this.logger.warn(`Unauthorized update attempt on preview ${id} by actor ${actorId}`);
+      throw new ForbiddenException('You do not have permission to modify this preview environment');
+    }
+
     const updated = await this.repository.update(id, dto);
     
     // Invalidate cache to force refresh
@@ -121,8 +137,23 @@ export class BranchPreviewService {
   async deletePreview(
     id: string,
     actorId: string,
+    scopes: string[],
     requestId?: string,
   ): Promise<void> {
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      return; // Already deleted or not found
+    }
+
+    const isAdmin = scopes.includes('admin');
+    const isReviewer = scopes.includes('branch_preview:reviewer');
+    const isOwner = existing.ownerId === actorId || scopes.includes('branch_preview:owner');
+
+    if (!isAdmin && !isReviewer && !isOwner) {
+      this.logger.warn(`Unauthorized delete attempt on preview ${id} by actor ${actorId}`);
+      throw new ForbiddenException('You do not have permission to delete this preview environment');
+    }
+
     // We could add a findById method to the repository for better accuracy,
     // but for simplicity we'll just clear the entire cache if we can't get the branch name
     await this.repository.delete(id);
@@ -151,8 +182,21 @@ export class BranchPreviewService {
   async invalidateCache(
     branchName: string,
     actorId: string,
+    scopes: string[],
     requestId?: string,
   ): Promise<boolean> {
+    const existing = await this.repository.findByBranchName(branchName);
+    if (existing) {
+      const isAdmin = scopes.includes('admin');
+      const isReviewer = scopes.includes('branch_preview:reviewer');
+      const isOwner = existing.ownerId === actorId || scopes.includes('branch_preview:owner');
+      
+      if (!isAdmin && !isReviewer && !isOwner) {
+        this.logger.warn(`Unauthorized cache invalidation attempt on preview ${branchName} by actor ${actorId}`);
+        throw new ForbiddenException('You do not have permission to invalidate cache for this preview environment');
+      }
+    }
+
     const deleted = this.cache.delete(branchName);
     
     await this.auditService.log(
