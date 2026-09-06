@@ -1,4 +1,4 @@
-import { ExecutionContext, Injectable, Inject } from "@nestjs/common";
+import { ExecutionContext, Injectable, Inject, HttpException, HttpStatus } from "@nestjs/common";	
 import { Reflector } from "@nestjs/core";
 import {
   ThrottlerException,
@@ -8,10 +8,12 @@ import {
 import { parse } from "ipaddr.js";
 import {
   RATE_LIMIT_GROUP_METADATA_KEY,
-  RateLimitGroup,
-  RateLimitKeyType,
   THROTTLER_BURST_NAME,
   throttlerConfig,
+} from "../../config/rate-limit.config";
+import type {
+  RateLimitGroup,
+  RateLimitKeyType,
 } from "../../config/rate-limit.config";
 import { MetricsService } from "../../metrics/metrics.service";
 
@@ -119,23 +121,33 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       });
     } catch (error) {
       if (error instanceof ThrottlerException) {
-        const retryAfterSeconds = Math.ceil(windowConfig.ttlMs / 1000);
+        const retryBackSeconds = Math.ceil(windowConfig.ttlMs / 1000);
         const response = context
           .switchToHttp()
           .getResponse<Record<string, unknown>>();
 
         if (typeof response?.setHeader === "function") {
-          response.setHeader("Retry-After", retryAfterSeconds.toString());
+          response.setHeader("Retry-After", retryBackSeconds.toString());
         }
 
         const method = req.method ?? "unknown";
         const routePath = req.route?.path ?? req.path ?? req.originalUrl ?? "unknown";
-        
+
         this.metricsService.recordRateLimitedRequest(
           method,
           routePath,
           group,
           req.rateLimitContext.keyType,
+        );
+
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.TOO_MANY_REQUESTS,
+            message: "Too Many Requests",
+            error: "ThrottlerException",
+            retryAfter: retryBackSeconds,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 
@@ -165,15 +177,64 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
     const path =
       `${req.baseUrl ?? ""}${req.route?.path ?? req.path ?? req.originalUrl ?? ""}`.toLowerCase();
+
+    // Webhooks have their own dedicated tier.
     if (path.startsWith("/webhooks") || path.includes("/webhooks/")) {
       return "webhooks";
     }
 
+    // Map remaining public surface to named tiers per BE-116.
+    const pathTier = this.resolveGroupFromPath(req.method ?? "GET", path);
+    if (pathTier) {
+      return pathTier;
+    }
+
+    // Keep existing fallback for authenticated/legacy routes.
     if (this.getUserId(req) || this.getApiKeyValue(req)) {
       return "authenticated";
     }
 
     return "public";
+  }
+
+  private resolveGroupFromPath(
+    method: string,
+    path: string,
+  ): RateLimitGroup | undefined {
+    // Endpoints that are cheap enumeration vectors get the strictest public-read tier.
+    if (
+      path.includes("/discovery") ||
+      path.includes("/username") ||
+      path.includes("/usernames") ||
+      path.includes("/profile") ||
+      path.includes("/profiles")
+    ) {
+      return "public-read" as RateLimitGroup;
+    }
+
+    // Marketplace queries and search endpoints use the search tier.
+    if (
+      path.includes("/marketplace") ||
+      path.includes("/search")
+    ) {
+      return "search" as RateLimitGroup;
+    }
+
+    // Export requests (e.g., CSV/JSON exports) use the export tier.
+    if (path.includes("/export") || path.endsWith("/exports")) {
+      return "export" as RateLimitGroup;
+    }
+
+    // Any other non-GET request to a public endpoint is treated as a mutation.
+    if (
+      method !== "GET" &&
+      method !== "HEAD" &&
+      method !== "OPTIONS"
+    ) {
+      return "mutation" as RateLimitGroup;
+    }
+
+    return undefined;
   }
 
   private resolveIdentity(req: RequestWithRateLimitContext): {

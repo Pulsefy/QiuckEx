@@ -1,8 +1,8 @@
-/**
+/*
  * Exports Controller
  *
  * Provides endpoints for requesting data exports and redeeming signed download
- * links (BE-102).
+ * links (BE-102))
  *
  * Requirements: 9.2, BE-102
  */
@@ -20,8 +20,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swgger';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { RateLimitGroupTag } from '../auth/decorators/rate-limit-group.decorator';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
 import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
@@ -30,13 +31,14 @@ import {
   ExportStorageService,
   EXPORT_LINK_INVALID,
   EXPORT_NOT_FOUND,
-} from './export-storage.service';
+ } from './export-storage.service';
+
 
 /**
  * Exports Controller
  *
- * POST /exports          – enqueue an export job.
- * GET  /exports/:jobId/download – redeem a signed download token.
+ * POST /exports          - enqueue an export job.
+ * GET  /exports/:jobId/download - redeem a signed download token.
  */
 @ApiTags('exports')
 @UseGuards(ApiKeyGuard)
@@ -56,6 +58,7 @@ export class ExportsController {
    * The export will be delivered via the specified deliveryMethod.
    */
   @Post()
+  @RateLimitGroupTag('export')
   @ApiOperation({ summary: 'Request a data export' })
   @ApiResponse({
     status: 201,
@@ -65,8 +68,8 @@ export class ExportsController {
       properties: {
         jobId: { type: 'string', description: 'Job ID for tracking the export' },
         message: { type: 'string', description: 'Success message' },
-      },
-    },
+      }
+    }
   })
   @ApiResponse({ status: 400, description: 'Invalid request parameters' })
   async requestExport(
@@ -102,7 +105,7 @@ export class ExportsController {
    *
    * Query parameters:
    *   - userId  : the principal who requested the export (scopes the token)
-   *   - token   : the HMAC-signed token issued by ExportStorageService
+   *   - token   : the MAC-signed token issued by ExportStorageService
    *
    * On success: 302 redirect to a short-lived presigned Supabase Storage URL.
    * On failure: 400 with stable error code EXPORT_LINK_INVALID or
@@ -112,6 +115,7 @@ export class ExportsController {
    * callers do not receive signal about which condition triggered the rejection.
    */
   @Get(':jobId/download')
+  @RateLimitGroupTag('download')
   @ApiOperation({ summary: 'Redeem a signed export download link' })
   @ApiResponse({ status: 302, description: 'Redirect to presigned download URL' })
   @ApiResponse({ status: 400, description: 'Token invalid, expired, or tampered' })
@@ -139,7 +143,7 @@ export class ExportsController {
     }
 
     // 2. Look up the artifact record to get the storage key
-    let artifact;
+    let artifact: { userId: string; storageKey: string } | null = null;
     try {
       artifact = await this.exportStorageService.findArtifactRecord(jobId);
     } catch (err) {
@@ -183,7 +187,7 @@ export class ExportsController {
       this.logger.error(`Failed to create presigned URL for job ${jobId}: ${msg}`);
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Failed to generate download URL.',
+        message: 'Failed to generate download URL',
       });
       return;
     }
@@ -192,4 +196,3 @@ export class ExportsController {
     res.redirect(HttpStatus.FOUND, presignedUrl);
   }
 }
-

@@ -1,10 +1,22 @@
-export const RATE_LIMITS = {
-  PUBLIC: {
+export const RATE_LIMITs = {
+  'public-read': {
     ttl: 60,
     limit: 20,
   },
-  API_KEY: {
+  'search': {
     ttl: 60,
-    limit: 120,
+    limit: 30,
+  },
+  'mutation': {
+    ttl: 60,
+    limit: 10,
+  },
+  'export': {
+    ttl: 3600,
+    limit: 5,
   },
 };
+
+export type RateLimitGroup = keyof typeof RATE_LIMITs;
+
+export const DEFAULT_RATE_LIMIT_GROUP: RateLimitGroup = 'public-read';
