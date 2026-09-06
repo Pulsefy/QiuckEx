@@ -23,11 +23,25 @@ import {
 } from './normalizers/receipt.normalizer';
 import { NormalizedReceipt } from './schemas/receipt.schema';
 import { GetReceiptByTxDto, GetReceiptsByAddressDto } from './dto/receipt.dto';
-import {
-  RECEIPT_METADATA_REPOSITORY,
-  type IndexerMetadata,
-  type ReceiptMetadataRepository,
+import { RECEIPT_METADATA_REPOSITORY } from './receipt-metadata.repository';
+import type {
+  IndexerMetadata,
+  ReceiptMetadataRepository,
 } from './receipt-metadata.repository';
+
+declare module './receipt-metadata.repository' {
+  interface ReceiptMetadataRepository {
+    getReceipt(
+      txHash: string,
+      operationIndex: number,
+      network: string,
+    ): Promise<NormalizedReceipt | null>;
+    saveReceipt(
+      receipt: NormalizedReceipt,
+      network: string,
+    ): Promise<void>;
+  }
+}
 
 @Injectable()
 export class ReceiptsService {
@@ -62,6 +76,13 @@ export class ReceiptsService {
   async getByTxHash(dto: GetReceiptByTxDto): Promise<NormalizedReceipt> {
     const { txHash, operationIndex = 0 } = dto;
 
+    const cached = await this.receiptMetadataRepository.getReceipt(
+      txHash,
+      operationIndex,
+      this.network,
+    );
+    if (cached) return cached;
+
     const [tx, operations] = await Promise.all([
       this.fetchTransaction(txHash),
       this.fetchOperations(txHash),
@@ -82,7 +103,14 @@ export class ReceiptsService {
 
     const indexer = await this.fetchIndexerMetadata(txHash);
 
-    return this.normalizer.normalize(op, tx, soroban, indexer);
+    const receipt = this.normalizer.normalize(op, tx, soroban, indexer);
+
+    await this.receiptMetadataRepository.saveReceipt(
+      receipt,
+      this.network,
+    );
+
+    return receipt;
   }
 
   async getByAddress(dto: GetReceiptsByAddressDto): Promise<{
