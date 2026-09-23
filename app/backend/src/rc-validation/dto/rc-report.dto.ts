@@ -84,6 +84,33 @@ export class RcSmokeCheckDto {
 
   @ApiProperty({ required: false, example: "Horizon returned 503" })
   error?: string;
+
+  @ApiProperty({
+    enum: ["health", "network", "links", "soroban", "horizon", "performance"],
+    example: "horizon",
+    required: false,
+  })
+  category?: "health" | "network" | "links" | "soroban" | "horizon" | "performance";
+
+  @ApiProperty({ required: false, example: 42 })
+  durationMs?: number;
+
+  @ApiProperty({ required: false, example: "2026-06-27T12:00:00.000Z" })
+  lastRunAt?: string;
+
+  @ApiProperty({
+    description: "Route for transaction details (if applicable)",
+    example: "/transactions/abc123",
+    required: false,
+  })
+  transactionLink?: string;
+
+  @ApiProperty({
+    description: "Route for webhook logs (if applicable)",
+    example: "/webhooks?test=horizon",
+    required: false,
+  })
+  webhookLink?: string;
 }
 
 export class RcSmokeSectionDto {
@@ -104,6 +131,77 @@ export class RcSmokeSectionDto {
 
   @ApiProperty({ example: 0 })
   failed!: number;
+
+  @ApiProperty({ example: 1, required: false })
+  skipped?: number;
+
+  @ApiProperty({ example: 142, required: false })
+  totalDurationMs?: number;
+
+  @ApiProperty({ example: "2026-06-27T12:00:00.000Z", required: false })
+  lastRunAt?: string;
+
+  @ApiProperty({ type: [String], required: false, example: [] })
+  failureDetails?: string[];
+}
+
+export class RcRegistryContractDetailDto {
+  @ApiProperty({ example: "quickex" })
+  name!: string;
+
+  @ApiProperty({
+    enum: ["active", "missing", "mismatched", "inactive"],
+    example: "active",
+  })
+  contractStatus!: "active" | "missing" | "mismatched" | "inactive";
+
+  @ApiProperty({
+    enum: ["critical", "warning", "info", "healthy"],
+    example: "healthy",
+  })
+  severity!: "critical" | "warning" | "info" | "healthy";
+
+  @ApiProperty({
+    example: "CCNGBQ7R...",
+    required: false,
+  })
+  contractId?: string;
+
+  @ApiProperty({ example: "a1b2c3d4...", required: false })
+  wasmHash?: string;
+
+  @ApiProperty({ example: 3, required: false })
+  contractVersion?: number;
+
+  @ApiProperty({ example: "2.1.0", required: false })
+  schemaVersion?: string;
+
+  @ApiProperty({ example: "2026-06-27T12:00:00.000Z", required: false })
+  updatedAt?: string;
+
+  @ApiProperty({ example: "deploy_user", required: false })
+  publishedBy?: string;
+
+  @ApiProperty({ example: true, required: false })
+  networkPassphraseMatches?: boolean;
+
+  @ApiProperty({ example: "Test SDF Network...", required: false })
+  expectedPassphrase?: string;
+
+  @ApiProperty({ example: "Test SDF Network...", required: false })
+  actualPassphrase?: string;
+
+  @ApiProperty({
+    example: "/admin/registry/quickex",
+    required: false,
+  })
+  registryLink?: string;
+
+  @ApiProperty({
+    example: "/webhooks?contract=quickex",
+    required: false,
+  })
+  webhookLink?: string;
 }
 
 export class RcRegistrySectionDto {
@@ -139,6 +237,63 @@ export class RcRegistrySectionDto {
     example: [],
   })
   missingContracts!: string[];
+
+  @ApiProperty({ type: [RcRegistryContractDetailDto], required: false })
+  contractDetails?: RcRegistryContractDetailDto[];
+
+  @ApiProperty({ example: 0, required: false })
+  mismatchedContracts?: number;
+}
+
+export class RcIndexerServiceDto {
+  @ApiProperty({ example: "contract-events" })
+  serviceName!: string;
+
+  @ApiProperty({
+    enum: ["critical", "warning", "info", "healthy"],
+    example: "healthy",
+  })
+  severity!: "critical" | "warning" | "info" | "healthy";
+
+  @ApiProperty({ nullable: true, example: 123456 })
+  currentNetworkLedger!: number | null;
+
+  @ApiProperty({ nullable: true, example: 123450 })
+  lastIndexedLedger!: number | null;
+
+  @ApiProperty({ nullable: true, example: 6 })
+  lagLedgers!: number | null;
+
+  @ApiProperty({
+    description: "Estimated lag in seconds (avg 5s ledger close)",
+    example: 30,
+    required: false,
+  })
+  lagSeconds?: number;
+
+  @ApiProperty({ example: false })
+  isLagging!: boolean;
+
+  @ApiProperty({ example: false })
+  isBlocking!: boolean;
+
+  @ApiProperty({ example: 100 })
+  thresholdLedgers!: number;
+
+  @ApiProperty({
+    example: "500 ledgers / 2500 seconds for CRITICAL",
+    required: false,
+  })
+  thresholdDescription?: string;
+
+  @ApiProperty({ example: "2026-06-27T12:00:00.000Z", required: false })
+  lastCheckpointAt?: string;
+
+  @ApiProperty({
+    example: "/transactions?service=contract-events",
+    required: false,
+  })
+  transactionLink?: string;
 }
 
 export class RcLagSectionDto {
@@ -154,6 +309,13 @@ export class RcLagSectionDto {
   @ApiProperty({ nullable: true, example: 6 })
   lagLedgers!: number | null;
 
+  @ApiProperty({
+    description: "Estimated aggregate lag in seconds",
+    example: 30,
+    required: false,
+  })
+  lagSeconds?: number;
+
   @ApiProperty({ example: false })
   isLagging!: boolean;
 
@@ -165,6 +327,9 @@ export class RcLagSectionDto {
 
   @ApiProperty({ example: 100 })
   thresholdLedgers!: number;
+
+  @ApiProperty({ type: [RcIndexerServiceDto], required: false })
+  indexerServices?: RcIndexerServiceDto[];
 }
 
 export class RcEnvironmentCheckDto {
@@ -176,6 +341,48 @@ export class RcEnvironmentCheckDto {
 
   @ApiProperty({ required: false, example: "Network: testnet" })
   details?: string;
+
+  @ApiProperty({
+    enum: ["critical", "warning", "info", "healthy"],
+    example: "healthy",
+    required: false,
+  })
+  severity?: "critical" | "warning" | "info" | "healthy";
+
+  @ApiProperty({
+    example: "/admin/settings?check=network_configuration",
+    required: false,
+  })
+  detailsLink?: string;
+}
+
+export class RcEnvironmentMetadataDto {
+  @ApiProperty({ example: "0.1.0" })
+  appVersion!: string;
+
+  @ApiProperty({ example: "abcdef1234567890abcdef1234567890abcdef12", required: false })
+  commitHash?: string;
+
+  @ApiProperty({ example: "abcdef1", required: false })
+  commitShort?: string;
+
+  @ApiProperty({ example: "staging" })
+  environmentName!: string;
+
+  @ApiProperty({ example: "testnet" })
+  network!: string;
+
+  @ApiProperty({ example: "production", required: false })
+  nodeEnv?: string;
+
+  @ApiProperty({ example: 1842, required: false })
+  uptimeSeconds?: number;
+
+  @ApiProperty({ example: "2026-06-27T12:00:00.000Z", required: false })
+  deployedAt?: string;
+
+  @ApiProperty({ example: "3", required: false })
+  contractRegistryVersion?: string;
 }
 
 export class RcEnvironmentSectionDto {
@@ -193,6 +400,9 @@ export class RcEnvironmentSectionDto {
 
   @ApiProperty({ example: 0 })
   warnings!: number;
+
+  @ApiProperty({ type: RcEnvironmentMetadataDto, required: false })
+  metadata?: RcEnvironmentMetadataDto;
 }
 
 export class RcSectionsDto {
