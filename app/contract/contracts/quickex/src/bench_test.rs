@@ -98,10 +98,27 @@ fn make_commitment_payload(env: &Env, owner: &Address, amount: i128, salt: &Byte
     data
 }
 
-fn print_budget(env: &Env, label: &str) {
+fn assert_budget(env: &Env, label: &str, max_cpu: u64, max_mem: u64) {
     let cpu = env.cost_estimate().budget().cpu_instruction_cost();
     let mem = env.cost_estimate().budget().memory_bytes_cost();
     std::println!("[bench] {label:<35}  cpu={cpu:<12}  mem={mem}");
+    
+    assert!(
+        cpu <= max_cpu,
+        "{} CPU instruction regression: actual={} max={} (delta={})",
+        label,
+        cpu,
+        max_cpu,
+        cpu as i64 - max_cpu as i64
+    );
+    assert!(
+        mem <= max_mem,
+        "{} memory regression: actual={} max={} (delta={})",
+        label,
+        mem,
+        max_mem,
+        mem as i64 - max_mem as i64
+    );
 }
 
 #[derive(Clone, Copy)]
@@ -119,24 +136,27 @@ impl CoreBenchResult {
     fn assert_within_threshold(self) {
         assert!(
             self.cpu_instructions <= self.max_cpu_instructions,
-            "{} CPU instruction regression: actual={} max={}",
+            "{} CPU instruction regression: actual={} max={} (delta={})",
             self.operation,
             self.cpu_instructions,
-            self.max_cpu_instructions
+            self.max_cpu_instructions,
+            self.cpu_instructions as i64 - self.max_cpu_instructions as i64
         );
         assert!(
             self.memory_bytes <= self.max_memory_bytes,
-            "{} memory regression: actual={} max={}",
+            "{} memory regression: actual={} max={} (delta={})",
             self.operation,
             self.memory_bytes,
-            self.max_memory_bytes
+            self.max_memory_bytes,
+            self.memory_bytes as i64 - self.max_memory_bytes as i64
         );
         assert!(
             self.storage_fee_bytes <= self.max_storage_fee_bytes,
-            "{} storage fee regression: actual={} max={}",
+            "{} storage fee regression: actual={} max={} (delta={})",
             self.operation,
             self.storage_fee_bytes,
-            self.max_storage_fee_bytes
+            self.max_storage_fee_bytes,
+            self.storage_fee_bytes as i64 - self.max_storage_fee_bytes as i64
         );
     }
 }
@@ -491,7 +511,7 @@ fn bench_create_amount_commitment() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.create_amount_commitment(&owner, &1_000_000i128, &salt);
-    print_budget(&env, "create_amount_commitment");
+    assert_budget(&env, "create_amount_commitment", 2_000_000, 200_000);
 }
 
 /// Benchmark: SHA256 on the small commitment payload.
@@ -504,7 +524,7 @@ fn bench_sha256_small_payload() {
 
     env.cost_estimate().budget().reset_default();
     let _: BytesN<32> = env.crypto().sha256(&payload).into();
-    print_budget(&env, "sha256_small_payload");
+    assert_budget(&env, "sha256_small_payload", 2_000_000, 200_000);
 }
 
 /// Benchmark: Keccak256 on the same small commitment payload.
@@ -517,7 +537,7 @@ fn bench_keccak256_small_payload() {
 
     env.cost_estimate().budget().reset_default();
     let _: BytesN<32> = env.crypto().keccak256(&payload).into();
-    print_budget(&env, "keccak256_small_payload");
+    assert_budget(&env, "keccak256_small_payload", 2_000_000, 200_000);
 }
 
 /// Benchmark: deposit
@@ -546,7 +566,7 @@ fn bench_deposit() {
         &0u64,
         &u64::MAX,
     );
-    print_budget(&env, "deposit");
+    assert_budget(&env, "deposit", 2_000_000, 200_000);
 }
 
 /// Benchmark: deposit_with_commitment
@@ -575,7 +595,7 @@ fn bench_deposit_with_commitment() {
         &0u64,
         &u64::MAX,
     );
-    print_budget(&env, "deposit_with_commitment");
+    assert_budget(&env, "deposit_with_commitment", 2_000_000, 200_000);
 }
 
 /// Benchmark: withdraw
@@ -612,7 +632,7 @@ fn bench_withdraw() {
         &0u64,
         &u64::MAX,
     );
-    print_budget(&env, "withdraw");
+    assert_budget(&env, "withdraw", 2_000_000, 200_000);
 }
 
 /// Benchmark: set_privacy
@@ -628,7 +648,7 @@ fn bench_set_privacy() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     client.set_privacy(&owner, &true);
-    print_budget(&env, "set_privacy");
+    assert_budget(&env, "set_privacy", 2_000_000, 200_000);
 }
 
 /// Benchmark: get_privacy
@@ -646,7 +666,7 @@ fn bench_get_privacy() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.get_privacy(&owner);
-    print_budget(&env, "get_privacy");
+    assert_budget(&env, "get_privacy", 2_000_000, 200_000);
 }
 
 /// Benchmark: legacy privacy-key read
@@ -665,7 +685,7 @@ fn bench_legacy_privacy_key_read() {
     env.as_contract(&contract_id, || {
         let _: bool = env.storage().persistent().get(&key).unwrap_or(false);
     });
-    print_budget(&env, "legacy_privacy_key_read");
+    assert_budget(&env, "legacy_privacy_key_read", 2_000_000, 200_000);
 }
 
 /// Benchmark: typed privacy-key read
@@ -684,7 +704,7 @@ fn bench_typed_privacy_key_read() {
     env.as_contract(&contract_id, || {
         let _: bool = env.storage().persistent().get(&key).unwrap_or(false);
     });
-    print_budget(&env, "typed_privacy_key_read");
+    assert_budget(&env, "typed_privacy_key_read", 2_000_000, 200_000);
 }
 
 /// Benchmark: legacy privacy-key write
@@ -700,7 +720,7 @@ fn bench_legacy_privacy_key_write() {
     env.as_contract(&contract_id, || {
         env.storage().persistent().set(&key, &true);
     });
-    print_budget(&env, "legacy_privacy_key_write");
+    assert_budget(&env, "legacy_privacy_key_write", 2_000_000, 200_000);
 }
 
 /// Benchmark: typed privacy-key write
@@ -716,7 +736,7 @@ fn bench_typed_privacy_key_write() {
     env.as_contract(&contract_id, || {
         env.storage().persistent().set(&key, &true);
     });
-    print_budget(&env, "typed_privacy_key_write");
+    assert_budget(&env, "typed_privacy_key_write", 2_000_000, 200_000);
 }
 
 /// Benchmark: verify_proof_view
@@ -736,7 +756,7 @@ fn bench_verify_proof_view() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     let _ = client.verify_proof_view(&amount, &salt, &owner);
-    print_budget(&env, "verify_proof_view");
+    assert_budget(&env, "verify_proof_view", 2_000_000, 200_000);
 }
 
 /// Benchmark: resolve_dispute (recipient path)
@@ -772,7 +792,7 @@ fn bench_resolve_dispute_recipient() {
     // --- Reset budget immediately before the hot path ---
     env.cost_estimate().budget().reset_default();
     client.resolve_dispute(&arbiter, &commitment, &false, &recipient, &0u64, &u64::MAX);
-    print_budget(&env, "resolve_dispute_recipient");
+    assert_budget(&env, "resolve_dispute_recipient", 2_000_000, 200_000);
 }
 
 /// Benchmark: common escrow storage footprint before/after compaction.
