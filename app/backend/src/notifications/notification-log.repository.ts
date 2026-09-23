@@ -116,8 +116,8 @@ export class NotificationLogRepository {
       .maybeSingle();
 
     const attempts = (data?.attempts ?? 0) + 1;
-    const exhausted =
-      channel === "webhook" && attempts >= WEBHOOK_MAX_DELIVERY_ATTEMPTS;
+    const maxAttemptsForChannel = channel === "webhook" ? WEBHOOK_MAX_DELIVERY_ATTEMPTS : 3;
+    const exhausted = attempts >= maxAttemptsForChannel;
 
     const { error } = await client
       .from("notification_log")

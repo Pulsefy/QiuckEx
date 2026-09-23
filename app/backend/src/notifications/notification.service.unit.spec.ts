@@ -7,6 +7,8 @@ import { NOTIFICATION_PROVIDERS } from "./providers/notification-provider.interf
 import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { TemplateVersionService } from "./template-versioning/template-version.service";
 
+import { MetricsService } from "../metrics/metrics.service";
+
 describe("NotificationService (Event Hook Verification)", () => {
   let service: NotificationService;
   let module: TestingModule;
@@ -32,6 +34,10 @@ describe("NotificationService (Event Hook Verification)", () => {
     error: jest.fn(),
   };
 
+  const mockMetricsService = {
+    recordNotificationDelivery: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -53,6 +59,7 @@ describe("NotificationService (Event Hook Verification)", () => {
             render: jest.fn().mockReturnValue(""),
           },
         },
+        { provide: MetricsService, useValue: mockMetricsService },
       ],
     }).compile();
 

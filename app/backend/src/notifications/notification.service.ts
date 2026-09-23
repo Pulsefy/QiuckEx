@@ -43,6 +43,7 @@ import type { WebhookDeliveryPayload } from "../job-queue/types/job-payloads.typ
 
 import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { TemplateVersionService } from "./template-versioning/template-version.service";
+import { MetricsService } from "../metrics/metrics.service";
 
 const MAX_ATTEMPTS = 3;
 
@@ -76,6 +77,7 @@ export class NotificationService implements OnModuleInit {
     private readonly inAppRepo: InAppNotificationRepository,
     private readonly templateVersionService: TemplateVersionService,
     private readonly logRepo: NotificationLogRepository,
+    private readonly metricsService: MetricsService,
     @Optional() private readonly jobQueueService?: JobQueueService,
   ) {}
 
@@ -384,6 +386,7 @@ export class NotificationService implements OnModuleInit {
         result.httpStatus,
         result.responseBody,
       );
+      this.metricsService.recordNotificationDelivery(channel, "success");
 
       return { ok: true, messageId: result.messageId };
     } catch (err) {
@@ -395,6 +398,16 @@ export class NotificationService implements OnModuleInit {
         eventId,
         message,
       );
+      
+      this.metricsService.recordNotificationDelivery(channel, "failure");
+      
+      // Fallback for critical notifications
+      if (channel !== 'in_app' && channel !== 'webhook') {
+          // Attempt fallback to in_app
+          this.logger.log(`Attempting fallback to in_app for failed channel ${channel}`);
+          await this.sendToChannel({ ...pref, channel: 'in_app' as any }, payload, templateVersionId);
+      }
+
       return { ok: false, error: message };
     }
   }
@@ -502,11 +515,20 @@ export class NotificationService implements OnModuleInit {
   // RETRY (UNCHANGED)
   // ---------------------------------------------------------------------------
 
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async retryFailedNotifications(): Promise<void> {
     const retries = await this.logRepo.getPendingRetries(MAX_ATTEMPTS);
+    const now = Date.now();
 
     for (const entry of retries) {
+      if (entry.lastFailedAt) {
+        // Exponential backoff: 2^attempts * 5 minutes
+        const backoffMs = Math.pow(2, entry.attempts) * 5 * 60 * 1000;
+        if (now - new Date(entry.lastFailedAt).getTime() < backoffMs) {
+          continue; // Not yet time to retry
+        }
+      }
+
       try {
         const prefs = await this.prefsRepo.getEnabledPreferences(
           entry.publicKey,

@@ -34,6 +34,7 @@ export class MetricsService implements OnModuleInit {
   private outboxDispatchTotal: client.Counter<string>;
   private reconciliationDriftActive: client.Gauge<string>;
   private reconciliationConsecutiveFailures: client.Gauge<string>;
+  private notificationDeliveryTotal: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -195,6 +196,12 @@ export class MetricsService implements OnModuleInit {
         help: "Number of consecutive failed or skipped reconciliation runs",
       });
 
+      this.notificationDeliveryTotal = new client.Counter({
+        name: "notification_delivery_total",
+        help: "Total number of notification delivery attempts",
+        labelNames: ["channel", "outcome"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -221,6 +228,7 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.outboxDispatchTotal);
       this.register.registerMetric(this.reconciliationDriftActive);
       this.register.registerMetric(this.reconciliationConsecutiveFailures);
+      this.register.registerMetric(this.notificationDeliveryTotal);
 
       // BE-115: fail fast at boot if any registered metric uses a label source
       // that is not covered by the bounded-label policy.
@@ -517,6 +525,13 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.reconciliationConsecutiveFailures) return;
     try {
       this.reconciliationConsecutiveFailures.set(count);
+    } catch (error) {}
+  }
+
+  recordNotificationDelivery(channel: string, outcome: "success" | "failure" | "permanent_failure") {
+    if (!this.initialized || !this.notificationDeliveryTotal) return;
+    try {
+      this.notificationDeliveryTotal.labels(channel, outcome).inc();
     } catch (error) {}
   }
 }
