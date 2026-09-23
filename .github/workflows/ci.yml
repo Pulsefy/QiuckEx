@@ -30,6 +30,12 @@ jobs:
           cd app/backend
           npx tsc --noEmit || echo "::warning::Bypassing existing codebase compilation warning cleanly."
 
+      - name: Check Analytics Event Schemas
+        run: |
+          cd packages/analytics-registry
+          pnpm build
+          node scripts/check-schema.mjs
+
   # ── Secret scanning (lightweight check in main CI) ──────────────────────
   secret-scan:
     name: Secret Scan

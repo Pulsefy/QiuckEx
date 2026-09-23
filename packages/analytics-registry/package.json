@@ -1,0 +1,27 @@
+{
+  "name": "@quickex/analytics-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Central registry for analytics event schemas",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "check-schema": "node scripts/check-schema.mjs"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
