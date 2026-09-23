@@ -23,6 +23,7 @@ import {
   processOfflineQueue,
   confirmQueuedAction,
   discardQueuedAction,
+  registerMockHandlers,
   type QueuedAction,
 } from "../services/offline-queue";
 
@@ -52,6 +53,11 @@ export default function OfflineQueueInspectorScreen() {
 
   useEffect(() => {
     loadQueue();
+  }, []);
+
+  // Register mock handlers for QA simulation (this screen only exists in debug builds)
+  useEffect(() => {
+    registerMockHandlers();
   }, []);
 
   // Action helpers

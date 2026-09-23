@@ -15,36 +15,6 @@ import { getWalletSession } from "./wallet-session";
 
 const NOTIFICATIONS_KEY = "app_notifications";
 
-// Seed data used only when the device has never synced and is offline.
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    title: "Payment Received",
-    message: "You received $50.00 from John Doe",
-    type: "payment",
-    read: false,
-    createdAt: Date.now() - 3600000,
-    data: { amount: "50.00", sender: "John Doe" },
-  },
-  {
-    id: "2",
-    title: "Escrow Released",
-    message: "Escrow #1234 has been released successfully",
-    type: "escrow",
-    read: false,
-    createdAt: Date.now() - 7200000,
-    data: { escrowId: "1234" },
-  },
-  {
-    id: "3",
-    title: "Welcome to QiuckEx!",
-    message: "Thanks for joining QiuckEx. Start your crypto journey today!",
-    type: "system",
-    read: true,
-    createdAt: Date.now() - 86400000,
-  },
-];
-
 function mapEventType(
   eventType: string,
 ): Notification["type"] {
@@ -164,17 +134,13 @@ export async function getNotifications(): Promise<Notification[]> {
   const cached = await getCachedNotifications();
 
   if (!(await isOnline())) {
-    if (cached.length > 0) return cached;
-    await saveNotifications(MOCK_NOTIFICATIONS);
-    return MOCK_NOTIFICATIONS;
+    return cached;
   }
 
   try {
     const session = await getWalletSession();
     if (!session?.publicKey) {
-      if (cached.length > 0) return cached;
-      await saveNotifications(MOCK_NOTIFICATIONS);
-      return MOCK_NOTIFICATIONS;
+      return cached;
     }
 
     const remote = await fetchInAppNotifications(session.publicKey);
@@ -184,9 +150,7 @@ export async function getNotifications(): Promise<Notification[]> {
     return merged;
   } catch (error) {
     console.error("Error refreshing notifications from backend:", error);
-    if (cached.length > 0) return cached;
-    await saveNotifications(MOCK_NOTIFICATIONS);
-    return MOCK_NOTIFICATIONS;
+    return cached;
   }
 }
 

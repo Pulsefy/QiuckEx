@@ -15,6 +15,7 @@ import {
   discardQueuedAction,
   ActionError,
   resetRegistries,
+  registerMockHandlers,
 } from "../services/offline-queue";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await AsyncStorage.clear();
   resetRegistries();
+  registerMockHandlers();
 });
 
 // ---------------------------------------------------------------------------

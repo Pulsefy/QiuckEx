@@ -279,43 +279,50 @@ export async function executeAction(action: QueuedAction): Promise<void> {
     return;
   }
 
-  // Built-in mock handlers (development / QA only) ---
+  throw new Error(`No handler registered for action type: ${action.type}`);
+}
 
-  if (action.type === "mock-success") {
+// ---------------------------------------------------------------------------
+// Development / QA mock handlers
+// ---------------------------------------------------------------------------
+
+/**
+ * Registers all mock action handlers for development and QA builds.
+ * These handlers should NEVER be registered in production builds.
+ * Call this function from the offline-queue-inspector or test setup.
+ */
+export function registerMockHandlers(): void {
+  registerActionHandler("mock-success", async () => {
     await new Promise((resolve) => setTimeout(resolve, 800));
-    return;
-  }
+  });
 
-  if (action.type === "mock-failure") {
+  registerActionHandler("mock-failure", async () => {
     await new Promise((resolve) => setTimeout(resolve, 800));
     throw new Error("Simulated network timeout/offline error");
-  }
+  });
 
-  if (action.type === "mock-expired-link") {
+  registerActionHandler("mock-expired-link", async () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     throw new ActionError("Payment link has expired", 410);
-  }
+  });
 
-  if (action.type === "mock-already-applied") {
+  registerActionHandler("mock-already-applied", async () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     throw new ActionError("Transaction already applied: idempotency_key_reused", 409);
-  }
+  });
 
-  if (action.type === "mock-permanent-failure") {
+  registerActionHandler("mock-permanent-failure", async () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     throw new ActionError("Invalid payload: validation failed", 422);
-  }
+  });
 
-  if (action.type === "mock-payment") {
+  registerActionHandler("mock-payment", async () => {
     const net = await NetInfo.fetch();
     if (!net.isConnected) {
       throw new Error("Cannot send payment: Device is offline");
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    return;
-  }
-
-  throw new Error(`No handler registered for action type: ${action.type}`);
+  });
 }
 
 // ---------------------------------------------------------------------------
