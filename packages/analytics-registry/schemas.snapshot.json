@@ -1,0 +1,60 @@
+{
+  "payment_link_viewed": {
+    "version": 1,
+    "properties": {
+      "link_id": "ZodString",
+      "referer": "ZodOptional"
+    },
+    "required": [
+      "link_id"
+    ]
+  },
+  "payment_link_error": {
+    "version": 1,
+    "properties": {
+      "link_id": "ZodString",
+      "error_message": "ZodString"
+    },
+    "required": [
+      "link_id",
+      "error_message"
+    ]
+  },
+  "payment_initiated": {
+    "version": 1,
+    "properties": {
+      "link_id": "ZodString",
+      "amount": "ZodNumber",
+      "currency": "ZodString"
+    },
+    "required": [
+      "link_id",
+      "amount",
+      "currency"
+    ]
+  },
+  "payment_completed": {
+    "version": 1,
+    "properties": {
+      "link_id": "ZodString",
+      "transaction_id": "ZodString",
+      "amount": "ZodNumber",
+      "currency": "ZodString"
+    },
+    "required": [
+      "link_id",
+      "transaction_id",
+      "amount",
+      "currency"
+    ]
+  },
+  "payment_link_retry": {
+    "version": 1,
+    "properties": {
+      "link_id": "ZodString"
+    },
+    "required": [
+      "link_id"
+    ]
+  }
+}

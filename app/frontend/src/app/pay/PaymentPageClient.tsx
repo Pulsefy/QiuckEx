@@ -1,4 +1,5 @@
 "use client";
+import { validateEvent, EventName, InferEventPayload } from '@quickex/analytics-registry';
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -263,11 +264,19 @@ function LoadingFallback() {
   );
 }
 
+
+
 // Simple analytics tracking (replace with your analytics provider)
-function trackAnalyticsEvent(event: string, data: Record<string, unknown>) {
+function trackAnalyticsEvent<T extends EventName>(event: T, data: InferEventPayload<T>) {
+  const result = validateEvent(event, data);
+  if (!result.valid) {
+    console.error(`[Analytics Error] Invalid event data for ${event}:`, result.errors);
+    return;
+  }
+
   if (typeof window !== "undefined") {
     // Replace with your analytics provider (e.g., PostHog, Google Analytics, etc.)
-    console.log(`[Analytics] ${event}`, data);
+    console.log(`[Analytics] ${event}`, result.payload);
 
     // Example: window.posthog?.capture(event, data);
     // Example: window.gtag?.('event', event, data);
