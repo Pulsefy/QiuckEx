@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CrashReportingService } from './crash-reporting.service';
 import { CrashReportingController } from './crash-reporting.controller';
+import { CrashReportingAdminController } from './crash-reporting-admin.controller';
 import { CrashReportingRepository } from './crash-reporting.repository';
 import { RedactionService } from './redaction.service';
 import { SupabaseModule } from '../supabase/supabase.module';
@@ -10,7 +11,7 @@ import { SupabaseModule } from '../supabase/supabase.module';
  */
 @Module({
   imports: [SupabaseModule],
-  controllers: [CrashReportingController],
+  controllers: [CrashReportingController, CrashReportingAdminController],
   providers: [
     CrashReportingService,
     CrashReportingRepository,
