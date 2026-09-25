@@ -39,6 +39,7 @@ export interface ContractRegistrySyncResult {
 interface ContractRegistryCache {
   timestamp: number;
   data: ContractRegistry;
+  etag?: string;
 }
 
 let memoryRegistry: ContractRegistry | null = null;
@@ -52,10 +53,40 @@ function isContractRegistryEnvelope(value: unknown): value is ContractRegistryEn
   );
 }
 
+async function getCachedRegistry(): Promise<ContractRegistryCache | null> {
+  try {
+    const cached = await AsyncStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    return JSON.parse(cached) as ContractRegistryCache;
+  } catch {
+    return null;
+  }
+}
+
 export const ContractRegistryService = {
   async sync(backendUrl: string): Promise<ContractRegistrySyncResult> {
+    // Retrieve the cached envelope so its ETag can drive a conditional request.
+    const cachedEnvelope = await getCachedRegistry();
+
+    const headers: Record<string, string> = {};
+    if (cachedEnvelope?.etag) {
+      headers['If-None-Match'] = cachedEnvelope.etag;
+    }
+
     try {
-      const response = await fetch(`${backendUrl}/contracts/registry`);
+      const response = await fetch(`${backendUrl}/contracts/registry`, { headers });
+
+      // 304 Not Modified — the cached registry is still authoritative.
+      if (response.status === 304 && cachedEnvelope) {
+        memoryRegistry = cachedEnvelope.data;
+        return {
+          registry: cachedEnvelope.data,
+          fetchedAt: cachedEnvelope.timestamp,
+          isStale: false,
+          source: 'cache',
+        };
+      }
+
       if (response.status === 404) {
         throw new Error('Contract registry route not found on backend');
       }
@@ -69,11 +100,13 @@ export const ContractRegistryService = {
       }
 
       const data = body.data;
+      const etag = response.headers?.get?.('ETag') || body.etag;
       const timestamp = Date.now();
       memoryRegistry = data;
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp,
-        data
+        data,
+        etag
       }));
       return {
         registry: data,
@@ -82,15 +115,13 @@ export const ContractRegistryService = {
         source: 'network',
       };
     } catch (error) {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached) as ContractRegistryCache;
-        memoryRegistry = parsed.data;
+      if (cachedEnvelope) {
+        memoryRegistry = cachedEnvelope.data;
         // Serve stale cache if offline or backend returned bad data
         return {
-          registry: parsed.data,
-          fetchedAt: parsed.timestamp,
-          isStale: Date.now() - parsed.timestamp > REGISTRY_CACHE_TTL_MS,
+          registry: cachedEnvelope.data,
+          fetchedAt: cachedEnvelope.timestamp,
+          isStale: Date.now() - cachedEnvelope.timestamp > REGISTRY_CACHE_TTL_MS,
           source: 'cache',
         };
       }
@@ -170,3 +201,4 @@ export const ContractRegistryService = {
     memoryRegistry = null;
   },
 };
+
