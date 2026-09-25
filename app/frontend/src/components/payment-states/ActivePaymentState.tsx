@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { SigningSummary } from "@/components/SigningSummary";
 import {
   formatAssetAmount,
   formatDate,
   formatDateTime,
 } from "@/lib/formatting";
+import { getQuickexApiBase } from "@/lib/api";
+import { useWallet } from "@/hooks/useWallet";
 import {
   CheckCircle2,
   Loader2,
@@ -48,41 +50,85 @@ interface ActivePaymentStateProps {
   onPaymentCompleted: (txHash: string) => void;
 }
 
-type TransactionStep = "idle" | "simulate" | "sign" | "submit" | "completed";
+type TransactionStep = "idle" | "compose" | "sign" | "submit" | "completed";
 type StepStatus = "pending" | "processing" | "success" | "error";
-type SimulatorOutcome =
-  | "success"
-  | "fail_simulate"
-  | "fail_sign"
-  | "fail_submit";
+
+interface ComposeTransactionRequest {
+  contractId: string;
+  method: string;
+  params: Array<{ type: string; value: unknown }>;
+  sourceAccount: string;
+  networkPassphrase?: string;
+  idempotencyKey?: string;
+  memo?: { type: "text" | "id" | "hash" | "return"; value: string };
+}
+
+interface ComposeTransactionResponse {
+  success: boolean;
+  unsignedXdr?: string;
+  error?: string;
+  userMessage?: string;
+  details?: Record<string, unknown>;
+  idempotencyKey?: string;
+  simulationSummary?: {
+    status: "success";
+    footprint: { readOnly: number; readWrite: number };
+    estimatedCost: {
+      cpuInstructions: number;
+      ledgerReads: number;
+      ledgerWrites: number;
+      eventBytes: number;
+      returnValueBytes: number;
+    };
+  };
+}
+
+interface SubmitSignedTransactionResponse {
+  success: boolean;
+  hash?: string;
+  error?: string;
+  userMessage?: string;
+}
+
+const CONTRACT_ID = process.env.NEXT_PUBLIC_QUICKEX_CONTRACT_ID || "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
+    ? "Public Global Stellar Network ; September 2015"
+    : "Test SDF Network ; September 2015";
+
+const isDevelopment = process.env.NODE_ENV === "development";
 
 export function ActivePaymentState({
   status,
   onPaymentInitiated,
   onPaymentCompleted,
 }: ActivePaymentStateProps) {
+  const {
+    wallet,
+    isRestoring,
+    connect,
+    signTransaction,
+    availableWallets,
+    clearError,
+  } = useWallet();
+
   const [selectedSourceAsset, setSelectedSourceAsset] = useState<string | null>(
     null,
   );
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Stepper state
   const [txStep, setTxStep] = useState<TransactionStep>("idle");
-  const [simulateStatus, setSimulateStatus] = useState<StepStatus>("pending");
+  const [composeStatus, setComposeStatus] = useState<StepStatus>("pending");
   const [signStatus, setSignStatus] = useState<StepStatus>("pending");
   const [submitStatus, setSubmitStatus] = useState<StepStatus>("pending");
 
   const [errorType, setErrorType] = useState<
-    "contract" | "rejection" | "network" | null
+    "contract" | "rejection" | "network" | "wallet_not_connected" | null
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [signedPayload, setSignedPayload] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-
-  // Dev Simulator Settings
-  const [simulatorOutcome, setSimulatorOutcome] =
-    useState<SimulatorOutcome>("success");
   const [showDevPanel, setShowDevPanel] = useState(false);
 
   const selectedSwapOption = status.swapOptions?.find(
@@ -107,133 +153,220 @@ export function ActivePaymentState({
       ? "Stellar Mainnet"
       : "Stellar Testnet";
 
-  const addLog = (message: string) => {
+  const addLog = useCallback((message: string) => {
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
     setLogs((prev) => [...prev, `[${time}] ${message}`]);
-  };
+  }, []);
 
-  const runPipeline = async (startStep: "simulate" | "sign" | "submit") => {
+  const generateIdempotencyKey = useCallback(() => {
+    return `pay_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  }, []);
+
+  const buildComposeParams = useCallback((): ComposeTransactionRequest => {
+    const params = [
+      { type: "address", value: status.destinationPublicKey },
+      { type: "i128", value: Math.round(parseFloat(status.amount) * 10_000_000).toString() },
+    ];
+
+    if (selectedSwapOption && selectedSwapOption.sourceAsset !== status.asset) {
+      params.push({ type: "string", value: selectedSwapOption.sourceAsset });
+    }
+
+    if (status.memo) {
+      params.push({ type: "string", value: status.memo });
+    }
+
+    const request: ComposeTransactionRequest = {
+      contractId: CONTRACT_ID,
+      method: "pay",
+      params,
+      sourceAccount: wallet.publicKey!,
+      networkPassphrase: NETWORK_PASSPHRASE,
+      idempotencyKey: idempotencyKey ?? generateIdempotencyKey(),
+    };
+
+    if (status.memo) {
+      request.memo = { type: "text", value: status.memo };
+    }
+
+    return request;
+  }, [status, selectedSwapOption, wallet.publicKey, idempotencyKey, generateIdempotencyKey]);
+
+  const runPipeline = useCallback(async () => {
+    if (!wallet.connected || !wallet.publicKey) {
+      setErrorType("wallet_not_connected");
+      setErrorMessage("Please connect your wallet first.");
+      addLog("ERROR: Wallet not connected. Cannot proceed with payment.");
+      return;
+    }
+
     setErrorType(null);
     setErrorMessage(null);
+    clearError();
     onPaymentInitiated();
 
-    if (startStep === "simulate") {
-      setTxStep("simulate");
-      setSimulateStatus("processing");
-      setSignStatus("pending");
-      setSubmitStatus("pending");
-      setLogs([]);
-      addLog("Starting transaction pipeline execution...");
-      addLog("Validating recipient public key and destination address...");
+    const newIdempotencyKey = generateIdempotencyKey();
+    setIdempotencyKey(newIdempotencyKey);
+    setTxStep("compose");
+    setComposeStatus("processing");
+    setSignStatus("pending");
+    setSubmitStatus("pending");
+    setLogs([]);
+    addLog("Starting transaction pipeline execution...");
+    addLog("Validating recipient public key and destination address...");
 
-      await new Promise((r) => setTimeout(r, 1500));
+    try {
+      // Step 1: Compose transaction (simulate)
+      addLog("Requesting transaction composition from backend...");
+      const composeRequest = buildComposeParams();
+      
+      const composeResponse = await fetch(`${getQuickexApiBase()}/transactions/compose`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": newIdempotencyKey,
+        },
+        body: JSON.stringify(composeRequest),
+      });
 
-      if (simulatorOutcome === "fail_simulate") {
-        setSimulateStatus("error");
+      const composeResult: ComposeTransactionResponse = await composeResponse.json();
+
+      if (!composeResult.success) {
+        setComposeStatus("error");
         setErrorType("contract");
-        const err =
-          "Contract Error: Transaction simulation failed. The smart contract returned an error (e.g. insufficient funds, expired path, or invalid preconditions).";
+        const err = composeResult.userMessage || composeResult.error || "Transaction simulation failed.";
         setErrorMessage(err);
-        addLog(
-          "ERROR: Transaction simulation failed (op_underfunded). Recipient balance is insufficient or swap path is invalid.",
-        );
+        addLog(`ERROR: ${err}`);
         return;
       }
 
-      setSimulateStatus("success");
-      addLog("Simulation successful: gas limit checked, swap path verified.");
-      startStep = "sign";
-    }
+      if (!composeResult.unsignedXdr) {
+        setComposeStatus("error");
+        setErrorType("contract");
+        setErrorMessage("Backend did not return unsigned XDR.");
+        addLog("ERROR: No unsigned XDR returned from composition.");
+        return;
+      }
 
-    if (startStep === "sign") {
+      setComposeStatus("success");
+      addLog("Simulation successful: gas limit checked, swap path verified.");
+      addLog(`Unsigned XDR received (${composeResult.unsignedXdr.substring(0, 16)}...).`);
+
+      // Step 2: Sign transaction
       setTxStep("sign");
       setSignStatus("processing");
-      addLog(
-        "Requesting transaction signature from Stellar wallet (Freighter/Lobstr)...",
-      );
+      addLog("Requesting transaction signature from Stellar wallet...");
 
-      await new Promise((r) => setTimeout(r, 2000));
-
-      if (simulatorOutcome === "fail_sign") {
+      let signedPayload: string;
+      try {
+        signedPayload = await signTransaction(composeResult.unsignedXdr);
+      } catch (signErr) {
         setSignStatus("error");
         setErrorType("rejection");
-        const err =
-          "User Rejection: Signature request denied. The transaction was rejected in your wallet.";
+        const err = signErr instanceof Error ? signErr.message : "Signature request denied.";
         setErrorMessage(err);
-        addLog("ERROR: User rejected signature request in wallet extension.");
+        addLog(`ERROR: ${err}`);
         return;
       }
 
-      // Simulate generating signed payload (XDR)
-      const mockXdr =
-        "AAAAA" +
-        Math.random().toString(36).substring(7).toUpperCase() +
-        "xdrSignedPayload314159265358979323846264";
-      setSignedPayload(mockXdr);
       setSignStatus("success");
-      addLog(
-        `Transaction signed. Signed XDR envelope generated (${mockXdr.substring(0, 16)}...).`,
-      );
-      startStep = "submit";
-    }
+      addLog(`Transaction signed. Signed XDR envelope generated (${signedPayload.substring(0, 16)}...).`);
 
-    if (startStep === "submit") {
+      // Step 3: Submit transaction
       setTxStep("submit");
       setSubmitStatus("processing");
-      if (signedPayload) {
-        addLog(
-          `Idempotency active: broadcasting cached signed XDR (${signedPayload.substring(0, 16)}...)`,
-        );
-      } else {
-        addLog(
-          "Broadcasting transaction payload to Stellar Horizon network...",
-        );
-      }
+      addLog("Broadcasting transaction payload to Stellar network...");
 
-      await new Promise((r) => setTimeout(r, 2000));
+      const submitResponse = await fetch(`${getQuickexApiBase()}/transactions/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": newIdempotencyKey,
+        },
+        body: JSON.stringify({
+          signedXdr: signedPayload,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          idempotencyKey: newIdempotencyKey,
+        }),
+      });
 
-      if (simulatorOutcome === "fail_submit") {
+      const submitResult: SubmitSignedTransactionResponse = await submitResponse.json();
+
+      if (!submitResult.success) {
         setSubmitStatus("error");
         setErrorType("network");
-        const err =
-          "Network Error: Broadcast timed out or Horizon node was unreachable. You can safely retry without resigning.";
+        const err = submitResult.userMessage || submitResult.error || "Transaction submission failed.";
         setErrorMessage(err);
-        addLog("ERROR: Connection timeout during broadcast to Horizon node.");
-        addLog(
-          "SAFE TO RETRY: The signed transaction envelope (XDR) is cached. Retrying will not duplicate payment.",
-        );
+        addLog(`ERROR: ${err}`);
+        addLog("SAFE TO RETRY: The signed transaction envelope (XDR) is cached. Retrying will not duplicate payment.");
+        return;
+      }
+
+      if (!submitResult.hash) {
+        setSubmitStatus("error");
+        setErrorType("network");
+        setErrorMessage("Transaction submitted but no hash returned.");
+        addLog("ERROR: No transaction hash returned from submission.");
         return;
       }
 
       setSubmitStatus("success");
       setTxStep("completed");
-      addLog("Transaction confirmed in ledger! Fetching tx hash...");
-
-      // Complete payment
-      const txHash =
-        "tx_" +
-        Math.random().toString(36).substring(2, 12) +
-        Math.random().toString(36).substring(2, 12);
-      addLog(`Transaction Hash: ${txHash}`);
+      addLog("Transaction confirmed in ledger!");
+      addLog(`Transaction Hash: ${submitResult.hash}`);
 
       await new Promise((r) => setTimeout(r, 1000));
-      onPaymentCompleted(txHash);
+      onPaymentCompleted(submitResult.hash);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "Unknown error occurred";
+      addLog(`ERROR: ${error}`);
+      
+      // Determine which step failed based on the current step
+      if (txStep === "compose" || composeStatus === "processing") {
+        setComposeStatus("error");
+        setErrorType("contract");
+      } else if (txStep === "sign" || signStatus === "processing") {
+        setSignStatus("error");
+        setErrorType("rejection");
+      } else if (txStep === "submit" || submitStatus === "processing") {
+        setSubmitStatus("error");
+        setErrorType("network");
+      }
+      setErrorMessage(error);
     }
-  };
+  }, [
+    wallet.connected,
+    wallet.publicKey,
+    buildComposeParams,
+    signTransaction,
+    generateIdempotencyKey,
+    addLog,
+    onPaymentInitiated,
+    onPaymentCompleted,
+    clearError,
+    txStep,
+    composeStatus,
+    signStatus,
+    submitStatus,
+  ]);
 
-  const handlePay = async () => {
+  const handlePay = useCallback(async () => {
     if (!showPreview) {
       setShowPreview(true);
       return;
     }
-    runPipeline("simulate");
-  };
+    if (isRestoring) {
+      addLog("Waiting for wallet session to restore...");
+      return;
+    }
+    runPipeline();
+  }, [showPreview, isRestoring, runPipeline, addLog]);
 
-  const handleCopyLink = async () => {
+  const handleCopyLink = useCallback(async () => {
     const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
@@ -242,57 +375,83 @@ export function ActivePaymentState({
       setCopyStatus("Could not copy link. Please copy from the address bar.");
     }
     window.setTimeout(() => setCopyStatus(null), 3000);
-  };
+  }, []);
 
-  const handleRetryStep = () => {
-    if (errorType === "contract") {
-      runPipeline("simulate");
-    } else if (errorType === "rejection") {
-      runPipeline("sign");
-    } else if (errorType === "network") {
-      runPipeline("submit");
+  const handleRetryStep = useCallback(() => {
+    if (errorType === "contract" || errorType === "rejection" || errorType === "network") {
+      runPipeline();
     }
-  };
+  }, [errorType, runPipeline]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setTxStep("idle");
-    setSimulateStatus("pending");
+    setComposeStatus("pending");
     setSignStatus("pending");
     setSubmitStatus("pending");
     setErrorType(null);
     setErrorMessage(null);
-    setSignedPayload(null);
+    setIdempotencyKey(null);
     setLogs([]);
-  };
+  }, []);
+
+  const handleWalletConnect = useCallback(async (walletType: "freighter" | "albedo" | "demo") => {
+    try {
+      await connect(walletType, wallet.network);
+      addLog(`Wallet connected: ${walletType}`);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "Failed to connect wallet";
+      addLog(`ERROR: ${error}`);
+    }
+  }, [connect, wallet.network, addLog]);
 
   const hasSwapOptions = status.swapOptions && status.swapOptions.length > 0;
 
-  const summaryDetails = [
-    { label: "Destination", value: status.destinationPublicKey },
-    { label: "Recipient", value: `@${status.username}` },
-    {
-      label: "Payment Asset",
-      value: formatAssetAmount(status.amount, status.asset),
-    },
-    { label: "Memo", value: status.memo ?? "None" },
-    {
-      label: "Expires",
-      value: status.expiresAt ? formatDateTime(status.expiresAt) : "No expiry",
-    },
-  ];
+  const summaryDetails = useMemo(() => {
+    const details = [
+      { label: "Destination", value: status.destinationPublicKey },
+      { label: "Recipient", value: `@${status.username}` },
+      {
+        label: "Payment Asset",
+        value: formatAssetAmount(status.amount, status.asset),
+      },
+      { label: "Memo", value: status.memo ?? "None" },
+      {
+        label: "Expires",
+        value: status.expiresAt ? formatDateTime(status.expiresAt) : "No expiry",
+      },
+    ];
 
-  if (selectedSourceAsset && selectedSourceAsset !== status.asset) {
-    summaryDetails.push({
-      label: "Source Asset",
-      value: selectedSourceAsset,
-    });
-    summaryDetails.push({
-      label: "Estimated Send",
-      value: `${selectedSwapOption?.sourceAmount ?? "?"} ${selectedSourceAsset}`,
-    });
+    if (selectedSourceAsset && selectedSourceAsset !== status.asset) {
+      details.push({
+        label: "Source Asset",
+        value: selectedSourceAsset,
+      });
+      details.push({
+        label: "Estimated Send",
+        value: `${selectedSwapOption?.sourceAmount ?? "?"} ${selectedSourceAsset}`,
+      });
+    }
+    return details;
+  }, [status, selectedSourceAsset, selectedSwapOption]);
+
+  if (isRestoring) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
+            <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
+            Restoring Wallet Session
+          </h1>
+          <p className="text-subtle text-sm mt-1">
+            Checking previous wallet connection...
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  // ── RENDER TRANSACTION PIPELINE STEPPER UI ─────────────────
   if (txStep !== "idle") {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -307,26 +466,22 @@ export function ActivePaymentState({
               : "Transaction Execution"}
           </h1>
           <p className="text-subtle text-sm mt-1">
-            Simulating, signing, and submitting your Stellar payment
+            Composing, signing, and submitting your Stellar payment
           </p>
         </div>
 
         {/* Stepper Wizard Card */}
         <div className="bg-card/90 border border-border-strong rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
-          {/* Subtle Glow backdrop */}
           <div className="absolute -right-20 -top-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Stepper Progress Bar */}
           <div className="relative flex items-center justify-between max-w-md mx-auto mb-8">
-            {/* Connecting Lines */}
             <div className="absolute top-5 left-0 right-0 h-[2px] bg-surface-strong -translate-y-1/2 z-0" />
-
-            {/* Segment Progress Highlight */}
             <div
               className="absolute top-5 left-0 h-[2px] bg-indigo-500 -translate-y-1/2 z-0 transition-all duration-500"
               style={{
                 width:
-                  simulateStatus === "success"
+                  composeStatus === "success"
                     ? signStatus === "success"
                       ? "100%"
                       : "50%"
@@ -334,24 +489,24 @@ export function ActivePaymentState({
               }}
             />
 
-            {/* Step 1: Simulate */}
+            {/* Step 1: Compose/Simulate */}
             <div className="flex flex-col items-center z-10 relative flex-1">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold transition-all duration-300 ${
-                  simulateStatus === "success"
+                  composeStatus === "success"
                     ? "bg-success-soft border-emerald-500 text-emerald-400"
-                    : simulateStatus === "processing"
+                    : composeStatus === "processing"
                       ? "bg-indigo-500/20 border-indigo-500 text-indigo-400 animate-pulse"
-                      : simulateStatus === "error"
+                      : composeStatus === "error"
                         ? "bg-red-500/20 border-red-500 text-red-400"
                         : "bg-background border-border-strong text-subtle"
                 }`}
               >
-                {simulateStatus === "success" ? (
+                {composeStatus === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
-                ) : simulateStatus === "processing" ? (
+                ) : composeStatus === "processing" ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
-                ) : simulateStatus === "error" ? (
+                ) : composeStatus === "error" ? (
                   <AlertCircle className="w-5 h-5" />
                 ) : (
                   "1"
@@ -359,12 +514,12 @@ export function ActivePaymentState({
               </div>
               <span
                 className={`text-[11px] font-black uppercase mt-2 tracking-wider ${
-                  simulateStatus === "processing"
+                  composeStatus === "processing"
                     ? "text-indigo-400"
                     : "text-subtle"
                 }`}
               >
-                Simulate
+                Compose
               </span>
             </div>
 
@@ -442,12 +597,12 @@ export function ActivePaymentState({
             <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 animate-in fade-in duration-200">
               <div className="flex gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <h4 className="font-bold text-red-400 text-sm">
                     {errorType === "contract" && "Simulation Contract Failure"}
-                    {errorType === "rejection" &&
-                      "Wallet Signature Request Rejected"}
-                    {errorType === "network" && "Horizon Network Timeout"}
+                    {errorType === "rejection" && "Wallet Signature Request Rejected"}
+                    {errorType === "network" && "Network Submission Failed"}
+                    {errorType === "wallet_not_connected" && "Wallet Not Connected"}
                   </h4>
                   <p className="text-xs text-danger/90 mt-1 leading-relaxed">
                     {errorMessage}
@@ -470,18 +625,12 @@ export function ActivePaymentState({
               Current Status
             </p>
             <p className="text-sm font-semibold text-foreground px-6">
-              {simulateStatus === "processing" &&
-                "Evaluating balance and routing paths..."}
-              {simulateStatus === "error" &&
-                "Simulation check failed. Adjust options and retry."}
-              {signStatus === "processing" &&
-                "Awaiting approval in Stellar Wallet extension..."}
-              {signStatus === "error" &&
-                "Signature request denied. Please retry signing."}
-              {submitStatus === "processing" &&
-                "Submitting payload to Horizon. Writing to ledger..."}
-              {submitStatus === "error" &&
-                "Network issue detected. Retry submit safely."}
+              {composeStatus === "processing" && "Composing transaction with backend..."}
+              {composeStatus === "error" && "Transaction composition failed. Please retry."}
+              {signStatus === "processing" && "Awaiting approval in Stellar Wallet extension..."}
+              {signStatus === "error" && "Signature request denied. Please retry signing."}
+              {submitStatus === "processing" && "Submitting payload to network. Writing to ledger..."}
+              {submitStatus === "error" && "Network issue detected. Retry submit safely."}
               {txStep === "completed" && "Transaction completed successfully!"}
             </p>
           </div>
@@ -516,7 +665,7 @@ export function ActivePaymentState({
               ))}
               {logs.length === 0 && (
                 <div className="text-faint italic">
-                  No output yet. Simulation starting...
+                  No output yet. Pipeline starting...
                 </div>
               )}
             </div>
@@ -539,9 +688,10 @@ export function ActivePaymentState({
                   className="flex-[2] py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                 >
                   <RefreshCw size={16} className="animate-spin-slow" />
-                  {errorType === "contract" && "Retry Simulation"}
+                  {errorType === "contract" && "Retry Composition"}
                   {errorType === "rejection" && "Try Signing Again"}
                   {errorType === "network" && "Retry Broadcast"}
+                  {errorType === "wallet_not_connected" && "Connect Wallet"}
                 </button>
               </>
             ) : (
@@ -557,96 +707,77 @@ export function ActivePaymentState({
           </div>
         </div>
 
-        {/* ── SIMULATOR CONTROL PANEL (DEV TOOL) ────────────────── */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowDevPanel(!showDevPanel)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-card/[0.02] transition-colors"
-          >
-            <span className="flex items-center gap-2 text-sm font-bold text-subtle">
-              <Settings size={16} className="text-indigo-400" /> Stellar
-              Pipeline Simulator Controls
-            </span>
-            {showDevPanel ? (
-              <ChevronUp size={16} className="text-subtle" />
-            ) : (
-              <ChevronDown size={16} className="text-subtle" />
-            )}
-          </button>
+        {/* Dev Simulator Panel - Only in development */}
+        {isDevelopment && (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowDevPanel(!showDevPanel)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-card/[0.02] transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-bold text-subtle">
+                <Settings size={16} className="text-indigo-400" /> Dev
+                Simulator Controls
+              </span>
+              {showDevPanel ? (
+                <ChevronUp size={16} className="text-subtle" />
+              ) : (
+                <ChevronDown size={16} className="text-subtle" />
+              )}
+            </button>
 
-          {showDevPanel && (
-            <div className="px-5 pb-5 pt-2 border-t border-border space-y-4 animate-in fade-in duration-200">
-              <p className="text-xs text-subtle leading-normal">
-                Toggle the behavior below to simulate and verify different
-                outcomes, network errors, and contract rejections in the
-                transaction stepper.
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSimulatorOutcome("success")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "success"
-                      ? "border-emerald-500/50 bg-success-soft text-emerald-400"
-                      : "border-border bg-background text-subtle hover:border-brand hover:bg-brand-soft"
-                  }`}
-                >
-                  <p className="font-bold">Always Succeed</p>
-                  <p className="text-[10px] text-subtle mt-0.5">
-                    Success path through to PaidState
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSimulatorOutcome("fail_simulate")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_simulate"
-                      ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
-                >
-                  <p className="font-bold">Fail on Simulation</p>
-                  <p className="text-[10px] text-subtle mt-0.5">
-                    Simulate contract / funds error
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSimulatorOutcome("fail_sign")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_sign"
-                      ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
-                >
-                  <p className="font-bold">Fail on Signing</p>
-                  <p className="text-[10px] text-subtle mt-0.5">
-                    Simulate user rejecting wallet pop-up
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSimulatorOutcome("fail_submit")}
-                  className={`p-3 rounded-xl border text-xs text-left font-semibold transition ${
-                    simulatorOutcome === "fail_submit"
-                      ? "border-red-500/50 bg-red-500/10 text-red-400"
-                      : "border-border bg-background text-subtle hover:border-border-strong"
-                  }`}
-                >
-                  <p className="font-bold">Fail on Submission</p>
-                  <p className="text-[10px] text-subtle mt-0.5">
-                    Simulate Horizon network broadcast timeout
-                  </p>
-                </button>
+            {showDevPanel && (
+              <div className="px-5 pb-5 pt-2 border-t border-border space-y-4 animate-in fade-in duration-200">
+                <p className="text-xs text-subtle leading-normal">
+                  Development tools for testing error states. These controls are
+                  gated out of production builds.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setErrorType("contract")}
+                    className="p-3 rounded-xl border text-xs text-left font-semibold transition border-red-500/50 bg-red-500/10 text-red-400"
+                  >
+                    <p className="font-bold">Simulate Contract Error</p>
+                    <p className="text-[10px] text-subtle mt-0.5">
+                      Set contract failure state
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setErrorType("rejection")}
+                    className="p-3 rounded-xl border text-xs text-left font-semibold transition border-red-500/50 bg-red-500/10 text-red-400"
+                  >
+                    <p className="font-bold">Simulate Rejection</p>
+                    <p className="text-[10px] text-subtle mt-0.5">
+                      Set wallet rejection state
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setErrorType("network")}
+                    className="p-3 rounded-xl border text-xs text-left font-semibold transition border-red-500/50 bg-red-500/10 text-red-400"
+                  >
+                    <p className="font-bold">Simulate Network Error</p>
+                    <p className="text-[10px] text-subtle mt-0.5">
+                      Set network timeout state
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="p-3 rounded-xl border text-xs text-left font-semibold transition border-border bg-background text-subtle hover:border-border-strong"
+                  >
+                    <p className="font-bold">Reset Pipeline</p>
+                    <p className="text-[10px] text-subtle mt-0.5">
+                      Clear all state and logs
+                    </p>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -807,6 +938,41 @@ export function ActivePaymentState({
         </div>
       )}
 
+      {/* Wallet Connection Section */}
+      {!wallet.connected && (
+        <div className="bg-card border border-border-strong rounded-2xl p-6 mb-6">
+          <h3 className="text-lg font-bold mb-4">Connect Wallet</h3>
+          <p className="text-sm text-muted mb-4">
+            Connect your Stellar wallet to authorize this payment.
+          </p>
+          <div className="space-y-3">
+            {availableWallets
+              .filter((w) => w.available || w.type === "demo")
+              .map((w) => (
+                <button
+                  key={w.type}
+                  type="button"
+                  onClick={() => handleWalletConnect(w.type as "freighter" | "albedo" | "demo")}
+                  className="w-full p-4 rounded-xl border border-border hover:border-brand hover:bg-brand-soft transition-all text-left flex items-center gap-4"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                    <WalletCards className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold">{w.label}</p>
+                    <p className="text-sm text-muted">{w.description}</p>
+                  </div>
+                  {!w.available && w.type !== "demo" && (
+                    <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+                      Not Detected
+                    </span>
+                  )}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         <button
           type="button"
@@ -816,7 +982,12 @@ export function ActivePaymentState({
               ? `Confirm payment to ${status.username}`
               : `Review payment details for ${status.username}`
           }
-          className="w-full py-4 bg-brand hover:opacity-90 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          disabled={!wallet.connected}
+          className={`w-full py-4 rounded-xl font-bold text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            wallet.connected
+              ? "bg-brand hover:opacity-90"
+              : "bg-surface-strong text-subtle cursor-not-allowed"
+          }`}
         >
           {showPreview ? "Open Wallet & Pay" : "Review Payment"}
         </button>
