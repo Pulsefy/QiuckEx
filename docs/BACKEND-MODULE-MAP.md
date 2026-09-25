@@ -12,6 +12,7 @@ Companion documents:
 
 - [CAPABILITY-MAP.md](./CAPABILITY-MAP.md) — whether a flow is Live / Partial / Mocked / Experimental. Read it for *maturity*; read this one for *ownership*.
 - [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) — endpoint-level wiring between clients and the backend.
+- [DATA-MODEL.md](./DATA-MODEL.md) — ER diagram and data dictionary: which tables each module owns, their primary/foreign keys, and why migrations are split across folders. Read it before writing a query or a migration.
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — the cross-surface picture (frontend / backend / contracts).
 - [TESTNET-INCIDENT-RUNBOOK.md](./TESTNET-INCIDENT-RUNBOOK.md) — which of the operational modules to reach for during an incident.
 
@@ -181,7 +182,7 @@ Five modules are **shared infrastructure**: any module may depend on them, they 
 | Module | Contract with callers |
 |---|---|
 | `config` | Read configuration through `AppConfigService`. Never read `process.env` at a call site. Adding a variable means adding it to [env.schema.ts](../app/backend/src/config/env.schema.ts), the typed interface, `.env.example`, and an accessor. |
-| `supabase` | All persistence goes through `SupabaseService`. Do not create a second client. Repositories live in the owning domain, not here. |
+| `supabase` | All persistence goes through `SupabaseService`. Do not create a second client. Repositories live in the owning domain, not here. Table ownership and relationships are in [DATA-MODEL.md](./DATA-MODEL.md). |
 | `metrics` | Register metrics through `MetricsService` so names stay centrally reviewable. Adding one requires updating the registered-metric count assertion in the metrics tests. |
 | `common` | Behaviour that must apply to every request — middleware, filters, interceptors, idempotency, pagination, redaction. Domain logic never lands here. |
 | `tracing` | Outbound HTTP uses `createTracedFetch` or `withSpan`. Do not call bare `fetch` for an external dependency. |
@@ -235,6 +236,7 @@ If an owner exists, **extend it**, even if that means the module grows.
 4. **Register it in [app.module.ts](../app/backend/src/app.module.ts).** Four modules in this tree skipped this step and serve nothing. If registration is conditional, say so in the ownership paragraph.
 5. Choose a route prefix nobody else uses. Two modules already collide on `links`.
 6. Add its ownership paragraph to §2 of this document, and a row to [CAPABILITY-MAP.md](./CAPABILITY-MAP.md) with its maturity.
+7. If it owns tables, put the migration in `app/backend/supabase/migrations/` (never a module-local `migrations/` folder) and add the tables to [DATA-MODEL.md](./DATA-MODEL.md) in the same PR.
 
 ### Extending a module
 

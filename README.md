@@ -193,6 +193,7 @@ Contributions are welcome and encouraged to help evolve QuickEx! To get started:
   - Use `pnpm turbo run build` to validate changes across packages.
   - Update shared packages (`packages/ui` or `packages/stellar-sdk`) only when needed, and bump versions.
   - Run `pnpm turbo run lint --filter=...` for targeted checks (e.g., `--filter=app/frontend`).
+- **Database Schema**: Before writing a query or a new Supabase migration, read [docs/DATA-MODEL.md](docs/DATA-MODEL.md). It has the ER diagram, the table-by-table data dictionary with owning modules and keys, and an explanation of why migrations are split across folders. Any migration that changes tables or keys must update that document in the same PR. [docs/BACKEND-MODULE-MAP.md](docs/BACKEND-MODULE-MAP.md) explains what each backend module owns and which modules may import which.
 
 All contributors must adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) and sign off commits for DCO compliance. For more, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
