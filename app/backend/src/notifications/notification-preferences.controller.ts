@@ -8,8 +8,9 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  UseGuards,
 } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiHeader } from "@nestjs/swagger";
 
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import {
@@ -17,6 +18,7 @@ import {
   NotificationPreferenceResponseDto,
 } from "./dto/notification-preferences.dto";
 import type { NotificationChannel } from "./types/notification.types";
+import { WalletAuthGuard } from "../auth/guards/wallet-auth.guard";
 
 /**
  * REST API for managing per-wallet notification preferences.
@@ -24,11 +26,21 @@ import type { NotificationChannel } from "./types/notification.types";
  * Routes are keyed by Stellar public key (the wallet address), which serves
  * as the user identity throughout the system.
  *
- * Note: In production you would add the ApiKeyGuard here. For now it is
- * intentionally left open so mobile clients can register preferences without
- * a separate auth flow. Add `@UseGuards(ApiKeyGuard)` when ready.
+ * Protected by WalletAuthGuard requiring valid signature proof over the target
+ * public key or scoped API key.
  */
 @ApiTags("Notifications")
+@ApiHeader({
+  name: "x-signature",
+  description: "Stellar signature over METHOD:PATH:TIMESTAMP",
+  required: false,
+})
+@ApiHeader({
+  name: "x-timestamp",
+  description: "ISO timestamp or Unix epoch (ms)",
+  required: false,
+})
+@UseGuards(WalletAuthGuard)
 @Controller("notifications/preferences")
 export class NotificationPreferencesController {
   private readonly logger = new Logger(NotificationPreferencesController.name);

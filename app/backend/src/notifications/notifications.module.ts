@@ -3,6 +3,8 @@ import { Module, forwardRef } from "@nestjs/common";
 import { SupabaseModule } from "../supabase/supabase.module";
 import { MetricsModule } from "../metrics/metrics.module";
 import { AuditModule } from "../audit/audit.module";
+import { ApiKeysModule } from "../api-keys/api-keys.module";
+import { WalletAuthGuard } from "../auth/guards/wallet-auth.guard";
 import { MetricsService } from "../metrics/metrics.service";
 import { NotificationService } from "./notification.service";
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
@@ -41,7 +43,13 @@ import { NotificationsController } from "./notifications.controller";
  * ScheduleModule is registered once at AppModule level.
  */
 @Module({
-  imports: [SupabaseModule, MetricsModule, AuditModule, forwardRef(() => JobQueueModule)],
+  imports: [
+    SupabaseModule,
+    MetricsModule,
+    AuditModule,
+    ApiKeysModule,
+    forwardRef(() => JobQueueModule),
+  ],
   controllers: [
     NotificationPreferencesController,
     TelegramController,
@@ -49,6 +57,7 @@ import { NotificationsController } from "./notifications.controller";
     NotificationsController,
   ],
   providers: [
+    WalletAuthGuard,
     NotificationPreferencesRepository,
     NotificationLogRepository,
     InAppNotificationRepository,

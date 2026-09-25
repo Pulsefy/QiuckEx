@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { NotificationPreferencesController } from "../notification-preferences.controller";
 import { NotificationPreferencesRepository } from "../notification-preferences.repository";
+import { WalletAuthGuard } from "../../auth/guards/wallet-auth.guard";
 import type { NotificationPreference } from "../types/notification.types";
 
 const PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
@@ -37,6 +38,7 @@ describe("NotificationPreferencesController", () => {
       controllers: [NotificationPreferencesController],
       providers: [
         { provide: NotificationPreferencesRepository, useValue: repo },
+        WalletAuthGuard,
       ],
     }).compile();
 
