@@ -226,7 +226,7 @@ fn test_expired_vote_does_not_count_toward_quorum() {
     let result = ctx
         .client
         .try_resolve_dispute_multi_sig(&commitment, &recipient);
-    assert_qx_err(result, QuickexError::InsufficientVotes);
+    assert_qx_err(result, QuickexError::InsufficientApprovals);
 }
 
 #[test]
@@ -257,7 +257,7 @@ fn test_quorum_missed_with_expiry_falls_back_to_timeout_refund() {
 
     // Before the deadline: fallback is not yet available.
     let too_early = ctx.client.try_resolve_dispute_timeout(&commitment);
-    assert_qx_err(too_early, QuickexError::InvalidDisputeState);
+    assert_qx_err(too_early, QuickexError::InvalidStateForOperation);
 
     // Push well past the deadline and past a1's own vote expiry.
     ctx.advance_time(VOTE_TTL + 1);
@@ -266,7 +266,7 @@ fn test_quorum_missed_with_expiry_falls_back_to_timeout_refund() {
     let still_insufficient = ctx
         .client
         .try_resolve_dispute_multi_sig(&commitment, &recipient);
-    assert_qx_err(still_insufficient, QuickexError::InsufficientVotes);
+    assert_qx_err(still_insufficient, QuickexError::InsufficientApprovals);
 
     ctx.client.resolve_dispute_timeout(&commitment);
 
@@ -292,7 +292,7 @@ fn test_resolve_dispute_timeout_rejected_before_deadline() {
         open_multi_sig_dispute(&ctx, &ctx.alice.clone(), &[a1, a2], 2, 5_000, b"too_early");
 
     let result = ctx.client.try_resolve_dispute_timeout(&commitment);
-    assert_qx_err(result, QuickexError::InvalidDisputeState);
+    assert_qx_err(result, QuickexError::InvalidStateForOperation);
 }
 
 #[test]
@@ -327,7 +327,7 @@ fn test_resolve_dispute_timeout_rejected_when_quorum_still_reachable() {
     ctx.advance_time(5);
 
     let result = ctx.client.try_resolve_dispute_timeout(&commitment);
-    assert_qx_err(result, QuickexError::InvalidDisputeState);
+    assert_qx_err(result, QuickexError::InvalidStateForOperation);
 
     // The normal path still works.
     ctx.client
@@ -363,7 +363,7 @@ fn test_vote_after_deadline_rejected() {
     let result = ctx
         .client
         .try_vote_for_dispute(&a2, &commitment, &true, &0u64, &u64::MAX);
-    assert_qx_err(result, QuickexError::InvalidDisputeState);
+    assert_qx_err(result, QuickexError::InvalidStateForOperation);
 }
 
 // ============================================================================

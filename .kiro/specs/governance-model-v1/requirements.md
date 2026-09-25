@@ -190,8 +190,38 @@ The system must be suitable for testnet deployment and designed to support futur
 
 **User Story:** As a developer integrating with the governance system, I want all governance-specific failures to return distinct, documented error codes, so that clients can handle each failure mode precisely.
 
+> **⚠ Hard constraint — read before implementing.**
+>
+> Soroban's `contracterror` spec format enforces a **hard limit of 50 variants** across the entire `QuickexError` enum (not just governance codes). Exceeding this limit causes a deploy-time `LengthExceedsMax` error.
+>
+> **Current state (`errors.rs` after the pre-governance consolidation pass):**
+> - Active variant count: **46**
+> - Soft ceiling enforced by a compile-time `const` assert: **48** (build fails at or above this value)
+> - Hard Soroban cap: **50**
+>
+> **Impact on this requirement:**
+> Adding all 7 net-new codes below (502–507, 511) brings the total to **53 — 3 over the hard cap.** Before any of these variants are committed, a second consolidation pass **must** free at least 4 additional slots. The following candidates are already documented in the `CONSOLIDATION LOG` in `errors.rs`:
+>
+> | Candidate variants | Proposed action |
+> |---|---|
+> | `EscrowExpired = 307` + `SignatureExpired = 501` | Unify under `SignatureExpired`; add `reason` Symbol field via ErrorDetail event |
+> | `CommitmentNotFound = 302` + `StealthEscrowNotFound = 402` | Unify under `NotFound = 302`; use `reason` Symbol to distinguish resource type |
+> | `OraclePriceUnavailable = 601` + `OraclePriceInvalid = 602` | Collapse to `OraclePriceError = 601` with `reason` Symbol |
+> | `HookAlreadyRegistered = 317` + `HookNotRegistered = 318` | Collapse to `HookRegistrationError = 317` with `reason` Symbol |
+>
+> Implementers **must not** simply raise the soft-ceiling constant in `errors.rs` — that defeats its purpose. Perform the consolidation pass first, confirm the assert passes, then add the governance variants.
+>
+> Three codes originally specified in this requirement have **already been retired** by the pre-governance consolidation and are now served by existing variants:
+> - ~~`InvalidProposalState = 508`~~ → reuse `InvalidStateForOperation = 311`
+> - ~~`AlreadyApproved = 509`~~ → reuse `AlreadyVotedOrApproved = 320`
+> - ~~`InsufficientApprovals = 510`~~ → reuse `InsufficientApprovals = 321`
+
 #### Acceptance Criteria
 
-1. THE Governance_Module SHALL define the following new error codes in `QuickexError`: `InvalidThreshold = 502`, `InvalidSignerSet = 503`, `DuplicateSigner = 504`, `NotASigner = 505`, `ProposalAlreadyExists = 506`, `ProposalNotFound = 507`, `InvalidProposalState = 508`, `AlreadyApproved = 509`, `InsufficientApprovals = 510`, `ExpiryTooFar = 511`.
+1. THE Governance_Module SHALL define the following **7 net-new** error codes in `QuickexError` (after completing the second consolidation pass described above): `InvalidThreshold = 502`, `InvalidSignerSet = 503`, `DuplicateSigner = 504`, `NotASigner = 505`, `ProposalAlreadyExists = 506`, `ProposalNotFound = 507`, `ExpiryTooFar = 511`.
 2. THE Governance_Module SHALL reuse existing error codes `NonceAlreadyUsed = 500` and `SignatureExpired = 501` for replay and expiry violations respectively.
 3. THE Governance_Module SHALL reuse `Unauthorized = 200` when a direct privileged entrypoint is called outside the governance execution path.
+4. THE Governance_Module SHALL reuse `InvalidStateForOperation = 311` (formerly `InvalidDisputeState`) wherever the spec requires `InvalidProposalState`; code 508 is retired and SHALL NOT be added to the enum.
+5. THE Governance_Module SHALL reuse `AlreadyVotedOrApproved = 320` wherever the spec requires `AlreadyApproved`; code 509 is retired and SHALL NOT be added to the enum.
+6. THE Governance_Module SHALL reuse `InsufficientApprovals = 321` (formerly `InsufficientVotes`) wherever the spec requires `InsufficientApprovals`; code 510 is retired and SHALL NOT be added to the enum.
+7. BEFORE adding any new `QuickexError` variant, the implementer SHALL verify that the compile-time assert in `errors.rs` (`QUICKEX_ERROR_VARIANT_COUNT < 48`) still passes after the addition; if it does not, a consolidation pass is mandatory before proceeding.

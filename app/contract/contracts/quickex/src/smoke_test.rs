@@ -193,7 +193,7 @@ fn artifact_error_codes_match_contract_errors() {
         (QuickexError::AlreadySpent, "AlreadySpent"),
         (QuickexError::EscrowNotExpired, "EscrowNotExpired"),
         (QuickexError::NoArbiter, "NoArbiter"),
-        (QuickexError::NotArbiter, "NotArbiter"),
+        (QuickexError::NotAnArbiter, "NotAnArbiter"),
     ];
     let artifact = artifact();
     for s in &artifact.scenarios {
@@ -408,7 +408,7 @@ fn smoke_013_014_dispute_lifecycle() {
     let s013 = scenario(&artifact, "SMOKE-013");
     let s014 = scenario(&artifact, "SMOKE-014");
     assert_rejection(s013, "NoArbiter", 310);
-    assert_rejection(s014, "NotArbiter", 312);
+    assert_rejection(s014, "NotAnArbiter", 319);
 
     let ctx = TestContext::with_fees(0);
 
@@ -439,7 +439,7 @@ fn smoke_013_014_dispute_lifecycle() {
             &TestContext::TEST_DEPOSIT_NONCE,
             &TestContext::TEST_DEPOSIT_VALID_UNTIL,
         ),
-        QuickexError::NotArbiter,
+        QuickexError::NotAnArbiter,
     );
 }
 

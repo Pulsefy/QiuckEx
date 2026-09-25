@@ -462,7 +462,7 @@ fn test_finalize_expired_escrow_disputed_fails() {
     // finalize_expired_escrow should fail for disputed escrow
     assert_qx_err(
         ctx.client.try_finalize_expired_escrow(&commitment),
-        QuickexError::InvalidDisputeState,
+        QuickexError::InvalidStateForOperation,
     );
 }
 

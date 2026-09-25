@@ -39,7 +39,7 @@ fn accept_succeeds_after_delay_elapses() {
     let early = ctx.client.try_accept_admin_transfer(&new_admin);
     assert_eq!(
         early,
-        Err(Ok(QuickexError::AdminTimelockNotElapsed)),
+        Err(Ok(QuickexError::AdminProposalError)),
         "accept must fail before the timelock elapses"
     );
 
@@ -68,7 +68,7 @@ fn accept_too_early_is_rejected() {
     ctx.advance_time(MIN_ADMIN_TRANSFER_DELAY - 1);
 
     let result = ctx.client.try_accept_admin_transfer(&new_admin);
-    assert_eq!(result, Err(Ok(QuickexError::AdminTimelockNotElapsed)));
+    assert_eq!(result, Err(Ok(QuickexError::AdminProposalError)));
 
     // Admin is unchanged.
     assert_eq!(ctx.client.get_admin(), Some(ctx.admin.clone()));
@@ -89,7 +89,7 @@ fn current_admin_can_cancel_pending_proposal() {
     // Advancing time and attempting to accept now fails: nothing pending.
     ctx.advance_time(MIN_ADMIN_TRANSFER_DELAY);
     let result = ctx.client.try_accept_admin_transfer(&new_admin);
-    assert_eq!(result, Err(Ok(QuickexError::NoPendingAdminProposal)));
+    assert_eq!(result, Err(Ok(QuickexError::AdminProposalError)));
 
     // Admin never changed.
     assert_eq!(ctx.client.get_admin(), Some(ctx.admin.clone()));
@@ -99,7 +99,7 @@ fn current_admin_can_cancel_pending_proposal() {
 fn cancel_without_pending_proposal_fails() {
     let ctx = TestContext::with_admin();
     let result = ctx.client.try_cancel_admin_transfer(&ctx.admin);
-    assert_eq!(result, Err(Ok(QuickexError::NoPendingAdminProposal)));
+    assert_eq!(result, Err(Ok(QuickexError::AdminProposalError)));
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn wrong_acceptor_is_rejected() {
     ctx.advance_time(MIN_ADMIN_TRANSFER_DELAY);
 
     let result = ctx.client.try_accept_admin_transfer(&impostor);
-    assert_eq!(result, Err(Ok(QuickexError::InvalidAcceptor)));
+    assert_eq!(result, Err(Ok(QuickexError::AdminProposalError)));
 
     // Admin is unchanged.
     assert_eq!(ctx.client.get_admin(), Some(ctx.admin.clone()));
@@ -168,7 +168,7 @@ fn proposing_again_overwrites_previous_proposal() {
 
     // The old candidate can no longer accept; only the latest proposal counts.
     let stale_accept = ctx.client.try_accept_admin_transfer(&first_candidate);
-    assert_eq!(stale_accept, Err(Ok(QuickexError::InvalidAcceptor)));
+    assert_eq!(stale_accept, Err(Ok(QuickexError::AdminProposalError)));
 
     ctx.client.accept_admin_transfer(&second_candidate);
     assert_eq!(ctx.client.get_admin(), Some(second_candidate));
