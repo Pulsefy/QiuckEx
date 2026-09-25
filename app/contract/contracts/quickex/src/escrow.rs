@@ -576,7 +576,7 @@ pub fn withdraw(
     if entry.status != EscrowStatus::Pending {
         // Distinguish disputed (INV-4) from other terminal states (INV-5)
         if entry.status == EscrowStatus::Disputed {
-            return Err(QuickexError::InvalidDisputeState);
+            return Err(QuickexError::InvalidStateForOperation);
         }
         return Err(QuickexError::AlreadySpent);
     }
@@ -647,7 +647,7 @@ pub fn withdraw(
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
 /// - [`AlreadySpent`] – escrow already in a terminal state (INV-5).
-/// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
+/// - [`InvalidStateForOperation`] – escrow is disputed, funds locked (INV-4).
 /// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
 /// - [`InvalidOwner`] – caller is not the original owner.
 pub fn refund(
@@ -669,7 +669,7 @@ pub fn refund(
     if entry.status != EscrowStatus::Pending {
         // INV-4: disputed funds are locked — surface a more specific error
         if entry.status == EscrowStatus::Disputed {
-            return Err(QuickexError::InvalidDisputeState);
+            return Err(QuickexError::InvalidStateForOperation);
         }
         return Err(QuickexError::AlreadySpent);
     }
@@ -737,7 +737,7 @@ pub fn refund(
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
 /// - [`AlreadySpent`] – escrow already in a terminal state (INV-5), including
 ///   an escrow that has already been refunded — this call is not repeatable.
-/// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
+/// - [`InvalidStateForOperation`] – escrow is disputed, funds locked (INV-4).
 /// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
 pub fn finalize_expired_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.clone().into();
@@ -749,7 +749,7 @@ pub fn finalize_expired_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), 
     if entry.status != EscrowStatus::Pending {
         // INV-4: disputed funds are locked — surface a more specific error
         if entry.status == EscrowStatus::Disputed {
-            return Err(QuickexError::InvalidDisputeState);
+            return Err(QuickexError::InvalidStateForOperation);
         }
         return Err(QuickexError::AlreadySpent);
     }
@@ -854,7 +854,7 @@ pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexEr
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
 /// - [`NoArbiter`] – no arbiter assigned to the escrow, or multi-sig mode is
 ///   flagged (`arbiter_threshold > 0`) with no arbiters assigned.
-/// - [`InvalidDisputeState`] – escrow is not in `Pending` status.
+/// - [`InvalidStateForOperation`] – escrow is not in `Pending` status.
 pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -865,7 +865,7 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 
     // Guard: escrow must be in Pending state
     if entry.status != EscrowStatus::Pending {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     // Guard: a multi-sig escrow must actually have arbiters to vote.
@@ -904,8 +904,8 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`NotArbiter`] – caller is not the assigned arbiter.
-/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`NotAnArbiter`] – caller is not the assigned arbiter.
+/// - [`InvalidStateForOperation`] – escrow is not in `Disputed` status.
 pub fn resolve_dispute(
     env: &Env,
     caller: Address,
@@ -940,12 +940,12 @@ pub fn resolve_dispute(
     }
 
     if !is_authorized {
-        return Err(QuickexError::NotArbiter);
+        return Err(QuickexError::NotAnArbiter);
     }
 
     // Guard: escrow must be in Disputed state
     if entry.status != EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     let (final_status, recipient_address) = if resolve_for_owner {
@@ -1064,10 +1064,10 @@ fn ensure_quorum_snapshot(
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`InvalidStateForOperation`] – escrow is not in `Disputed` status.
 /// - [`NotAnArbiter`] – caller is not one of the assigned arbiters.
-/// - [`ArbiterAlreadyVoted`] – caller has already voted on this dispute.
-/// - [`InvalidDisputeState`] – also returned once the dispute's voting
+/// - [`AlreadyVotedOrApproved`] – caller has already voted on this dispute.
+/// - [`InvalidStateForOperation`] – also returned once the dispute's voting
 ///   deadline has passed (Issue #865 / SC-W8-04); reuses this code rather
 ///   than a dedicated variant to stay under Soroban's 50-case error-enum cap.
 pub fn vote_for_dispute(
@@ -1094,7 +1094,7 @@ pub fn vote_for_dispute(
 
     // Guard: escrow must be in Disputed state
     if entry.status != EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     // Guard: must be in multi-sig mode (threshold > 0)
@@ -1122,13 +1122,13 @@ pub fn vote_for_dispute(
 
     // Guard: arbiter must not have already voted
     if has_dispute_vote(env, &commitment_bytes, &caller) {
-        return Err(QuickexError::ArbiterAlreadyVoted);
+        return Err(QuickexError::AlreadyVotedOrApproved);
     }
 
     // Guard: voting closes at the dispute's frozen quorum deadline (SC-W8-04)
     let snapshot = ensure_quorum_snapshot(env, &commitment_bytes, &entry);
     if env.ledger().timestamp() > snapshot.deadline {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     // Record the vote
@@ -1209,8 +1209,8 @@ fn tally_fresh_votes(
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
-/// - [`InsufficientVotes`] – quorum has not been reached yet.
+/// - [`InvalidStateForOperation`] – escrow is not in `Disputed` status.
+/// - [`InsufficientApprovals`] – quorum has not been reached yet.
 pub fn resolve_dispute_multi_sig(
     env: &Env,
     commitment: BytesN<32>,
@@ -1222,7 +1222,7 @@ pub fn resolve_dispute_multi_sig(
 
     // Guard: escrow must be in Disputed state
     if entry.status != EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     // Guard: must be in multi-sig mode
@@ -1242,7 +1242,7 @@ pub fn resolve_dispute_multi_sig(
 
     // Guard: quorum must be met
     if vote_count < snapshot.required_votes {
-        return Err(QuickexError::InsufficientVotes);
+        return Err(QuickexError::InsufficientApprovals);
     }
 
     // Tally fresh votes for each side
@@ -1354,7 +1354,7 @@ pub fn resolve_dispute_multi_sig(
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status; also
+/// - [`InvalidStateForOperation`] – escrow is not in `Disputed` status; also
 ///   returned when the voting deadline has not passed yet, or when fresh
 ///   votes already meet quorum (call `resolve_dispute_multi_sig` instead).
 ///   These share one code rather than dedicated variants to stay under
@@ -1366,7 +1366,7 @@ pub fn resolve_dispute_timeout(env: &Env, commitment: BytesN<32>) -> Result<(), 
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
     if entry.status != EscrowStatus::Disputed {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
     if entry.arbiter_threshold == 0 {
         return Err(QuickexError::NoArbiter);
@@ -1376,7 +1376,7 @@ pub fn resolve_dispute_timeout(env: &Env, commitment: BytesN<32>) -> Result<(), 
 
     // Fallback only applies past the deadline (SC-W8-04).
     if env.ledger().timestamp() <= snapshot.deadline {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     let vote_count = count_dispute_votes(
@@ -1388,7 +1388,7 @@ pub fn resolve_dispute_timeout(env: &Env, commitment: BytesN<32>) -> Result<(), 
     // If quorum is still reachable with fresh votes, the caller should use
     // `resolve_dispute_multi_sig` instead of forcing the owner-refund default.
     if vote_count >= snapshot.required_votes {
-        return Err(QuickexError::InvalidDisputeState);
+        return Err(QuickexError::InvalidStateForOperation);
     }
 
     let mut updated = entry.clone();

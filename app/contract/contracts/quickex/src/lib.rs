@@ -599,7 +599,7 @@ impl QuickexContract {
     /// * `CommitmentNotFound` - No escrow exists for the commitment
     /// * `AlreadySpent` - Escrow is already in a terminal state
     /// * `EscrowNotExpired` - Escrow has no expiry or has not yet expired
-    /// * `InvalidDisputeState` - Escrow is disputed, funds are locked
+    /// * `InvalidStateForOperation` - Escrow is disputed, funds are locked
     pub fn finalize_expired_escrow(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         pause_policy::require_entry_allowed(&env, EntryPoint::Refund)?;
         hook::assert_not_reentrant(&env)?;
@@ -677,7 +677,7 @@ impl QuickexContract {
     /// # Errors
     /// * `CommitmentNotFound` - No escrow exists for the commitment
     /// * `NoArbiter` - No arbiter assigned to the escrow
-    /// * `InvalidDisputeState` - Escrow is not in `Pending` status
+    /// * `InvalidStateForOperation` - Escrow is not in `Pending` status
     pub fn dispute(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
@@ -704,9 +704,9 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `CommitmentNotFound` - No escrow exists for the commitment
-    /// * `NotArbiter` - Caller is not the assigned arbiter
+    /// * `NotAnArbiter` - Caller is not the assigned arbiter
     /// * `NoArbiter` - No arbiter assigned to the escrow
-    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `InvalidStateForOperation` - Escrow is not in `Disputed` status
     pub fn resolve_dispute(
         env: Env,
         caller: Address,
@@ -996,9 +996,11 @@ impl QuickexContract {
     /// admin/role handover in a single atomic step and clears the proposal.
     ///
     /// # Errors
-    /// * `NoPendingAdminProposal` - No proposal is currently pending
-    /// * `InvalidAcceptor` - Caller does not match the proposed admin
-    /// * `AdminTimelockNotElapsed` - The configured delay has not yet passed
+    /// * `NoPendingAdminProposal` - No proposal is currently pending (reason: "no_proposal")
+    /// * `InvalidAcceptor` - Caller does not match the proposed admin (reason: "wrong_acceptor")
+    /// * `AdminTimelockNotElapsed` - The configured delay has not yet passed (reason: "timelock_active")
+    ///
+    /// All three sub-cases above now return `AdminProposalError = 203`.
     pub fn accept_admin_transfer(env: Env, caller: Address) -> Result<(), QuickexError> {
         pause_policy::require_admin_entry_allowed(&env)?;
         admin::accept_admin_transfer(&env, caller)
@@ -1010,7 +1012,7 @@ impl QuickexContract {
     ///
     /// # Errors
     /// * `InsufficientRole` - Caller is not admin
-    /// * `NoPendingAdminProposal` - No proposal is currently pending
+    /// * `NoPendingAdminProposal` - No proposal is currently pending (returns `AdminProposalError = 203`)
     pub fn cancel_admin_transfer(env: Env, caller: Address) -> Result<(), QuickexError> {
         pause_policy::require_admin_entry_allowed(&env)?;
         admin::cancel_admin_transfer(&env, caller)

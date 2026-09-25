@@ -32,7 +32,7 @@
 //!    permanently stuck behind a quorum that arbiters failed to reach in time.
 //!
 //! Voting itself closes at the snapshot's `deadline`
-//! ([`QuickexError::InvalidDisputeState`]) so arbiters get immediate
+//! ([`QuickexError::InvalidStateForOperation`]) so arbiters get immediate
 //! feedback instead of casting a vote that silently never counts.
 
 use soroban_sdk::{contracttype, Bytes, Env};

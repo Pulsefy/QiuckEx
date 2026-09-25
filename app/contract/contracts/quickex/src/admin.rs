@@ -185,14 +185,14 @@ pub fn accept_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexEr
     caller.require_auth();
 
     let proposal =
-        storage::get_pending_admin_proposal(env).ok_or(QuickexError::NoPendingAdminProposal)?;
+        storage::get_pending_admin_proposal(env).ok_or(QuickexError::AdminProposalError)?;
 
     if proposal.proposed_admin != caller {
-        return Err(QuickexError::InvalidAcceptor);
+        return Err(QuickexError::AdminProposalError);
     }
 
     if env.ledger().timestamp() < proposal.eligible_at {
-        return Err(QuickexError::AdminTimelockNotElapsed);
+        return Err(QuickexError::AdminProposalError);
     }
 
     let old_admin = storage::get_admin(env).ok_or(QuickexError::Unauthorized)?;
@@ -235,7 +235,7 @@ pub fn cancel_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexEr
     require_admin(env, &caller)?;
 
     let proposal =
-        storage::get_pending_admin_proposal(env).ok_or(QuickexError::NoPendingAdminProposal)?;
+        storage::get_pending_admin_proposal(env).ok_or(QuickexError::AdminProposalError)?;
 
     storage::clear_pending_admin_proposal(env);
 

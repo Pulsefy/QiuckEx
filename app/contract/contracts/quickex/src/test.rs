@@ -2369,7 +2369,7 @@ fn test_finalize_expired_escrow_fails_during_dispute() {
     let res = client.try_finalize_expired_escrow(&commitment);
     assert_eq!(
         res,
-        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+        Err(Ok(crate::errors::QuickexError::InvalidStateForOperation))
     );
 }
 
@@ -2563,7 +2563,7 @@ fn test_dispute_fails_on_non_pending_status() {
     let res = client.try_dispute(&commitment);
     assert_eq!(
         res,
-        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+        Err(Ok(crate::errors::QuickexError::InvalidStateForOperation))
     );
 }
 
@@ -2682,7 +2682,7 @@ fn test_resolve_dispute_fails_for_non_arbiter() {
 
     // Non-arbiter caller must be blocked even when recipient is otherwise valid.
     let res = client.try_resolve_dispute(&impostor, &commitment, &true, &owner, &0u64, &u64::MAX);
-    assert_eq!(res, Err(Ok(crate::errors::QuickexError::NotArbiter)));
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::NotAnArbiter)));
 }
 
 #[test]
@@ -2712,7 +2712,7 @@ fn test_resolve_dispute_fails_on_non_disputed_status() {
     let res = client.try_resolve_dispute(&arbiter, &commitment, &true, &owner, &0u64, &u64::MAX);
     assert_eq!(
         res,
-        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+        Err(Ok(crate::errors::QuickexError::InvalidStateForOperation))
     );
 }
 
@@ -2754,7 +2754,7 @@ fn test_withdraw_fails_during_dispute() {
     );
     assert_eq!(
         res,
-        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+        Err(Ok(crate::errors::QuickexError::InvalidStateForOperation))
     );
 }
 
@@ -2791,7 +2791,7 @@ fn test_refund_fails_during_dispute() {
     let res = client.try_refund(&commitment, &owner, &0u64, &u64::MAX);
     assert_eq!(
         res,
-        Err(Ok(crate::errors::QuickexError::InvalidDisputeState))
+        Err(Ok(crate::errors::QuickexError::InvalidStateForOperation))
     );
 }
 
