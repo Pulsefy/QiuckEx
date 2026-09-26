@@ -1,12 +1,6 @@
 import { redirect } from "next/navigation";
 import { ReactNode } from "react";
-
-// Mock auth check
-const checkIsAdmin = () => {
-  // In a real app, this would check cookies/session
-  const isAdmin = true; // Set to true for demo purposes
-  return isAdmin;
-};
+import { checkIsAdmin } from "@/lib/admin-auth";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!checkIsAdmin()) {
