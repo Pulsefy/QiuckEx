@@ -56,6 +56,21 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Validate OpenAPI Schema
+        run: pnpm run openapi:check
+        env:
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-key
+          NETWORK: testnet
+
+      - name: Upload OpenAPI Spec Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi-spec
+          path: app/backend/openapi.json
+          retention-days: 14
+
       # ── Database migrations ──────────────────────────────────────────────
       - name: Run database migrations
         env:
