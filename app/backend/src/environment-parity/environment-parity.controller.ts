@@ -29,7 +29,10 @@ interface HealthResponse {
 }
 
 @ApiTags("Environment Parity")
-@Controller("api/environment-parity")
+// Canonical prefix is an unprefixed resource path — see docs/ROUTING-CONVENTIONS.md.
+// The former `api/environment-parity` prefix was removed: nothing called it over HTTP
+// (rc-validation reaches this module through EnvironmentParityService, not the router).
+@Controller("environment-parity")
 export class EnvironmentParityController {
   private readonly logger = new Logger(EnvironmentParityController.name);
 

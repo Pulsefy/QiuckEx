@@ -2,42 +2,28 @@
 //!
 //! ## Overview
 //!
-//! Implements a Diffie-Hellman-based stealth address mechanism on Soroban.
-//! Because Soroban SDK v23 does not expose raw elliptic-curve point operations,
-//! we simulate the ECDH shared-secret derivation using SHA-256 as a key-derivation
-//! function over the concatenation of the sender's ephemeral public key and the
-//! recipient's scan key.  This is a **proof-of-concept** – a production deployment
-//! would replace the KDF with a proper secp256k1 / Ed25519 point-multiplication
-//! once the SDK exposes those primitives.
+//! Implements a stealth-address derivation proof of concept on Soroban.
+//! This is **not Diffie-Hellman or a production stealth-address scheme**: the
+//! contract hashes public byte strings because it does not perform elliptic-curve
+//! operations. See `app/contract/docs/STEALTH_ADDRESS_DERIVATION.md` for the
+//! byte-exact algorithm, vectors, and security limitations.
 //!
 //! ## Protocol (simplified dual-key stealth)
 //!
 //! ```text
-//! Recipient publishes:  (scan_pub_key, spend_pub_key)   [32 bytes each]
+//! Contract inputs:      (eph_pub, spend_pub)             [32 bytes each]
 //!
-//! Sender (off-chain):
-//!   1. Generate ephemeral keypair (eph_priv, eph_pub).
-//!   2. shared_secret = KDF(eph_pub || scan_pub_key)     [SHA-256]
-//!   3. stealth_address = KDF(spend_pub_key || shared_secret)
-//!   4. Call register_ephemeral_key(stealth_address, eph_pub, token, amount, timeout)
-//!      → funds locked under stealth_address commitment.
+//! Derivation (on-chain and reproducible off-chain):
+//!   1. shared_secret = SHA-256(eph_pub || spend_pub)
+//!   2. stealth_id    = SHA-256(spend_pub || shared_secret)
+//!   3. Register the 32-byte stealth_id and lock funds under it.
 //!
-//! Recipient (off-chain):
-//!   1. Scan chain for EphemeralKeyRegistered events.
-//!   2. For each event: shared_secret = KDF(eph_pub || scan_priv_key * G)
-//!      (simplified: KDF(eph_pub || scan_priv_key_bytes))
-//!   3. Recompute stealth_address = KDF(spend_pub_key || shared_secret).
-//!   4. If stealth_address matches → funds are for me.
-//!   5. Derive stealth_priv_key = KDF(spend_priv_key || shared_secret).
-//!   6. Call stealth_withdraw(stealth_address, eph_pub, amount, token)
-//!      → contract re-derives stealth_address and releases funds.
+//! The contract uses `spend_pub` in place of a scan key; it does not derive a
+//! spendable Stellar account or prove knowledge of a corresponding private key.
 //! ```
 //!
-//! ## On-chain privacy guarantee
-//!
-//! The recipient's main public address (`spend_pub_key` / `scan_pub_key`) never
-//! appears in any transaction or event.  Only the one-time `stealth_address` and
-//! the sender's `eph_pub` are recorded on-chain.
+//! This is not an on-chain privacy guarantee. Contract invocation arguments are
+//! public, including `spend_pub`; see the derivation document before integrating.
 
 use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
@@ -53,12 +39,10 @@ use crate::{
 // Key-derivation helpers
 // ---------------------------------------------------------------------------
 
-/// Derive a 32-byte shared secret from two 32-byte public-key blobs.
+/// Hash two 32-byte inputs in order to produce a 32-byte intermediate value.
 ///
-/// `KDF(a, b) = SHA-256(a || b)`
-///
-/// In a production implementation this would be replaced by proper EC scalar
-/// multiplication (e.g. `eph_priv * scan_pub` on secp256k1).
+/// `shared_secret = SHA-256(key_a || key_b)`.
+/// This is a deterministic hash, not an ECDH shared secret.
 pub fn derive_shared_secret(env: &Env, key_a: &BytesN<32>, key_b: &BytesN<32>) -> BytesN<32> {
     let mut payload = Bytes::new(env);
     payload.append(&Bytes::from(key_a.clone()));
@@ -66,9 +50,10 @@ pub fn derive_shared_secret(env: &Env, key_a: &BytesN<32>, key_b: &BytesN<32>) -
     env.crypto().sha256(&payload).into()
 }
 
-/// Derive the one-time stealth address from a spend key and a shared secret.
+/// Derive the 32-byte stealth identifier from a spend key and intermediate hash.
 ///
-/// `stealth = SHA-256(spend_pub || shared_secret)`
+/// `stealth_id = SHA-256(spend_pub || shared_secret)`.
+/// The result is an escrow identifier, not a Stellar account address.
 pub fn derive_stealth_address(
     env: &Env,
     spend_pub: &BytesN<32>,
@@ -87,12 +72,15 @@ pub fn derive_stealth_address(
 /// Register an ephemeral public key and lock funds for a stealth recipient.
 ///
 /// The sender provides:
-/// - `stealth_address` – the one-time address derived off-chain via DH.
+/// - `stealth_address` – the 32-byte identifier derived off-chain using the
+///   documented two-stage SHA-256 construction.
 /// - `eph_pub`         – the sender's ephemeral public key (32 bytes).
-/// - `spend_pub`       – recipient's spend public key (32 bytes).
+/// - `spend_pub`       – recipient spend-key bytes (32 bytes); this is public
+///   transaction input and is not validated as a curve point.
 ///
-/// The contract re-derives the stealth address on-chain to verify the sender's
-/// computation, then locks `amount` of `token` under that stealth address.
+/// The contract re-derives the identifier to verify the sender's computation,
+/// then locks `amount` of `token` under that identifier. This check does not
+/// establish ECDH key ownership or cryptographic unlinkability.
 ///
 /// # Errors
 /// - [`InvalidAmount`]            – amount ≤ 0.
@@ -133,10 +121,10 @@ pub fn register_ephemeral_key(
         ActionType::StealthDeposit,
     )?;
 
-    // Re-derive on-chain to verify sender's computation.
-    // shared_secret = KDF(eph_pub || spend_pub)
+    // Re-derive on-chain to verify the documented hash construction.
+    // shared_secret = SHA-256(eph_pub || spend_pub)
     let shared_secret = derive_shared_secret(env, &eph_pub, &spend_pub);
-    // stealth = KDF(spend_pub || shared_secret)
+    // stealth_id = SHA-256(spend_pub || shared_secret)
     let expected_stealth = derive_stealth_address(env, &spend_pub, &shared_secret);
 
     if expected_stealth != stealth_address {
@@ -191,13 +179,15 @@ pub fn register_ephemeral_key(
 
 /// Withdraw funds locked under a stealth address.
 ///
-/// The caller proves ownership by supplying the `spend_pub` key and the
-/// `eph_pub` from the registration event.  The contract re-derives the
-/// stealth address and, if it matches, transfers funds to `recipient`.
+/// The caller supplies the same `spend_pub` and `eph_pub` used at registration.
+/// Matching the derived identifier is not proof of private-key ownership:
+/// actual authorization is provided by `recipient.require_auth()`.
 ///
-/// The `recipient` address is the caller's *real* on-chain address for
-/// receiving the tokens – it is only revealed at withdrawal time and is
-/// not linked to the original stealth address in any prior transaction.
+/// The `recipient` address is public in the withdrawal invocation. It is not
+/// cryptographically unlinkable from earlier activity.
+///
+/// This proof of concept is not safe for value-bearing deployments: observers
+/// can reproduce the public derivation inputs and authorize their own recipient.
 ///
 /// # Errors
 /// - [`StealthEscrowNotFound`]  – no escrow for this stealth address.

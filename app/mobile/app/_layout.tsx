@@ -286,6 +286,7 @@ function AppShell() {
           <Stack.Screen name="add-contact" />
           <Stack.Screen name="edit-contact" />
           <Stack.Screen name="feedback" />
+          <Stack.Screen name="analytics" />
         </Stack>
       </ForceUpgradeGate>
       {isReady && settings.biometricLockEnabled ? (

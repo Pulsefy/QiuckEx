@@ -177,7 +177,7 @@ Runtime:
 |---|---|---|---|
 | 11 | **Frontend `deployment-info.ts` falls back to `"http://localhost:4000"`** | `deployment-info.ts:60` | Intentional; local dev fallback. Safe as long as `NEXT_PUBLIC_QUICKEX_API_URL` is set in CI/CD |
 | 12 | **Mobile `EnvironmentSwitcher` allows runtime environment switching** | `EnvironmentSwitcher.tsx` | Useful for testers, but could ship to prod. Already gated: diagnostics hidden when `vercelEnv=production && network=mainnet` |
-| 13 | **Backend has no global route prefix** | `main.ts` (no `setGlobalPrefix`) | `v1/receipts` and `api/environment-parity` are the only prefixed routes — historical accident, not convention |
+| 13 | **Backend has no global route prefix** | `main.ts` (no `setGlobalPrefix`) | By design: controller prefixes are the full public paths and follow [`ROUTING-CONVENTIONS.md`](./ROUTING-CONVENTIONS.md) — unprefixed resource paths, no per-controller versioning. `environment-parity` was normalized off its `api/` prefix; the remaining `v1/*` routes are a closed, documented exemption set, enforced by `pnpm check:routes` |
 | 14 | **`GET /session/bootstrap` and `POST /feedback` have no backend routes** | mobile services exist, backend missing | Mobile clients tolerate failures gracefully, but features are non-functional |
 
 ---

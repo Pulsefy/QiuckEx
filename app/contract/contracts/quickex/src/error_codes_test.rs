@@ -34,8 +34,13 @@ fn quickex_error_codes_match_snapshot() {
         }
     }
 
+    // Compare modulo line endings: with core.autocrlf=true (default Windows
+    // checkout) the committed snapshot is materialised as CRLF, while
+    // writeln! always emits \n. Normalising both sides keeps this guard
+    // strict about codes/order on every platform.
     assert_eq!(
-        actual, ERROR_CODE_SNAPSHOT,
+        actual.replace("\r\n", "\n"),
+        ERROR_CODE_SNAPSHOT.replace("\r\n", "\n"),
         "QuickexError codes changed. Existing entries must retain their order and values; \
          new variants may only be appended, with the snapshot updated in the same change."
     );

@@ -140,6 +140,42 @@ pub enum PauseFlag {
     FeeWithdrawal = 64,
 }
 
+impl PauseFlag {
+    /// The single bit owned by this flag.
+    pub const fn bits(self) -> u64 {
+        self as u64
+    }
+
+    /// Every [`PauseFlag`] variant – the source of truth for
+    /// [`set_pause_flags`]' reason map.
+    ///
+    /// The `match` below deliberately has **no catch-all arm**, so adding a
+    /// variant to [`PauseFlag`] without listing it here is a compile error.
+    /// That is the guard against a repeat of `FeeWithdrawal = 64` being
+    /// omitted from the hand-written flag list and silently losing its
+    /// pause-reason audit trail.
+    pub const ALL: [PauseFlag; 7] = {
+        let flags = [
+            PauseFlag::Deposit,
+            PauseFlag::Withdrawal,
+            PauseFlag::Refund,
+            PauseFlag::DepositWithCommitment,
+            PauseFlag::SetPrivacy,
+            PauseFlag::CreateAmountCommitment,
+            PauseFlag::FeeWithdrawal,
+        ];
+        match flags[0] {
+            PauseFlag::Deposit
+            | PauseFlag::Withdrawal
+            | PauseFlag::Refund
+            | PauseFlag::DepositWithCommitment
+            | PauseFlag::SetPrivacy
+            | PauseFlag::CreateAmountCommitment
+            | PauseFlag::FeeWithdrawal => flags,
+        }
+    };
+}
+
 // -----------------------------------------------------------------------------
 // DataKey enum – central key derivation
 // -----------------------------------------------------------------------------
@@ -753,14 +789,16 @@ pub fn set_pause_flags(
         .get(&reasons_key)
         .unwrap_or_else(|| Map::new(env));
 
-    let flags = [1u32, 2u32, 4u32, 8u32, 16u32, 32u32];
-    for &f in &flags {
-        let u64_f = f as u64;
-        if (flags_to_enable & u64_f) != 0 {
-            reasons.set(f, reason);
+    // Derived from `PauseFlag::ALL` instead of a hand-written list. The old
+    // hardcoded `[1, 2, 4, 8, 16, 32]` predated `FeeWithdrawal = 64`, so a
+    // fee-withdrawal pause set the bitmask but never recorded its reason.
+    for flag in PauseFlag::ALL {
+        let bit = flag.bits();
+        if (flags_to_enable & bit) != 0 {
+            reasons.set(flag as u32, reason);
         }
-        if (flags_to_disable & u64_f) != 0 {
-            reasons.remove(f);
+        if (flags_to_disable & bit) != 0 {
+            reasons.remove(flag as u32);
         }
     }
     env.storage().persistent().set(&reasons_key, &reasons);

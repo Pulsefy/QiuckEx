@@ -2,30 +2,48 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
-  INITIAL_NOTIFICATIONS,
   NOTIFICATION_STORAGE_KEY,
   sortNotifications,
   type StoredNotification,
 } from "@/lib/notifications";
+import {
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notificationsApi";
 
 type NotificationCenterContextValue = {
   notifications: StoredNotification[];
   unreadCount: number;
+  /** True while the initial backend fetch is in flight. */
+  isLoading: boolean;
+  /** True when the backend call failed and no live data is available. */
+  degraded: boolean;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  /** Re-fetch the notification list from the backend. */
+  refresh: () => void;
 };
 
 const NotificationCenterContext =
   createContext<NotificationCenterContextValue | null>(null);
 
-function mergeStoredNotifications(
+/**
+ * Applies locally persisted read-state on top of live backend notifications.
+ * The backend is the source of truth for the list itself; localStorage only
+ * remembers read timestamps so optimistic updates survive a refresh.
+ */
+function applyStoredReadState(
+  notifications: StoredNotification[],
   storedNotifications: StoredNotification[],
 ): StoredNotification[] {
   const storedById = new Map(
@@ -33,7 +51,7 @@ function mergeStoredNotifications(
   );
 
   return sortNotifications(
-    INITIAL_NOTIFICATIONS.map((notification) => {
+    notifications.map((notification) => {
       const storedNotification = storedById.get(notification.id);
 
       if (!storedNotification) {
@@ -42,10 +60,26 @@ function mergeStoredNotifications(
 
       return {
         ...notification,
-        readAt: storedNotification.readAt ?? null,
+        readAt: notification.readAt ?? storedNotification.readAt ?? null,
       };
     }),
   );
+}
+
+function readStoredNotifications(): StoredNotification[] {
+  try {
+    const storedValue = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+
+    if (!storedValue) {
+      return [];
+    }
+
+    const parsedValue = JSON.parse(storedValue) as StoredNotification[];
+    return Array.isArray(parsedValue) ? parsedValue : [];
+  } catch (error) {
+    console.error("Unable to restore notifications", error);
+    return [];
+  }
 }
 
 export function NotificationCenterProvider({
@@ -53,25 +87,30 @@ export function NotificationCenterProvider({
 }: {
   children: ReactNode;
 }) {
-  const [notifications, setNotifications] = useState<StoredNotification[]>(
-    sortNotifications(INITIAL_NOTIFICATIONS),
-  );
+  const [notifications, setNotifications] = useState<StoredNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [degraded, setDegraded] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const storedNotificationsRef = useRef<StoredNotification[]>([]);
+
+  const loadNotifications = useCallback(async () => {
+    setIsLoading(true);
+
+    const { notifications: liveNotifications, degraded: isDegraded } =
+      await fetchNotifications();
+
+    setDegraded(isDegraded);
+    setNotifications(
+      applyStoredReadState(liveNotifications, storedNotificationsRef.current),
+    );
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    try {
-      const storedValue = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
-
-      if (storedValue) {
-        const parsedValue = JSON.parse(storedValue) as StoredNotification[];
-        setNotifications(mergeStoredNotifications(parsedValue));
-      }
-    } catch (error) {
-      console.error("Unable to restore notifications", error);
-    } finally {
-      setHasHydrated(true);
-    }
-  }, []);
+    storedNotificationsRef.current = readStoredNotifications();
+    setHasHydrated(true);
+    void loadNotifications();
+  }, [loadNotifications]);
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -91,40 +130,67 @@ export function NotificationCenterProvider({
     [notifications],
   );
 
+  const markAsRead = useCallback((id: string) => {
+    setNotifications((currentNotifications) =>
+      sortNotifications(
+        currentNotifications.map((notification) =>
+          notification.id === id && notification.readAt === null
+            ? {
+                ...notification,
+                readAt: new Date().toISOString(),
+              }
+            : notification,
+        ),
+      ),
+    );
+
+    void markNotificationRead(id).catch((error) => {
+      console.warn("Unable to sync notification read state with backend", error);
+    });
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications((currentNotifications) =>
+      sortNotifications(
+        currentNotifications.map((notification) =>
+          notification.readAt === null
+            ? {
+                ...notification,
+                readAt: new Date().toISOString(),
+              }
+            : notification,
+        ),
+      ),
+    );
+
+    void markAllNotificationsRead().catch((error) => {
+      console.warn("Unable to sync notification read state with backend", error);
+    });
+  }, []);
+
+  const refresh = useCallback(() => {
+    void loadNotifications();
+  }, [loadNotifications]);
+
   const value = useMemo<NotificationCenterContextValue>(
     () => ({
       notifications,
       unreadCount,
-      markAsRead: (id: string) => {
-        setNotifications((currentNotifications) =>
-          sortNotifications(
-            currentNotifications.map((notification) =>
-              notification.id === id && notification.readAt === null
-                ? {
-                    ...notification,
-                    readAt: new Date().toISOString(),
-                  }
-                : notification,
-            ),
-          ),
-        );
-      },
-      markAllAsRead: () => {
-        setNotifications((currentNotifications) =>
-          sortNotifications(
-            currentNotifications.map((notification) =>
-              notification.readAt === null
-                ? {
-                    ...notification,
-                    readAt: new Date().toISOString(),
-                  }
-                : notification,
-            ),
-          ),
-        );
-      },
+      isLoading,
+      degraded,
+      markAsRead,
+      markAllAsRead,
+      refresh,
     }),
-    [notifications, unreadCount],
+    [
+      notifications,
+      unreadCount,
+      isLoading,
+      degraded,
+      markAsRead,
+      markAllAsRead,
+      refresh,
+    ],
   );
 
   return (

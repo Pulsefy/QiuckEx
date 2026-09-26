@@ -7,6 +7,7 @@ Companion docs:
 - [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) — endpoint-level wiring between clients and backend (mismatch numbers referenced below, e.g. "mismatch #1", come from that doc).
 - [MVP-CONTRACT-SCOPE.md](./MVP-CONTRACT-SCOPE.md) — what is deliberately on-chain vs deferred.
 - [RUNTIME-CONFIG-MATRIX.md](./RUNTIME-CONFIG-MATRIX.md) — environment/config drift that affects whether "Live" flows actually work in your environment.
+- [FEATURE-FLAGS.md](./FEATURE-FLAGS.md) — how to name, add, change, and remove feature flags, and how they relate to network safety gates and the on-chain emergency allowlist.
 
 ## Status legend
 
@@ -109,7 +110,7 @@ Monolithic Soroban contract `QuickexContract` (`contracts/quickex/src/lib.rs`). 
 
 ## Feature-flag gates (Experimental switchboard)
 
-Defaults from `app/backend/src/feature-flags/feature-flags.service.ts`:
+Defaults from `app/backend/src/feature-flags/feature-flags.service.ts`. Before adding, changing, or removing a flag, read [FEATURE-FLAGS.md](./FEATURE-FLAGS.md) for naming, review rules, and cleanup policy.
 
 | Flag | Default | Gates |
 |---|---|---|

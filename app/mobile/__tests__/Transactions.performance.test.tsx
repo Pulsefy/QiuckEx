@@ -43,6 +43,8 @@ jest.mock('../components/notifications/NotificationContext', () => ({
     useNotifications: () => ({
         currentAccountId:
             'GAMOSFOKEYHFDGMXIEFEYBUYK3ZMFYN3PFLOTBRXFGBFGRKBKLQSLGLP',
+        // The screen only trusts the account once wallet state has resolved.
+        isHydrated: true,
     }),
 }));
 

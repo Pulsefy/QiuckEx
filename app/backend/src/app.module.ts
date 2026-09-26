@@ -62,6 +62,7 @@ import { TransactionTimelineModule } from "./transaction-timeline/transaction-ti
 import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 import { OutboxModule } from "./events/outbox/outbox.module";
 import { DeploymentSyncModule } from "./deployment-sync/deployment-sync.module";
+import { ManifestsModule } from "./manifests/manifests.module";
 
 type AppImport =
 | Type<unknown>
@@ -116,6 +117,7 @@ OperationsModule,
     DashboardFeedModule,
     OutboxModule,
     DeploymentSyncModule,
+    ManifestsModule,
     ];
 
     try {

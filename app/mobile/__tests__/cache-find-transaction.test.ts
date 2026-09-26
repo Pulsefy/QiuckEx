@@ -1,18 +1,21 @@
 /**
- * Unit tests for findTransactionInCache.
+ * Unit tests for findTransactionInCache and saveTransactionToCache.
  * We mock AsyncStorage to avoid side effects.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { findTransactionInCache } from "../services/cache";
+import { findTransactionInCache, saveTransactionToCache } from "../services/cache";
+import type { TransactionItem } from "../types/transaction";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
     getAllKeys: jest.fn(),
     getItem: jest.fn(),
+    setItem: jest.fn(),
 }));
 
 const mockedGetAllKeys = AsyncStorage.getAllKeys as jest.Mock;
 const mockedGetItem = AsyncStorage.getItem as jest.Mock;
+const mockedSetItem = AsyncStorage.setItem as jest.Mock;
 
 describe("findTransactionInCache", () => {
     beforeEach(() => {
@@ -98,5 +101,194 @@ describe("findTransactionInCache", () => {
 
         const result = await findTransactionInCache("token-1");
         expect(result).toBeNull();
+    });
+
+    it("returns transaction from standalone individual cache entry", async () => {
+        mockedGetAllKeys.mockResolvedValue(["@qex_tx_cache_individual_token-standalone"]);
+        mockedGetItem.mockResolvedValue(
+            JSON.stringify({
+                data: {
+                    items: [
+                        {
+                            pagingToken: "token-standalone",
+                            amount: "50",
+                            asset: "XLM",
+                            timestamp: "2026-01-01T00:00:00Z",
+                            txHash: "hash-standalone",
+                            source: "Gsender",
+                            destination: "Greceiver",
+                            status: "Success",
+                        },
+                    ],
+                },
+                timestamp: Date.now(),
+            }),
+        );
+
+        const result = await findTransactionInCache("token-standalone");
+        expect(result).not.toBeNull();
+        expect(result!.pagingToken).toBe("token-standalone");
+        expect(result!.amount).toBe("50");
+    });
+});
+
+describe("saveTransactionToCache", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("saves a standalone transaction when no matching account cache exists", async () => {
+        const transaction = {
+            pagingToken: "token-new",
+            amount: "100",
+            asset: "XLM",
+            timestamp: "2026-01-01T00:00:00Z",
+            txHash: "hash-new",
+            source: "Gsender",
+            destination: "Greceiver",
+            status: "Success" as const,
+        };
+
+        mockedGetAllKeys.mockResolvedValue([]);
+        mockedSetItem.mockResolvedValue(undefined);
+
+        await saveTransactionToCache(transaction);
+
+        expect(mockedSetItem).toHaveBeenCalledWith(
+            "@qex_tx_cache_individual_token-new",
+            expect.stringContaining("token-new")
+        );
+    });
+
+    it("updates existing transaction in account cache", async () => {
+        const transaction = {
+            pagingToken: "token-1",
+            amount: "999", // Updated amount
+            asset: "XLM",
+            timestamp: "2026-01-01T00:00:00Z",
+            txHash: "hash1",
+            source: "G1",
+            destination: "G2",
+            status: "Success" as const,
+        };
+
+        mockedGetAllKeys.mockResolvedValue(["@qex_tx_cache_G1"]);
+        mockedGetItem.mockResolvedValue(
+            JSON.stringify({
+                data: {
+                    items: [
+                        {
+                            pagingToken: "token-1",
+                            amount: "10", // Old amount
+                            asset: "XLM",
+                            timestamp: "2026-01-01T00:00:00Z",
+                            txHash: "hash1",
+                            source: "G1",
+                            destination: "G2",
+                            status: "Success",
+                        },
+                    ],
+                },
+                timestamp: Date.now(),
+            }),
+        );
+        mockedSetItem.mockResolvedValue(undefined);
+
+        await saveTransactionToCache(transaction);
+
+        expect(mockedSetItem).toHaveBeenCalled();
+        const savedData = JSON.parse((mockedSetItem.mock.calls[0][1] as string));
+        expect(savedData.data.items[0].amount).toBe("999");
+    });
+
+    it("adds transaction to account cache when source matches", async () => {
+        const transaction = {
+            pagingToken: "token-new",
+            amount: "100",
+            asset: "XLM",
+            timestamp: "2026-01-01T00:00:00Z",
+            txHash: "hash-new",
+            source: "G1",
+            destination: "G2",
+            status: "Success" as const,
+        };
+
+        mockedGetAllKeys.mockResolvedValue(["@qex_tx_cache_G1"]);
+        mockedGetItem.mockResolvedValue(
+            JSON.stringify({
+                data: {
+                    items: [
+                        {
+                            pagingToken: "token-existing",
+                            amount: "10",
+                            asset: "XLM",
+                            timestamp: "2026-01-01T00:00:00Z",
+                            txHash: "hash-existing",
+                            source: "G1",
+                            destination: "Gother",
+                            status: "Success",
+                        },
+                    ],
+                },
+                timestamp: Date.now(),
+            }),
+        );
+        mockedSetItem.mockResolvedValue(undefined);
+
+        await saveTransactionToCache(transaction);
+
+        expect(mockedSetItem).toHaveBeenCalled();
+        const savedData = JSON.parse((mockedSetItem.mock.calls[0][1] as string));
+        expect(savedData.data.items).toHaveLength(2);
+        expect(savedData.data.items[0].pagingToken).toBe("token-new");
+    });
+
+    it("adds transaction to account cache when destination matches", async () => {
+        const transaction = {
+            pagingToken: "token-new",
+            amount: "100",
+            asset: "XLM",
+            timestamp: "2026-01-01T00:00:00Z",
+            txHash: "hash-new",
+            source: "Gsender",
+            destination: "G1",
+            status: "Success" as const,
+        };
+
+        mockedGetAllKeys.mockResolvedValue(["@qex_tx_cache_G1"]);
+        mockedGetItem.mockResolvedValue(
+            JSON.stringify({
+                data: {
+                    items: [],
+                },
+                timestamp: Date.now(),
+            }),
+        );
+        mockedSetItem.mockResolvedValue(undefined);
+
+        await saveTransactionToCache(transaction);
+
+        expect(mockedSetItem).toHaveBeenCalled();
+        const savedData = JSON.parse((mockedSetItem.mock.calls[0][1] as string));
+        expect(savedData.data.items).toHaveLength(1);
+        expect(savedData.data.items[0].pagingToken).toBe("token-new");
+    });
+
+    it("gracefully handles AsyncStorage errors", async () => {
+        const transaction = {
+            pagingToken: "token-new",
+            amount: "100",
+            asset: "XLM",
+            timestamp: "2026-01-01T00:00:00Z",
+            txHash: "hash-new",
+            source: "Gsender",
+            destination: "Greceiver",
+            status: "Success" as const,
+        };
+
+        mockedGetAllKeys.mockRejectedValue(new Error("Storage error"));
+
+        // Should not throw, just log error
+        await expect(saveTransactionToCache(transaction)).resolves.not.toThrow();
     });
 });

@@ -1421,9 +1421,10 @@ impl QuickexContract {
     /// shared_secret   = SHA-256(eph_pub || spend_pub)
     /// stealth_address = SHA-256(spend_pub || shared_secret)
     /// ```
-    /// The contract re-derives and verifies the stealth address on-chain, then
-    /// locks `amount` of `token` under it.  The recipient's main address is
-    /// never recorded on-chain.
+    /// The contract re-derives and verifies the 32-byte escrow identifier, then
+    /// locks `amount` of `token` under it. This proof-of-concept construction
+    /// hashes public inputs; it does not provide ECDH or hide `spend_pub` from
+    /// transaction observers.
     ///
     /// All deposit parameters are bundled in [`StealthDepositParams`] to keep
     /// the argument count within clippy's limit.
@@ -1445,12 +1446,12 @@ impl QuickexContract {
 
     /// Withdraw funds locked under a stealth address.
     ///
-    /// The caller proves ownership by supplying the matching `spend_pub` and
-    /// `eph_pub`.  The contract re-derives the stealth address; if it matches,
-    /// funds are transferred to `recipient`.
+    /// The caller supplies the `spend_pub` and `eph_pub` used during
+    /// registration. A matching hash is not proof of private-key ownership;
+    /// the recipient's Soroban authorization is what authorizes this call.
     ///
-    /// The `recipient` address is only revealed at withdrawal time and is not
-    /// linked to any prior on-chain activity.
+    /// The `recipient` address is public in this invocation and may be linked
+    /// to prior on-chain activity.
     ///
     /// # Arguments
     /// * `recipient`       – Address to receive the funds (must authorize).

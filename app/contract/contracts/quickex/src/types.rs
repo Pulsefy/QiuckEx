@@ -129,9 +129,9 @@ pub struct StealthDepositParams {
     pub amount_paid: i128,
     /// Sender's ephemeral public key (32 bytes).
     pub eph_pub: BytesN<32>,
-    /// Recipient's spend public key (32 bytes).
+    /// Recipient spend-key bytes (32 bytes); public and not curve-validated.
     pub spend_pub: BytesN<32>,
-    /// Pre-computed one-time stealth address (32 bytes).
+    /// Pre-computed 32-byte stealth escrow identifier (not a Stellar address).
     pub stealth_address: BytesN<32>,
     /// Seconds until expiry; 0 = no expiry.
     pub timeout_secs: u64,
@@ -156,8 +156,8 @@ pub struct StealthEscrowEntry {
     pub amount_due: i128,
     /// Amount already paid towards the escrow.
     pub amount_paid: i128,
-    /// Sender's ephemeral public key (32 bytes). Stored so the recipient can
-    /// scan events and re-derive the shared secret off-chain.
+    /// Sender's ephemeral public-key bytes (32 bytes), stored for the escrow.
+    /// The current hash construction uses public inputs and is not a DH secret.
     pub eph_pub: BytesN<32>,
     /// Current lifecycle status.
     pub status: EscrowStatus,

@@ -13,6 +13,7 @@ This contract provides the foundational privacy and escrow capabilities for the 
 ## Contract reference
 
 - Entrypoint API reference: [doc/CONTRACT_ENTRYPOINT_REFERENCE.md](doc/CONTRACT_ENTRYPOINT_REFERENCE.md)
+- Stealth derivation and fixed test vectors: [docs/STEALTH_ADDRESS_DERIVATION.md](docs/STEALTH_ADDRESS_DERIVATION.md)
 
 ## Prerequisites
 

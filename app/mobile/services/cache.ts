@@ -37,9 +37,6 @@ export async function getTransactionsFromCache(accountId: string): Promise<Trans
 }
 
 /**
- * Simple cache invalidation: clears data older than 7 days.
- */
-/**
  * Searches all cached transaction responses for a specific transaction by pagingToken.
  * Returns the matching TransactionItem or null if not found.
  */
@@ -64,10 +61,85 @@ export async function findTransactionInCache(
             );
             if (match) return match;
         }
+        
+        // Also check standalone individual cache entries
+        const standaloneKey = `${TRANSACTIONS_CACHE_KEY_PREFIX}individual_${pagingToken}`;
+        const standaloneRaw = await AsyncStorage.getItem(standaloneKey);
+        if (standaloneRaw) {
+            const entry = JSON.parse(standaloneRaw) as {
+                data: TransactionResponse;
+                timestamp: number;
+            };
+            if (entry.data.items.length > 0) {
+                return entry.data.items[0];
+            }
+        }
+        
         return null;
     } catch (err) {
         console.error('Failed to find transaction in cache', err);
         return null;
+    }
+}
+
+/**
+ * Saves a single transaction to the local cache.
+ * This is used when fetching a receipt from the API to enable offline viewing.
+ */
+export async function saveTransactionToCache(
+    transaction: TransactionItem,
+): Promise<void> {
+    try {
+        // Find all existing cache entries to see if this transaction belongs to any account
+        const keys = await AsyncStorage.getAllKeys();
+        const cacheKeys = keys.filter((k) =>
+            k.startsWith(TRANSACTIONS_CACHE_KEY_PREFIX),
+        );
+
+        // Try to find the account this transaction belongs to by checking cached data
+        for (const key of cacheKeys) {
+            const raw = await AsyncStorage.getItem(key);
+            if (!raw) continue;
+            
+            const entry = JSON.parse(raw) as {
+                data: TransactionResponse;
+                timestamp: number;
+            };
+            
+            // Check if this transaction already exists in this account's cache
+            const existingIndex = entry.data.items.findIndex(
+                (item) => item.pagingToken === transaction.pagingToken,
+            );
+            
+            if (existingIndex !== -1) {
+                // Update existing transaction
+                entry.data.items[existingIndex] = transaction;
+                await AsyncStorage.setItem(key, JSON.stringify(entry));
+                return;
+            }
+            
+            // If the transaction source or destination matches the account ID (derived from key),
+            // add it to that account's cache
+            const accountId = key.replace(TRANSACTIONS_CACHE_KEY_PREFIX, '');
+            if (transaction.source === accountId || transaction.destination === accountId) {
+                entry.data.items.unshift(transaction);
+                await AsyncStorage.setItem(key, JSON.stringify(entry));
+                return;
+            }
+        }
+        
+        // If no matching account cache found, create a standalone cache entry
+        // using the transaction's pagingToken as the key
+        const standaloneKey = `${TRANSACTIONS_CACHE_KEY_PREFIX}individual_${transaction.pagingToken}`;
+        const cacheEntry = {
+            data: {
+                items: [transaction],
+            },
+            timestamp: Date.now(),
+        };
+        await AsyncStorage.setItem(standaloneKey, JSON.stringify(cacheEntry));
+    } catch (err) {
+        console.error('Failed to save transaction to cache', err);
     }
 }
 

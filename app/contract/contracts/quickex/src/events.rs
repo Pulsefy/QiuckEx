@@ -1193,11 +1193,11 @@ pub(crate) fn publish_escrow_finalized(
 #[contractevent(topics = ["TOPIC_STEALTH", "EphemeralKeyRegistered"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EphemeralKeyRegisteredEvent {
-    /// One-time stealth address (indexed for scanning).
+    /// One-time 32-byte stealth escrow identifier (indexed).
     #[topic]
     pub stealth_address: BytesN<32>,
 
-    /// Sender's ephemeral public key (indexed so recipient can scan).
+    /// Sender's ephemeral public-key bytes (indexed; also public in call args).
     #[topic]
     pub eph_pub: BytesN<32>,
 
@@ -1238,7 +1238,7 @@ pub struct StealthWithdrawnEvent {
     #[topic]
     pub stealth_address: BytesN<32>,
 
-    /// Recipient's real address – only revealed at withdrawal time.
+    /// Address supplied to the withdrawal call; public in the call and event.
     #[topic]
     pub recipient: Address,
 

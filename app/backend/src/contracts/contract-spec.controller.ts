@@ -38,6 +38,9 @@ import { ContractSpecService } from './contract-spec.service';
 })
 @RateLimitGroupTag('public')
 @UseGuards(ApiKeyGuard)
+// `contracts` is the canonical prefix. The three aliases below are frozen
+// compatibility shims for clients already shipped against them — see
+// docs/ROUTING-CONVENTIONS.md. Do not add further aliases.
 @Controller(['contracts', 'api/contracts', 'mobile/contracts', 'api/mobile/contracts'])
 export class ContractSpecController {
   constructor(private readonly specService: ContractSpecService) {}

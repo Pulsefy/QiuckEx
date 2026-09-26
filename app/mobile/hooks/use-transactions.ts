@@ -49,6 +49,11 @@ function withDirection(
  * Custom hook that manages fetching, paginating, and refreshing transactions
  * for a given Stellar accountId.
  *
+ * A blank `accountId` means "there is no account to query yet": the hook
+ * settles into an empty, non-loading state and never calls the backend. This
+ * is what lets a caller hand over wallet state that has not resolved yet
+ * without it turning into a request for an empty account.
+ *
  * Supports:
  * - Server-side asset filtering (passed to the backend for efficient queries)
  * - Cursor-based pagination (loadMore)
@@ -62,7 +67,9 @@ export function useTransactions(
 ): UseTransactionsReturn {
   const [state, setState] = useState<UseTransactionsState>({
     transactions: [],
-    loading: true,
+    // Only "loading" while there is an account to load; a hook mounted without
+    // an account must not report loading forever.
+    loading: accountId.trim().length > 0,
     refreshing: false,
     error: null,
     hasMore: false,
@@ -77,6 +84,21 @@ export function useTransactions(
       const { reset = false, isRefreshing = false } = opts;
 
       if (isFetchingRef.current) return;
+
+      // Nothing to query. Settle into an empty state rather than asking the
+      // backend for transactions of an empty account id.
+      if (accountId.trim().length === 0) {
+        nextCursorRef.current = undefined;
+        setState({
+          transactions: [],
+          loading: false,
+          refreshing: false,
+          error: null,
+          hasMore: false,
+          staleCache: false,
+        });
+        return;
+      }
 
       // Fast check for connectivity
       const netInfo = await NetInfo.fetch();

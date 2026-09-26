@@ -4363,6 +4363,38 @@ fn test_pause_reason_codes_and_events() {
     assert_contract_error(result, QuickexError::OperationPaused);
 }
 
+/// Regression: `set_pause_flags` used to iterate a hardcoded
+/// `[1, 2, 4, 8, 16, 32]` flag list that predated `PauseFlag::FeeWithdrawal = 64`,
+/// so `pause_features(mask = 64, ...)` set the bitmask but
+/// `get_feature_pause_reason(FeeWithdrawal)` silently returned 0 and lost the
+/// audit trail. The reason recorded by `pause_features` must be readable back.
+#[test]
+fn test_fee_withdrawal_pause_reason_recorded() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(QuickexContract, ());
+    let client = QuickexContractClient::new(&env, &contract_id);
+
+    client.initialize(&admin);
+
+    let reason = 42u32;
+    client.pause_features(&admin, &(PauseFlag::FeeWithdrawal as u64), &reason);
+    assert!(client.is_feature_paused(&PauseFlag::FeeWithdrawal));
+    assert_eq!(
+        client.get_feature_pause_reason(&PauseFlag::FeeWithdrawal),
+        reason
+    );
+
+    client.unpause_features(&admin, &(PauseFlag::FeeWithdrawal as u64), &reason);
+    assert!(!client.is_feature_paused(&PauseFlag::FeeWithdrawal));
+    assert_eq!(
+        client.get_feature_pause_reason(&PauseFlag::FeeWithdrawal),
+        0u32
+    );
+}
+
 // ============================================================================
 // SC-W7-06: Client-Facing Event Payload Normalization – Snapshot Tests
 // ============================================================================
