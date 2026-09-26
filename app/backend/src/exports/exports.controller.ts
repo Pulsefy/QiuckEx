@@ -7,31 +7,13 @@
  * Requirements: 9.2, BE-102
  */
 
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Logger,
-  Res,
-  HttpStatus,
-} from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Post, Body, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
-import { RateLimitTier } from '../auth/decorators/rate-limit-group.decorator';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { JobType } from '../job-queue/types';
 import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
 import { RequestExportDto } from './dto/request-export.dto';
-import {
-  ExportStorageService,
-  EXPORT_LINK_INVALID,
-  EXPORT_NOT_FOUND,
-} from './export-storage.service';
 
 /**
  * Exports Controller
@@ -47,7 +29,6 @@ export class ExportsController {
 
   constructor(
     private readonly jobQueueService: JobQueueService,
-    private readonly exportStorageService: ExportStorageService,
   ) {}
 
   /**
@@ -70,14 +51,16 @@ export class ExportsController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
-  async requestExport(
-    @Body() dto: RequestExportDto,
-  ): Promise<{ jobId: string; message: string }> {
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request parameters',
+  })
+  async requestExport(@Body() dto: RequestExportDto): Promise<{ jobId: string; message: string }> {
     this.logger.log(
       `Export requested: userId=${dto.userId}, type=${dto.exportType}, format=${dto.format}, delivery=${dto.deliveryMethod}`,
     );
 
+    // Build payload for export_generation job
     const payload: ExportGenerationPayload = {
       userId: dto.userId,
       exportType: dto.exportType,
@@ -86,6 +69,7 @@ export class ExportsController {
       deliveryMethod: dto.deliveryMethod,
     };
 
+    // Enqueue export_generation job
     const jobId = await this.jobQueueService.enqueue(
       JobType.EXPORT_GENERATION,
       payload,
@@ -195,4 +179,3 @@ export class ExportsController {
     res.redirect(HttpStatus.FOUND, presignedUrl);
   }
 }
-

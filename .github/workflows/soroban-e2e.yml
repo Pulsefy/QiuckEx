@@ -10,6 +10,9 @@ jobs:
   e2e-testnet:
     name: E2E Testnet Contract Flows
     runs-on: ubuntu-latest
+    env:
+      HAS_E2E_WALLET_SECRET: ${{ secrets.E2E_WALLET_SECRET != '' }}
+      HAS_QUICKEX_CONTRACT_ID: ${{ secrets.QUICKEX_CONTRACT_ID != '' }}
 
     steps:
       - name: Checkout code
@@ -32,11 +35,12 @@ jobs:
         run: pnpm turbo run build --filter=@quickex/backend
 
       - name: Skip Soroban E2E Flow (missing secrets)
-        if: ${{ secrets.E2E_WALLET_SECRET == '' || secrets.QUICKEX_CONTRACT_ID == '' }}
-        run: echo "Skipping Soroban E2E Flow: missing E2E_WALLET_SECRET or QUICKEX_CONTRACT_ID."
+        if: ${{ env.HAS_E2E_WALLET_SECRET != 'true' || env.HAS_QUICKEX_CONTRACT_ID != 'true' }}
+        run: |
+          echo "Skipping Soroban E2E Flow: missing E2E_WALLET_SECRET or QUICKEX_CONTRACT_ID."
 
       - name: Run Soroban E2E Flow
-        if: ${{ secrets.E2E_WALLET_SECRET != '' && secrets.QUICKEX_CONTRACT_ID != '' }}
+        if: ${{ env.HAS_E2E_WALLET_SECRET == 'true' && env.HAS_QUICKEX_CONTRACT_ID == 'true' }}
         env:
           APP_ENV: staging
           STELLAR_NETWORK: testnet
