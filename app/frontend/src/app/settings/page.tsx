@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import '@/lib/i18n';
 import { useTranslation } from "react-i18next";
+import { getQuickexApiBase, fetchWithAuth } from "@/lib/api";
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -21,10 +22,50 @@ export default function Settings() {
   });
 
   const [showPreview, setShowPreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
 
-  const handleSave = () => {
-    console.log("Saving profile:", form);
-    // TODO: Call API to save profile
+  useEffect(() => {
+    let mounted = true;
+    const loadProfile = async () => {
+      try {
+        const res = await fetchWithAuth(`${getQuickexApiBase()}/profile`);
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted) {
+            setForm((prev) => ({ ...prev, ...data }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load profile", err);
+      }
+    };
+    loadProfile();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveStatus("idle");
+    try {
+      const res = await fetchWithAuth(`${getQuickexApiBase()}/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save profile");
+      }
+      setSaveStatus("success");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -261,19 +302,24 @@ export default function Settings() {
             </div>
 
             {/* Action Buttons - Desktop */}
-            <div className="hidden sm:flex gap-3 sm:gap-4">
-              <button
-                onClick={handleSave}
-                className="flex-1 px-4 sm:px-6 py-3 sm:py-4 bg-indigo-500 text-white font-bold rounded-xl hover:scale-105 active:scale-95 transition text-sm sm:text-base"
-              >
-                {t('saveChanges')}
-              </button>
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="px-4 sm:px-6 py-3 sm:py-4 bg-surface border border-border-strong text-foreground font-bold rounded-xl hover:bg-surface-strong transition text-sm sm:text-base whitespace-nowrap"
-              >
-                {showPreview ? t('hide') : t('show')} {t('preview')}
-              </button>
+            <div className="hidden sm:flex flex-col gap-2">
+              <div className="flex gap-3 sm:gap-4">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1 px-4 sm:px-6 py-3 sm:py-4 bg-indigo-500 text-white font-bold rounded-xl hover:scale-105 active:scale-95 transition text-sm sm:text-base disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? "Saving..." : t('saveChanges')}
+                </button>
+                <button
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="px-4 sm:px-6 py-3 sm:py-4 bg-surface border border-border-strong text-foreground font-bold rounded-xl hover:bg-surface-strong transition text-sm sm:text-base whitespace-nowrap"
+                >
+                  {showPreview ? t('hide') : t('show')} {t('preview')}
+                </button>
+              </div>
+              {saveStatus === "success" && <p className="text-sm text-green-500 font-medium px-1">Profile saved successfully!</p>}
+              {saveStatus === "error" && <p className="text-sm text-red-500 font-medium px-1">Failed to save profile. Please try again.</p>}
             </div>
           </div>
 
@@ -304,13 +350,14 @@ export default function Settings() {
       </main>
 
       {/* MOBILE BOTTOM BAR */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-card backdrop-blur-3xl border-t border-border">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-card backdrop-blur-3xl border-t border-border flex flex-col gap-2">
         <div className="flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-3 bg-indigo-500 text-white font-bold rounded-xl active:scale-95 transition"
+            disabled={isSaving}
+            className="flex-1 px-4 py-3 bg-indigo-500 text-white font-bold rounded-xl active:scale-95 transition disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
           >
-            {t('saveChanges')}
+            {isSaving ? "Saving..." : t('saveChanges')}
           </button>
           <button
             onClick={() => setShowPreview(!showPreview)}
@@ -319,6 +366,8 @@ export default function Settings() {
             {showPreview ? t('hide') : t('show')} {t('preview')}
           </button>
         </div>
+        {saveStatus === "success" && <p className="text-sm text-green-500 font-medium text-center">Saved!</p>}
+        {saveStatus === "error" && <p className="text-sm text-red-500 font-medium text-center">Failed to save</p>}
       </div>
     </div>
   );
