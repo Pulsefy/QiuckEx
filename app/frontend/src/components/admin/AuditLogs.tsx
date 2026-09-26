@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Filter } from "lucide-react";
 
 import { getQuickexApiBase } from "@/lib/api";
+import { adminFetch } from "@/lib/admin-api";
 
 type AuditLog = {
   id: string;
@@ -29,11 +30,8 @@ export function AuditLogs() {
 
     const load = async () => {
       try {
-        const response = await fetch(`${apiBase}/admin/audit`, {
+        const response = await adminFetch(`${apiBase}/admin/audit`, {
           cache: "no-store",
-          headers: {
-            "x-api-key": process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "",
-          },
         });
         if (!response.ok) {
           throw new Error(`Audit fetch failed (${response.status})`);
