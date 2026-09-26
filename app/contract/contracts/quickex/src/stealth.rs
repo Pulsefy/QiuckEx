@@ -29,7 +29,7 @@ use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
 use crate::{
     errors::QuickexError,
-    events,
+    events, fee_router,
     nonce::{self, ActionType},
     storage::{get_stealth_escrow, put_stealth_escrow},
     types::{EscrowStatus, StealthDepositParams, StealthEscrowEntry},
@@ -236,13 +236,14 @@ pub fn stealth_withdraw(
     entry.status = EscrowStatus::Spent;
     put_stealth_escrow(env, &stealth_address, &entry);
 
-    // Transfer funds to recipient.
-    let token_client = token::Client::new(env, &entry.token);
-    token_client.transfer(
-        &env.current_contract_address(),
+    // Route payout through fee system, honoring per-asset overrides and oracle pricing.
+    let (_payout_amount, fee_amount) = fee_router::route_payout_price_aware(
+        env,
+        &entry.token,
         &recipient,
-        &entry.amount_paid,
-    );
+        entry.amount_paid,
+        None,
+    )?;
 
     events::publish_stealth_withdrawn(
         env,
@@ -250,6 +251,7 @@ pub fn stealth_withdraw(
         recipient,
         entry.token,
         entry.amount_paid,
+        fee_amount,
     );
 
     Ok(true)
