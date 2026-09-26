@@ -11,8 +11,8 @@ const binPath = resolve(root, "node_modules/.bin/openapi-typescript");
 mkdirSync(dirname(outPath), { recursive: true });
 
 execFileSync(
-  process.execPath,
-  [binPath, specPath, "--output", outPath],
+  process.platform === "win32" ? "npx.cmd" : "npx",
+  ["openapi-typescript", specPath, "--output", outPath],
   { stdio: "inherit" },
 );
 

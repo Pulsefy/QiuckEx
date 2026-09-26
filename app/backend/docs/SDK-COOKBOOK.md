@@ -136,7 +136,7 @@ if (status.state === 'PAID') {
 ### Scan a Link for Scam Indicators
 
 ```typescript
-const response = await fetch('http://localhost:3000/links/scan', {
+const response = await fetch('http://localhost:3000/scam-alerts/scan', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

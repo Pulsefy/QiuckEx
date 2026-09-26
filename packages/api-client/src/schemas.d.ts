@@ -228,7 +228,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/links/scan": {
+    "/scam-alerts/scan": {
         parameters: {
             query?: never;
             header?: never;
