@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Search, ShieldCheck } from "lucide-react";
 
 import { getQuickexApiBase } from "@/lib/api";
+import { adminFetch } from "@/lib/admin-api";
 
 type Flag = {
   key: string;
@@ -38,11 +39,8 @@ export function FeatureFlags() {
     const load = async () => {
       try {
         setError(null);
-        const response = await fetch(`${apiBase}/admin/feature-flags`, {
+        const response = await adminFetch(`${apiBase}/admin/feature-flags`, {
           cache: "no-store",
-          headers: {
-            "x-api-key": process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "",
-          },
         });
         if (!response.ok) {
           throw new Error(`Flag fetch failed (${response.status})`);
@@ -80,12 +78,10 @@ export function FeatureFlags() {
     setSavingKey(`${flag.key}:${field}`);
 
     try {
-      const response = await fetch(`${apiBase}/admin/feature-flags/${flag.key}`, {
+      const response = await adminFetch(`${apiBase}/admin/feature-flags/${flag.key}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-actor": "admin-dashboard",
-          "x-api-key": process.env.NEXT_PUBLIC_ADMIN_API_KEY ?? "",
         },
         body: JSON.stringify({ [field]: !flag[field] }),
       });
