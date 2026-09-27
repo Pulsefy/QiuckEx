@@ -190,9 +190,9 @@ function themedStyles({ color, isDark, tokens }: {
       paddingVertical: 12,
       paddingHorizontal: 16,
       borderRadius: 12,
-      backgroundColor: color(tokens.input.background),
+      backgroundColor: color(tokens.input.bg),
       borderWidth: 1,
-      borderColor: color(tokens.border.default),
+      borderColor: color(tokens.borderToken.default),
       alignItems: 'center',
     },
     assetButtonActive: {
@@ -213,7 +213,7 @@ function themedStyles({ color, isDark, tokens }: {
       color: color(tokens.text.primary),
       textAlign: 'center',
       paddingVertical: 16,
-      backgroundColor: color(tokens.input.background),
+      backgroundColor: color(tokens.input.bg),
       borderRadius: 16,
       borderWidth: 2,
       borderColor: color(tokens.input.border),
@@ -221,7 +221,7 @@ function themedStyles({ color, isDark, tokens }: {
     memoInput: {
       fontSize: 16,
       color: color(tokens.text.primary),
-      backgroundColor: color(tokens.input.background),
+      backgroundColor: color(tokens.input.bg),
       borderRadius: 16,
       borderWidth: 1,
       borderColor: color(tokens.input.border),
@@ -238,7 +238,7 @@ function themedStyles({ color, isDark, tokens }: {
       borderRadius: 16,
       marginBottom: 20,
       borderWidth: 1,
-      borderColor: color(tokens.border.subtle),
+      borderColor: color(tokens.borderToken.subtle),
     },
     privacyTitle: {
       fontSize: 16,
@@ -257,7 +257,7 @@ function themedStyles({ color, isDark, tokens }: {
       width: 52,
       height: 32,
       borderRadius: 16,
-      backgroundColor: color(tokens.border.default),
+      backgroundColor: color(tokens.borderToken.default),
       padding: 4,
     },
     toggleThumb: {

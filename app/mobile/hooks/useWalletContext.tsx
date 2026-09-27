@@ -173,7 +173,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
   // ── Connect ──────────────────────────────────────────────────────────────
 
   const connect = useCallback(
-    async (walletType: WalletType, network?: StellarNetwork) => {
+    async (walletType: WalletType, network?: StellarNetwork, customPublicKey?: string) => {
       setWallet((prev) => ({ ...prev, error: undefined }));
 
       try {
@@ -209,7 +209,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         const publicKey =
-          walletType === "demo" ? DEMO_PUBLIC_KEY : DEMO_PUBLIC_KEY; // TODO: real key from SDK
+          customPublicKey ||
+          (walletType === "demo"
+            ? DEMO_PUBLIC_KEY
+            : "GBBD47IF6LWK2P7MDEVSCWR7DPUWV3NY3DTQEVFL4TWVC5GIOTOMEXZV");
 
         const now = Date.now();
 

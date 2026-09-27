@@ -51,33 +51,36 @@ function apiUrl(env: string): string {
   }
 }
 
-export default ({ config }: { config: any }) => ({
-  ...appJson,
-  expo: {
-    ...appJson.expo,
-    name: appName(appEnv),
-    extra: {
-      ...appJson.expo.extra,
-      apiUrl: apiUrl(appEnv),
-      environment: appEnv,
-      stellarNetwork,
-      buildNumber,
-      buildTag,
-      appVersion: appJson.expo.version,
-    },
-    ios: {
-      ...appJson.expo.ios,
-      bundleIdentifier: bundleIdentifier(appEnv),
-      buildNumber,
-      infoPlist: {
-        ...appJson.expo.ios.infoPlist,
+export default ({ config }: { config: any }) => {
+  const expo: any = appJson.expo || {};
+  return {
+    ...appJson,
+    expo: {
+      ...expo,
+      name: appName(appEnv),
+      extra: {
+        ...(expo.extra || {}),
+        apiUrl: apiUrl(appEnv),
+        environment: appEnv,
+        stellarNetwork,
+        buildNumber,
+        buildTag,
+        appVersion: expo.version,
+      },
+      ios: {
+        ...(expo.ios || {}),
+        bundleIdentifier: bundleIdentifier(appEnv),
+        buildNumber,
+        infoPlist: {
+          ...((expo.ios || {}).infoPlist || {}),
+        },
+      },
+      android: {
+        ...(expo.android || {}),
+        package: androidPackage(appEnv),
+        versionCode: androidVersionCode,
+        intentFilters: (expo.android || {}).intentFilters,
       },
     },
-    android: {
-      ...appJson.expo.android,
-      package: androidPackage(appEnv),
-      versionCode: androidVersionCode,
-      intentFilters: appJson.expo.android.intentFilters,
-    },
-  },
-});
+  };
+};

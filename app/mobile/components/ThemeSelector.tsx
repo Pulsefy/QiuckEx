@@ -24,7 +24,7 @@ import {
     BrandThemes,
     DarkTheme,
     LightTheme,
-} from "../../src/theme/tokens";
+} from "../src/theme/tokens";
 
 type BrandTheme = (typeof BrandThemes)[number];
 

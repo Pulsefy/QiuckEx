@@ -1,12 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../src/theme/ThemeContext';
 
 export default function LinkErrorScreen() {
   const router = useRouter();
-  const { message, url } = useSearchParams();
+  const { message, url } = useLocalSearchParams<{ message?: string; url?: string }>();
   const { theme } = useTheme();
 
   const errorMessage =

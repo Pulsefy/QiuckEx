@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { useNetworkGuardContext } from "../contexts/NetworkGuardContext";
+import { useNetworkGuardContext } from "../../contexts/NetworkGuardContext";
 import {
   NetworkMismatchGuard,
   NetworkMismatchGuardButton,

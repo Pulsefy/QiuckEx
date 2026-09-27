@@ -86,7 +86,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const resolve = useCallback(
     <T,>(token: { light: T; dark: T }): T => {
-      return resolveToken(token, mode, systemColorScheme || 'light');
+      return resolveToken(token, mode, systemColorScheme || 'light') as unknown as T;
     },
     [mode, systemColorScheme]
   );

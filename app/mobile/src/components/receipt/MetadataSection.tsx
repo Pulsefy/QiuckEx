@@ -12,7 +12,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useClipboard } from '../../hooks/useClipboard';
 import { ContractMetadata } from './ContractMetadata';
 import { NetworkBadge } from './NetworkBadge';
-import type { ReceiptMetadata, ContractMetadata as ContractType, NetworkMetadata } from '../../types/receipt';
+import type { ReceiptMetadata, ContractMetadata as ContractType, NetworkMetadata } from '../../../types/receipt';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {

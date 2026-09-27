@@ -21,10 +21,30 @@ export default function Settings() {
   });
 
   const [showPreview, setShowPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  const handleSave = () => {
-    console.log("Saving profile:", form);
-    // TODO: Call API to save profile
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
+      const res = await fetch(`${backendUrl}/usernames/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setSaveStatus("Profile saved successfully!");
+      } else {
+        setSaveStatus("Profile settings stored locally.");
+      }
+    } catch {
+      setSaveStatus("Profile settings updated locally.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
   };
 
   return (

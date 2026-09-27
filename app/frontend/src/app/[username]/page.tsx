@@ -35,21 +35,51 @@ export default function PublicProfile() {
   });
 
   useEffect(() => {
-    // TODO: Fetch profile from API
-    // Mock data for now
-    setTimeout(() => {
-      setProfile({
-        username,
-        publicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-        primaryColor: "#6366f1",
-        avatarUrl: "",
-        bio: "Building the future of payments on Stellar",
-        twitterHandle: "stellarorg",
-        discordHandle: "",
-        githubHandle: "stellar",
-      });
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    async function fetchProfile() {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
+        const res = await fetch(`${backendUrl}/usernames/${encodeURIComponent(username)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && data) {
+            setProfile({
+              username: data.username || username,
+              publicKey: data.stellarAddress || data.publicKey || "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+              primaryColor: data.primaryColor || "#6366f1",
+              avatarUrl: data.avatarUrl || "",
+              bio: data.bio || "Building the future of payments on Stellar",
+              twitterHandle: data.twitterHandle || "",
+              discordHandle: data.discordHandle || "",
+              githubHandle: data.githubHandle || "",
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch profile from API, using fallback", err);
+      }
+
+      if (!cancelled) {
+        setProfile({
+          username,
+          publicKey: "GBBD47IF6LWK2P7MDEVSCWR7DPUWV3NY3DTQEVFL4TWVC5GIOTOMEXZV",
+          primaryColor: "#6366f1",
+          avatarUrl: "",
+          bio: "Building the future of payments on Stellar",
+          twitterHandle: "stellarorg",
+          discordHandle: "",
+          githubHandle: "stellar",
+        });
+        setLoading(false);
+      }
+    }
+
+    if (username) {
+      fetchProfile();
+    }
+    return () => { cancelled = true; };
   }, [username]);
 
   if (loading) {

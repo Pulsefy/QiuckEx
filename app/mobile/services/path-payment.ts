@@ -25,6 +25,20 @@ export interface PathPaymentRoute {
   path: string[];
 }
 
+const KNOWN_ISSUERS: Record<string, string> = {
+  USDC: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2K34P4D5NXJ6Z4GJ5B7G55A',
+  AQUA: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTWYV2KY2H5YMWUT6YFPQQSTVY',
+  yXLM: 'GARDARKBEVTOWFZB6TC2PUMPXMUMV7SPIOWAVE3R5VXYXY6LHVRVJROF',
+};
+
+export function resolveStellarAsset(code: string, issuer?: string): Asset {
+  if (code === 'XLM' || code === 'NATIVE') {
+    return Asset.native();
+  }
+  const resolvedIssuer = issuer || KNOWN_ISSUERS[code] || 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2K34P4D5NXJ6Z4GJ5B7G55A';
+  return new Asset(code, resolvedIssuer);
+}
+
 /**
  * Builds a PathPaymentStrictReceive operation.
  * This operation allows paying with any asset and having the amount received be exact.
@@ -42,13 +56,8 @@ export function buildPathPaymentOperation(
   } = options;
 
   // Create Asset objects for source and destination
-  const srcAsset = sourceAsset === 'XLM'
-    ? Asset.native()
-    : new Asset(sourceAsset, 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTWYV2KY2H5YMWUT6YFPQQSTVY'); // TODO: Get correct issuer from whitelist
-
-  const dstAsset = destinationAsset === 'XLM'
-    ? Asset.native()
-    : new Asset(destinationAsset, 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTWYV2KY2H5YMWUT6YFPQQSTVY'); // TODO: Get correct issuer from whitelist
+  const srcAsset = resolveStellarAsset(sourceAsset);
+  const dstAsset = resolveStellarAsset(destinationAsset);
 
   return Operation.pathPaymentStrictReceive({
     destination: destinationAccount,

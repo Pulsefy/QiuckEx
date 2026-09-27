@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { TimelineNode } from './TimelineNode';
-import type { TimelineEvent } from '../../types/receipt';
+import type { TimelineEvent } from '../../../types/receipt';
 
 interface StatusTimelineProps {
   events: TimelineEvent[];

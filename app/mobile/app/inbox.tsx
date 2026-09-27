@@ -122,7 +122,7 @@ export default function InboxScreen() {
       style={[
         styles.card,
         !item.read && styles.unreadCard,
-        { backgroundColor: theme.cardBackground }
+        { backgroundColor: theme.surfaceElevated }
       ]}
     >
       <View style={styles.cardContent}>
@@ -166,7 +166,7 @@ export default function InboxScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Inbox</Text>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Inbox</Text>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={handleMarkAllRead}>
             <Text style={[styles.markAllText, { color: theme.primary }]}>Mark all read</Text>
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
   },
-  title: {
+  headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
   },

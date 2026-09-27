@@ -42,7 +42,7 @@ const DEFAULT_RECEIPT_VISIBILITY: ReceiptVisibilityOptions = {
     showHash: true,
 };
 
-interface DetailParams {
+interface DetailParams extends Record<string, string | undefined> {
     id: string;
     amount?: string;
     asset?: string;

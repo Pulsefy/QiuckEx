@@ -206,7 +206,7 @@ export default function WalletConnectScreen() {
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.background }]}
       >
-        <View style={styles.content}>
+        <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             Restoring session…
           </Text>

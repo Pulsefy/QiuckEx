@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
-import { useNotifications } from "../components/notifications/NotificationContext";
-import { useWalletContext } from "../hooks/useWalletContext";
+import { useNotifications } from "../notifications/NotificationContext";
+import { useWalletContext } from "../../hooks/useWalletContext";
 
 /**
  * WalletSyncBridge — watches wallet state and triggers a notification

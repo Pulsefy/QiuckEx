@@ -13,14 +13,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { WalletProvider } from "./hooks/useWalletContext";
 import { NetworkGuardProvider } from "./contexts/NetworkGuardContext";
-import { ThemeProvider } from "./src/theme/ThemeContext";
+import { QuickExThemeProvider as ThemeProvider } from "./src/theme/ThemeContext";
 import { NotificationProvider } from "./components/notifications/NotificationContext";
 
 // ── Components ───────────────────────────────────────────────────────────────
 
 import { GlobalNetworkBanner } from "./components/wallet/GlobalNetworkBanner";
 import { WalletSyncBridge } from "./components/wallet/WalletSyncBridge";
-import { RootNavigator } from "./app/RootNavigator";
+import { Slot as RootNavigator } from "expo-router";
 
 /**
  * Root App Component

@@ -130,7 +130,7 @@ export function EnvironmentSwitcher() {
           {isFetchingMetadata ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color={theme.textMuted} />
-              <Text style={[styles.metadataText, { color: theme.textMuted }]}>
+              <Text style={[styles.helper, { color: theme.textMuted }]}>
                 Fetching backend metadata...
               </Text>
             </View>

@@ -178,11 +178,29 @@ export interface ThemeTokens {
   // ── MOB-37: Elevation/shadow tokens ────────────────────────────────────
   readonly shadow: ShadowTokens;
   readonly shadowElevated: ShadowTokens;
+
+  // ── Compatibility nested tokens ──
+  readonly text: {
+    readonly primary: string;
+    readonly secondary: string;
+    readonly tertiary: string;
+    readonly inverse: string;
+  };
+  readonly borderToken: {
+    readonly default: string;
+    readonly subtle: string;
+  };
+  readonly semantic: {
+    readonly error: string;
+    readonly errorBg: string;
+    readonly success: string;
+    readonly warning: string;
+    readonly pending: string;
+  };
 }
 
-// ---------------------------------------------------------------------------
-// 2. Theme definitions
-// ---------------------------------------------------------------------------
+export type ColorToken = keyof ThemeTokens | string;
+
 
 /**
  * Light Theme
@@ -299,7 +317,27 @@ export const LightTheme: ThemeTokens = {
     radius: 16,
     elevation: 4,
   },
+
+  text: {
+    primary: '#111827',
+    secondary: '#4B5563',
+    tertiary: '#9CA3AF',
+    inverse: '#FFFFFF',
+  },
+  borderToken: {
+    default: '#E5E7EB',
+    subtle: '#F3F4F6',
+  },
+  semantic: {
+    error: '#EF4444',
+    errorBg: '#FEF2F2',
+    success: '#10B981',
+    warning: '#F59E0B',
+    pending: '#F59E0B',
+  },
 } as const;
+
+export const themeTokens: ThemeTokens = LightTheme;
 
 /**
  * Dark Theme
@@ -415,6 +453,24 @@ export const DarkTheme: ThemeTokens = {
     offset: { width: 0, height: 4 },
     radius: 16,
     elevation: 4,
+  },
+
+  text: {
+    primary: '#ECEDEE',
+    secondary: '#9BA1A6',
+    tertiary: '#6B7280',
+    inverse: '#0F1115',
+  },
+  borderToken: {
+    default: '#2D3139',
+    subtle: '#22252D',
+  },
+  semantic: {
+    error: '#F87171',
+    errorBg: '#7F1D1D',
+    success: '#34D399',
+    warning: '#FBBF24',
+    pending: '#FBBF24',
   },
 } as const;
 
@@ -532,6 +588,24 @@ export const QuickExBlueTheme: ThemeTokens = {
     radius: 16,
     elevation: 4,
   },
+
+  text: {
+    primary: '#F0F4FF',
+    secondary: '#94A3C7',
+    tertiary: '#5B6B8E',
+    inverse: '#0B1120',
+  },
+  borderToken: {
+    default: '#1E2D4D',
+    subtle: '#162340',
+  },
+  semantic: {
+    error: '#F87171',
+    errorBg: '#3B1111',
+    success: '#34D399',
+    warning: '#FBBF24',
+    pending: '#FBBF24',
+  },
 } as const;
 
 /**
@@ -647,6 +721,24 @@ export const PulsefyPurpleTheme: ThemeTokens = {
     offset: { width: 0, height: 4 },
     radius: 16,
     elevation: 4,
+  },
+
+  text: {
+    primary: '#F5F0FF',
+    secondary: '#B8A5D4',
+    tertiary: '#7B6A96',
+    inverse: '#100B1F',
+  },
+  borderToken: {
+    default: '#2D1F50',
+    subtle: '#231A40',
+  },
+  semantic: {
+    error: '#F87171',
+    errorBg: '#3B1111',
+    success: '#34D399',
+    warning: '#FBBF24',
+    pending: '#FBBF24',
   },
 } as const;
 

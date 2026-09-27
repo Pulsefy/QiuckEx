@@ -202,11 +202,8 @@ export default function PaymentConfirmationScreen() {
     setSavingContact(true);
     try {
       await saveContact({
-        id: uuidv4(),
         address: username,
         nickname: "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       });
       Alert.alert("Contact saved!", "Recipient has been added to your contacts.");
     } catch (e) {
