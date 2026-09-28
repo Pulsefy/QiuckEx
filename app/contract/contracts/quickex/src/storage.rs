@@ -17,7 +17,7 @@
 //! | [`Paused`](DataKey::Paused) | `bool`       | Global pause flag. When true, critical operations may be blocked. |
 //! | [`PrivacyEnabled`](DataKey::PrivacyEnabled) | `bool` | **Canonical** privacy state per account (Issue #862 / SC-W8-01). Single source of truth for `set_privacy`/`get_privacy`/`enable_privacy`/`privacy_status`. |
 //! | [`PrivacyLevel`](DataKey::PrivacyLevel) | `u32`  | **Deprecated.** Legacy numeric privacy level (0 = off, nonzero = on). Read as a migration fallback only; cleared the first time the account's state is written through any privacy entrypoint. |
-//! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Append-only audit log of every `{0, 1}` value ever requested through `enable_privacy`, newest first. Not authoritative. |
+//! | [`PrivacyHistory`](DataKey::PrivacyHistory) | `Vec<u32>` | Audit log of the most recent 64 `{0, 1}` values requested through `enable_privacy`, newest first. Not authoritative. |
 //!
 //! ## Related Keys (legacy compatibility)
 //!
@@ -857,11 +857,14 @@ pub fn clear_privacy_level(env: &Env, account: &Address) {
     }
 }
 
+/// Maximum entries retained and returned by the deprecated privacy audit log.
+pub const PRIVACY_HISTORY_MAX_ENTRIES: u32 = 64;
+
 /// Add to the deprecated `enable_privacy` audit history for an account.
 ///
 /// **Contract**: Pushes `level` to the front of the history (newest first).
-/// History is unbounded; consider capping in future if needed. This log is
-/// purely additive and does not itself determine canonical privacy state —
+/// Keeps at most [`PRIVACY_HISTORY_MAX_ENTRIES`] entries, dropping the oldest
+/// entries first. This log is not authoritative for canonical privacy state —
 /// see [`crate::privacy`].
 pub fn add_privacy_history(env: &Env, account: &Address, level: u32) {
     let key = DataKey::PrivacyHistory(account.clone());
@@ -870,6 +873,9 @@ pub fn add_privacy_history(env: &Env, account: &Address, level: u32) {
         .persistent()
         .get(&key)
         .unwrap_or(Vec::new(env));
+    while history.len() >= PRIVACY_HISTORY_MAX_ENTRIES {
+        history.pop_back();
+    }
     history.push_front(level);
     env.storage().persistent().set(&key, &history);
 }
@@ -879,10 +885,15 @@ pub fn add_privacy_history(env: &Env, account: &Address, level: u32) {
 /// **Contract**: Returns empty vec if never set. Order is newest-first.
 pub fn get_privacy_history(env: &Env, account: &Address) -> Vec<u32> {
     let key = DataKey::PrivacyHistory(account.clone());
-    env.storage()
+    let mut history: Vec<u32> = env
+        .storage()
         .persistent()
         .get(&key)
-        .unwrap_or(Vec::new(env))
+        .unwrap_or(Vec::new(env));
+    while history.len() > PRIVACY_HISTORY_MAX_ENTRIES {
+        history.pop_back();
+    }
+    history
 }
 
 // -----------------------------------------------------------------------------
