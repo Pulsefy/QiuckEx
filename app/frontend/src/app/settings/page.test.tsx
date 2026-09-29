@@ -1,76 +1,124 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import Settings from "./page";
-import { fetchWithAuth } from "@/lib/api";
+import React from "@react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import '@testing-library/jest-dom';
+import SettingsPage from "./page";
 
-// Mock the API utilities
-vi.mock("@/lib/api", () => ({
-  getQuickexApiBase: () => "http://localhost:4000",
-  fetchWithAuth: vi.fn(),
-}));
+const mockProfile = {
+  displayName: "Satoshi",
+  colour: "#3b82f6",
+  avatar: "https://example.com/avatar.png",
+  bio: "Building decentralized tools.",
+  twitter: "satoshi",
+  discord: "satoshi#0001",
+  github: "satoshi",
+};
 
-// Mock react-i18next
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
-describe("Settings Page", () => {
+describe("SettingsPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
-  it("loads profile on mount and populates the form", async () => {
-    const mockProfile = {
-      username: "test_user",
-      primaryColor: "#ff0000",
-      avatarUrl: "https://example.com/avatar.png",
-      bio: "Test bio",
-      twitterHandle: "testhandle",
-      discordHandle: "test#1234",
-      githubHandle: "testgithub",
-    };
-
-    (fetchWithAuth as Mock).mockResolvedValueOnce({
+  it("loads and displays profile data successfully", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => mockProfile,
     });
 
-    render(<Settings />);
+    render(<SettingsPage />);
 
-    // Wait for the profile to be loaded
+    expect(screen.getByTestId("loading-state")).toBeInTheDocument();
+
     await waitFor(() => {
-      expect(fetchWithAuth).toHaveBeenCalledWith("http://localhost:4000/profile");
+      expect(screen.getByDisplayValue("Satoshi")).toBeInTheDocument();
     });
 
-    // Check if form is populated
+    expect(screen.getByDisplayValue("Building decentralized tools.")).toBeInTheDocument();
+  });
+
+  it("handles load error gracefully", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+    });
+
+    render(<SettingsPage />);
+
     await waitFor(() => {
-      expect(screen.getByDisplayValue("test_user")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("https://example.com/avatar.png")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Test bio")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("testhandle")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("test#1234")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("testgithub")).toBeInTheDocument();
+      expect(screen.getByTestId("error-state")).toBeInTheDocument();
     });
   });
 
-  it("calls save API endpoint when Save button is clicked", async () => {
-    (fetchWithAuth as Mock).mockResolvedValue({
+  it("shows validation errors for invalid inputs", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => ({}),
+      json: async () => mockProfile,
     });
 
-    render(<Settings />);
-
-    const saveButtons = screen.getAllByText("saveChanges");
-    fireEvent.click(saveButtons[0]);
+    render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(fetchWithAuth).toHaveBeenCalledWith("http://localhost:4000/profile", expect.objectContaining({
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      }));
+      expect(screen.getByDisplayValue("Satoshi")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByLabelText(/Display Name/i);
+    fireEvent.change(nameInput, { target: { value: "" } });
+
+    const colourInput = screen.getByLabelText(/Colour/i);
+    fireEvent.change(colourInput, { target: { value: "invalid-hex" } });
+
+    const saveButton = screen.getByRole("button", { name: /Save/i });
+    fireEvent.click(saveButton);
+
+    expect(screen.getByTestId("error-displayName")).toHaveTextContent("Display name is required");
+    expect(screen.getByTestId("error-colour")).toHaveTextContent("Colour must be a valid hex code");
+  });
+
+  it("submits profile successfully on valid input", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockProfile,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Satoshi")).toBeInTheDocument();
+    });
+
+    const saveButton = screen.getByRole("button", { name: /Save/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("success-message")).toHaveTextContent("Profile updated successfully!");
+    });
+  });
+
+  it("handles API save failure correctly", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockProfile,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: "Internal Server Error" }),
+      });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Satoshi")).toBeInTheDocument();
+    });
+
+    const saveButton = screen.getByRole("button", { name: /Save/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("api-error")).toHaveTextContent("Internal Server Error");
     });
   });
 });
