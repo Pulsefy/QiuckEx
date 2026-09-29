@@ -1,0 +1,49 @@
+[
+  {
+    "eventName": "page_view",
+    "version": 1,
+    "description": "Recorded when a user views a page",
+    "schema": {
+      "type": "object",
+      "keys": {
+        "path": {
+          "type": "string",
+          "flags": {
+            "presence": "required"
+          }
+        },
+        "userId": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "eventName": "payment_initiated",
+    "version": 1,
+    "description": "Recorded when a payment is initiated",
+    "schema": {
+      "type": "object",
+      "keys": {
+        "paymentId": {
+          "type": "string",
+          "flags": {
+            "presence": "required"
+          }
+        },
+        "amount": {
+          "type": "number",
+          "flags": {
+            "presence": "required"
+          }
+        },
+        "asset": {
+          "type": "string",
+          "flags": {
+            "presence": "required"
+          }
+        }
+      }
+    }
+  }
+]

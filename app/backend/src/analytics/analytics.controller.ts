@@ -11,12 +11,20 @@ import {
   ReportFormat,
 } from './dto/analytics-query.dto';
 import { DashboardSummaryQueryDto } from './dto/dashboard-summary.dto';
+import { EmitAnalyticsEventDto } from './dto/analytics-event.dto';
+import { SchemaRegistryService } from './schema-registry.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Post, Body } from '@nestjs/common';
 
 @ApiTags('analytics')
 @UseGuards(ApiKeyGuard)
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly schemaRegistry: SchemaRegistryService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   @Get('report')
   @RateLimitTier('public-read')
@@ -133,5 +141,35 @@ export class AnalyticsController {
       query.endDate,
       req.organizationContext?.organizationId,
     );
+  }
+
+  @Get('schemas')
+  @RateLimitTier('public-read')
+  @ApiOperation({
+    summary: 'Export analytics event schemas for consumers and dashboards',
+  })
+  @ApiResponse({ status: 200, description: 'Event schema registry exported' })
+  getSchemas() {
+    return this.schemaRegistry.exportRegistry();
+  }
+
+  @Post('events')
+  @RateLimitTier('public-write')
+  @ApiOperation({ summary: 'Emit and validate an analytics event' })
+  @ApiResponse({ status: 201, description: 'Event validated and recorded' })
+  recordEvent(@Body() dto: EmitAnalyticsEventDto) {
+    const validatedData = this.schemaRegistry.validateEvent(
+      dto.eventName,
+      dto.version,
+      dto.payload,
+    );
+    
+    this.eventEmitter.emit(`analytics.${dto.eventName}`, {
+      version: dto.version,
+      data: validatedData,
+      timestamp: new Date().toISOString(),
+    });
+    
+    return { success: true };
   }
 }
