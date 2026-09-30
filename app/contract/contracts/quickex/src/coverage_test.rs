@@ -29,7 +29,7 @@ use crate::{
     errors::QuickexError,
     test_context::TestContext,
 };
-use soroban_sdk::{testutils::Events, BytesN, TryIntoVal};
+use soroban_sdk::{testutils::Events, xdr::ToXdr, BytesN, TryIntoVal};
 
 // ============================================================================
 // Deprecated numeric privacy shim (enable_privacy / privacy_status /
@@ -90,6 +90,25 @@ fn test_enable_privacy_history_appends_newest_first() {
     // Repeating the current value fails closed, same as `set_privacy`.
     let result = ctx.client.try_enable_privacy(&account, &1);
     assert_qx_err(result, QuickexError::PrivacyAlreadySet);
+}
+
+/// Repeated successful toggles retain only the newest bounded history entries.
+#[test]
+fn test_enable_privacy_history_stays_bounded_after_many_toggles() {
+    let ctx = TestContext::with_admin();
+    let account = ctx.alice.clone();
+    let cap = crate::storage::PRIVACY_HISTORY_MAX_ENTRIES;
+
+    for index in 0..(cap * 8) {
+        ctx.client.enable_privacy(&account, &(1 - index % 2));
+    }
+
+    let history = ctx.client.privacy_history(&account);
+    assert_eq!(history.len(), cap);
+    for index in 0..cap {
+        assert_eq!(history.get(index), Some(index % 2));
+    }
+    assert!(history.to_xdr(&ctx.env).len() <= 16 + (cap as usize) * 8);
 }
 
 /// Level 0 is a valid privacy level (maps to canonical `false`). Since a
