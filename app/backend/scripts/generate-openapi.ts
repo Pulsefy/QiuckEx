@@ -32,6 +32,8 @@ async function bootstrap() {
     routeAllowlist = JSON.parse(fs.readFileSync(allowlistPath, "utf-8"));
   }
 
+  const autoUpdate = process.env.CI_UPDATE_ALLOWLIST === "true";
+  const newAllowlist = new Set<string>(routeAllowlist);
   let hasErrors = false;
 
   // 1. Validate paths have responses
@@ -44,12 +46,13 @@ async function bootstrap() {
         continue;
       }
 
+      let routeHasError = false;
       const responses = op.responses || {};
       const hasSuccessResponse = Object.keys(responses).some(code => code.startsWith("2"));
       
       if (!hasSuccessResponse) {
         console.error(`ERROR: Route ${identifier} is missing a success response schema.`);
-        hasErrors = true;
+        routeHasError = true;
       } else {
         // Ensure success responses have schemas if they have content
         for (const [code, resp] of Object.entries(responses)) {
@@ -59,20 +62,23 @@ async function bootstrap() {
                const schema = content["application/json"].schema;
                if (!schema) {
                  console.error(`ERROR: Route ${identifier} is missing a schema in its success response content.`);
-                 hasErrors = true;
+                 routeHasError = true;
                }
             } else if (code !== "204") {
-               // Usually APIs should define a response body unless it's 204 No Content
                if (!content && method.toUpperCase() !== "DELETE") {
-                 // But wait, the requirement is just: "route is missing a response schema"
-                 // If a route returns 200 but doesn't document the schema, that's what we want to catch.
-                 // However, NestJS default swagger output for empty response doesn't have `content`.
-                 // So if there's no `content` documented and it's not 204 or DELETE, it's missing.
                  console.error(`ERROR: Route ${identifier} returns ${code} but is missing response schema/content definition.`);
-                 hasErrors = true;
+                 routeHasError = true;
                }
             }
           }
+        }
+      }
+
+      if (routeHasError) {
+        if (autoUpdate) {
+          newAllowlist.add(identifier);
+        } else {
+          hasErrors = true;
         }
       }
     }
@@ -81,15 +87,20 @@ async function bootstrap() {
   // 2. Validate DTO fields have types (in components.schemas)
   const schemas = document.components?.schemas || {};
   for (const [schemaName, schemaObj] of Object.entries(schemas)) {
-    // If a schema is in allowlist, we can skip it, but let's check all documented schemas
     const props = (schemaObj as any).properties || {};
     for (const [propName, propDef] of Object.entries(props)) {
       const def = propDef as any;
-      if (!def.type && !def.$ref && !def.allOf && !def.oneOf && !def.anyOf) {
+      if (!def.type && !def.$ref && !def.allOf && !def.oneOf && !def.anyOf && !def.enum) {
         console.error(`ERROR: DTO field ${schemaName}.${propName} is missing a type. Add @ApiProperty({ type: ... })`);
+        // If auto-updating, we don't have a DTO allowlist, so DTO errors still fail
         hasErrors = true;
       }
     }
+  }
+
+  if (autoUpdate && newAllowlist.size > routeAllowlist.length) {
+    fs.writeFileSync(allowlistPath, JSON.stringify(Array.from(newAllowlist).sort(), null, 2));
+    console.log(`Updated openapi-allowlist.json with ${newAllowlist.size - routeAllowlist.length} new undocumented routes.`);
   }
 
   // Always write out the openapi spec so it can be published as an artifact

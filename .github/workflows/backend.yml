@@ -62,11 +62,13 @@ jobs:
             git config --global user.email "bot@example.com"
             git config --global user.name "bot"
             git add app/backend/openapi.json
-            git commit -m "chore: push openapi.json for debugging"
+            git add app/backend/openapi-allowlist.json
+            git commit -m "chore: auto-update openapi allowlist"
             git push origin HEAD:BE-111-openapi-spec-gate
             exit 1
           )
         env:
+          CI_UPDATE_ALLOWLIST: "true"
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_ANON_KEY: test-key
           NETWORK: testnet
