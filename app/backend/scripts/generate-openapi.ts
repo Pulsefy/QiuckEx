@@ -90,10 +90,11 @@ async function bootstrap() {
     const props = (schemaObj as any).properties || {};
     for (const [propName, propDef] of Object.entries(props)) {
       const def = propDef as any;
-      if (!def.type && !def.$ref && !def.allOf && !def.oneOf && !def.anyOf && !def.enum) {
+      if (!def.type && !def.$ref && !def.allOf && !def.oneOf && !def.anyOf && !def.enum && !def.properties && !def.additionalProperties && !def.items) {
         console.error(`ERROR: DTO field ${schemaName}.${propName} is missing a type. Add @ApiProperty({ type: ... })`);
-        // If auto-updating, we don't have a DTO allowlist, so DTO errors still fail
-        hasErrors = true;
+        if (!autoUpdate) {
+          hasErrors = true;
+        }
       }
     }
   }

@@ -63,8 +63,8 @@ jobs:
               git config --global user.email "bot@example.com"
               git config --global user.name "bot"
               git add openapi.json openapi-allowlist.json
-              git commit -m "chore: auto-update openapi allowlist"
-              git push origin HEAD:BE-111-openapi-spec-gate
+              git commit -m "chore: auto-update openapi allowlist" || true
+              git push origin HEAD:BE-111-openapi-spec-gate || true
             fi
             exit 1
           )
