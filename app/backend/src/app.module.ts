@@ -118,28 +118,34 @@ OperationsModule,
     DeploymentSyncModule,
     ];
 
+    const skipDb = process.env.SKIP_DB === "true";
+
     try {
-  const supabaseUrl = process.env.SUPABASE_URL ?? "";
-  const isLocalSupabase =
-    supabaseUrl.includes("localhost") ||
-    supabaseUrl.includes("127.0.0.1");
+      const supabaseUrl = process.env.SUPABASE_URL ?? "";
+      const isLocalSupabase =
+        supabaseUrl.includes("localhost") ||
+        supabaseUrl.includes("127.0.0.1");
 
-  if (!isLocalSupabase) {
-    baseImports.push(ReconciliationModule as AppImport);
-    baseImports.push(NotificationsModule as AppImport);
-    baseImports.push(DeveloperModule as AppImport);
-  } else {
-    console.log(
-      "Skipping Reconciliation & Notifications modules in dev (local Supabase)",
-    );
-  }
-} catch (e) {
-  baseImports.push(ReconciliationModule as AppImport);
-  baseImports.push(NotificationsModule as AppImport);
-  baseImports.push(DeveloperModule as AppImport);
-}
+      if (!isLocalSupabase && !skipDb) {
+        baseImports.push(ReconciliationModule as AppImport);
+        baseImports.push(NotificationsModule as AppImport);
+        baseImports.push(DeveloperModule as AppImport);
+      } else {
+        console.log(
+          skipDb 
+            ? "Skipping Reconciliation & Notifications modules due to SKIP_DB flag"
+            : "Skipping Reconciliation & Notifications modules in dev (local Supabase)",
+        );
+      }
+    } catch (e) {
+      if (!skipDb) {
+        baseImports.push(ReconciliationModule as AppImport);
+        baseImports.push(NotificationsModule as AppImport);
+        baseImports.push(DeveloperModule as AppImport);
+      }
+    }
 
-return baseImports;
+    return baseImports;
 
 })(),
 providers: [

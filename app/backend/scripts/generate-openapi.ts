@@ -1,6 +1,5 @@
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { AppModule } from "../src/app.module";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -9,6 +8,9 @@ async function bootstrap() {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || "https://test.supabase.co";
   process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "test-key";
   process.env.NETWORK = process.env.NETWORK || "testnet";
+  process.env.SKIP_DB = process.env.SKIP_DB || "true";
+
+  const { AppModule } = await import("../src/app.module");
 
   const app = await NestFactory.create(AppModule, { logger: false });
 
