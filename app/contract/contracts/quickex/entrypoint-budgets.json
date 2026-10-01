@@ -1,0 +1,473 @@
+{
+  "kind": "quickex-entrypoint-budgets-v1",
+  "tolerance_pct": 10.0,
+  "description": "Per-entrypoint resource budget assertions for QuickEx contract (SC-W8-14 / Issue #875). Tests fail when actual CPU instructions or memory bytes exceed recorded budget * (1 + tolerance_pct / 100). Budget changes require an explicit, reviewable update rather than passing silently.",
+  "updated_at": "2026-09-28",
+  "entrypoints": {
+    "accept_admin_transfer": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Accept pending admin role transfer"
+    },
+    "activate_emergency_mode": {
+      "cpu_budget": 45000,
+      "mem_budget": 18000,
+      "description": "Freeze withdrawals and refunds in emergency"
+    },
+    "batch_create": {
+      "cpu_budget": 550000,
+      "mem_budget": 130000,
+      "description": "Batch create up to MAX_BATCH_SIZE escrows"
+    },
+    "batch_refund": {
+      "cpu_budget": 420000,
+      "mem_budget": 105000,
+      "description": "Batch refund up to MAX_BATCH_SIZE escrows"
+    },
+    "batch_release": {
+      "cpu_budget": 460000,
+      "mem_budget": 115000,
+      "description": "Batch release up to MAX_BATCH_SIZE escrows"
+    },
+    "cancel_admin_transfer": {
+      "cpu_budget": 50000,
+      "mem_budget": 18000,
+      "description": "Cancel pending admin role transfer proposal"
+    },
+    "cleanup_escrow": {
+      "cpu_budget": 65000,
+      "mem_budget": 22000,
+      "description": "Clean up terminal escrow storage"
+    },
+    "complete_upgrade": {
+      "cpu_budget": 85000,
+      "mem_budget": 30000,
+      "description": "Finalize contract upgrade and run migration checks"
+    },
+    "create_amount_commitment": {
+      "cpu_budget": 12000,
+      "mem_budget": 5000,
+      "description": "Compute amount commitment hash"
+    },
+    "deposit": {
+      "cpu_budget": 420000,
+      "mem_budget": 105000,
+      "description": "Deposit funds and create escrow"
+    },
+    "deposit_multi_sig": {
+      "cpu_budget": 450000,
+      "mem_budget": 115000,
+      "description": "Deposit funds with multi-sig arbitration"
+    },
+    "deposit_partial": {
+      "cpu_budget": 430000,
+      "mem_budget": 108000,
+      "description": "Deposit funds allowing partial settlement"
+    },
+    "deposit_with_commitment": {
+      "cpu_budget": 380000,
+      "mem_budget": 95000,
+      "description": "Deposit funds with precomputed commitment"
+    },
+    "derive_escrow_id": {
+      "cpu_budget": 35000,
+      "mem_budget": 12000,
+      "description": "Compute deterministic escrow ID"
+    },
+    "derive_escrow_id_multi_sig": {
+      "cpu_budget": 45000,
+      "mem_budget": 16000,
+      "description": "Compute deterministic multi-sig escrow ID"
+    },
+    "dispute": {
+      "cpu_budget": 260000,
+      "mem_budget": 65000,
+      "description": "Open a dispute on an active escrow"
+    },
+    "enable_privacy": {
+      "cpu_budget": 75000,
+      "mem_budget": 26000,
+      "description": "Deprecated numeric privacy toggle"
+    },
+    "extend_escrow_ttl": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Extend storage TTL for an escrow"
+    },
+    "finalize_expired_escrow": {
+      "cpu_budget": 280000,
+      "mem_budget": 70000,
+      "description": "Public keeper timeout refund for expired escrow"
+    },
+    "get_accrued_fee_balance": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read accrued protocol fee balance"
+    },
+    "get_active_fee_collector": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read active fee collector address"
+    },
+    "get_admin": {
+      "cpu_budget": 12000,
+      "mem_budget": 4500,
+      "description": "Read contract admin address"
+    },
+    "get_aggregated_oracle_price": {
+      "cpu_budget": 65000,
+      "mem_budget": 24000,
+      "description": "Compute multi-source median oracle price"
+    },
+    "get_commitment_state": {
+      "cpu_budget": 18000,
+      "mem_budget": 6500,
+      "description": "Read escrow status by commitment"
+    },
+    "get_deployment_metadata": {
+      "cpu_budget": 20000,
+      "mem_budget": 7500,
+      "description": "Read deployment and version metadata"
+    },
+    "get_dispute_quorum_config": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read dispute quorum policy"
+    },
+    "get_escrow_details": {
+      "cpu_budget": 25000,
+      "mem_budget": 9000,
+      "description": "Read privacy-filtered escrow view"
+    },
+    "get_escrow_id_commitment": {
+      "cpu_budget": 20000,
+      "mem_budget": 7000,
+      "description": "Lookup commitment by escrow ID"
+    },
+    "get_feature_pause_reason": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read pause reason code for a feature flag"
+    },
+    "get_fee_config": {
+      "cpu_budget": 12000,
+      "mem_budget": 4500,
+      "description": "Read global fee configuration"
+    },
+    "get_global_pause_reason": {
+      "cpu_budget": 12000,
+      "mem_budget": 4500,
+      "description": "Read global contract pause reason"
+    },
+    "get_oracle_aggregation_config": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read multi-source aggregation config"
+    },
+    "get_oracle_fee_config": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read oracle dynamic fee config"
+    },
+    "get_oracle_sources": {
+      "cpu_budget": 20000,
+      "mem_budget": 7500,
+      "description": "List registered oracle sources"
+    },
+    "get_pending_admin_transfer": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read pending two-step admin transfer"
+    },
+    "get_per_asset_fee": {
+      "cpu_budget": 18000,
+      "mem_budget": 6500,
+      "description": "Read per-asset fee override"
+    },
+    "get_platform_wallet": {
+      "cpu_budget": 12000,
+      "mem_budget": 4500,
+      "description": "Read platform fee wallet address"
+    },
+    "get_privacy": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read canonical privacy status"
+    },
+    "get_registered_hooks": {
+      "cpu_budget": 18000,
+      "mem_budget": 6500,
+      "description": "List registered hook contract addresses"
+    },
+    "get_roles": {
+      "cpu_budget": 22000,
+      "mem_budget": 8000,
+      "description": "List all assigned roles for an account"
+    },
+    "get_stealth_status": {
+      "cpu_budget": 18000,
+      "mem_budget": 6500,
+      "description": "Read status of a stealth payment escrow"
+    },
+    "get_ttl_config": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read active storage TTL policy"
+    },
+    "get_upgrade_window": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Read active upgrade window bounds"
+    },
+    "get_version": {
+      "cpu_budget": 8000,
+      "mem_budget": 3000,
+      "description": "Read contract schema version"
+    },
+    "grant_role": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Grant RBAC role to an account"
+    },
+    "health_check": {
+      "cpu_budget": 6000,
+      "mem_budget": 2500,
+      "description": "Contract liveness check"
+    },
+    "initialize": {
+      "cpu_budget": 75000,
+      "mem_budget": 28000,
+      "description": "One-time contract initialization"
+    },
+    "is_emergency_mode": {
+      "cpu_budget": 10000,
+      "mem_budget": 3800,
+      "description": "Check if emergency mode is active"
+    },
+    "is_entry_allowed_in_emergency": {
+      "cpu_budget": 8000,
+      "mem_budget": 3000,
+      "description": "Check emergency whitelist for an entrypoint"
+    },
+    "is_feature_paused": {
+      "cpu_budget": 12000,
+      "mem_budget": 4500,
+      "description": "Check if a specific feature flag is paused"
+    },
+    "is_hook_allowed": {
+      "cpu_budget": 15000,
+      "mem_budget": 5500,
+      "description": "Check if hook contract is whitelisted"
+    },
+    "is_paused": {
+      "cpu_budget": 10000,
+      "mem_budget": 3800,
+      "description": "Check if global pause is active"
+    },
+    "is_refund_eligible": {
+      "cpu_budget": 22000,
+      "mem_budget": 8000,
+      "description": "Check if escrow is eligible for expiry refund"
+    },
+    "migrate": {
+      "cpu_budget": 95000,
+      "mem_budget": 35000,
+      "description": "Execute state migrations on upgrade"
+    },
+    "partial_payment": {
+      "cpu_budget": 340000,
+      "mem_budget": 85000,
+      "description": "Send partial payment against partial escrow"
+    },
+    "pause_features": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Pause selected contract features via bitmask"
+    },
+    "privacy_history": {
+      "cpu_budget": 25000,
+      "mem_budget": 9000,
+      "description": "Read audit history of privacy requests"
+    },
+    "privacy_status": {
+      "cpu_budget": 18000,
+      "mem_budget": 6500,
+      "description": "Deprecated privacy level status projection"
+    },
+    "propose_admin_transfer": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Initiate two-step admin transfer proposal"
+    },
+    "record_oracle_price": {
+      "cpu_budget": 65000,
+      "mem_budget": 24000,
+      "description": "Record legacy oracle price in cache"
+    },
+    "record_oracle_source_price": {
+      "cpu_budget": 70000,
+      "mem_budget": 26000,
+      "description": "Record price from registered oracle source"
+    },
+    "refund": {
+      "cpu_budget": 300000,
+      "mem_budget": 75000,
+      "description": "Refund expired escrow funds to depositor"
+    },
+    "register_ephemeral_key": {
+      "cpu_budget": 310000,
+      "mem_budget": 78000,
+      "description": "Register stealth ephemeral key and lock funds"
+    },
+    "register_hook": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Register external lifecycle hook contract"
+    },
+    "register_oracle_source": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Register trusted oracle source address"
+    },
+    "resolve_dispute": {
+      "cpu_budget": 340000,
+      "mem_budget": 85000,
+      "description": "Single arbiter dispute resolution"
+    },
+    "resolve_dispute_multi_sig": {
+      "cpu_budget": 360000,
+      "mem_budget": 90000,
+      "description": "Resolve multi-sig dispute with quorum"
+    },
+    "resolve_dispute_timeout": {
+      "cpu_budget": 310000,
+      "mem_budget": 78000,
+      "description": "Fallback dispute refund when quorum misses deadline"
+    },
+    "restore_archived_escrow": {
+      "cpu_budget": 75000,
+      "mem_budget": 28000,
+      "description": "Re-extend TTL of unarchived escrow"
+    },
+    "revoke_role": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Revoke RBAC role from an account"
+    },
+    "rotate_fee_collector": {
+      "cpu_budget": 65000,
+      "mem_budget": 24000,
+      "description": "Rotate active fee collector address"
+    },
+    "set_dispute_quorum_config": {
+      "cpu_budget": 50000,
+      "mem_budget": 18000,
+      "description": "Configure multi-sig dispute quorum policy"
+    },
+    "set_fee_config": {
+      "cpu_budget": 45000,
+      "mem_budget": 16000,
+      "description": "Configure global protocol fee basis points"
+    },
+    "set_hook_allowed": {
+      "cpu_budget": 48000,
+      "mem_budget": 17000,
+      "description": "Whitelist or blacklist hook contract"
+    },
+    "set_oracle_aggregation_config": {
+      "cpu_budget": 50000,
+      "mem_budget": 18000,
+      "description": "Configure multi-source oracle median policy"
+    },
+    "set_oracle_fee_config": {
+      "cpu_budget": 50000,
+      "mem_budget": 18000,
+      "description": "Configure dynamic USD oracle fee calculation"
+    },
+    "set_paused": {
+      "cpu_budget": 45000,
+      "mem_budget": 16000,
+      "description": "Toggle global contract pause"
+    },
+    "set_per_asset_fee": {
+      "cpu_budget": 52000,
+      "mem_budget": 19000,
+      "description": "Configure per-token fee override"
+    },
+    "set_platform_wallet": {
+      "cpu_budget": 45000,
+      "mem_budget": 16000,
+      "description": "Set destination wallet for protocol fees"
+    },
+    "set_privacy": {
+      "cpu_budget": 70000,
+      "mem_budget": 25000,
+      "description": "Toggle privacy on/off for account"
+    },
+    "set_ttl_config": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Configure storage TTL extension policy"
+    },
+    "set_upgrade_window": {
+      "cpu_budget": 50000,
+      "mem_budget": 18000,
+      "description": "Define epoch window during which upgrades are permitted"
+    },
+    "start_upgrade": {
+      "cpu_budget": 75000,
+      "mem_budget": 27000,
+      "description": "Initiate upgrade ceremony within upgrade window"
+    },
+    "stealth_withdraw": {
+      "cpu_budget": 340000,
+      "mem_budget": 85000,
+      "description": "Claim funds from one-time stealth address"
+    },
+    "unpause_features": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Unpause features using bitmask"
+    },
+    "unregister_hook": {
+      "cpu_budget": 55000,
+      "mem_budget": 20000,
+      "description": "Remove registered hook contract"
+    },
+    "unregister_oracle_source": {
+      "cpu_budget": 60000,
+      "mem_budget": 22000,
+      "description": "Remove registered oracle source"
+    },
+    "upgrade": {
+      "cpu_budget": 110000,
+      "mem_budget": 40000,
+      "description": "Swap executable WASM code during upgrade window"
+    },
+    "verify_amount_commitment": {
+      "cpu_budget": 16000,
+      "mem_budget": 6000,
+      "description": "Validate commitment pre-image against hash"
+    },
+    "verify_proof_view": {
+      "cpu_budget": 30000,
+      "mem_budget": 11000,
+      "description": "Read-only pre-flight check of withdrawal eligibility"
+    },
+    "vote_for_dispute": {
+      "cpu_budget": 180000,
+      "mem_budget": 50000,
+      "description": "Cast arbiter vote on multi-sig dispute"
+    },
+    "withdraw": {
+      "cpu_budget": 320000,
+      "mem_budget": 80000,
+      "description": "Withdraw escrowed funds by commitment proof"
+    },
+    "withdraw_fees": {
+      "cpu_budget": 95000,
+      "mem_budget": 35000,
+      "description": "Withdraw accrued protocol fees to recipient"
+    }
+  }
+}

@@ -21,6 +21,8 @@ mod dispute_quorum;
 #[cfg(test)]
 mod dispute_quorum_test;
 #[cfg(test)]
+mod entrypoint_budget_test;
+#[cfg(test)]
 mod error_codes_test;
 mod errors;
 mod escrow;
