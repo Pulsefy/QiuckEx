@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -29,6 +31,7 @@ export class ApiKeysService {
   constructor(
     private readonly repo: ApiKeysRepository,
     private readonly configService: AppConfigService,
+    @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
   ) {}
 
