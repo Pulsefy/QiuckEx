@@ -65,6 +65,16 @@ jobs:
           EXIT_CODE=$?
           set -e
           
+          echo "OpenAPI script exited with code: $EXIT_CODE"
+          echo "Current directory: $(pwd)"
+          
+          if [ -f "openapi.json" ]; then
+            echo "✅ Generated openapi.json exists"
+            head -n 50 openapi.json
+          else
+            echo "❌ openapi.json was NOT generated!"
+          fi
+          
           if [ -f "openapi-allowlist.json" ]; then
              if ! git diff --quiet openapi-allowlist.json; then
                  git config --global user.email "bot@example.com"

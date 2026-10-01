@@ -15,7 +15,7 @@ async function bootstrap() {
 
   const { AppModule } = await import("../src/app.module");
 
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'debug', 'log'] });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("QuickEx Backend")
@@ -121,6 +121,10 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error("Fatal error generating OpenAPI spec:", err);
+  console.error("Fatal error generating OpenAPI spec:");
+  console.error(err);
+  if (err instanceof Error && err.stack) {
+    console.error(err.stack);
+  }
   process.exit(1);
 });
