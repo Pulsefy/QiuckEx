@@ -57,7 +57,15 @@ jobs:
         run: pnpm run build
 
       - name: Validate OpenAPI Schema
-        run: pnpm run openapi:check
+        run: |
+          pnpm run openapi:check || (
+            git config --global user.email "bot@example.com"
+            git config --global user.name "bot"
+            git add app/backend/openapi.json
+            git commit -m "chore: push openapi.json for debugging"
+            git push origin HEAD:BE-111-openapi-spec-gate
+            exit 1
+          )
         env:
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_ANON_KEY: test-key
