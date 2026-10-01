@@ -72,9 +72,12 @@ type AppImport =
 | Promise<DynamicModule>
 | ForwardReference<unknown>;
 
+import { AuthModule } from "./auth/auth.module";
+
 @Module({
 imports: ((): AppImport[] => {
 const baseImports: AppImport[] = [
+AuthModule,
 SentryModule,
 AppConfigModule,
 ScheduleModule.forRoot(),
@@ -140,7 +143,7 @@ OperationsModule,
       console.log("DeveloperModule disabled via ENABLE_DEVELOPER_MODULE=false");
     }
 
-return baseImports;
+    return baseImports;
 
 })(),
 providers: [

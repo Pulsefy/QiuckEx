@@ -90,16 +90,16 @@ export class SupportBundleMetadataDto {
 }
 
 export class SupportBundleDto {
-  @ApiProperty()
+  @ApiProperty({ type: () => SupportBundleMetadataDto })
   metadata: SupportBundleMetadataDto;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => NetworkConfigDto })
   network_config: NetworkConfigDto;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => ContractRegistrySnapshotDto })
   contract_registry: ContractRegistrySnapshotDto;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => IndexerStatusDto })
   indexer_status: IndexerStatusDto;
 
   @ApiProperty({ type: [CheckpointDto] })

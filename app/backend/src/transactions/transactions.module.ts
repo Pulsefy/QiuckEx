@@ -5,7 +5,7 @@ import { AppConfigModule } from "../config";
 import { TransactionsService } from "./transaction.service";
 import { SorobanRpcService } from "./soroban-rpc.service";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
-import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+
 import { MetricsModule } from "../metrics/metrics.module";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { ContractsModule } from "../contracts/contracts.module";
@@ -27,7 +27,7 @@ import { IdempotencyModule } from "../common/idempotency/idempotency.module";
     HorizonService,
     TransactionsService,
     SorobanRpcService,
-    ApiKeyGuard,
+    
   ],
   exports: [HorizonService, TransactionsService, SorobanRpcService],
 })

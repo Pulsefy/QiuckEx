@@ -8,14 +8,14 @@ import { PathPreviewService } from "./path-preview.service";
 import { QuoteService } from "./quote.service";
 import { StellarController } from "./stellar.controller";
 import { ApiKeysModule } from "../api-keys/api-keys.module";
-import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { AuditModule } from "../audit/audit.module";
 
 @Module({
   imports: [TransactionsModule, ApiKeysModule, FeatureFlagsModule, AuditModule, forwardRef(() => AssetMetadataModule)],
   controllers: [StellarController],
-  providers: [LinkService, HorizonService, PathPreviewService, QuoteService, ApiKeyGuard],
+  providers: [LinkService, HorizonService, PathPreviewService, QuoteService, ],
   exports: [LinkService, HorizonService, PathPreviewService, QuoteService],
 })
 export class StellarModule {}

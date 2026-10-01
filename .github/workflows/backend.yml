@@ -14,6 +14,8 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: app/backend
@@ -55,6 +57,48 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Validate OpenAPI Schema
+        run: |
+          set +e
+          pnpm run openapi:check > openapi-error.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          
+          cat openapi-error.log
+          
+          if [ -f "openapi-allowlist.json" ]; then
+             if ! git diff --quiet openapi-allowlist.json; then
+                 git config --global user.email "bot@example.com"
+                 git config --global user.name "bot"
+                 git add openapi-allowlist.json
+                 git commit -m "chore: auto-update openapi allowlist" || true
+                 git push origin HEAD:BE-111-openapi-spec-gate || true
+             fi
+          fi
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+             git config --global user.email "bot@example.com"
+             git config --global user.name "bot"
+             git add openapi-error.log
+             git commit -m "chore: dump openapi error log" || true
+             git push origin HEAD:BE-111-openapi-spec-gate || true
+          fi
+          
+          exit $EXIT_CODE
+        env:
+          CI_UPDATE_ALLOWLIST: "true"
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-key
+          NETWORK: testnet
+
+      - name: Upload OpenAPI Spec Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi-spec
+          path: app/backend/openapi.json
+          retention-days: 14
 
       # ── Database migrations ──────────────────────────────────────────────
       - name: Run database migrations

@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+
 import { SupabaseModule } from '../supabase/supabase.module';
 import { JobQueueModule } from '../job-queue/job-queue.module';
 import { DemoController } from './demo.controller';
@@ -25,7 +25,7 @@ import { SeedResetHandler } from '../job-queue/handlers/seed-reset.handler';
   ],
   providers: [
     DemoService,
-    ApiKeyGuard,
+    
     SeedResetScheduler,
     SeedResetHandler,
   ],
