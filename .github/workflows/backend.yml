@@ -14,6 +14,8 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: app/backend
@@ -58,16 +60,22 @@ jobs:
 
       - name: Validate OpenAPI Schema
         run: |
-          pnpm run openapi:check || (
-            if [ -f "openapi.json" ] && [ -f "openapi-allowlist.json" ]; then
-              git config --global user.email "bot@example.com"
-              git config --global user.name "bot"
-              git add openapi.json openapi-allowlist.json
-              git commit -m "chore: auto-update openapi allowlist" || true
-              git push origin HEAD:BE-111-openapi-spec-gate || true
-            fi
-            exit 1
-          )
+          set +e
+          pnpm run openapi:check
+          EXIT_CODE=$?
+          set -e
+          
+          if [ -f "openapi-allowlist.json" ]; then
+             if ! git diff --quiet openapi-allowlist.json; then
+                 git config --global user.email "bot@example.com"
+                 git config --global user.name "bot"
+                 git add openapi-allowlist.json
+                 git commit -m "chore: auto-update openapi allowlist" || true
+                 git push origin HEAD:BE-111-openapi-spec-gate || true
+             fi
+          fi
+          
+          exit $EXIT_CODE
         env:
           CI_UPDATE_ALLOWLIST: "true"
           SUPABASE_URL: https://test.supabase.co
