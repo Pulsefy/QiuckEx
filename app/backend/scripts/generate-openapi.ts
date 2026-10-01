@@ -9,6 +9,9 @@ async function bootstrap() {
   process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "test-key";
   process.env.NETWORK = process.env.NETWORK || "testnet";
   process.env.SKIP_DB = process.env.SKIP_DB || "true";
+  
+  // Prevent IngestionBootstrapService from starting streams
+  delete process.env.QUICKEX_CONTRACT_ID;
 
   const { AppModule } = await import("../src/app.module");
 
@@ -101,6 +104,7 @@ async function bootstrap() {
     process.exit(1);
   } else {
     console.log("OpenAPI Validation passed.");
+    process.exit(0); // Force exit to prevent background jobs from hanging the CI
   }
 }
 
