@@ -93,3 +93,99 @@ See [docs/MVP-ROADMAP.md](docs/MVP-ROADMAP.md) for the full roadmap and prioriti
 - Ask in Discussions or open an Issue if you’re stuck.
 
 Happy contributing!
+
+
+# Supabase Schema & Database Migrations Reference
+
+> **Related Documents**: 
+> - For backend service ownership and module boundaries, see [Backend Module Map](./BACKEND-MODULE-MAP.md).
+> - For contributor guidelines and PR expectations, see [Contributing Guide](../CONTRIBUTING.md).
+
+---
+
+## 1. Overview
+
+The `app/backend/supabase/migrations/` directory houses over 46 schema migrations powering QuickEx. Because the application combines traditional backend microservices with Stellar blockchain state synchronization, abuse detection, outbox messaging, and notification templating, this document serves as the definitive architecture reference for all database tables, ownership, relationships, and migration safety protocols.
+
+---
+
+## 2. Core Tables, Ownership & Purpose
+
+| Table Name | Owning Backend Module | Scope | Description & Purpose |
+| :--- | :--- | :--- | :--- |
+| `abuse_signals` | `SecurityModule` | Global | Tracks anomalous IP requests, brute-force attempts, and rate-limit violations for automated security flagging and blocking. |
+| `reconciliation_runs` | `SettlementModule` | Global | Logs automated financial and on-chain asset reconciliation runs, tracking balance discrepancies between database ledgers and Stellar network state. |
+| `notification_template_versions` | `NotificationsModule` | Global | Stores version-controlled email, push, and SMS notification templates to ensure auditability of outbound communications. |
+| `contract_specs` | `Web3Module` | Global | Caches Soroban smart contract specifications, interface schemas, and ABI definitions for backend validation. |
+| `outbox_table` | `EventBusModule` | Global | Implements the Transactional Outbox pattern, ensuring reliable asynchronous message publishing to Redis/Kafka queues. |
+| `branch_deployments` | `PreviewModule` | **Preview / Testnet Only** | Tracks ephemeral preview environment deployments, preview URLs, and associated staging database forks. |
+
+---
+
+## 3. Key Relationships & Foreign Keys (ERD Reference)
+
+await this.notificationService.dispatch({
+  type: NOTIFICATION_TYPES.STAKING_REWARD_CLAIMED,
+  recipientId: user.id,
+  payload: { amount: '150', tokenSymbol: 'USDC' },
+});
+
+
+# Auth & Authorization Flow Reference
+
+> **Related Document**: For repository secret scanning, pre-commit hooks, and credential security guidelines, please refer to [Security Guidelines](./security.md).
+
+---
+
+## 1. Authentication Paths Overview
+
+QuickEx supports three distinct authentication mechanisms tailored for different client types and integration patterns:
+
+| Authentication Type | Primary Use Case | Mechanism | Target Clients |
+| :--- | :--- | :--- | :--- |
+| **Wallet Signature Auth** | Web3 Identity Verification | Challenge-response cryptographic signature verification using Stellar/Soroban keypairs. | Web & Mobile DApp Users |
+| **JWT (JSON Web Token)** | Session & User Access | Standard Bearer token issued upon successful wallet sign-in or OAuth authentication. | Frontend App / Mobile Client |
+| **API Key Auth** | Programmatic / Service-to-Service | Secret API key header (`X-API-Key`) validated against hashed database storage with scoped privileges. | External Integrators & Bots |
+
+---
+
+## 2. Guards & Decorators Reference
+
+Located in `app/backend/src/auth/`, guards and decorators secure endpoints and enforce granular permission policies.
+
+### 2.1 Guards
+* **`ApiKeyGuard` (`api-key.guard.ts`)**: Intercepts requests carrying `X-API-Key`, validates the key hash against the database, checks expiration, and attaches associated scopes to the request context.
+* **`OrganizationRoleGuard` (`organization-role.guard.ts`)**: Verifies that the authenticated user possesses the required organizational role (e.g., `owner`, `admin`, `member`) within the requested organization scope.
+* **`CustomThrottlerGuard` (`custom-throttler.guard.ts`)**: Applies dynamic, tier-based rate limiting using Redis sliding windows based on rate-limit groups.
+
+### 2.2 Decorators & Usage Example
+
+```typescript
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { OrganizationRoleGuard } from '../auth/guards/organization-role.guard';
+import { CustomThrottlerGuard } from '../auth/guards/custom-throttler.guard';
+import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
+import { RequireOrgRole } from '../auth/decorators/require-org-role.decorator';
+import { RateLimitGroup } from '../auth/decorators/rate-limit-group.decorator';
+
+@Controller('api/v1/vaults')
+@UseGuards(CustomThrottlerGuard)
+export class VaultController {
+
+  @Post('transfer')
+  @UseGuards(ApiKeyGuard)
+  @RequireScopes('vault:write', 'funds:transfer')
+  @RateLimitGroup('strict-transactions') // Max 10 req/min
+  async transferFunds() {
+    // Executes only if API key has both scopes and rate limit permits
+  }
+
+  @Get('audit-logs')
+  @UseGuards(OrganizationRoleGuard)
+  @RequireOrgRole('admin')
+  @RateLimitGroup('standard-read') // Max 100 req/min
+  async getAuditLogs() {
+    // Executes only if user is an Org Admin
+  }
+}

@@ -4,6 +4,13 @@ import { RedactionService } from './redaction.service';
 import { CrashReportingRepository } from './crash-reporting.repository';
 import { createInMemorySeedStore } from '../testing/in-memory-seed.store';
 import { createTestIsolation } from '../testing/test-isolation.util';
+import { runWithLogScope } from './log-capture.context';
+
+// #1063: log capture is request-scoped, so lines captured outside a scope are
+// dropped. Run every test in its own scope, as LogCaptureMiddleware does for
+// each HTTP request.
+const it = (name: string, fn: () => Promise<unknown> | void): void =>
+  test(name, () => runWithLogScope(fn));
 
 /**
  * Integration tests for crash reporting with real redaction.

@@ -33,12 +33,6 @@ const fileSystemCompat = FileSystem as typeof FileSystem & {
   };
 };
 
-/**
- * Placeholder account used when no accountId is passed via route params.
- */
-const DEMO_ACCOUNT_ID =
-  "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
-
 const STATUS_FILTERS = ["All", "Success", "Pending"] as const;
 
 function getAssetCode(asset: string): string {
@@ -128,13 +122,25 @@ const skeleton = StyleSheet.create({
 export default function TransactionsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { currentAccountId } = useNotifications();
+  const { currentAccountId, isHydrated } = useNotifications();
   const params = useLocalSearchParams<{ accountId?: string }>();
-  const accountId = (
-    params.accountId ??
-    currentAccountId ??
-    DEMO_ACCOUNT_ID
-  ).trim();
+
+  // Resolution order: an explicit route param always wins; otherwise the
+  // account comes from wallet state, which is only meaningful once the
+  // notification context has hydrated (`currentAccountId` is null before
+  // that, meaning "not resolved yet" rather than "no account").
+  //
+  // There is deliberately no hardcoded fallback here. Substituting a fixture
+  // account made this screen render a real stranger's live payment history to
+  // a user whose wallet had not loaded yet — wrong, and a data leak. An
+  // explicit empty state is the correct answer when there is no account.
+  const routeAccountId = (params.accountId ?? "").trim();
+  const accountId =
+    routeAccountId || (isHydrated ? (currentAccountId ?? "").trim() : "");
+  const hasAccount = accountId.length > 0;
+  // Wallet state has not resolved yet and no account was passed explicitly:
+  // stay in a loading state rather than falling through to the empty prompt.
+  const awaitingWallet = routeAccountId.length === 0 && !isHydrated;
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const deferredQuery = React.useDeferredValue(searchQuery);
@@ -219,7 +225,9 @@ export default function TransactionsScreen() {
     dateFrom.trim().length > 0 ||
     dateTo.trim().length > 0;
 
-  const shortAccount = `${accountId.slice(0, 6)}…${accountId.slice(-4)}`;
+  const shortAccount = hasAccount
+    ? `${accountId.slice(0, 6)}…${accountId.slice(-4)}`
+    : "";
 
   const renderItem = React.useCallback(
     ({ item }: ListRenderItemInfo<TransactionItemType>) => (
@@ -307,7 +315,10 @@ export default function TransactionsScreen() {
     setDateTo("");
   }, []);
 
-  const ListHeader = (
+  // The header carries the account pill, filters, and export for a resolved
+  // account. Without one there is nothing to filter or export, so it is not
+  // rendered at all — the empty prompt stands alone.
+  const ListHeader = !hasAccount ? null : (
     <View style={styles.listHeader}>
       {/* ── Stale cache banner ── */}
       {staleCache ? (
@@ -524,27 +535,34 @@ export default function TransactionsScreen() {
     </View>
   );
 
-  const ListEmpty = loading ? (
-    <View>
-      {[...Array(6)].map((_, i) => (
-        <SkeletonRow key={i} />
-      ))}
-    </View>
-  ) : error ? (
-    <ErrorState message={error} onRetry={refresh} />
-  ) : filtersActive ? (
-    <EmptyState
-      title="No matching transactions"
-      message="Try adjusting your filters or search terms."
-      icon="filter-outline"
-    />
-  ) : (
-    <EmptyState
-      title="No transactions yet"
-      message="Payments sent or received to this account will appear here."
-      icon="receipt-outline"
-    />
-  );
+  const ListEmpty =
+    awaitingWallet || loading ? (
+      <View>
+        {[...Array(6)].map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
+      </View>
+    ) : !hasAccount ? (
+      <EmptyState
+        title="Connect a wallet"
+        message="Connect a wallet to see your transaction history."
+        icon="wallet-outline"
+      />
+    ) : error ? (
+      <ErrorState message={error} onRetry={refresh} />
+    ) : filtersActive ? (
+      <EmptyState
+        title="No matching transactions"
+        message="Try adjusting your filters or search terms."
+        icon="filter-outline"
+      />
+    ) : (
+      <EmptyState
+        title="No transactions yet"
+        message="Payments sent or received to this account will appear here."
+        icon="receipt-outline"
+      />
+    );
 
   const ListFooter = hasMore ? (
     <View style={styles.footer}>
@@ -579,12 +597,12 @@ export default function TransactionsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {/* ── Transaction List ── */}
+      {/* ── Transaction List (empty prompt when no wallet is connected) ── */}
       <FlashList<TransactionItemType>
         data={filteredTransactions}
         keyExtractor={(item) => item.pagingToken}
         renderItem={renderItem}
-        ListHeaderComponent={ListHeader}
+        ListHeaderComponent={hasAccount ? ListHeader : undefined}
         ListEmptyComponent={ListEmpty}
         ListFooterComponent={ListFooter}
         refreshControl={

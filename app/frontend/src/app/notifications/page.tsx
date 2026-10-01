@@ -48,8 +48,15 @@ function NotificationsPageContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
-    useNotificationCenter();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    isLoading,
+    degraded,
+    refresh,
+  } = useNotificationCenter();
 
   const activeCategory = normalizeCategory(searchParams.get("category"));
   const activeReadState = normalizeReadState(searchParams.get("status"));
@@ -169,6 +176,25 @@ function NotificationsPageContent() {
           </div>
         </header>
 
+        {degraded ? (
+          <div
+            role="status"
+            className="mt-6 flex flex-col gap-3 rounded-3xl border border-warning-soft bg-warning-soft/40 p-5 text-sm text-warning sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span>
+              Live notifications are unavailable right now. Showing a degraded
+              view — new updates may be missing.
+            </span>
+            <button
+              type="button"
+              onClick={refresh}
+              className="self-start rounded-full border border-warning-soft bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-strong sm:self-auto"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
         <section className="mt-8 rounded-[2rem] border border-border-strong bg-surface p-8 backdrop-blur">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
@@ -229,15 +255,19 @@ function NotificationsPageContent() {
           </div>
 
           <div className="mt-8">
-            <NotificationFeed
-              notifications={filteredNotifications}
-              emptyTitle="No notifications match these filters"
-              emptyDescription="Try a different category or switch back to everything to see the full inbox."
-              onMarkAsRead={markAsRead}
-              onResetFilters={() =>
-                updateFilters({ category: "all", status: "all" })
-              }
-            />
+            {isLoading ? (
+              <p className="text-sm text-muted">Loading notifications…</p>
+            ) : (
+              <NotificationFeed
+                notifications={filteredNotifications}
+                emptyTitle="No notifications match these filters"
+                emptyDescription="Try a different category or switch back to everything to see the full inbox."
+                onMarkAsRead={markAsRead}
+                onResetFilters={() =>
+                  updateFilters({ category: "all", status: "all" })
+                }
+              />
+            )}
           </div>
         </section>
       </div>

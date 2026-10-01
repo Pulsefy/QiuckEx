@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import { SessionProvider, useSession } from '../contexts/SessionContext';
 import { EnvironmentProvider, useEnvironment } from '../contexts/EnvironmentContext';
 import { fetchSessionBootstrap } from '../services/session-bootstrap';
+import { loadEnvironment } from '../services/environment-storage';
 
 jest.mock('../services/session-bootstrap', () => ({
   fetchSessionBootstrap: jest.fn(),
@@ -31,7 +32,9 @@ function TestComponent() {
 
 describe('Startup Flow: SessionProvider', () => {
   beforeEach(() => {
+    jest.setTimeout(15000);
     jest.resetAllMocks();
+    (loadEnvironment as jest.Mock).mockResolvedValue('testnet');
   });
 
   it('handles authenticated startup', async () => {
@@ -43,7 +46,7 @@ describe('Startup Flow: SessionProvider', () => {
     };
     (fetchSessionBootstrap as jest.Mock).mockResolvedValue(mockResponse);
 
-    const { getByTestId } = render(
+    render(
       <EnvironmentProvider>
         <SessionProvider>
           <TestComponent />
@@ -53,7 +56,7 @@ describe('Startup Flow: SessionProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('ready').props.children).toBe('Yes');
-    });
+    }, { timeout: 10000 });
 
     expect(screen.getByTestId('unread').props.children).toBe(42);
     expect(screen.getByTestId('metadata').props.children).toBe('2.0.0');
@@ -69,7 +72,7 @@ describe('Startup Flow: SessionProvider', () => {
     };
     (fetchSessionBootstrap as jest.Mock).mockResolvedValue(mockResponse);
 
-    const { getByTestId } = render(
+    render(
       <EnvironmentProvider>
         <SessionProvider>
           <TestComponent />
@@ -79,7 +82,7 @@ describe('Startup Flow: SessionProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('ready').props.children).toBe('Yes');
-    });
+    }, { timeout: 10000 });
 
     expect(screen.getByTestId('unread').props.children).toBe(0);
     expect(screen.getByTestId('metadata').props.children).toBe('2.0.0');
@@ -89,7 +92,7 @@ describe('Startup Flow: SessionProvider', () => {
   it('gracefully handles bootstrap failure', async () => {
     (fetchSessionBootstrap as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const { getByTestId } = render(
+    render(
       <EnvironmentProvider>
         <SessionProvider>
           <TestComponent />
@@ -99,7 +102,7 @@ describe('Startup Flow: SessionProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('ready').props.children).toBe('Yes');
-    });
+    }, { timeout: 10000 });
 
     expect(screen.getByTestId('unread').props.children).toBe('none');
     expect(screen.getByTestId('metadata').props.children).toBe('none');

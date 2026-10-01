@@ -288,3 +288,33 @@ describe('app.config.ts apiUrl selection', () => {
     expect(url).not.toContain(':3000');
   });
 });
+
+// ---------------------------------------------------------------------------
+// payment-confirmation.tsx — screens must resolve the shared API_URL
+// ---------------------------------------------------------------------------
+
+describe('payment-confirmation screen base-URL alignment', () => {
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'app', 'payment-confirmation.tsx'),
+    'utf8',
+  );
+
+  it('imports the shared API_URL constant from src/config/build', () => {
+    expect(source).toMatch(/import\s*\{[^}]*\bAPI_URL\b[^}]*\}\s*from\s*"..\/src\/config\/build"/);
+  });
+
+  it('does not re-derive its own base URL from EXPO_PUBLIC_API_URL', () => {
+    expect(source).not.toMatch(/process\.env\.EXPO_PUBLIC_API_URL\s*\|\|/);
+  });
+
+  it('contains no literal quickex.com host', () => {
+    expect(source).not.toContain('quickex.com');
+  });
+
+  it('passes the shared API_URL to the contract registry hook', () => {
+    expect(source).toMatch(/const\s+backendUrl\s*=\s*API_URL\s*;/);
+    expect(source).toMatch(/useContractRegistry\(\["quickex"\],\s*backendUrl\)/);
+  });
+});

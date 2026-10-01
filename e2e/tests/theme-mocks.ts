@@ -236,6 +236,97 @@ function adminAuditLogs() {
   };
 }
 
+/** `/admin/rc-validation/report` response consumed by TestnetHealthConsole. */
+function adminHealthReport() {
+  return {
+    reportId: "rc-theme-001",
+    generatedAt: FIXED_TIME,
+    network: "testnet",
+    environment: "staging",
+    releaseReady: false,
+    overallStatus: "blocked",
+    sections: {
+      smoke: {
+        status: "warning",
+        ready: false,
+        checks: [
+          { name: "horizon", status: "up" },
+          {
+            name: "soroban-rpc",
+            status: "degraded",
+            error: "Elevated latency",
+          },
+        ],
+        passed: 1,
+        failed: 0,
+      },
+      registry: {
+        status: "fail",
+        network: "testnet",
+        authoritative: true,
+        version: 12,
+        activeContracts: 1,
+        expectedContracts: ["quickex", "escrow"],
+        missingContracts: ["escrow"],
+      },
+      lag: {
+        status: "warning",
+        currentNetworkLedger: 543210,
+        lastIndexedLedger: 543172,
+        lagLedgers: 38,
+        isLagging: true,
+        isBlocking: false,
+        thresholdLedgers: 100,
+      },
+      environment: {
+        status: "warning",
+        checks: [
+          {
+            check: "network_configuration",
+            status: "pass",
+            details: "Network: testnet",
+          },
+          {
+            check: "contract_registry",
+            status: "warning",
+            details: "Escrow deployment pending",
+          },
+        ],
+        passed: 1,
+        failed: 0,
+        warnings: 1,
+      },
+    },
+    blockers: [
+      {
+        id: "registry.missing-contracts",
+        severity: "critical",
+        category: "registry",
+        message: "Registry is missing expected contract(s): escrow",
+        remediation: "Publish the missing contract deployment(s) to the registry",
+        detectedAt: FIXED_TIME,
+      },
+      {
+        id: "lag.lagging",
+        severity: "warning",
+        category: "lag",
+        message: "Indexer is 38 ledgers behind the network head",
+        remediation: "Confirm ingestion is catching up before release",
+        detectedAt: FIXED_TIME,
+      },
+      {
+        id: "environment.contract_registry.warning",
+        severity: "info",
+        category: "environment",
+        message: "Environment parity reports a pending escrow deployment",
+        remediation: "Verify staging deployment metadata",
+        detectedAt: FIXED_TIME,
+      },
+    ],
+    summary: { critical: 1, warning: 1, info: 1 },
+  };
+}
+
 export type ThemeMockOptions = {
   /** Which payment-link state `/pay` should render. Defaults to ACTIVE. */
   paymentState?: PaymentStateFixture;
@@ -293,6 +384,9 @@ export async function mockBackend(
   );
   await page.route("**/admin/feature-flags**", (route) =>
     route.fulfill(jsonResponse(adminFeatureFlags())),
+  );
+  await page.route("**/admin/rc-validation/report**", (route) =>
+    route.fulfill(jsonResponse(adminHealthReport())),
   );
   await page.route("**/health**", (route) =>
     route.fulfill(jsonResponse({ status: "ok", uptime: 60 })),

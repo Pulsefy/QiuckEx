@@ -57,3 +57,7 @@ export function useSession(): SessionContextValue {
   }
   return ctx;
 }
+
+export function useSessionOptional(): SessionContextValue | null {
+  return useContext(SessionContext) ?? null;
+}

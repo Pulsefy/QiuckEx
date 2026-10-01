@@ -12,6 +12,10 @@ import { CrashReportingService } from './crash-reporting.service';
 /**
  * Interceptor that captures log lines for crash reporting
  * This is a lightweight interceptor that captures request/response logs
+ *
+ * Registered globally by CrashReportingModule (#1063). Lines go into the
+ * current request's own buffer (opened by LogCaptureMiddleware), never into
+ * a buffer shared with other requests.
  */
 @Injectable()
 export class LogCaptureInterceptor implements NestInterceptor {

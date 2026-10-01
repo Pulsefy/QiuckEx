@@ -8,14 +8,21 @@
  *
  * This module resolves that runtime value, falling back to a conservative
  * built-in default when the config is unavailable or malformed.
+ *
+ * The asset codes used here are grounded in the verified-assets registry
+ * (`services/verified-assets.ts`), which is the single source of truth for
+ * the issuer-to-code mapping shared with path-payment.ts.
  */
+import { isVerifiedAsset } from "./verified-assets";
 
 /**
  * Conservative built-in default whitelist.
  *
- * Used only when the runtime config does not supply a list. Kept intentionally
- * minimal to the most established, liquid assets so that, absent fresh config,
- * the app degrades safely rather than offering swaps the backend may reject.
+ * XLM is always safe (native). USDC is the only non-native asset included
+ * in the minimal fallback because it is verified in the asset registry and
+ * has deep liquidity. All other verified assets are intentionally omitted
+ * from the fallback so that, absent fresh runtime config, the app degrades
+ * safely rather than offering swaps the backend may reject.
  */
 export const DEFAULT_SWAPPABLE_ASSETS: readonly string[] = ["XLM", "USDC"];
 

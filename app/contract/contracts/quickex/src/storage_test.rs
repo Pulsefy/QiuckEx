@@ -318,3 +318,33 @@ fn test_privacy_storage() {
         assert_eq!(get_privacy_history(&env, &non_existent_account).len(), 0);
     });
 }
+
+/// Regression: `set_pause_flags` used to hardcode `[1, 2, 4, 8, 16, 32]` when
+/// maintaining the `FeaturePauseReasons` map. That list was written before
+/// `PauseFlag::FeeWithdrawal = 64` was added, so pausing fee withdrawals set
+/// the bitmask but `get_feature_pause_reason(FeeWithdrawal)` always returned
+/// 0. The reason map must now cover every variant in `PauseFlag::ALL`.
+#[test]
+fn test_feature_pause_reason_recorded_for_every_pause_flag() {
+    let env = Env::default();
+    let contract_id = env.register(crate::QuickexContract, ());
+    env.as_contract(&contract_id, || {
+        let caller = Address::generate(&env);
+
+        // The originally reported flag must be part of the derived list.
+        assert!(PauseFlag::ALL.contains(&PauseFlag::FeeWithdrawal));
+        assert_eq!(PauseFlag::FeeWithdrawal.bits(), 64u64);
+
+        for (i, flag) in PauseFlag::ALL.iter().enumerate() {
+            let reason = 100 + i as u32;
+
+            set_pause_flags(&env, &caller, flag.bits(), 0, reason);
+            assert!(is_feature_paused(&env, *flag));
+            assert_eq!(get_feature_pause_reason(&env, *flag), reason);
+
+            set_pause_flags(&env, &caller, 0, flag.bits(), 0);
+            assert!(!is_feature_paused(&env, *flag));
+            assert_eq!(get_feature_pause_reason(&env, *flag), 0);
+        }
+    });
+}

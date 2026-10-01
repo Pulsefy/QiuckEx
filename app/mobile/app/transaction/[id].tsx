@@ -21,7 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { StatusTimeline } from '../../components/transaction/StatusTimeline';
 import { CopyableRow } from '../../components/transaction/CopyableRow';
-import { findTransactionInCache } from '../../services/cache';
+import { findTransactionInCache, saveTransactionToCache } from '../../services/cache';
+import { fetchReceiptByTxHash } from '../../services/receipts';
 import type { TransactionItem } from '../../types/transaction';
 
 const fileSystemCompat = FileSystem as typeof FileSystem & {
@@ -240,6 +241,7 @@ export default function TransactionDetailScreen() {
     const params = useLocalSearchParams<DetailParams>();
 
     const [hydrating, setHydrating] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
     const [transaction, setTransaction] = useState<TransactionItem | null>(null);
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     const [receiptVisibility, setReceiptVisibility] =
@@ -250,19 +252,40 @@ export default function TransactionDetailScreen() {
     );
 
     // Hydrate from cache when opened via deep link with incomplete params
+    // Falls back to API if not in cache
     useEffect(() => {
         if (hasFullParams) return;
         if (!params.id) return;
 
         let cancelled = false;
         setHydrating(true);
+        setApiError(null);
 
-        findTransactionInCache(params.id).then((cached) => {
+        findTransactionInCache(params.id).then(async (cached) => {
             if (cancelled) return;
+            
             if (cached) {
                 setTransaction(cached);
+                setHydrating(false);
+            } else {
+                // Cache miss - try to fetch from API
+                try {
+                    // Try to interpret params.id as a txHash
+                    const apiTransaction = await fetchReceiptByTxHash(params.id);
+                    if (cancelled) return;
+                    
+                    // Save to cache for offline viewing
+                    await saveTransactionToCache(apiTransaction);
+                    
+                    setTransaction(apiTransaction);
+                    setHydrating(false);
+                } catch (error) {
+                    if (cancelled) return;
+                    console.error('Failed to fetch receipt from API', error);
+                    setApiError(error instanceof Error ? error.message : 'Failed to load receipt');
+                    setHydrating(false);
+                }
             }
-            setHydrating(false);
         });
 
         return () => {
@@ -402,7 +425,7 @@ export default function TransactionDetailScreen() {
                                 Receipt not found
                             </Text>
                             <Text style={[styles.errorDescription, { color: theme.textSecondary, marginTop: 8, textAlign: 'center' }]}>
-                                We couldn't load the details for this transaction. It may have expired or the link might be invalid.
+                                {apiError || 'We couldn\'t load the details for this transaction. It may have expired or the link might be invalid.'}
                             </Text>
                         </View>
                     )}

@@ -85,6 +85,18 @@ async function openThemed(
   await seedTheme(page, theme);
   await page.clock.install({ time: new Date(FIXED_TIME) });
   await mockBackend(page, options);
+  if (path === "/admin") {
+    // The admin layout now requires a session before it renders. This fixture
+    // credential is test-only; all admin API calls remain intercepted above.
+    const baseUrl = process.env.THEME_BASE_URL ?? "http://localhost:3000";
+    await page.context().addCookies([
+      {
+        name: "admin_token",
+        value: "theme-regression-admin",
+        url: new URL(path, baseUrl).origin,
+      },
+    ]);
+  }
   await page.goto(path);
   // Under the frozen clock, advance a little so parser scripts and React's
   // scheduler deterministically flush no matter how fast the document loads.

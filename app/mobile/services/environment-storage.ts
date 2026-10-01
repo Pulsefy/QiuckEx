@@ -38,6 +38,32 @@ export async function resetEnvironment(): Promise<void> {
   }
 }
 
+const PREVIEW_SCOPE_KEY = '@quickex/preview_scope';
+
+export async function loadPreviewScope(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(PREVIEW_SCOPE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function savePreviewScope(scope: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PREVIEW_SCOPE_KEY, scope);
+  } catch {
+    // Swallow
+  }
+}
+
+export async function resetPreviewScope(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(PREVIEW_SCOPE_KEY);
+  } catch {
+    // Swallow
+  }
+}
+
 function isValidEnvironmentId(id: string): id is EnvironmentId {
   return ['production', 'staging', 'testnet', 'branch-preview'].includes(id);
 }

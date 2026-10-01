@@ -286,7 +286,153 @@ export async function fetchUserListings(): Promise<UserListing[]> {
   );
 }
 
-export type BidResult = { success: true } | { success: false; reason: string };
+export type BidErrorCode =
+  | "network"
+  | "validation"
+  | "insufficient_funds"
+  | "unauthorized"
+  | "not_found"
+  | "conflict"
+  | "unknown";
+
+export type BidResult =
+  | { success: true; bid?: BackendMarketplaceBid }
+  | { success: false; reason: string; code?: BidErrorCode; details?: string };
+
+export type PlaceBidOptions = {
+  listingId?: string;
+  bidderPublicKey?: string;
+};
+
+function getStoredWalletPublicKey(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("quickex.wallet.session");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.publicKey === "string" ? parsed.publicKey : null;
+  } catch {
+    return null;
+  }
+}
+
+const DEFAULT_DEMO_BIDDER_KEY = "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR";
+
+export async function placeBid(
+  usernameOrListingId: string,
+  amount: number,
+  options?: PlaceBidOptions
+): Promise<BidResult> {
+  let resolvedListingId = options?.listingId;
+
+  if (!resolvedListingId) {
+    if (cachedListings) {
+      const matchById = cachedListings.find((item) => item.id === usernameOrListingId);
+      if (matchById) {
+        resolvedListingId = matchById.id;
+      } else {
+        const matchByUsername = cachedListings.find(
+          (item) => item.username.toLowerCase() === usernameOrListingId.toLowerCase()
+        );
+        if (matchByUsername) {
+          resolvedListingId = matchByUsername.id;
+        }
+      }
+    }
+  }
+
+  if (!resolvedListingId) {
+    resolvedListingId = usernameOrListingId;
+  }
+
+  const bidderPublicKey =
+    options?.bidderPublicKey?.trim() ||
+    getStoredWalletPublicKey() ||
+    DEFAULT_DEMO_BIDDER_KEY;
+
+  const url = `${getQuickexApiBase()}/marketplace/${encodeURIComponent(resolvedListingId)}/bid`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        bidderPublicKey,
+        bidAmount: amount,
+      }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { bid?: BackendMarketplaceBid };
+      return {
+        success: true,
+        bid: data.bid,
+      };
+    }
+
+    const errorData = await response.json().catch(() => null);
+    let rawReason = "";
+    if (errorData) {
+      if (Array.isArray(errorData.message)) {
+        rawReason = errorData.message.join(", ");
+      } else if (typeof errorData.message === "string") {
+        rawReason = errorData.message;
+      } else if (typeof errorData.error === "string") {
+        rawReason = errorData.error;
+      }
+    }
+
+    if (!rawReason) {
+      rawReason = `Failed to place bid (${response.status} ${response.statusText || ""})`.trim();
+    }
+
+    const lower = rawReason.toLowerCase();
+    let code: BidErrorCode = "unknown";
+
+    if (
+      response.status === 402 ||
+      lower.includes("insufficient") ||
+      lower.includes("balance") ||
+      lower.includes("funds")
+    ) {
+      code = "insufficient_funds";
+    } else if (
+      response.status === 400 ||
+      response.status === 422 ||
+      lower.includes("invalid") ||
+      lower.includes("must be") ||
+      lower.includes("seller cannot bid") ||
+      errorData?.code === "MARKETPLACE_INVALID_PRICE" ||
+      errorData?.code === "MARKETPLACE_SELF_BID"
+    ) {
+      code = "validation";
+    } else if (response.status === 401 || response.status === 403 || errorData?.code === "MARKETPLACE_UNAUTHORIZED") {
+      code = "unauthorized";
+    } else if (response.status === 404 || errorData?.code === "LISTING_NOT_FOUND") {
+      code = "not_found";
+    } else if (response.status === 409 || errorData?.code === "USERNAME_ALREADY_LISTED" || errorData?.code === "LISTING_NOT_ACTIVE") {
+      code = "conflict";
+    } else if (response.status >= 500) {
+      code = "network";
+    }
+
+    return {
+      success: false,
+      reason: rawReason,
+      code,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to connect to the marketplace service.";
+    return {
+      success: false,
+      reason: message,
+      code: "network",
+    };
+  }
+}
 
 export type BackendListingStatus = "active" | "sold" | "cancelled";
 
@@ -404,22 +550,6 @@ export function formatPublicKey(publicKey: string): string {
   return `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}`;
 }
 
-export async function placeBid(
-  username: string,
-  amount: number
-): Promise<BidResult> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Simulate ~10% chance of wallet rejection, otherwise success
-      if (Math.random() < 0.1) {
-        resolve({ success: false, reason: "User rejected the transaction in wallet." });
-      } else {
-        console.log(`Bid placed: ${amount} USDC on @${username}`);
-        resolve({ success: true });
-      }
-    }, 2200);
-  });
-}
 
 export function formatCountdown(date: Date): string {
   const diff = date.getTime() - Date.now();

@@ -48,6 +48,8 @@ mod hook_reference_test;
 #[cfg(test)]
 mod metadata_test;
 mod migration;
+#[cfg(test)]
+mod multi_sig_deposit_test;
 pub mod nonce;
 #[cfg(test)]
 mod nonce_test;
@@ -111,13 +113,31 @@ use types::{
 /// ## Escrow State Machine
 ///
 /// ```text
-/// [*] --> Pending  : deposit() / deposit_with_commitment()
+/// [*] --> Pending  : deposit() / deposit_with_commitment() / deposit_multi_sig()
 /// Pending --> Spent    : withdraw(proof)  [now < expires_at, or no expiry]
 /// Pending --> Refunded : refund(owner)    [now >= expires_at]
 /// Pending --> Disputed : dispute()        [any participant can call]
 /// Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
 /// Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
 /// ```
+///
+/// ## Dispute Arbitration
+///
+/// An escrow carries exactly one of two arbitration authorities:
+///
+/// - **Single arbiter** — [`deposit`] with an `arbiter`, resolved by
+///   [`resolve_dispute`].
+/// - **Multi-sig (M-of-N)** — [`deposit_multi_sig`] with an `arbiters` set
+///   and an `arbiter_threshold`, resolved by [`vote_for_dispute`] followed by
+///   [`resolve_dispute_multi_sig`], or by the fail-closed
+///   [`resolve_dispute_timeout`] refund once the frozen voting deadline passes
+///   without quorum. The required vote count and deadline are frozen per
+///   dispute from [`set_dispute_quorum_config`] at the moment it opens
+///   ([`get_dispute_quorum_config`] for the live policy).
+///
+/// A multi-sig escrow is never resolvable by a single caller: `resolve_dispute`
+/// refuses it even for a global `Arbiter` role holder, so the threshold the
+/// depositor configured cannot be bypassed.
 #[contract]
 pub struct QuickexContract;
 
@@ -262,7 +282,94 @@ impl QuickexContract {
         )
     }
 
-    /// Derive a deterministic 32-byte escrow id from the full creation payload.
+    /// Deposit funds and create an escrow arbitrated by a set of arbiters
+    /// (M-of-N).
+    ///
+    /// The multi-sig counterpart to [`deposit`](QuickexContract::deposit):
+    /// instead of one `arbiter`, it stores an ordered `arbiters` set plus an
+    /// `arbiter_threshold`, and leaves the legacy single-arbiter field `None`.
+    /// This is the only entrypoint that can put an escrow into multi-sig mode,
+    /// and therefore the only way to reach `vote_for_dispute`,
+    /// `resolve_dispute_multi_sig`, and `resolve_dispute_timeout` — all three
+    /// require `arbiter_threshold > 0`.
+    ///
+    /// The arbiter set is validated before anything is written:
+    /// `1 <= arbiters.len() <= MAX_ARBITERS`, `1 <= arbiter_threshold <=
+    /// arbiters.len()`, and no duplicate address (a duplicate would let one
+    /// arbiter's single vote be counted twice and meet the quorum alone).
+    /// Amount, salt, and nonce/valid_until are validated exactly as in
+    /// `deposit`, under its own `ActionType::DepositMultiSig` so a signature
+    /// minted for one deposit variant can never be replayed on another.
+    ///
+    /// # Arguments
+    /// * `token` - The token contract address
+    /// * `amount` - Amount to deposit; must be positive
+    /// * `owner` - Owner of the funds (must authorize)
+    /// * `salt` - Random salt (0–1024 bytes) for uniqueness
+    /// * `timeout_secs` - Seconds from now until the escrow expires (0 = no expiry)
+    /// * `arbiters` - Ordered set of arbiter addresses (1–15, no duplicates)
+    /// * `arbiter_threshold` - Votes required to resolve, `1..=arbiters.len()`
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Amount is zero or negative
+    /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    /// * `QuorumOutOfBounds` - Arbiter set empty or oversized, threshold
+    ///   outside `1..=arbiters.len()`, or a duplicate arbiter
+    /// * `ContractPaused` - Contract is currently paused
+    /// * `OperationPaused` - Deposit feature is paused
+    /// * `CommitmentAlreadyExists` - An escrow for this commitment already exists
+    #[allow(clippy::too_many_arguments)]
+    pub fn deposit_multi_sig(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiters: Vec<Address>,
+        arbiter_threshold: u32,
+        nonce: u64,
+        valid_until: u64,
+    ) -> Result<BytesN<32>, QuickexError> {
+        if storage::is_emergency_mode(&env) {
+            return Err(QuickexError::ContractPaused);
+        }
+        if admin::is_paused(&env) {
+            let reason = storage::get_global_pause_reason(&env);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_multi_sig"),
+                reason,
+            );
+            return Err(QuickexError::ContractPaused);
+        }
+        if is_feature_paused(&env, PauseFlag::Deposit) {
+            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
+            events::publish_pause_enforced(
+                &env,
+                Some(owner.clone()),
+                Symbol::new(&env, "deposit_multi_sig"),
+                reason,
+            );
+            return Err(QuickexError::OperationPaused);
+        }
+        hook::assert_not_reentrant(&env)?;
+        escrow::deposit_multi_sig(
+            &env,
+            token,
+            amount,
+            owner,
+            salt,
+            timeout_secs,
+            arbiters,
+            arbiter_threshold,
+            nonce,
+            valid_until,
+        )
+    }
+
+    /// Derive a deterministic 32-byte escrow id from a full creation payload.
     ///
     /// Issue #304: enables duplicate detection and idempotent re-submission.
     /// Same inputs always yield the same id; any change to `token`, `amount`,
@@ -282,6 +389,46 @@ impl QuickexContract {
         arbiter: Option<Address>,
     ) -> Result<BytesN<32>, QuickexError> {
         escrow_id::derive_escrow_id(&env, &token, amount, &owner, &salt, timeout_secs, &arbiter)
+    }
+
+    /// Derive the deterministic escrow id for a `deposit_multi_sig` payload.
+    ///
+    /// The read-only counterpart to
+    /// [`deposit_multi_sig`](QuickexContract::deposit_multi_sig), so clients
+    /// can pre-compute the id for duplicate detection and idempotent
+    /// re-submission exactly as they do with
+    /// [`derive_escrow_id`](QuickexContract::derive_escrow_id).
+    ///
+    /// `arbiters` is order-sensitive, matching the stored entry: reordering
+    /// the same set is a different creation payload and yields a different
+    /// id. The arbiter set itself is not validated here — this is a pure
+    /// derivation over whatever it is given, mirroring what the deposit path
+    /// stores; `deposit_multi_sig` performs the bounds checks.
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Amount is negative
+    /// * `InvalidSalt` - Salt length exceeds 1024 bytes
+    #[allow(clippy::too_many_arguments)]
+    pub fn derive_escrow_id_multi_sig(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiters: Vec<Address>,
+        arbiter_threshold: u32,
+    ) -> Result<BytesN<32>, QuickexError> {
+        escrow_id::derive_multi_sig_escrow_id(
+            &env,
+            &token,
+            amount,
+            &owner,
+            &salt,
+            timeout_secs,
+            &arbiters,
+            arbiter_threshold,
+        )
     }
 
     /// Look up the escrow commitment associated with a deterministic `escrow_id`.
@@ -575,6 +722,100 @@ impl QuickexContract {
         escrow::refund(&env, commitment, caller, nonce, valid_until)
     }
 
+    /// Create up to [`batch::MAX_BATCH_SIZE`] escrows in a single call.
+    ///
+    /// The batched counterpart of [`deposit`](QuickexContract::deposit). Every
+    /// item is executed by [`escrow::deposit_item`] — the same body that backs
+    /// the single-item flow — so each successful item performs the real token
+    /// transfer from the item's `owner`, derives the commitment and escrow id
+    /// on-chain, records the escrow, publishes `EscrowDeposited`, and invokes
+    /// the `Create` hook.
+    ///
+    /// Escrow identifiers are never supplied by the caller; each item carries
+    /// the same pre-image `deposit` uses (`token`, `amount`, `owner`, `salt`,
+    /// `timeout_secs`, `arbiter`) and the returned `commitment` is the id to
+    /// use for [`withdraw`](QuickexContract::withdraw) or
+    /// [`refund`](QuickexContract::refund).
+    ///
+    /// Replay protection is per item: each carries its own `nonce` /
+    /// `valid_until` under `ActionType::BatchCreate`, so a signature minted for
+    /// a single `deposit` can never be replayed here (and vice versa).
+    ///
+    /// ## Failure semantics
+    /// Validation failures are reported per item in the returned vector and do
+    /// not stop the rest of the batch. An authorization or token-transfer trap
+    /// reverts the whole transaction (Soroban atomicity), so no partial state
+    /// can persist.
+    ///
+    /// # Errors
+    /// * `BatchSizeExceeded` - More than `batch::MAX_BATCH_SIZE` items
+    /// * `ContractPaused` - Contract is globally paused or in emergency mode
+    /// * `OperationPaused` - The deposit feature flag is paused
+    /// * `ReentrancyDetected` - A hook is currently executing
+    pub fn batch_create(
+        env: Env,
+        items: Vec<batch::BatchCreateItem>,
+    ) -> Result<Vec<batch::BatchItemResult>, QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::BatchCreate)?;
+        hook::assert_not_reentrant(&env)?;
+        batch::batch_create(&env, items)
+    }
+
+    /// Release up to [`batch::MAX_BATCH_SIZE`] escrows in a single call.
+    ///
+    /// The batched counterpart of [`withdraw`](QuickexContract::withdraw). Every
+    /// item is executed by [`escrow::withdraw_item`], so it re-derives the
+    /// commitment from `(to, amount, salt)`, enforces the same time-lock and
+    /// terminal-state invariants, pays the recipient through the same
+    /// fee-aware payout path, publishes `EscrowWithdrawn`, and invokes the
+    /// `Settle` hook.
+    ///
+    /// Replay protection is per item, under `ActionType::BatchRelease`.
+    ///
+    /// # Errors
+    /// * `BatchSizeExceeded` - More than `batch::MAX_BATCH_SIZE` items
+    /// * `ContractPaused` - Contract is globally paused
+    /// * `OperationPaused` - The withdrawal feature flag is paused
+    /// * `ReentrancyDetected` - A hook is currently executing
+    pub fn batch_release(
+        env: Env,
+        items: Vec<batch::BatchReleaseItem>,
+    ) -> Result<Vec<batch::BatchItemResult>, QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::BatchRelease)?;
+        hook::assert_not_reentrant(&env)?;
+        batch::batch_release(&env, items)
+    }
+
+    /// Refund up to [`batch::MAX_BATCH_SIZE`] expired escrows in a single call.
+    ///
+    /// The batched counterpart of [`refund`](QuickexContract::refund). Every
+    /// item is executed by [`escrow::refund_item`], so it enforces the same
+    /// expiry and terminal-state invariants, checks that `caller` is the
+    /// recorded owner, transfers the funds back to the escrow's `owner`,
+    /// publishes `EscrowRefunded`, and invokes the `Refund` hook.
+    ///
+    /// `caller` must own every commitment in `items` — funds are always returned
+    /// to the escrow's recorded owner, never to the caller. For a
+    /// permissionless sweep across owners, use
+    /// [`finalize_expired_escrow`](QuickexContract::finalize_expired_escrow).
+    ///
+    /// Replay protection is per item, under `ActionType::BatchRefund`.
+    ///
+    /// # Errors
+    /// * `BatchSizeExceeded` - More than `batch::MAX_BATCH_SIZE` items
+    /// * `ContractPaused` - Contract is globally paused
+    /// * `OperationPaused` - The refund feature flag is paused
+    /// * `ReentrancyDetected` - A hook is currently executing
+    pub fn batch_refund(
+        env: Env,
+        caller: Address,
+        items: Vec<batch::BatchRefundItem>,
+    ) -> Result<Vec<batch::BatchItemResult>, QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::BatchRefund)?;
+        hook::assert_not_reentrant(&env)?;
+        batch::batch_refund(&env, &caller, items)
+    }
+
     /// Cleanup terminal escrow entries to reclaim storage deposits.
     ///
     /// Only escrows in `Spent` or `Refunded` status can be removed.
@@ -695,6 +936,8 @@ impl QuickexContract {
     ///
     /// Only callable by the assigned arbiter. The arbiter decides whether funds
     /// go to the original owner (refund) or to a specified recipient (spend).
+    /// Refuses multi-sig escrows (`arbiter_threshold > 0`) — those require
+    /// quorum and must go through `resolve_dispute_multi_sig`.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -706,7 +949,8 @@ impl QuickexContract {
     /// * `CommitmentNotFound` - No escrow exists for the commitment
     /// * `NotArbiter` - Caller is not the assigned arbiter
     /// * `NoArbiter` - No arbiter assigned to the escrow
-    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status
+    /// * `InvalidDisputeState` - Escrow is not in `Disputed` status, or it is
+    ///   a multi-sig escrow and must be resolved by quorum
     pub fn resolve_dispute(
         env: Env,
         caller: Address,
@@ -716,6 +960,12 @@ impl QuickexContract {
         nonce: u64,
         valid_until: u64,
     ) -> Result<(), QuickexError> {
+        // Route through the shared pause/emergency gate first, exactly as the
+        // other dispute entrypoints do. `EntryPoint::ResolveDispute` is not
+        // emergency-safe, so this refuses single-arbiter resolution while an
+        // emergency halt is active — the gap reported in #1004. The explicit
+        // `is_paused` block below still runs for the audit event it emits.
+        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDispute)?;
         if admin::is_paused(&env) {
             let reason = storage::get_global_pause_reason(&env);
             events::publish_pause_enforced(
@@ -740,7 +990,10 @@ impl QuickexContract {
 
     /// Cast a vote on a disputed escrow (multi-sig mode).
     ///
-    /// Only an assigned arbiter may vote, once, before the dispute's frozen
+    /// Reachable for any escrow created by
+    /// [`deposit_multi_sig`](QuickexContract::deposit_multi_sig) — escrows
+    /// with `arbiter_threshold > 0`. Only an assigned arbiter (or a global
+    /// `Arbiter` role holder) may vote, once, before the dispute's frozen
     /// quorum deadline; a vote also goes stale after that same window.
     pub fn vote_for_dispute(
         env: Env,
@@ -763,7 +1016,17 @@ impl QuickexContract {
     }
 
     /// Resolve a disputed escrow by multi-sig majority once quorum is met
-    /// with fresh votes. See `resolve_dispute_timeout` for the fallback.
+    /// with fresh votes. Reachable for any escrow created by
+    /// [`deposit_multi_sig`](QuickexContract::deposit_multi_sig). See
+    /// `resolve_dispute_timeout` for the fallback.
+    ///
+    /// Permissionless: takes no `caller`, since anyone may submit the
+    /// resolution once quorum is met. Consequently, when the escrow's token has
+    /// a per-asset `arbiter_bps > 0` config and the majority resolves *for the
+    /// recipient*, the arbiter share of the fee is split equally across the
+    /// arbiters whose fresh votes decided the outcome — not paid to whoever
+    /// submitted this call, which would be a front-running vector. See
+    /// `escrow::resolve_dispute_multi_sig` for the full policy.
     pub fn resolve_dispute_multi_sig(
         env: Env,
         commitment: BytesN<32>,
@@ -1421,9 +1684,10 @@ impl QuickexContract {
     /// shared_secret   = SHA-256(eph_pub || spend_pub)
     /// stealth_address = SHA-256(spend_pub || shared_secret)
     /// ```
-    /// The contract re-derives and verifies the stealth address on-chain, then
-    /// locks `amount` of `token` under it.  The recipient's main address is
-    /// never recorded on-chain.
+    /// The contract re-derives and verifies the 32-byte escrow identifier, then
+    /// locks `amount` of `token` under it. This proof-of-concept construction
+    /// hashes public inputs; it does not provide ECDH or hide `spend_pub` from
+    /// transaction observers.
     ///
     /// All deposit parameters are bundled in [`StealthDepositParams`] to keep
     /// the argument count within clippy's limit.
@@ -1445,12 +1709,12 @@ impl QuickexContract {
 
     /// Withdraw funds locked under a stealth address.
     ///
-    /// The caller proves ownership by supplying the matching `spend_pub` and
-    /// `eph_pub`.  The contract re-derives the stealth address; if it matches,
-    /// funds are transferred to `recipient`.
+    /// The caller supplies the `spend_pub` and `eph_pub` used during
+    /// registration. A matching hash is not proof of private-key ownership;
+    /// the recipient's Soroban authorization is what authorizes this call.
     ///
-    /// The `recipient` address is only revealed at withdrawal time and is not
-    /// linked to any prior on-chain activity.
+    /// The `recipient` address is public in this invocation and may be linked
+    /// to prior on-chain activity.
     ///
     /// # Arguments
     /// * `recipient`       – Address to receive the funds (must authorize).

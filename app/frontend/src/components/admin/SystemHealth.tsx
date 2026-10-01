@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, DatabaseZap, ShieldAlert } from "lucide-react";
 
 import { getQuickexApiBase } from "@/lib/api";
+import { getAdminCredentialClient } from "@/lib/admin-auth";
 
 type HealthResponse = {
   status: string;
@@ -27,9 +28,15 @@ export function SystemHealth() {
 
     const load = async () => {
       try {
+        const credential = getAdminCredentialClient();
         const [healthResponse, flagsResponse] = await Promise.all([
           fetch(`${apiBase}/health`, { cache: "no-store" }),
-          fetch(`${apiBase}/admin/feature-flags`, { cache: "no-store" }),
+          fetch(`${apiBase}/admin/feature-flags`, {
+            cache: "no-store",
+            headers: {
+              ...(credential ? { "x-api-key": credential } : {}),
+            },
+          }),
         ]);
 
         if (!healthResponse.ok) {

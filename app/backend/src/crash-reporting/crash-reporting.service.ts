@@ -3,6 +3,7 @@ import { RedactionService } from './redaction.service';
 import { CrashReportingRepository } from './crash-reporting.repository';
 import { CrashReport, LogExport, CrashReportingSettings } from './types';
 import { SubmitIssueReportDto } from './dto/submit-issue-report.dto';
+import { currentLogScope } from './log-capture.context';
 
 /**
  * Service for capturing crash reports and logs with strict redaction.
@@ -12,8 +13,10 @@ import { SubmitIssueReportDto } from './dto/submit-issue-report.dto';
 @Injectable()
 export class CrashReportingService {
   private readonly logger = new Logger(CrashReportingService.name);
-  private readonly maxLogLines = 100; // Last N log lines to capture
-  private logBuffer: string[] = [];
+  private readonly maxLogLines = 100; // Last N log lines to capture, per request
+  // #1063: no instance-level log buffer. The service is a singleton shared by
+  // every request, so lines live in the per-request scope from
+  // log-capture.context.ts (opened by LogCaptureMiddleware) instead.
 
   constructor(
     private readonly redactionService: RedactionService,
@@ -21,15 +24,26 @@ export class CrashReportingService {
   ) {}
 
   /**
-   * Capture a log line to the in-memory buffer
+   * Capture a log line into the current request's buffer.
+   * Outside a request scope the line is dropped rather than pooled, so it can
+   * never end up in another user's crash report or export (#1063).
    * @param logLine - The log line to capture
    */
   captureLogLine(logLine: string): void {
-    // Keep only the last N lines
-    if (this.logBuffer.length >= this.maxLogLines) {
-      this.logBuffer.shift();
+    const scope = currentLogScope();
+    if (!scope) {
+      return;
     }
-    this.logBuffer.push(logLine);
+    // Keep only the last N lines
+    if (scope.lines.length >= this.maxLogLines) {
+      scope.lines.shift();
+    }
+    scope.lines.push(logLine);
+  }
+
+  /** Copy of the current request's captured lines (empty outside a scope). */
+  private currentLogLines(): string[] {
+    return [...(currentLogScope()?.lines ?? [])];
   }
 
   /**
@@ -60,8 +74,8 @@ export class CrashReportingService {
         ? this.redactionService.redactObject(context) 
         : undefined;
 
-      // Redact log lines
-      const redactedLogs = this.redactionService.redactLogLines([...this.logBuffer]);
+      // Redact log lines — only the requesting user's own request (#1063)
+      const redactedLogs = this.redactionService.redactLogLines(this.currentLogLines());
 
       // Create crash report
       const crashReport: Omit<CrashReport, 'id' | 'createdAt'> = {
@@ -120,8 +134,8 @@ export class CrashReportingService {
       // Get recent crash reports for this user
       const crashReports = await this.repository.getCrashReportsByUser(userId, 10);
 
-      // Redact current log buffer
-      const redactedLogs = this.redactionService.redactLogLines([...this.logBuffer]);
+      // Redact the current request's log buffer — never other users' (#1063)
+      const redactedLogs = this.redactionService.redactLogLines(this.currentLogLines());
 
       const logExport: LogExport = {
         userId,
@@ -162,17 +176,20 @@ export class CrashReportingService {
   }
 
   /**
-   * Clear the log buffer (useful for testing)
+   * Clear the current request's log buffer (useful for testing)
    */
   clearLogBuffer(): void {
-    this.logBuffer = [];
+    const scope = currentLogScope();
+    if (scope) {
+      scope.lines.length = 0;
+    }
   }
 
   /**
-   * Get the current log buffer size
+   * Get the current request's log buffer size
    */
   getLogBufferSize(): number {
-    return this.logBuffer.length;
+    return currentLogScope()?.lines.length ?? 0;
   }
 
   /**

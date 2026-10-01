@@ -20,6 +20,13 @@ graph TD
 - **Backend:** NestJS API server
 - **Contracts:** Soroban smart contracts (Rust)
 
+## API Routing
+
+The backend registers no global route prefix: a controller's `@Controller(...)`
+argument is its full public path. Canonical prefixes are unprefixed resource
+paths, and the rule is enforced by a check that runs over every
+`*.controller.ts`. See [Routing Conventions](./ROUTING-CONVENTIONS.md).
+
 ---
 
 For more details, see [docs/](./).

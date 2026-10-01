@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 
 import { useEnvironment } from '../contexts/EnvironmentContext';
-import { useSession } from '../contexts/SessionContext';
+import { useSessionOptional } from '../contexts/SessionContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 export function EnvironmentSwitcher() {
@@ -22,10 +22,11 @@ export function EnvironmentSwitcher() {
     compatibility,
     isFetchingMetadata,
   } = useEnvironment();
-  const { fetchSession } = useSession();
+  const session = useSessionOptional();
+  const fetchSession = session?.fetchSession;
 
   useEffect(() => {
-    if (currentId !== 'production') {
+    if (currentId !== 'production' && fetchSession) {
       void fetchSession();
     }
   }, [currentId, fetchSession]);
@@ -297,6 +298,9 @@ const styles = StyleSheet.create({
   metadataValue: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  metadataText: {
+    fontSize: 13,
   },
   compatibilityBadge: {
     borderRadius: 8,

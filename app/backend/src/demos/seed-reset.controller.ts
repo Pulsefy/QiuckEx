@@ -34,6 +34,8 @@ import { DemoSeedResult, DemoClearResult } from './demo.service';
 })
 @RateLimitGroupTag('authenticated')
 @UseGuards(ApiKeyGuard)
+// `seed-reset` is the canonical prefix; `api/seed-reset` is a frozen compatibility
+// alias for clients already shipped against it — see docs/ROUTING-CONVENTIONS.md.
 @Controller(['seed-reset', 'api/seed-reset'])
 export class SeedResetController {
   private readonly logger = new Logger(SeedResetController.name);

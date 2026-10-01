@@ -1,3 +1,5 @@
+global.IS_REACT_ACT_ENVIRONMENT = true;
+
 // Mock react-native-safe-area-context: replace SafeAreaView with a plain View
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children, ...props }) => {

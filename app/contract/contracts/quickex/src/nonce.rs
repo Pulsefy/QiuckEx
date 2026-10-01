@@ -104,7 +104,23 @@ pub enum ActionType {
     StealthWithdraw,
     SetPrivacy,
     Upgrade,
+    /// Multi-sig deposit (`lib.rs::deposit_multi_sig`).
+    DepositMultiSig,
+    /// Batch deposit (`lib.rs::batch_create`).
+    BatchCreate,
+    /// Batch release / withdraw (`lib.rs::batch_release`).
+    BatchRelease,
+    /// Batch refund (`lib.rs::batch_refund`).
+    BatchRefund,
 }
+
+// NOTE ON VARIANT ORDER
+// The enum's XDR discriminants are part of the persistent
+// `NonceKey::Used(signer, nonce, action)` key, so a new variant MUST be
+// appended last. Inserting one anywhere else would silently re-map nonces that
+// were already consumed under the old numbering and re-open their replay
+// window for every signature ever issued. Append only — never reorder, never
+// insert.
 
 impl ActionType {
     /// Returns the byte-encoded action tag used in the canonical payload.
@@ -124,6 +140,10 @@ impl ActionType {
             ActionType::StealthWithdraw => b"STEALTH_WITHDRAW",
             ActionType::SetPrivacy => b"SET_PRIVACY",
             ActionType::Upgrade => b"UPGRADE",
+            ActionType::DepositMultiSig => b"DEPOSIT_MULTI_SIG",
+            ActionType::BatchCreate => b"BATCH_CREATE",
+            ActionType::BatchRelease => b"BATCH_RELEASE",
+            ActionType::BatchRefund => b"BATCH_REFUND",
         }
     }
 }

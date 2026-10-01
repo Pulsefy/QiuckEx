@@ -12,7 +12,7 @@ import { useNotificationCenter } from "@/components/NotificationCenterProvider";
 
 export function NotificationBell() {
   const pathname = usePathname();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+  const { notifications, unreadCount, markAsRead, markAllAsRead, degraded } =
     useNotificationCenter();
   const [isOpen, setIsOpen] = useState(false);
   const [readState, setReadState] = useState<Exclude<
@@ -101,6 +101,15 @@ export function NotificationBell() {
               Close
             </button>
           </div>
+
+          {degraded ? (
+            <p
+              role="status"
+              className="mt-4 rounded-2xl border border-warning-soft bg-warning-soft/40 px-3 py-2 text-xs font-semibold text-warning"
+            >
+              Live notifications unavailable — showing a degraded view.
+            </p>
+          ) : null}
 
           <div className="mt-4 flex items-center gap-2">
             {(["all", "unread"] as const).map((option) => (

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ContractEntry } from '../types/runtime-config';
 
 const CACHE_KEY = '@contract_registry';
 export const REGISTRY_CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
@@ -38,7 +39,10 @@ export interface ContractRegistrySyncResult {
 interface ContractRegistryCache {
   timestamp: number;
   data: ContractRegistry;
+  etag?: string;
 }
+
+let memoryRegistry: ContractRegistry | null = null;
 
 function isContractRegistryEnvelope(value: unknown): value is ContractRegistryEnvelope {
   return (
@@ -49,10 +53,40 @@ function isContractRegistryEnvelope(value: unknown): value is ContractRegistryEn
   );
 }
 
+async function getCachedRegistry(): Promise<ContractRegistryCache | null> {
+  try {
+    const cached = await AsyncStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    return JSON.parse(cached) as ContractRegistryCache;
+  } catch {
+    return null;
+  }
+}
+
 export const ContractRegistryService = {
   async sync(backendUrl: string): Promise<ContractRegistrySyncResult> {
+    // Retrieve the cached envelope so its ETag can drive a conditional request.
+    const cachedEnvelope = await getCachedRegistry();
+
+    const headers: Record<string, string> = {};
+    if (cachedEnvelope?.etag) {
+      headers['If-None-Match'] = cachedEnvelope.etag;
+    }
+
     try {
-      const response = await fetch(`${backendUrl}/contracts/registry`);
+      const response = await fetch(`${backendUrl}/contracts/registry`, { headers });
+
+      // 304 Not Modified — the cached registry is still authoritative.
+      if (response.status === 304 && cachedEnvelope) {
+        memoryRegistry = cachedEnvelope.data;
+        return {
+          registry: cachedEnvelope.data,
+          fetchedAt: cachedEnvelope.timestamp,
+          isStale: false,
+          source: 'cache',
+        };
+      }
+
       if (response.status === 404) {
         throw new Error('Contract registry route not found on backend');
       }
@@ -66,10 +100,13 @@ export const ContractRegistryService = {
       }
 
       const data = body.data;
+      const etag = response.headers?.get?.('ETag') || body.etag;
       const timestamp = Date.now();
+      memoryRegistry = data;
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp,
-        data
+        data,
+        etag
       }));
       return {
         registry: data,
@@ -78,14 +115,13 @@ export const ContractRegistryService = {
         source: 'network',
       };
     } catch (error) {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached) as ContractRegistryCache;
+      if (cachedEnvelope) {
+        memoryRegistry = cachedEnvelope.data;
         // Serve stale cache if offline or backend returned bad data
         return {
-          registry: parsed.data,
-          fetchedAt: parsed.timestamp,
-          isStale: Date.now() - parsed.timestamp > REGISTRY_CACHE_TTL_MS,
+          registry: cachedEnvelope.data,
+          fetchedAt: cachedEnvelope.timestamp,
+          isStale: Date.now() - cachedEnvelope.timestamp > REGISTRY_CACHE_TTL_MS,
           source: 'cache',
         };
       }
@@ -94,11 +130,75 @@ export const ContractRegistryService = {
     }
   },
 
+  async populateFromBootstrap(
+    contracts: ContractEntry[],
+    networkPassphrase?: string,
+  ): Promise<ContractRegistry> {
+    const registry: ContractRegistry = {};
+    for (const c of contracts) {
+      registry[c.contractId] = {
+        id: c.address,
+        wasmHash: '',
+        version: c.version ? parseInt(c.version, 10) || 1 : 1,
+        schemaVersion: c.version ?? '1.0.0',
+        schemaCompatibility: { min: '1.0.0', max: '2.0.0' },
+        networkPassphrase: networkPassphrase ?? '',
+        updatedAt: c.deployedAt ?? new Date().toISOString(),
+        metadata: { address: c.address, version: c.version },
+      };
+    }
+    memoryRegistry = registry;
+    await AsyncStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        data: registry,
+      }),
+    );
+    return registry;
+  },
+
   async getContract(name: string): Promise<string> {
+    if (memoryRegistry && memoryRegistry[name]) {
+      return memoryRegistry[name].id;
+    }
     const cached = await AsyncStorage.getItem(CACHE_KEY);
     if (!cached) throw new Error('Registry missing');
     const registry = JSON.parse(cached).data;
     if (!registry[name]) throw new Error(`Contract ${name} missing from registry`);
     return registry[name].id;
-  }
+  },
+
+  async getContractEntry(name: string): Promise<ContractRegistryEntry | null> {
+    if (memoryRegistry && memoryRegistry[name]) {
+      return memoryRegistry[name];
+    }
+    const cached = await AsyncStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    try {
+      const registry = JSON.parse(cached).data;
+      return registry[name] ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getAllContracts(): Promise<ContractRegistry> {
+    if (memoryRegistry) {
+      return memoryRegistry;
+    }
+    const cached = await AsyncStorage.getItem(CACHE_KEY);
+    if (!cached) return {};
+    try {
+      const registry = JSON.parse(cached).data;
+      return registry ?? {};
+    } catch {
+      return {};
+    }
+  },
+
+  clearMemoryCache(): void {
+    memoryRegistry = null;
+  },
 };
+

@@ -50,12 +50,25 @@ pub struct EscrowEntry {
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
     /// Optional single arbiter address for dispute resolution (legacy).
+    ///
+    /// `None` for an escrow created by `deposit_multi_sig`, which names its
+    /// arbiters in `arbiters` instead.
     pub arbiter: Option<Address>,
-    /// Array of arbiter addresses for multi-sig dispute resolution.
+    /// Ordered set of arbiter addresses for multi-sig dispute resolution.
+    ///
+    /// Populated only by [`crate::escrow::deposit_multi_sig`], which rejects an
+    /// empty set, more than [`crate::dispute_quorum::MAX_ARBITERS`] entries, and
+    /// duplicate addresses. Empty means single-arbiter mode.
     pub arbiters: Vec<Address>,
     /// Threshold: number of arbiter votes required to resolve a dispute (M-of-N).
     /// A value of 0 means single-arbiter mode (uses `arbiter` field).
-    /// A value > 0 means multi-sig mode (uses `arbiters` array).
+    /// A value > 0 means multi-sig mode (uses `arbiters` array) and is bounded
+    /// to `1..=arbiters.len()` at deposit time.
+    ///
+    /// Note that the *effective* quorum is the per-dispute snapshot frozen
+    /// from [`crate::dispute_quorum::DisputeQuorumConfig`] when the dispute
+    /// opens, clamped to `arbiters.len()`; this field is the depositor's
+    /// M-of-N declaration and the mode switch the dispute entrypoints gate on.
     pub arbiter_threshold: u32,
 }
 
@@ -129,9 +142,9 @@ pub struct StealthDepositParams {
     pub amount_paid: i128,
     /// Sender's ephemeral public key (32 bytes).
     pub eph_pub: BytesN<32>,
-    /// Recipient's spend public key (32 bytes).
+    /// Recipient spend-key bytes (32 bytes); public and not curve-validated.
     pub spend_pub: BytesN<32>,
-    /// Pre-computed one-time stealth address (32 bytes).
+    /// Pre-computed 32-byte stealth escrow identifier (not a Stellar address).
     pub stealth_address: BytesN<32>,
     /// Seconds until expiry; 0 = no expiry.
     pub timeout_secs: u64,
@@ -156,8 +169,8 @@ pub struct StealthEscrowEntry {
     pub amount_due: i128,
     /// Amount already paid towards the escrow.
     pub amount_paid: i128,
-    /// Sender's ephemeral public key (32 bytes). Stored so the recipient can
-    /// scan events and re-derive the shared secret off-chain.
+    /// Sender's ephemeral public-key bytes (32 bytes), stored for the escrow.
+    /// The current hash construction uses public inputs and is not a DH secret.
     pub eph_pub: BytesN<32>,
     /// Current lifecycle status.
     pub status: EscrowStatus,

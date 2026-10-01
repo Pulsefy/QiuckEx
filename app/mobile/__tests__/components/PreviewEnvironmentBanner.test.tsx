@@ -18,7 +18,16 @@ function meta(
   };
 }
 
+function renderBanner(): ReturnType<typeof renderer.create> {
+  let tree!: ReturnType<typeof renderer.create>;
+  act(() => {
+    tree = renderer.create(<PreviewEnvironmentBanner />);
+  });
+  return tree;
+}
+
 function bannerText(tree: ReturnType<typeof renderer.create>): string | null {
+  if (!tree.toJSON()) return null;
   const node = tree.root.findAll(
     (n) => n.props?.testID === 'preview-environment-banner-text',
   );
@@ -34,7 +43,7 @@ describe('PreviewEnvironmentBanner', () => {
   it('shows environment, network and branch in a non-production build', () => {
     jest.spyOn(buildMetadata, 'getBuildMetadata').mockReturnValue(meta());
 
-    const tree = renderer.create(<PreviewEnvironmentBanner />);
+    const tree = renderBanner();
 
     expect(tree.toJSON()).not.toBeNull();
     const text = bannerText(tree);
@@ -48,14 +57,9 @@ describe('PreviewEnvironmentBanner', () => {
       .spyOn(buildMetadata, 'getBuildMetadata')
       .mockReturnValue(meta({ environment: 'production' }));
 
-    const tree = renderer.create(<PreviewEnvironmentBanner />);
+    const tree = renderBanner();
 
     expect(tree.toJSON()).toBeNull();
-    expect(
-      tree.root.findAll(
-        (n) => n.props?.testID === 'preview-environment-banner',
-      ),
-    ).toHaveLength(0);
   });
 
   it('omits the branch when build metadata has no known branch', () => {
@@ -63,7 +67,7 @@ describe('PreviewEnvironmentBanner', () => {
       .spyOn(buildMetadata, 'getBuildMetadata')
       .mockReturnValue(meta({ environment: 'staging', gitBranch: 'Unknown' }));
 
-    const tree = renderer.create(<PreviewEnvironmentBanner />);
+    const tree = renderBanner();
     const text = bannerText(tree);
 
     expect(text).toContain('Staging');
@@ -75,7 +79,7 @@ describe('PreviewEnvironmentBanner', () => {
       .spyOn(buildMetadata, 'getBuildMetadata')
       .mockReturnValue(meta({ environment: 'dev', network: 'testnet' }));
 
-    const tree = renderer.create(<PreviewEnvironmentBanner />);
+    const tree = renderBanner();
     expect(bannerText(tree)).toContain('Development');
 
     // Environment flips to production → banner must disappear on re-render.

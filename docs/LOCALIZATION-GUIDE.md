@@ -80,7 +80,7 @@ JSON rather than inline TypeScript is deliberate: the CI parity checks read the 
 
 3. **Verify:** `pnpm --filter mobile check:i18n`
 
-> **Mobile bootstrap note:** the side-effect import of `../src/lib/i18n` in `app/mobile/app/_layout.tsx` is what initialises `i18next`. It was previously broken (see [D1](#d1-the-mobile-i18n-bootstrap-import-is-broken), now resolved) — if `t()` ever returns raw key names at runtime, check that import first.
+> **The mobile bootstrap import is fixed — see [drift item D1](#d1-the-mobile-i18n-bootstrap-import-is-broken).** `t()` now resolves real translations. If raw key names ever reappear, check that `app/mobile/app/_layout.tsx` still imports `../src/lib/i18n`.
 
 ### If the string appears on both clients
 
@@ -175,7 +175,7 @@ Adding a locale is **one step on mobile and three on the frontend**, because the
 
 1. **Translate every key** in `src/lib/i18n/translations.json` — all 67, same rule.
 
-2. **Add a display label.** [`app/mobile/components/LocaleSwitcher.tsx`](../app/mobile/components/LocaleSwitcher.tsx) derives its `<Picker.Item>` list from the dictionary, so a new locale appears automatically; add its **endonym** to `LOCALE_LABELS` (e.g. `de: 'Deutsch'`) so it is not shown as a bare code.
+2. **Add it to the picker.** [`app/mobile/components/LocaleSwitcher.tsx`](../app/mobile/components/LocaleSwitcher.tsx) hardcodes its `<Picker.Item>` list. See [drift item D2](#d2-the-mobile-locale-picker-only-offers-english) — this picker currently offers only English, so adding a locale here means adding the missing `es` and `fr` items too.
 
 3. No bootstrap edit is required; `resources` is derived from the JSON.
 
@@ -184,7 +184,7 @@ Adding a locale is **one step on mobile and three on the frontend**, because the
 ### Both clients
 
 - Use the **BCP 47 code** (`de`, `pt-BR`, `zh-Hans`). Match whatever `Intl` expects, since the same string is passed to the formatters in §6.
-- Selection persists under the `i18nextLng` key on both clients — `localStorage` on the frontend and on mobile web, `AsyncStorage` on native mobile — and `fallbackLng` is `en` on both.
+- Selection persists to `localStorage` under `i18nextLng` on both clients, and `fallbackLng` is `en` on both.
 - **RTL locales (Arabic, Hebrew, Farsi) need layout work beyond the dictionary** — direction handling on the web and `I18nManager.forceRTL` on mobile. Neither client has any RTL support today. Do not add an RTL locale without that work.
 
 ---
@@ -261,33 +261,29 @@ Two gaps to be aware of:
 
 ## 7. Known drift — the current starting point
 
-Everything below is true of the tree as it stands, except where an entry is marked **✅ Resolved**. Treat the rest as the backlog, not as background.
+Everything below describes the tree as it stands, except for the entry marked resolved. Treat this section as the backlog, not as background.
 
 ### D1. The mobile i18n bootstrap import is broken
 
-> **✅ Resolved.** The import now reads `../src/lib/i18n`, so the mobile
-> dictionary is initialised at app start.
+**Status: resolved.** [`app/mobile/app/_layout.tsx:15`](../app/mobile/app/_layout.tsx#L15) now reads `import "../src/lib/i18n";`, which resolves to `app/mobile/src/lib/i18n.ts`, so the bootstrap runs at app start.
 
-[`app/mobile/app/_layout.tsx:15`](../app/mobile/app/_layout.tsx#L15) used to read:
+The original line was:
 
 ```ts
 import "../../src/lib/i18n";
 ```
 
-From `app/mobile/app/`, `../..` resolves to `app/` — so the path is `app/src/lib/i18n`, which does not exist. The correct path is `../src/lib/i18n`, and no `tsconfig` alias covers the current form (`@/*` maps to `./*` relative to `app/mobile`).
+From `app/mobile/app/`, `../..` resolves to `app/` — so the path was `app/src/lib/i18n`, which does not exist. No `tsconfig` alias covered that form (`@/*` maps to `./*` relative to `app/mobile`).
 
-**Consequence:** the `i18next` instance is never initialised at app start. `useTranslation()` still returns a `t` function, so nothing crashes — every call just returns the raw key name. The mobile dictionary is effectively inert at runtime, and the parity check cannot detect this because it only reads the JSON.
+**Consequence:** the `i18next` instance was never initialised at app start. `useTranslation()` still returned a `t` function, so nothing threw — every call just returned the raw key name. The mobile dictionary was effectively inert at runtime, and the parity check cannot detect this because it only reads the JSON.
 
-**Fix:** change the path to `../src/lib/i18n`. Verify by confirming a screen renders `Dashboard` rather than `dashboard`.
+**Fix (landed):** the import is now `../src/lib/i18n`, and `src/lib/i18n.ts` no longer assumes `window.localStorage` exists — React Native defines `window` but not `localStorage`, so the old bootstrap would have thrown on native the moment the path was fixed. A regression test ([`app/mobile/__tests__/i18n-bootstrap.test.js`](../app/mobile/__tests__/i18n-bootstrap.test.js)) asserts the app entry's import resolves and renders a component under `fr`, asserting `Tableau de Bord` rather than the raw key.
 
 ### D2. The mobile locale picker only offers English
 
-> **✅ Resolved.** The picker derives its items from the loaded dictionary
-> (`getSupportedLocales()` in `app/mobile/src/lib/i18n.ts`), so `es` and `fr`
-> are selectable and a newly added locale cannot be forgotten again. Covered by
-> `app/mobile/__tests__/LocaleSwitcher.test.tsx`.
+[`app/mobile/components/LocaleSwitcher.tsx`](../app/mobile/components/LocaleSwitcher.tsx) contains a single `<Picker.Item label="English" value="en" />` followed by `{/* Add more languages later */}`. The mobile dictionary carries complete `es` and `fr` translations that **no user can select**. The frontend picker offers all three.
 
-[`app/mobile/components/LocaleSwitcher.tsx`](../app/mobile/components/LocaleSwitcher.tsx) used to contain a single `<Picker.Item label="English" value="en" />` followed by `{/* Add more languages later */}`, while the mobile dictionary already carried complete `es` and `fr` translations that **no user could select**. The frontend picker offers all three.
+**Fix:** add `es` and `fr` items, or derive the list from `Object.keys(translations)` so the picker cannot drift from the dictionary again.
 
 ### D3. The two dictionaries have diverged in size and content
 

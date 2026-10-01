@@ -293,6 +293,17 @@ export const envSchema = Joi.object({
   RECONCILIATION_ENABLED: Joi.boolean()
     .default(true)
     .description("Enable the scheduled reconciliation worker (BE-124)"),
+
+  // Optional module selection (#1061) — see config/optional-modules.ts
+  ENABLE_RECONCILIATION_MODULE: Joi.boolean()
+    .default(true)
+    .description("Import ReconciliationModule (cannot be false yet: other modules import it)"),
+  ENABLE_NOTIFICATIONS_MODULE: Joi.boolean()
+    .default(true)
+    .description("Import NotificationsModule (cannot be false yet: other modules import it)"),
+  ENABLE_DEVELOPER_MODULE: Joi.boolean()
+    .default(true)
+    .description("Import DeveloperModule (developer portal endpoints)"),
   RECONCILIATION_CRON_EXPRESSION: Joi.string()
     .default("*/5 * * * *")
     .description("Cron expression for scheduled reconciliation runs (BE-124)"),
@@ -792,6 +803,9 @@ export interface EnvConfig {
   EXPO_ACCESS_TOKEN?: string;
   RECONCILIATION_BATCH_SIZE: number;
   RECONCILIATION_ENABLED: boolean;
+  ENABLE_RECONCILIATION_MODULE: boolean;
+  ENABLE_NOTIFICATIONS_MODULE: boolean;
+  ENABLE_DEVELOPER_MODULE: boolean;
   RECONCILIATION_CRON_EXPRESSION: string;
   RECONCILIATION_DRIFT_COUNT_THRESHOLD: number;
   RECONCILIATION_DRIFT_AMOUNT_THRESHOLD_STROOPS: string;

@@ -19,19 +19,23 @@ import {
   Res,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RateLimitTier } from '../auth/decorators/rate-limit-group.decorator';
-import { JobQueueService } from '../job-queue/job-queue.service';
-import { JobType } from '../job-queue/types';
-import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
 import { RequestExportDto } from './dto/request-export.dto';
+import { ExportStatusDto } from './dto/export-status.dto';
+import { ExportsService } from './exports.service';
 import {
   ExportStorageService,
   EXPORT_LINK_INVALID,
   EXPORT_NOT_FOUND,
 } from './export-storage.service';
+
+type ExportHttpResponse = {
+  status(statusCode: number): ExportHttpResponse;
+  json(body: Record<string, unknown>): ExportHttpResponse;
+  redirect(url: string): ExportHttpResponse;
+};
 
 /**
  * Exports Controller
@@ -46,7 +50,7 @@ export class ExportsController {
   private readonly logger = new Logger(ExportsController.name);
 
   constructor(
-    private readonly jobQueueService: JobQueueService,
+    private readonly exportsService: ExportsService,
     private readonly exportStorageService: ExportStorageService,
   ) {}
 
@@ -70,33 +74,21 @@ export class ExportsController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
-  async requestExport(
-    @Body() dto: RequestExportDto,
-  ): Promise<{ jobId: string; message: string }> {
-    this.logger.log(
-      `Export requested: userId=${dto.userId}, type=${dto.exportType}, format=${dto.format}, delivery=${dto.deliveryMethod}`,
-    );
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request parameters',
+  })
+  async requestExport(@Body() dto: RequestExportDto): Promise<{ jobId: string; message: string }> {
+    return this.exportsService.requestExport(dto);
+  }
 
-    const payload: ExportGenerationPayload = {
-      userId: dto.userId,
-      exportType: dto.exportType,
-      filters: dto.filters || {},
-      format: dto.format,
-      deliveryMethod: dto.deliveryMethod,
-    };
-
-    const jobId = await this.jobQueueService.enqueue(
-      JobType.EXPORT_GENERATION,
-      payload,
-    );
-
-    this.logger.log(`Export job enqueued: ${jobId}`);
-
-    return {
-      jobId,
-      message: `Export job enqueued successfully. Job ID: ${jobId}`,
-    };
+  @Get(':id/status')
+  @RateLimitTier('public-read')
+  @ApiOperation({ summary: 'Get export status' })
+  @ApiResponse({ status: 200, type: ExportStatusDto })
+  @ApiResponse({ status: 404, description: 'Export not found' })
+  async getStatus(@Param('id') id: string): Promise<ExportStatusDto> {
+    return this.exportsService.getStatus(id);
   }
 
   /**
@@ -123,7 +115,7 @@ export class ExportsController {
     @Param('jobId') jobId: string,
     @Query('userId') userId: string,
     @Query('token') token: string,
-    @Res() res: Response,
+    @Res() res: ExportHttpResponse,
   ): Promise<void> {
     // 1. Verify the download token (handles expiry + tampering + principal mismatch)
     const verification = this.exportStorageService.verifyDownloadToken({
@@ -191,8 +183,16 @@ export class ExportsController {
       return;
     }
 
+    if (!presignedUrl.trim()) {
+      this.logger.error(`Empty presigned URL returned for job ${jobId}`);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Failed to generate download URL.',
+      });
+      return;
+    }
+
     this.logger.log(`Download link redeemed for job ${jobId} by user ${userId}`);
-    res.redirect(HttpStatus.FOUND, presignedUrl);
+    res.status(HttpStatus.FOUND).redirect(presignedUrl);
   }
 }
-

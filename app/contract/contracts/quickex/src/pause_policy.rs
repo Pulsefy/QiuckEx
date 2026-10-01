@@ -40,19 +40,32 @@ pub enum EntryPoint {
     CleanupEscrow = 14,
     ExtendEscrowTtl = 15,
     WithdrawFees = 16,
+    /// `QuickexContract::batch_create` — batched counterpart of `Deposit`.
+    BatchCreate = 17,
+    /// `QuickexContract::batch_release` — batched counterpart of `Withdraw`.
+    BatchRelease = 18,
+    /// `QuickexContract::batch_refund` — batched counterpart of `Refund`.
+    BatchRefund = 19,
 }
 
 impl EntryPoint {
     /// Granular pause flag associated with this entry point, if any.
+    ///
+    /// Each batch entry point deliberately reuses the flag of the single-item
+    /// flow it mirrors, so a granular pause can never be side-stepped by
+    /// submitting the same work as a batch.
     pub fn pause_flag(self) -> Option<PauseFlag> {
         match self {
             EntryPoint::Deposit
             | EntryPoint::DepositPartial
             | EntryPoint::PartialPayment
-            | EntryPoint::StealthDeposit => Some(PauseFlag::Deposit),
+            | EntryPoint::StealthDeposit
+            | EntryPoint::BatchCreate => Some(PauseFlag::Deposit),
             EntryPoint::DepositWithCommitment => Some(PauseFlag::DepositWithCommitment),
-            EntryPoint::Withdraw | EntryPoint::StealthWithdraw => Some(PauseFlag::Withdrawal),
-            EntryPoint::Refund => Some(PauseFlag::Refund),
+            EntryPoint::Withdraw | EntryPoint::StealthWithdraw | EntryPoint::BatchRelease => {
+                Some(PauseFlag::Withdrawal)
+            }
+            EntryPoint::Refund | EntryPoint::BatchRefund => Some(PauseFlag::Refund),
             EntryPoint::SetPrivacy => Some(PauseFlag::SetPrivacy),
             EntryPoint::WithdrawFees => Some(PauseFlag::FeeWithdrawal),
             EntryPoint::Dispute
@@ -77,6 +90,8 @@ impl EntryPoint {
                 | EntryPoint::StealthWithdraw
                 | EntryPoint::CleanupEscrow
                 | EntryPoint::ExtendEscrowTtl
+                | EntryPoint::BatchRelease
+                | EntryPoint::BatchRefund
         )
     }
 }

@@ -12,6 +12,7 @@ Companion documents:
 
 - [CAPABILITY-MAP.md](./CAPABILITY-MAP.md) — whether a flow is Live / Partial / Mocked / Experimental. Read it for *maturity*; read this one for *ownership*.
 - [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) — endpoint-level wiring between clients and the backend.
+- [DATA-MODEL.md](./DATA-MODEL.md) — ER diagram and data dictionary: which tables each module owns, their primary/foreign keys, and why migrations are split across folders. Read it before writing a query or a migration.
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — the cross-surface picture (frontend / backend / contracts).
 - [TESTNET-INCIDENT-RUNBOOK.md](./TESTNET-INCIDENT-RUNBOOK.md) — which of the operational modules to reach for during an incident.
 
@@ -116,7 +117,7 @@ Each entry states what the module owns, its layer, its externally served route p
 
 **`refunds`** — *Active. `admin/refunds`.* Owns refund eligibility and initiation: the eligibility rules for payments and escrows, reason codes, and the admin-initiated refund path, gated by feature flags and written to the audit log. Eligibility logic lives in `refunds.eligibility.ts` and is the single place that decides whether something is refundable.
 
-**`receipts`** — *Unwired. Would serve `v1/receipts`.* Owns the normalised payment receipt: it orchestrates Horizon, Soroban RPC, and indexer metadata, then normalises them into a stable receipt schema with a content hash for tamper evidence. **`ReceiptsModule` is not imported anywhere**, so `/v1/receipts` is not served. The normaliser and schema are complete; only the wiring is missing.
+**`receipts`** — *Unwired. Would serve `v1/receipts`.* Owns the normalised payment receipt: it orchestrates Horizon, Soroban RPC, and indexer metadata, then normalises them into a stable receipt schema with a content hash for tamper evidence. **`ReceiptsModule` is not imported anywhere**, so `/v1/receipts` is not served — that prefix is grandfathered rather than exemplary; see [Routing Conventions](./ROUTING-CONVENTIONS.md). The normaliser and schema are complete; only the wiring is missing.
 
 **`fiat-ramps`** — *Active. `fiat-ramps`.* Owns the SEP-24 deposit/withdraw integration: anchor discovery via the SEP-1 TOML, SEP-10 authentication, interactive SEP-24 initiation, the transaction repository, and status polling — both the in-process poller and the `sep24_status_poll` job handler. It uses `IdempotencyModule` so a retried initiation does not open two anchor sessions.
 
@@ -154,7 +155,7 @@ Each entry states what the module owns, its layer, its externally served route p
 
 **`rc-validation`** — *Active. `admin/rc-validation`.* Owns the release-candidate gate: it aggregates smoke and readiness probes, contract-registry completeness, indexer lag, and environment parity into classified blockers with an overall `releaseReady` flag. `GET /admin/rc-validation/report` is step 0 of the [release readiness checklist](../RELEASE_READINESS_CHECKLIST.md).
 
-**`environment-parity`** — *Active. `api/environment-parity`.* Owns detection of configuration drift between environments — endpoints, versions, and feature flags — plus staging seed data and the shadow-traffic middleware that mirrors production-shaped requests at staging. Records `environment_parity_check_results` and `shadow_traffic_requests_total`.
+**`environment-parity`** — *Active. `environment-parity`.* Owns detection of configuration drift between environments — endpoints, versions, and feature flags — plus staging seed data and the shadow-traffic middleware that mirrors production-shaped requests at staging. Records `environment_parity_check_results` and `shadow_traffic_requests_total`.
 
 **`branch-preview`** — *Active.* Owns per-branch preview environment records: registration, cached lookup of a branch's API and frontend URLs, network and contract version, and the auto-expiry policy that reclaims stale previews. Falls back to configured defaults when a branch has no registration.
 
@@ -166,7 +167,7 @@ Each entry states what the module owns, its layer, its externally served route p
 
 **`soroban-tooling`** — *Active. `developer/testnet`.* Owns testnet developer conveniences: contract deployment helpers and friendbot-style account funding. Testnet-only by construction — nothing here should ever be reachable on mainnet.
 
-**`manifests`** — *Unwired. Would serve `manifests`.* Owns structural diffing of environment manifests — contracts, URLs, and feature flags — producing a per-key `added | removed | modified | unchanged` diff. **`ManifestsModule` is not imported anywhere.** The diff algorithm is pure and self-contained; only the wiring is missing.
+**`manifests`** — *Active. `POST /manifests/diff`.* Owns structural diffing of environment manifests — contracts, URLs, and feature flags — producing a per-key `added | removed | modified | unchanged` diff. The diff algorithm is pure and self-contained; `ManifestsModule` is registered in `app.module.ts`, so the route is served and covered by a boot-time test.
 
 **`crash-reporting`** — *Unwired. Would serve `crash-reporting`.* Owns opt-in client crash and log capture: a crash-capture filter, a bounded rolling log buffer, strict redaction of secrets and PII, issue submission, and per-user settings. **`CrashReportingModule` is not imported anywhere**, and the feature is disabled by default even when wired.
 
@@ -181,7 +182,7 @@ Five modules are **shared infrastructure**: any module may depend on them, they 
 | Module | Contract with callers |
 |---|---|
 | `config` | Read configuration through `AppConfigService`. Never read `process.env` at a call site. Adding a variable means adding it to [env.schema.ts](../app/backend/src/config/env.schema.ts), the typed interface, `.env.example`, and an accessor. |
-| `supabase` | All persistence goes through `SupabaseService`. Do not create a second client. Repositories live in the owning domain, not here. |
+| `supabase` | All persistence goes through `SupabaseService`. Do not create a second client. Repositories live in the owning domain, not here. Table ownership and relationships are in [DATA-MODEL.md](./DATA-MODEL.md). |
 | `metrics` | Register metrics through `MetricsService` so names stay centrally reviewable. Adding one requires updating the registered-metric count assertion in the metrics tests. |
 | `common` | Behaviour that must apply to every request — middleware, filters, interceptors, idempotency, pagination, redaction. Domain logic never lands here. |
 | `tracing` | Outbound HTTP uses `createTracedFetch` or `withSpan`. Do not call bare `fetch` for an external dependency. |
@@ -235,6 +236,7 @@ If an owner exists, **extend it**, even if that means the module grows.
 4. **Register it in [app.module.ts](../app/backend/src/app.module.ts).** Four modules in this tree skipped this step and serve nothing. If registration is conditional, say so in the ownership paragraph.
 5. Choose a route prefix nobody else uses. Two modules already collide on `links`.
 6. Add its ownership paragraph to §2 of this document, and a row to [CAPABILITY-MAP.md](./CAPABILITY-MAP.md) with its maturity.
+7. If it owns tables, put the migration in `app/backend/supabase/migrations/` (never a module-local `migrations/` folder) and add the tables to [DATA-MODEL.md](./DATA-MODEL.md) in the same PR.
 
 ### Extending a module
 
@@ -252,7 +254,6 @@ Modules that are **not fully wired** — do not build on these without wiring th
 | Module | Status | Consequence |
 |---|---|---|
 | `receipts` | Unwired — `ReceiptsModule` imported nowhere | `/v1/receipts` is not served. Normaliser and schema are complete. |
-| `manifests` | Unwired — `ManifestsModule` imported nowhere | `/manifests` is not served. The diff algorithm is pure and usable as a library today. |
 | `crash-reporting` | Unwired — `CrashReportingModule` imported nowhere | `/crash-reporting` is not served; also opt-in and off by default. |
 | `demos` | Unwired — `DemoModule` imported nowhere | `/v1/demo` and `/seed-reset` are **not served**, despite complete controllers, guards, and scheduler. |
 | `reconciliation` | Conditional | Skipped when `SUPABASE_URL` points at localhost or 127.0.0.1. Drift detection does not run locally. |
@@ -269,6 +270,6 @@ Modules that are **intentionally thin** — small on purpose, and not the place 
 | `payments` | A single Horizon read with `since`/`limit` filtering. Despite the name it owns no payment domain logic — that lives in `links`, `transactions`, and `refunds`. |
 | `dashboard-feed` | One endpoint. Deliberately an aggregator over other modules' repositories with no state of its own. |
 | `types` | Ambient declarations only. Never add runtime code. |
-| `manifests` | A pure diff function and a DTO. Correct as-is; it just needs wiring. |
+| `manifests` | A pure diff function and a DTO. Correct as-is — now wired into `app.module.ts`; it should not grow domain logic. |
 | `soroban-tooling` | Two testnet helpers. Must never grow a mainnet path. |
 | `developer` | A convenience layer over `api-keys` and `notifications`. Should not acquire its own persistent state. |

@@ -2,11 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  getBuildMetadata,
-  formatEnvironment,
-  formatNetwork,
-} from '../utils/build-metadata';
+import * as buildMetadata from '../utils/build-metadata';
+import { useEnvironmentOptional } from '../../contexts/EnvironmentContext';
 
 /**
  * FE-38 — Contributor preview-environment banner.
@@ -14,7 +11,8 @@ import {
  * Shows a persistent banner in every non-production build (preview / testnet /
  * staging / development) so contributors always know which environment they are
  * looking at. The environment name, network and branch are read from the
- * build/environment config (`getBuildMetadata`), so screenshots, bug reports and
+ * dynamic runtime config bootstrap / active environment (falling back to
+ * build/environment config `getBuildMetadata`), so screenshots, bug reports and
  * support threads always carry the right context, and the banner updates
  * whenever the environment changes.
  *
@@ -23,19 +21,25 @@ import {
  */
 export function PreviewEnvironmentBanner() {
   const insets = useSafeAreaInsets();
-  const meta = getBuildMetadata();
+  const envContext = useEnvironmentOptional();
+  const meta = buildMetadata.getBuildMetadata();
+
+  const activeEnv = envContext ? envContext.currentId : meta.environment;
+  const activeNetwork = envContext?.networkConfig?.network || meta.network;
+  const activeBranch =
+    envContext?.previewMetadata?.branch ||
+    envContext?.previewScope ||
+    (meta.gitBranch && meta.gitBranch !== 'Unknown' ? meta.gitBranch : null);
 
   // Production builds never show preview messaging.
-  if (meta.environment === 'production') {
+  if (activeEnv === 'production') {
     return null;
   }
 
-  const summary = `${formatEnvironment(meta.environment)} · ${formatNetwork(
-    meta.network,
+  const summary = `${buildMetadata.formatEnvironment(activeEnv)} · ${buildMetadata.formatNetwork(
+    activeNetwork,
   )}`;
-  const branch =
-    meta.gitBranch && meta.gitBranch !== 'Unknown' ? meta.gitBranch : null;
-  const label = branch ? `${summary} · ${branch}` : summary;
+  const label = activeBranch ? `${summary} · ${activeBranch}` : summary;
 
   return (
     <View

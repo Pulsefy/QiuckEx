@@ -45,3 +45,8 @@ jobs:
       # Same invariant, enforced as a unit test for fast local feedback.
       - name: Run i18n parity unit test
         run: npx jest __tests__/i18n-key-parity.test.ts
+
+      # Regression guard for the app-entry bootstrap: asserts the layout's i18n
+      # import resolves and that t() returns translated text, not raw keys.
+      - name: Run i18n bootstrap regression test
+        run: npx jest __tests__/i18n-bootstrap.test.js

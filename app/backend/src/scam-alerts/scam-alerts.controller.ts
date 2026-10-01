@@ -6,7 +6,7 @@ import { ScanResultDto } from "./dto/scan-result.dto";
 import { RateLimitTier } from "../auth/decorators/rate-limit-group.decorator";
 
 @ApiTags("scam-alerts")
-@Controller("links")
+@Controller("scam-alerts")
 export class ScamAlertsController {
   constructor(private readonly scamAlertsService: ScamAlertsService) {}
 

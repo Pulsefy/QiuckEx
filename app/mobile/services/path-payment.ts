@@ -8,13 +8,19 @@ import {
   Account,
 } from "stellar-sdk";
 import type { PathPreviewRow } from "./link-metadata";
+import { getVerifiedIssuer } from "./verified-assets";
 
-const KNOWN_ASSET_ISSUERS: Record<string, string> = {
-  USDC: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-  AQUA: "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
-  yXLM: "GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55",
-};
-
+/**
+ * Resolves a string asset selector to a Stellar SDK Asset.
+ *
+ * Accepted formats:
+ *   - "XLM" or "" → native asset
+ *   - "USDC"       → looks up issuer from the verified-assets registry
+ *   - "AQUA:<ISSUER_ADDRESS>" → uses the explicit issuer as-is
+ *
+ * Throws a descriptive error for unknown codes without an explicit issuer
+ * instead of silently substituting a placeholder.
+ */
 function resolveAsset(asset: string): Asset {
   const trimmed = asset.trim();
 
@@ -24,24 +30,29 @@ function resolveAsset(asset: string): Asset {
 
   const [code, ...issuerParts] = trimmed.split(":");
   const normalizedCode = code.trim().toUpperCase();
-  const issuer = issuerParts.join(":").trim();
+  const explicitIssuer = issuerParts.join(":").trim();
 
   if (!normalizedCode) {
     throw new Error(`Invalid asset selector: "${asset}"`);
   }
 
-  if (issuer) {
-    return new Asset(normalizedCode, issuer);
+  // Caller supplied an explicit issuer — use it verbatim.
+  if (explicitIssuer) {
+    return new Asset(normalizedCode, explicitIssuer);
   }
 
-  const knownIssuer = KNOWN_ASSET_ISSUERS[normalizedCode];
-  if (!knownIssuer) {
+  // No explicit issuer — look up from the verified-assets registry
+  // (the single source of truth shared across path-payment and swappable-assets).
+  const verifiedIssuer = getVerifiedIssuer(normalizedCode);
+  if (!verifiedIssuer) {
     throw new Error(
-      `Unsupported non-native asset: "${asset}". Use a code like XLM or USDC:ISSUER.`,
+      `Unsupported non-native asset: "${asset}". ` +
+        `Either supply an explicit issuer (e.g. "${normalizedCode}:<ISSUER>") ` +
+        `or add the asset to the verified-assets registry.`,
     );
   }
 
-  return new Asset(normalizedCode, knownIssuer);
+  return new Asset(normalizedCode, verifiedIssuer);
 }
 
 export interface PathPaymentOptions {
