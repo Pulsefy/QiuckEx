@@ -72,9 +72,12 @@ type AppImport =
 | Promise<DynamicModule>
 | ForwardReference<unknown>;
 
+import { AuthModule } from "./auth/auth.module";
+
 @Module({
 imports: ((): AppImport[] => {
 const baseImports: AppImport[] = [
+AuthModule,
 SentryModule,
 AppConfigModule,
 ScheduleModule.forRoot(),
