@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { ApiKeysModule } from "../api-keys/api-keys.module";
-import { ApiKeyGuard } from "../auth/guards/api-key.guard";
+
 import { HealthModule } from "../health/health.module";
 import { ContractsModule } from "../contracts/contracts.module";
 import { IndexerLagModule } from "../indexer-lag";
@@ -18,6 +18,6 @@ import { RcValidationService } from "./rc-validation.service";
     EnvironmentParityModule,
   ],
   controllers: [RcValidationController],
-  providers: [RcValidationService, ApiKeyGuard],
+  providers: [RcValidationService, ],
 })
 export class RcValidationModule {}

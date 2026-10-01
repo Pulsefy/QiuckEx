@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuditModule } from '../audit/audit.module';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+
 import { SupabaseModule } from '../supabase/supabase.module';
 import { ContractRegistryController } from './contract-registry.controller';
 import { ContractChangeWebhooksController } from './contract-change-webhooks.controller';
@@ -36,7 +36,7 @@ import { SmokeScenariosService } from './smoke-scenarios/smoke-scenarios.service
     ContractRegistryService,
     ContractChangeWebhookService,
     ContractChangeWebhookDispatcher,
-    ApiKeyGuard,
+    
     ContractViewsService,
     ContractAllowlistService,
     ContractMethodAllowlistGuard,
