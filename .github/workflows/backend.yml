@@ -59,12 +59,13 @@ jobs:
       - name: Validate OpenAPI Schema
         run: |
           pnpm run openapi:check || (
-            git config --global user.email "bot@example.com"
-            git config --global user.name "bot"
-            git add app/backend/openapi.json
-            git add app/backend/openapi-allowlist.json
-            git commit -m "chore: auto-update openapi allowlist"
-            git push origin HEAD:BE-111-openapi-spec-gate
+            if [ -f "openapi.json" ] && [ -f "openapi-allowlist.json" ]; then
+              git config --global user.email "bot@example.com"
+              git config --global user.name "bot"
+              git add openapi.json openapi-allowlist.json
+              git commit -m "chore: auto-update openapi allowlist"
+              git push origin HEAD:BE-111-openapi-spec-gate
+            fi
             exit 1
           )
         env:
