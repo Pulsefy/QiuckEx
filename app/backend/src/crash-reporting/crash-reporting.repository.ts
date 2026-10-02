@@ -73,6 +73,34 @@ export class CrashReportingRepository {
   }
 
   /**
+   * Get all crash reports (admin retrieval)
+   * @param limit - Maximum number of reports to return
+   * @returns Array of crash reports
+   */
+  async getAllCrashReports(limit = 50): Promise<CrashReport[]> {
+    const { data, error } = await this.supabase.getClient()
+      .from('crash_reports')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      this.logger.error(`Failed to get all crash reports`, error);
+      throw new Error(`Failed to get all crash reports: ${error.message}`);
+    }
+
+    return (data || []).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      error: row.error,
+      context: row.context,
+      logLines: row.log_lines,
+      timestamp: new Date(row.timestamp),
+      createdAt: new Date(row.created_at),
+    }));
+  }
+
+  /**
    * Get user's crash reporting settings
    * @param userId - The user ID
    * @returns The user's settings or null if not found
