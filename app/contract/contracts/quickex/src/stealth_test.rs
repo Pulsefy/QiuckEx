@@ -1,8 +1,10 @@
 //! Tests for the stealth address PoC (Issue #157 – Privacy v2).
 
 use crate::{
-    errors::QuickexError, stealth, types::StealthDepositParams, EscrowStatus, QuickexContract,
-    QuickexContractClient,
+    errors::QuickexError,
+    stealth,
+    types::{FeeConfig, StealthDepositParams},
+    EscrowStatus, QuickexContract, QuickexContractClient,
 };
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
@@ -268,6 +270,7 @@ fn test_stealth_full_flow() {
     );
 
     let token_client = token::Client::new(&env, &token);
+    // With no fee configuration, recipient should receive the full amount (0% fee)
     assert_eq!(token_client.balance(&recipient), amount);
 }
 
@@ -572,4 +575,76 @@ fn test_stealth_register_fails_when_paused() {
         .unwrap();
 
     assert_eq!(err, QuickexError::ContractPaused);
+}
+
+/// Test that stealth withdrawals collect platform fees via fee_router.
+#[test]
+fn test_stealth_withdraw_collects_platform_fee() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let fee_collector = Address::generate(&env);
+    let amount: i128 = 1_000;
+    let fee_bps: u32 = 500; // 5%
+
+    let eph_pub: BytesN<32> = BytesN::from_array(&env, &[17u8; 32]);
+    let spend_pub: BytesN<32> = BytesN::from_array(&env, &[18u8; 32]);
+    let stealth_address = compute_stealth_address(&env, &eph_pub, &spend_pub);
+
+    // Initialize contract and configure fees
+    client.initialize(&admin);
+    client.set_fee_config(&admin, &FeeConfig { fee_bps });
+    client.set_platform_wallet(&admin, &fee_collector);
+
+    mint(&env, &token, &sender, amount);
+
+    // Register stealth deposit
+    client.register_ephemeral_key(
+        &make_params(
+            sender,
+            token.clone(),
+            amount,
+            amount,
+            eph_pub.clone(),
+            spend_pub.clone(),
+            stealth_address.clone(),
+            0,
+        ),
+        &1001,
+        &TEST_VALID_UNTIL,
+    );
+
+    let token_client = token::Client::new(&env, &token);
+    let initial_recipient_balance = token_client.balance(&recipient);
+    let initial_collector_balance = token_client.balance(&fee_collector);
+
+    // Perform stealth withdrawal
+    let ok = client.stealth_withdraw(
+        &recipient,
+        &eph_pub,
+        &spend_pub,
+        &stealth_address,
+        &1002,
+        &TEST_VALID_UNTIL,
+    );
+    assert!(ok);
+
+    // Verify fee was collected
+    let expected_fee = (amount * fee_bps as i128) / 10_000;
+    let expected_payout = amount - expected_fee;
+
+    let final_recipient_balance = token_client.balance(&recipient);
+    let final_collector_balance = token_client.balance(&fee_collector);
+
+    assert_eq!(
+        final_recipient_balance - initial_recipient_balance,
+        expected_payout
+    );
+    assert_eq!(
+        final_collector_balance - initial_collector_balance,
+        expected_fee
+    );
+    assert!(expected_fee > 0, "Fee should be nonzero for this test");
 }

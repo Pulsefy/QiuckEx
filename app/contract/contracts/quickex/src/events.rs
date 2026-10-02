@@ -1295,6 +1295,7 @@ pub struct StealthWithdrawnEvent {
     pub schema_version: u32,
     pub token: Address,
     pub amount: i128,
+    pub fee: i128,
     pub timestamp: u64,
 }
 
@@ -1304,6 +1305,7 @@ pub(crate) fn publish_stealth_withdrawn(
     recipient: Address,
     token: Address,
     amount: i128,
+    fee: i128,
 ) {
     StealthWithdrawnEvent {
         stealth_address,
@@ -1311,6 +1313,7 @@ pub(crate) fn publish_stealth_withdrawn(
         schema_version: EVENT_SCHEMA_VERSION,
         token,
         amount,
+        fee,
         timestamp: env.ledger().timestamp(),
     }
     .publish(env);
