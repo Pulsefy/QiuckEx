@@ -103,6 +103,23 @@ export class LinkMetadataResponseDto {
   })
   swapOptions?: PathPreviewRow[] | null;
 
+  @ApiPropertyOptional({
+    description: 'Contract compatibility metadata for client validation',
+    example: {
+      contractVersion: 1,
+      schemaVersion: '1.2.0',
+      schemaCompatibility: {
+        min: '1.0.0',
+        max: '2.0.0',
+      },
+    },
+  })
+  contractCompatibility?: {
+    contractVersion?: number;
+    schemaVersion?: string;
+    schemaCompatibility?: { min: string; max: string };
+  };
+
   @ApiProperty({
     description: 'Metadata information',
     example: {

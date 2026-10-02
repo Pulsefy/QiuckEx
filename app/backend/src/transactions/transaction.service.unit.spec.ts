@@ -80,10 +80,12 @@ import { BadRequestException } from '@nestjs/common';
 
 import { SorobanRpcService } from './soroban-rpc.service';
 import { TransactionsService } from './transaction.service';
+import { ContractRegistryService } from '../contracts/contract-registry.service';
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
   let mockSorobanRpcService: jest.Mocked<Partial<SorobanRpcService>>;
+  let mockContractRegistryService: jest.Mocked<Partial<ContractRegistryService>>;
 
   beforeEach(() => {
     mockSorobanRpcService = {
@@ -111,7 +113,23 @@ describe('TransactionsService', () => {
       }),
     };
 
-    service = new TransactionsService(mockSorobanRpcService as unknown as SorobanRpcService);
+    mockContractRegistryService = {
+      getRegistry: jest.fn().mockResolvedValue({
+        data: {
+          quickex: {
+            id: 'C123',
+            version: 1,
+            schemaVersion: '1.2.0',
+            schemaCompatibility: { min: '1.0.0', max: '2.0.0' },
+          }
+        }
+      })
+    };
+
+    service = new TransactionsService(
+      mockSorobanRpcService as unknown as SorobanRpcService,
+      mockContractRegistryService as unknown as ContractRegistryService
+    );
   });
 
   it('returns a simulation summary and idempotency key', async () => {
@@ -163,6 +181,18 @@ describe('TransactionsService', () => {
         sourceAccount: 'G123',
         idempotencyKey: 'same-key',
       }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects transaction if clientSchemaVersion is unsupported', async () => {
+    await expect(
+      service.composeTransaction({
+        contractId: 'C123',
+        method: 'health_check',
+        params: [],
+        sourceAccount: 'G123',
+        clientSchemaVersion: '0.9.0', // Below 1.0.0 min
+      })
     ).rejects.toThrow(BadRequestException);
   });
 });

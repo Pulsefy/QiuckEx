@@ -19,6 +19,8 @@ import { SorobanRpcService } from "./soroban-rpc.service";
 import { mapSorobanError } from "../common/soroban-errors";
 import { SorobanErrorCode } from "../common/soroban-errors";
 
+import { ContractRegistryService } from "../contracts/contract-registry.service";
+
 const STROOPS_PER_XLM = 10_000_000;
 const BASE_FEE = 100; // stroops
 
@@ -36,11 +38,15 @@ export class TransactionsService {
   >();
   private readonly submitIdempotencyFingerprints = new Map<string, string>();
 
-  constructor(private readonly sorobanRpcService: SorobanRpcService) {}
+  constructor(
+    private readonly sorobanRpcService: SorobanRpcService,
+    private readonly contractRegistryService: ContractRegistryService
+  ) {}
 
   async composeTransaction(
     dto: ComposeTransactionDto,
   ): Promise<ComposeTransactionResponse | ComposeTransactionError> {
+
     this.validatePayload(dto);
 
     const payloadFingerprint = this.buildFingerprint(dto);
@@ -74,6 +80,36 @@ export class TransactionsService {
         error: err.message,
         userMessage: `Source account not found: ${err.message}`,
       };
+    }
+
+    // Check contract compatibility
+    const registry = await this.contractRegistryService.getRegistry();
+    let contractMetadata: any;
+    for (const [name, meta] of Object.entries(registry.data)) {
+      if ((meta as any).id === dto.contractId) {
+        contractMetadata = meta;
+        break;
+      }
+    }
+
+    let contractCompatibility;
+    if (contractMetadata) {
+      contractCompatibility = {
+        contractVersion: contractMetadata.version,
+        schemaVersion: contractMetadata.schemaVersion,
+        schemaCompatibility: contractMetadata.schemaCompatibility,
+      };
+
+      if (dto.clientSchemaVersion && contractMetadata.schemaCompatibility) {
+        if (
+          dto.clientSchemaVersion < contractMetadata.schemaCompatibility.min ||
+          dto.clientSchemaVersion > contractMetadata.schemaCompatibility.max
+        ) {
+          throw new BadRequestException(
+            `Unsupported client schema version. Supported range: ${contractMetadata.schemaCompatibility.min} - ${contractMetadata.schemaCompatibility.max}`
+          );
+        }
+      }
     }
 
     // 3. Build ScVal params
@@ -229,6 +265,7 @@ export class TransactionsService {
           returnValueBytes: resourceEstimate.returnValueBytes,
         },
       },
+      contractCompatibility,
     };
     this.rememberResponse(idempotencyKey, payloadFingerprint, response);
     return response;

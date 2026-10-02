@@ -25,6 +25,7 @@ import { TransactionsModule } from "../transactions/transactions.module";
 import { AuditModule } from "../audit/audit.module";
 import { MetricsModule } from "../metrics/metrics.module";
 import { UsernamesModule } from "../usernames/usernames.module";
+import { ContractsModule } from "../contracts/contracts.module";
 
 @Module({
   controllers: [
@@ -67,6 +68,7 @@ import { UsernamesModule } from "../usernames/usernames.module";
     MetricsModule,
     forwardRef(() => JobQueueModule),
     UsernamesModule,
+    ContractsModule,
   ],
 })
 export class LinksModule {}

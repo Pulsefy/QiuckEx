@@ -7,6 +7,7 @@ import {
   type PathPreviewRow,
 } from '../stellar/path-preview.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { ContractRegistryService } from '../contracts/contract-registry.service';
 
 @Injectable()
 export class LinksService {
@@ -15,6 +16,7 @@ export class LinksService {
   constructor(
     @Optional() private readonly pathPreviewService?: PathPreviewService,
     @Optional() private readonly privacyService?: PrivacyService,
+    @Optional() private readonly contractRegistryService?: ContractRegistryService,
   ) {}
 
   async generateMetadata(request: LinkMetadataRequestDto): Promise<LinkMetadataResponseDto> {
@@ -87,6 +89,23 @@ export class LinksService {
       swapOptions = await this.buildSwapOptions(amt, normalizedAsset, acceptedAssets);
     }
 
+    let contractCompatibility;
+    if (this.contractRegistryService) {
+      try {
+        const registry = await this.contractRegistryService.getRegistry();
+        const quickexMeta = registry.data['quickex'] as any;
+        if (quickexMeta) {
+          contractCompatibility = {
+            contractVersion: quickexMeta.version,
+            schemaVersion: quickexMeta.schemaVersion,
+            schemaCompatibility: quickexMeta.schemaCompatibility,
+          };
+        }
+      } catch (err) {
+        this.logger.warn('Failed to fetch contract registry for compatibility metadata', err);
+      }
+    }
+
     return {
       amount: amt,
       memo,
@@ -100,6 +119,7 @@ export class LinksService {
       referenceId,
       acceptedAssets,
       swapOptions,
+      contractCompatibility,
       metadata: {
         normalized,
         warnings: warnings.length > 0 ? warnings : undefined,

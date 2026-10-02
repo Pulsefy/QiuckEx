@@ -38,6 +38,11 @@ export interface ComposeTransactionResponse {
       returnValueBytes: number;
     };
   };
+  contractCompatibility?: {
+    contractVersion?: number;
+    schemaVersion?: string;
+    schemaCompatibility?: { min: string; max: string };
+  };
 }
 
 export interface ComposeTransactionError {
@@ -70,6 +75,11 @@ export interface SimulationResponse {
   details?: Record<string, unknown>;
   idempotencyKey: string;
   simulationLatencyMs: number;
+  contractCompatibility?: {
+    contractVersion?: number;
+    schemaVersion?: string;
+    schemaCompatibility?: { min: string; max: string };
+  };
 }
 
 export interface DeterministicFailureDefinition {
