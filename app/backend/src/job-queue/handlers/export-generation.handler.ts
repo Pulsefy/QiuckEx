@@ -259,7 +259,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
    * @param recordCount - Number of records included in the export
    * @param jobId - ID of the export generation job
    * @param cancellationToken - Token to check for cancellation
-   * @throws Error when email delivery fails (surfaced on the export job record)
+   * @throws Error when delivery fails (surfaced on the export job record)
    */
   private async deliverExport(
     userId: string,
@@ -285,19 +285,37 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
           throw new Error(errorMessage);
         }
 
-        // Enqueue webhook delivery job
+        // Upload artifact and issue time-limited download reference
+        const { storageKey } = await this.exportStorageService.uploadArtifact({
+          jobId,
+          userId,
+          content: exportData,
+          format: format as 'csv' | 'json',
+          exportType,
+        });
+
+        const { token, expiresAt } = this.exportStorageService.issueDownloadToken({
+          jobId,
+          userId,
+        });
+
+        // Enqueue webhook delivery job using the existing webhook-delivery handler,
+        // carrying export metadata and a time-limited download reference (never the raw export body).
         await this.jobQueueService.enqueue(JobType.WEBHOOK_DELIVERY, {
           recipientPublicKey: userId,
           webhookUrl: webhookPref.webhookUrl,
+          webhookSecret: webhookPref.webhookSecret,
           eventType: 'export.completed',
           eventId: `export:${jobId}`,
           payload: {
+            jobId,
             exportType,
             format,
             recordCount,
-            jobId,
             sizeBytes: Buffer.byteLength(exportData, 'utf8'),
-            data: exportData,
+            storageKey,
+            downloadToken: token,
+            expiresAt,
           },
         });
 
@@ -360,114 +378,11 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
         this.logger.log(
           `Export artifact stored (key=${storageKey}, size=${sizeBytes}B, expiresAt=${new Date(expiresAt * 1000).toISOString()}, jobId=${jobId})`,
         );
-
-        // Notify the user that their download link is ready.
-        const downloadPayload: ExportCompletedPayload = {
-          eventType: 'export.completed',
-          eventId: `export:${jobId}`,
-          recipientPublicKey: userId,
-          title: `Your ${exportType} export is ready to download`,
-          body: `Your ${(format as string).toUpperCase()} export of ${recordCount} ${recordCount === 1 ? 'record' : 'records'} is ready. Use the download token to retrieve it.`,
-          occurredAt: new Date().toISOString(),
-          exportType,
-          format,
-          recordCount,
-          jobId,
-          metadata: {
-            jobId,
-            exportType,
-            format,
-            recordCount,
-            sizeBytes,
-            downloadToken: token,
-            tokenExpiresAt: expiresAt,
-          },
-        };
-
-        await this.notificationService.deliverExportEmail(downloadPayload);
         break;
       }
 
       default:
         throw new PermanentJobError(`Unsupported delivery method: ${deliveryMethod}`);
     }
-  }
-
-  /**
-   * Validate export generation payload
-   * 
-   * Checks that required fields are present:
-   * - userId: User requesting the export
-   * - exportType: Type of data to export
-   * - format: Output format
-   * - deliveryMethod: How to deliver the export
-   * 
-   * @param payload - The export generation payload
-   * @throws PermanentJobError if validation fails
-   * 
-   * **Validates: Requirements 9.3, 15.4, 15.5**
-   */
-  async validate(payload: ExportGenerationPayload): Promise<void> {
-    const errors: string[] = [];
-
-    if (!payload.userId || typeof payload.userId !== 'string') {
-      errors.push('userId is required and must be a string');
-    }
-
-    if (!payload.exportType || !['transactions', 'links', 'payments'].includes(payload.exportType)) {
-      errors.push('exportType is required and must be one of: transactions, links, payments');
-    }
-
-    if (!payload.format || !['csv', 'json'].includes(payload.format)) {
-      errors.push('format is required and must be one of: csv, json');
-    }
-
-    if (!payload.deliveryMethod || !['webhook', 'email', 'download'].includes(payload.deliveryMethod)) {
-      errors.push('deliveryMethod is required and must be one of: webhook, email, download');
-    }
-
-    if (!payload.filters || typeof payload.filters !== 'object') {
-      errors.push('filters is required and must be an object');
-    }
-
-    if (errors.length > 0) {
-      throw new PermanentJobError(`Validation failed: ${errors.join(', ')}`);
-    }
-  }
-
-  /**
-   * Handle job failure
-   * 
-   * Logs export generation failure.
-   * This is called when the job exhausts all retry attempts and moves to DLQ.
-   * 
-   * @param job - The failed job
-   * @param error - The error that caused the failure
-   * 
-   * **Validates: Requirements 9.5**
-   */
-  async onFailure(job: Job<ExportGenerationPayload>, error: Error): Promise<void> {
-    const { userId, exportType, format } = job.payload;
-
-    this.logger.error(
-      `Export generation permanently failed for user ${userId} (type: ${exportType}, jobId: ${job.id}): ${error.message}`,
-      error.stack,
-    );
-
-    // Derive a user-safe reason: use only the error message (never the stack
-    // trace) and fall back to a generic phrase so internal details are never
-    // surfaced to the end user.
-    const safeReason =
-      error instanceof Error && error.message
-        ? error.message.replace(/\s*\n[\s\S]*$/, '') // strip any embedded newlines / stack frames
-        : 'An unexpected error occurred';
-
-    await this.notificationService.notifyExportFailed(
-      userId,
-      job.id,
-      exportType,
-      format,
-      safeReason,
-    );
   }
 }
