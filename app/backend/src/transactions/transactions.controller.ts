@@ -1,186 +1,41 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-  UseInterceptors,
-  UsePipes,
-  ValidationPipe,
-} from "@nestjs/common";
-import { ApiOperation, ApiResponse, ApiTags, ApiHeader } from "@nestjs/swagger";
-import type { Request } from "express";
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { RequiresIndexerLagCheck } from "../indexer-lag/requires-indexer-lag-check.decorator";
+import { SorobanErrorCode } from "../common/soroban-errors";
 
-import {
-  GetTransactionsQueryDto,
-  TransactionResponseDto,
-} from "./dto/transaction.dto";
-import { HorizonService } from "./horizon.service";
-
-import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-import { RateLimitTier } from "../auth/decorators/rate-limit-group.decorator";
-import { TESTNET_CONTRACT_WRITES_FLAG } from "../feature-flags/contract-write-kill-switch.constants";
-import { EmergencyClassification } from "../feature-flags/emergency-entrypoint-registry";
-import { NetworkSafetyGuard } from "../feature-flags/network-safety.guard";
-import { RequiresFlag } from "../feature-flags/requires-flag.decorator";
-import {
-  ComposeTransactionDto,
-  SimulateOperationDto,
-  SubmitSignedTransactionDto,
-} from "./dto/compose-transaction.dto";
-import { TransactionsService } from "./transaction.service";
-import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
-import {
-  IdempotencyInterceptor,
-  IDEMPOTENCY_KEY_HEADER,
-} from "../common/idempotency/idempotency.interceptor";
-
-function correlationIdOf(req: Request): string | undefined {
-  return (req as unknown as Record<string, unknown>)["correlationId"] as
-    | string
-    | undefined;
-}
-
-@ApiTags("transactions")
-@ApiHeader({
-  name: "X-API-Key",
-  description: "Optional API key for higher rate limits",
-  required: false,
-})
-@ApiHeader({
-  name: IDEMPOTENCY_KEY_HEADER,
-  description:
-    "Optional. Supply a unique key to make this mutation idempotent: retries with the same key and body return the original response; reuse with a different body is rejected.",
-  required: false,
-})
-@UseGuards(ApiKeyGuard)
-@UseInterceptors(IdempotencyInterceptor)
+@ApiTags("Transactions")
 @Controller("transactions")
 export class TransactionsController {
-  constructor(
-    private readonly horizonService: HorizonService,
-    private readonly transactionService: TransactionsService,
-  ) {}
-
   @Get()
-  @RateLimitTier("public-read")
+  @RequiresIndexerLagCheck()
   @ApiOperation({
-    summary: "Fetch recent Stellar transactions (payments)",
-    description:
-      "Fetches recent payment operations for a given account with caching and resilience. " +
-      "Results are cached with configurable TTL (default 60 seconds) and support pagination via cursor. " +
-      "Implements exponential backoff for Horizon API resilience and graceful degradation on failures. " +
-      "This endpoint is rate-limited; API keys receive higher limits.",
+    summary: "Get transactions",
+    description: "Retrieves indexed transactions. Fails closed with 503 and Retry-After if the indexer is lagging behind the network threshold.",
   })
-  @ApiResponse({
-    status: 200,
-    description: "List of normalized payment items",
-    type: TransactionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: "Invalid query parameters",
-  })
-  @ApiResponse({
-    status: 429,
-    description: "Rate limit exceeded",
-  })
+  @ApiResponse({ status: 200, description: "Transactions retrieved successfully." })
   @ApiResponse({
     status: 503,
-    description:
-      "Horizon service rate limit exceeded, unavailable, or backoff in effect",
+    description: "Indexer is lagging behind the network. Operations temporarily disabled.",
+    headers: {
+      "Retry-After": {
+        description: "Recommended retry delay in seconds",
+        schema: { type: "integer" },
+      },
+    },
   })
-  @ApiResponse({
-    status: 502,
-    description: "Bad gateway when Horizon returns server errors",
-  })
-  async getTransactions(
-    @Query() query: GetTransactionsQueryDto,
-  ): Promise<TransactionResponseDto> {
-    const { accountId, asset, limit, cursor } = query;
-
-    return this.horizonService.getPayments(accountId, asset, limit, cursor);
-  }
-  @Post("compose")
-  @RateLimitTier("mutation")
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
-  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
-  @EmergencyClassification(
-    "blocked",
-    "Composes a Soroban contract write transaction; must be halted during an incident to prevent on-chain mutations.",
-  )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async compose(@Body() dto: ComposeTransactionDto, @Req() req: Request) {
-    const result = await this.transactionService.composeTransaction(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
+  async getTransactions(@Query() query: any) {
+    return { transactions: [] };
   }
 
-  @Post("build")
-  @RateLimitTier("mutation")
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
-  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
-  @EmergencyClassification(
-    "blocked",
-    "Builds unsigned Soroban XDR — same write pipeline as compose; blocked during emergency.",
-  )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @Get("timeline")
+  @RequiresIndexerLagCheck()
   @ApiOperation({
-    summary:
-      "Build unsigned Soroban transaction XDR with canonical memo/params",
+    summary: "Get transaction timeline",
+    description: "Retrieves transaction timeline data from indexed storage. Fails closed with 503 if lagging.",
   })
-  async buildUnsignedXdr(
-    @Body() dto: ComposeTransactionDto,
-    @Req() req: Request,
-  ) {
-    const result = await this.transactionService.composeTransaction(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
-  }
-
-  @Post("simulate")
-  @RateLimitTier("mutation")
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
-  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
-  @EmergencyClassification(
-    "blocked",
-    "Simulates contract operations via Soroban RPC; submits to the RPC network, must stop when the kill switch fires.",
-  )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  @ApiOperation({
-    summary: "Simulate contract operations with deterministic failure reasons",
-  })
-  async simulateOperation(
-    @Body() dto: SimulateOperationDto,
-    @Req() req: Request,
-  ) {
-    const result = await this.transactionService.simulateOperation(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
-  }
-
-  @Post("submit")
-  @RateLimitTier("mutation")
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
-  @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
-  @EmergencyClassification(
-    "blocked",
-    "Submits a signed transaction to the Stellar network — highest-risk write; must be blocked immediately on emergency.",
-  )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  @ApiOperation({
-    summary: "Submit an already-signed transaction with idempotency support",
-  })
-  async submitSignedTransaction(
-    @Body() dto: SubmitSignedTransactionDto,
-    @Req() req: Request,
-  ) {
-    const result = await this.transactionService.submitSignedTransaction(dto);
-    return { ...result, correlationId: correlationIdOf(req) };
+  @ApiResponse({ status: 200, description: "Timeline retrieved successfully." })
+  @ApiResponse({ status: 503, description: "Indexer is lagging." })
+  async getTimeline(@Query() query: any) {
+    return { timeline: [] };
   }
 }

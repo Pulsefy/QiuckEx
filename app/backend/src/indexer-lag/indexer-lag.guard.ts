@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { AuditService } from "../audit/audit.service";
 import { MetricsService } from "../metrics/metrics.service";
 import { SorobanErrorCode } from "../common/soroban-errors";
@@ -40,19 +40,24 @@ export class IndexerLagGuard implements CanActivate {
     }
 
     const req = ctx.switchToHttp().getRequest<Request>();
+    const res = ctx.switchToHttp().getResponse<Response>();
     const userId = (req.headers["x-user-id"] as string | undefined)?.trim();
     const route = req.route?.path || req.path;
 
-    await this.auditService.log(
-      userId ?? "anonymous",
-      "indexer_lag_guard.blocked",
-      "INDEXER_LAG",
-      {
-        ...this.indexerLagService.getStatus(),
-        method: req.method,
-        path: req.path,
-      },
-    );
+    try {
+      await this.auditService.log(
+        userId ?? "anonymous",
+        "indexer_lag_guard.blocked",
+        "INDEXER_LAG",
+        {
+          ...this.indexerLagService.getStatus(),
+          method: req.method,
+          path: req.path,
+        },
+      );
+    } catch (err) {
+      this.logger.error("Failed to write audit log for blocked request", err);
+    }
 
     this.metricsService.recordIndexerLagGuardBlockedRequest(
       req.method,
@@ -64,6 +69,10 @@ export class IndexerLagGuard implements CanActivate {
     );
 
     const status = this.indexerLagService.getStatus();
+
+    if (res && typeof res.setHeader === "function") {
+      res.setHeader("Retry-After", "60");
+    }
 
     throw new ServiceUnavailableException({
       error: SorobanErrorCode.INDEXER_LAGGING,
