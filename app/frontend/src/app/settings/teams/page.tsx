@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { getQuickexApiBase } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api";
 
 interface TeamMember {
   id: string;
@@ -11,24 +13,86 @@ interface TeamMember {
   status: "active" | "pending";
 }
 
-const initialMembers: TeamMember[] = [
-  { id: "1", name: "John Doe", email: "john@quickex.to", role: "admin", status: "active" },
-  { id: "2", name: "Sarah Smith", email: "sarah@quickex.to", role: "operator", status: "active" },
-  { id: "3", name: "Mike Wilson", email: "mike@external.com", role: "viewer", status: "pending" },
-];
+type TeamResponse = { members: TeamMember[]; currentRole: "admin" | "member" | "read_only" };
+type TeamRole = TeamMember["role"];
+
+async function teamRequest<T>(path: string, apiKey: string, init?: RequestInit): Promise<T> {
+  const response = await fetchWithAuth(`${getQuickexApiBase()}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey, ...init?.headers },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message ?? `Request failed (${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}
 
 export default function TeamSettings() {
-  const [members, setMembers] = useState<TeamMember[]>(initialMembers);
-  const [userRole] = useState<"admin" | "operator" | "viewer">("admin"); // Mock current user role
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [userRole, setUserRole] = useState<"admin" | "member" | "read_only">("read_only");
+  const [apiKey, setApiKey] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<TeamRole>("viewer");
 
-  const handleRoleChange = (memberId: string, newRole: "admin" | "operator" | "viewer") => {
-    if (userRole !== "admin") return;
-    setMembers(members.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+  const loadMembers = useCallback(async () => {
+    const key = window.sessionStorage.getItem("quickex.apiKey") ?? "";
+    setApiKey(key);
+    if (!key) {
+      setError("Connect an organization-scoped API key to manage team members.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const data = await teamRequest<TeamResponse>("/teams", key);
+      setMembers(data.members);
+      setUserRole(data.currentRole);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadMembers(); }, [loadMembers]);
+
+  const handleRoleChange = async (memberId: string, newRole: TeamRole) => {
+    const previous = members;
+    setMembers(members.map((member) => member.id === memberId ? { ...member, role: newRole } : member));
+    try {
+      const updated = await teamRequest<TeamMember>(`/teams/${memberId}/role`, apiKey, { method: "PATCH", body: JSON.stringify({ role: newRole }) });
+      setMembers((current) => current.map((member) => member.id === memberId ? updated : member));
+    } catch (err) {
+      setMembers(previous);
+      setError((err as Error).message);
+    }
   };
 
-  const removeMember = (memberId: string) => {
-    if (userRole !== "admin") return;
-    setMembers(members.filter(m => m.id !== memberId));
+  const removeMember = async (memberId: string) => {
+    const previous = members;
+    setMembers(members.filter((member) => member.id !== memberId));
+    try {
+      await teamRequest(`/teams/${memberId}`, apiKey, { method: "DELETE" });
+    } catch (err) {
+      setMembers(previous);
+      setError((err as Error).message);
+    }
+  };
+
+  const inviteMember = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      const member = await teamRequest<TeamMember>("/teams/invite", apiKey, { method: "POST", body: JSON.stringify({ name: inviteName, email: inviteEmail, role: inviteRole }) });
+      setMembers((current) => [...current, member]);
+      setInviteName(""); setInviteEmail(""); setInviteRole("viewer"); setInviteOpen(false); setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   return (
@@ -72,7 +136,8 @@ export default function TeamSettings() {
         <div className="rounded-3xl bg-card border border-border overflow-hidden">
           <div className="p-6 border-b border-border flex justify-between items-center">
             <h2 className="text-xl font-bold">Workspace Members</h2>
-            <button 
+            <button
+              onClick={() => setInviteOpen(true)}
               disabled={userRole !== "admin"}
               className={`px-4 py-2 bg-indigo-500 text-white text-sm font-bold rounded-xl transition ${userRole !== "admin" ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
             >
@@ -94,7 +159,10 @@ export default function TeamSettings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {members.map((member) => (
+                {loading && <tr><td className="px-6 py-8 text-subtle" colSpan={4}>Loading team members…</td></tr>}
+                {!loading && error && <tr><td className="px-6 py-8 text-red-400" colSpan={4}>{error}</td></tr>}
+                {!loading && !error && members.length === 0 && <tr><td className="px-6 py-8 text-subtle" colSpan={4}>No team members yet.</td></tr>}
+                {!loading && members.map((member) => (
                   <tr key={member.id} className="group hover:bg-card/[0.02] transition">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -110,7 +178,7 @@ export default function TeamSettings() {
                     <td className="px-6 py-4">
                       <select 
                         value={member.role}
-                        disabled={userRole !== "admin" || member.id === "1"} // Can't change own role or if not admin
+                        disabled={userRole !== "admin"}
                         onChange={(e) => handleRoleChange(member.id, e.target.value as "admin" | "operator" | "viewer")}
                         className="bg-card border border-border-strong rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -129,7 +197,7 @@ export default function TeamSettings() {
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => removeMember(member.id)}
-                        disabled={userRole !== "admin" || member.id === "1"}
+                        disabled={userRole !== "admin"}
                         className="p-2 text-subtle hover:text-red-500 transition disabled:opacity-0"
                       >
                         🗑️
@@ -141,6 +209,20 @@ export default function TeamSettings() {
             </table>
           </div>
         </div>
+
+        {inviteOpen && (
+          <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+            <form onSubmit={inviteMember} className="w-full max-w-md rounded-2xl bg-card border border-border p-6 space-y-4">
+              <h2 className="text-xl font-bold">Invite team member</h2>
+              <input required value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Full name" className="w-full rounded-lg border border-border-strong bg-surface p-3" />
+              <input required type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Email address" className="w-full rounded-lg border border-border-strong bg-surface p-3" />
+              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as TeamRole)} className="w-full rounded-lg border border-border-strong bg-surface p-3">
+                <option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option>
+              </select>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setInviteOpen(false)} className="px-4 py-2">Cancel</button><button type="submit" className="px-4 py-2 rounded-xl bg-indigo-500 text-white font-bold">Send invite</button></div>
+            </form>
+          </div>
+        )}
 
         {/* Role Descriptions */}
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -63,6 +63,7 @@ import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 import { OutboxModule } from "./events/outbox/outbox.module";
 import { DeploymentSyncModule } from "./deployment-sync/deployment-sync.module";
 import { ManifestsModule } from "./manifests/manifests.module";
+import { TeamsModule } from "./teams/teams.module";
 import { ReceiptsModule } from "./receipts/receipts.module";
 import { resolveOptionalModules } from "./config/optional-modules";
 
@@ -97,6 +98,7 @@ PaymentsModule,
 IngestionModule,
 ApiKeysModule,
 MarketplaceModule,
+TeamsModule,
 FiatRampsModule,
 RefundsModule,
 ExportsModule,
