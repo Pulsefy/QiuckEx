@@ -79,7 +79,10 @@ pub enum QuickexError {
     /// The requested TTL value violates the configured policy bounds
     /// (either below the minimum or above the maximum allowed ledgers).
     TtlOutOfBounds = 324,
-    /// Dispute-quorum config (`quorum` or `vote_ttl_secs`) violates hard bounds.
+    /// Dispute-quorum config (`quorum` or `vote_ttl_secs`) violates hard bounds,
+    /// or a `deposit_multi_sig` arbiter set is unusable: empty, larger than
+    /// `MAX_ARBITERS`, containing a duplicate address, or with an
+    /// `arbiter_threshold` outside `1..=arbiters.len()`.
     QuorumOutOfBounds = 325,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.

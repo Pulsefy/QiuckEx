@@ -99,12 +99,14 @@ Monolithic Soroban contract `QuickexContract` (`contracts/quickex/src/lib.rs`). 
 
 | Capability | Owning module | Status | Notes |
 |---|---|---|---|
-| Escrow deposit / withdraw / commitments | `src/escrow.rs`, `src/commitment.rs`, `src/escrow_id.rs` | **Live** | Testnet only; extensive test suite (unit, fuzz, bench, upgrade). |
+| Escrow deposit / withdraw / commitments | `src/escrow.rs`, `src/commitment.rs`, `src/escrow_id.rs` | **Live** | Testnet only; extensive test suite (unit, fuzz, bench, upgrade). Includes `deposit_multi_sig`, the M-of-N deposit variant. |
+| Batch escrow (`batch_create` / `batch_release` / `batch_refund`) | `src/batch.rs`, `src/escrow.rs`, `src/lib.rs` | **Live** | Testnet only; up to `MAX_BATCH_SIZE` (20) items per call, each item reported individually via `BatchItemResult`. Items route through the *same* `deposit_item`/`withdraw_item`/`refund_item` bodies as the single-item flows, so per-owner debits, escrow invariants, fees, events, and hooks all behave identically. Per-item `nonce`/`valid_until` are domain-separated from the single-item flows (and from each other), and `authorize_distinct` signs every distinct address exactly once per call. |
+| M-of-N multi-arbiter escrow disputes | `src/escrow.rs`, `src/dispute_quorum.rs` | **Live** (contract) / **not surfaced in UI** | `deposit_multi_sig` is the only entrypoint that sets `arbiters` + `arbiter_threshold`; `vote_for_dispute`, `resolve_dispute_multi_sig`, and `resolve_dispute_timeout` are reachable end-to-end from it. Admin-configurable quorum is frozen per dispute at open time; the client (`mainnet.dispute_actions`) is still flag-gated. |
 | Fee routing (basis points, per-asset overrides) | `src/fee` modules | **Live** | Static fees only. |
 | Pause policy, emergency mode, admin/roles | `src/admin.rs`, `src/pause_policy.rs` | **Live** | Emergency mode is irreversible by design. |
 | `create_escrow` counter endpoint | `src/lib.rs` (`create_escrow`) | **Mocked** | Only increments a counter; `_from`/`_to`/`_amount` params are reserved and ignored. |
 | Oracle-priced dynamic fees | `src/oracle.rs` | **Mocked** | Explicit MVP stub; fees fall back to static basis points (deferred per scope doc). |
-| Custom nonces/signatures, dispute arbitration, on-chain X-Ray privacy, hook registry | — | **Experimental** | Deliberately deferred out of MVP scope; partial primitives exist (privacy level storage, nonce checks) but are not product-complete. |
+| Custom nonces/signatures, on-chain X-Ray privacy, hook registry | — | **Experimental** | Deliberately deferred out of MVP scope; partial primitives exist (privacy level storage, nonce checks) but are not product-complete. |
 | M-of-N multisig governance | `.kiro/specs/governance-model-v1` | **Experimental** | Requirements-stage spec only; the deployed contract still uses single-admin + role separation. |
 | SAC asset compatibility matrix | `.kiro/specs/sac-asset-compatibility-matrix` | **Experimental** | Spec formalizes existing `SUPPORTED_ASSETS` validation; not yet implemented as specified. |
 

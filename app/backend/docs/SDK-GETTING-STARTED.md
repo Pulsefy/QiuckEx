@@ -660,7 +660,7 @@ app.post('/webhooks/quickex', (req, res) => {
 | `POST` | `/links/recurring/:id/pause` | Pause recurring link |
 | `POST` | `/links/recurring/:id/resume` | Resume recurring link |
 | `GET` | `/links/recurring/:id/executions` | Execution history |
-| `POST` | `/links/scan` | Scan link for scams |
+| `POST` | `/scam-alerts/scan` | Scan link for scams |
 | `GET` | `/transactions` | List transactions |
 | `POST` | `/transactions/compose` | Compose Soroban tx |
 | `GET` | `/payments/recent` | Recent payments |

@@ -19,6 +19,7 @@ import { useContractRegistry } from "../hooks/useContractRegistry";
 import { ErrorState } from "@/components/resilience/error-state";
 import { useSession } from "../contexts/SessionContext";
 import { resolveSwappableAssets } from "../services/swappable-assets";
+import { API_URL } from "../src/config/build";
 import { NetworkMismatchGuard } from "@/components/wallet/NetworkMismatchGuard";
 import { WalletSwitchHelpModal } from "@/components/wallet/WalletSwitchHelpModal";
 
@@ -28,7 +29,12 @@ export default function PaymentConfirmationScreen() {
   const { theme } = useTheme();
   const { isConnected } = useNetworkStatus();
   const { authenticateForSensitiveAction } = useSecurity();
-  const backendUrl = process.env.EXPO_PUBLIC_API_URL || "https://api.quickex.com";
+  // Single source of truth for the backend base URL: extra.apiUrl (injected by
+  // app.config.ts) -> EXPO_PUBLIC_API_URL -> http://localhost:4000. Importing the
+  // shared constant keeps this screen aligned with every other mobile service;
+  // the previous local fallback hardcoded https://api.quickex.com, a .com host
+  // that does not resolve to QuickEx infrastructure.
+  const backendUrl = API_URL;
   const {
     isReady,
     error: registryError,

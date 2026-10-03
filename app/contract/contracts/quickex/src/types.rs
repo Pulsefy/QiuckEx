@@ -50,12 +50,25 @@ pub struct EscrowEntry {
     /// A value of `0` means the escrow never expires (no timeout).
     pub expires_at: u64,
     /// Optional single arbiter address for dispute resolution (legacy).
+    ///
+    /// `None` for an escrow created by `deposit_multi_sig`, which names its
+    /// arbiters in `arbiters` instead.
     pub arbiter: Option<Address>,
-    /// Array of arbiter addresses for multi-sig dispute resolution.
+    /// Ordered set of arbiter addresses for multi-sig dispute resolution.
+    ///
+    /// Populated only by [`crate::escrow::deposit_multi_sig`], which rejects an
+    /// empty set, more than [`crate::dispute_quorum::MAX_ARBITERS`] entries, and
+    /// duplicate addresses. Empty means single-arbiter mode.
     pub arbiters: Vec<Address>,
     /// Threshold: number of arbiter votes required to resolve a dispute (M-of-N).
     /// A value of 0 means single-arbiter mode (uses `arbiter` field).
-    /// A value > 0 means multi-sig mode (uses `arbiters` array).
+    /// A value > 0 means multi-sig mode (uses `arbiters` array) and is bounded
+    /// to `1..=arbiters.len()` at deposit time.
+    ///
+    /// Note that the *effective* quorum is the per-dispute snapshot frozen
+    /// from [`crate::dispute_quorum::DisputeQuorumConfig`] when the dispute
+    /// opens, clamped to `arbiters.len()`; this field is the depositor's
+    /// M-of-N declaration and the mode switch the dispute entrypoints gate on.
     pub arbiter_threshold: u32,
 }
 

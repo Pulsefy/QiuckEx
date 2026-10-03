@@ -30,7 +30,7 @@ describe("NotificationsController", () => {
   });
 
   describe("getInApp", () => {
-    it("returns notifications for the authenticated user", async () => {
+    it("returns notifications for the authenticated user as a plain array", async () => {
       const req = {
         user: {
           publicKey: "GTEST123",
@@ -40,8 +40,14 @@ describe("NotificationsController", () => {
       const notifications = [
         {
           id: "1",
-          title: "Notification",
+          publicKey: "GTEST123",
+          eventType: "payment_received",
+          eventId: "evt_123",
+          title: "Payment Received",
+          body: "You received 100 XLM",
           read: false,
+          metadata: { amount: "100", asset: "XLM" },
+          createdAt: "2026-09-27T17:18:50Z",
         },
       ];
 
@@ -50,8 +56,25 @@ describe("NotificationsController", () => {
       const result = await controller.getInApp(req, 1, 20);
 
       expect(mockRepo.findByUser).toHaveBeenCalledWith("GTEST123", 1, 20);
-
       expect(result).toEqual(notifications);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).not.toHaveProperty("data");
+      expect(result).not.toHaveProperty("error");
+    });
+
+    it("returns empty array when no notifications exist", async () => {
+      const req = {
+        user: {
+          publicKey: "GTEST123",
+        },
+      };
+
+      mockRepo.findByUser.mockResolvedValue([]);
+
+      const result = await controller.getInApp(req, 1, 20);
+
+      expect(result).toEqual([]);
+      expect(Array.isArray(result)).toBe(true);
     });
   });
 

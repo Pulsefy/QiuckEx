@@ -11,15 +11,33 @@
 //!
 //! ## Arbiter fee split
 //!
-//! When a per-asset config sets `arbiter_bps > 0` **and** an arbiter address is
-//! provided to [`route_payout`], a proportional share of the fee is transferred
-//! to the arbiter. The remainder goes to the active collector.
+//! When a per-asset config sets `arbiter_bps > 0` **and** at least one arbiter
+//! beneficiary is supplied, a proportional share of the fee is transferred to
+//! the arbiters. The remainder goes to the active collector.
 //!
 //! Example: `fee_bps = 200`, `arbiter_bps = 2000`, `amount = 10_000`:
 //! - Total fee: 200 (2%)
 //! - Arbiter portion: 200 × 20% = 40
 //! - Collector portion: 200 − 40 = 160
 //! - Net to recipient: 9_800
+//!
+//! ### Who the arbiters are
+//!
+//! The caller of the routing entry point decides, and the two paths differ
+//! because their authority models differ:
+//!
+//! - **Single-arbiter** ([`route_payout_price_aware`]) takes
+//!   one `Option<&Address>`: the arbiter who authorized the resolution.
+//! - **Multi-arbiter** ([`route_payout_price_aware_split`]) takes a *set* and
+//!   divides the arbiter portion equally among them. `resolve_dispute_multi_sig`
+//!   uses this: the settlement is permissionless, so the fee is owed to the
+//!   set of arbiters whose fresh votes decided the outcome rather than to
+//!   whoever happened to submit the resolving transaction (Issue #1005).
+//!
+//! Equal division is floor-rounded per arbiter and the division remainder is
+//! deliberately left with the platform, so `net_payout + arbiter_paid +
+//! platform_fee == amount` holds exactly on every path — a small fee spread
+//! across many arbiters pays them 0 rather than inventing value.
 //!
 //! ## Collector rotation
 //!
@@ -41,7 +59,7 @@
 //! native XLM and SAC tokens.
 
 use crate::{fee, storage};
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, Env, Vec};
 
 // ---------------------------------------------------------------------------
 // Resolution helpers
@@ -92,78 +110,89 @@ pub fn rotate_collector(env: &Env, new_collector: &Address) -> u32 {
 // Core routing
 // ---------------------------------------------------------------------------
 
-/// Route a settled payout, applying per-asset fees, arbiter splits, and
-/// collector rotation in a single atomic operation.
+/// Pay out `amount` for a settlement whose `total_fee` the caller has already
+/// computed, splitting the fee between `arbiters` and the active collector.
 ///
-/// Performs all token transfers from `env.current_contract_address()`:
-/// - Net payout → `recipient`
-/// - Arbiter portion of fee → `arbiter` (if `arbiter_bps > 0` and `arbiter` provided)
-/// - Platform portion of fee → active collector (if set)
+/// Every routing entry point funnels through here so the conservation
+/// invariant — `net_payout + arbiter_paid + platform_fee == amount` — holds
+/// identically on the single-arbiter, multi-arbiter, and no-arbiter paths.
 ///
-/// Returns `(net_payout, total_fee)`.
+/// `arbiters` is the beneficiary set: empty means the platform keeps the whole
+/// fee, one entry reproduces the single-arbiter split exactly, and N entries
+/// divide the arbiter portion equally (see [`route_payout_price_aware_split`]).
 ///
-/// # Arguments
-/// * `token`     — Token contract address (XLM or SAC)
-/// * `recipient` — Beneficiary of the net payout
-/// * `amount`    — Gross amount to distribute (must be > 0)
-/// * `arbiter`   — Optional arbiter address for fee split
-///
-/// # Safety
-/// If `amount <= 0`, returns `(amount, 0)` without any transfers.
-#[allow(dead_code)]
-pub fn route_payout(
+/// Returns the net payout transferred to `recipient`.
+fn distribute_payout(
     env: &Env,
-    token: &Address,
+    token_addr: &Address,
     recipient: &Address,
     amount: i128,
-    arbiter: Option<&Address>,
-) -> (i128, i128) {
-    if amount <= 0 {
-        return (amount, 0);
-    }
-
-    // Resolve total fee using per-asset → oracle → global priority.
-    let total_fee = fee::calculate_fee_for_token(env, token, amount);
+    total_fee: i128,
+    arbiters: &Vec<Address>,
+) -> i128 {
+    let token_client = token::Client::new(env, token_addr);
     let net_payout = amount.saturating_sub(total_fee);
-
-    let token_client = token::Client::new(env, token);
     token_client.transfer(&env.current_contract_address(), recipient, &net_payout);
 
-    if total_fee > 0 {
-        let arbiter_bps = resolve_arbiter_bps(env, token);
-        let arbiter_fee = if arbiter_bps > 0 && arbiter.is_some() {
-            // Arbiter share is a proportion of the total fee (floor-rounded).
-            fee::fee_from_bps_floor(total_fee, arbiter_bps)
-        } else {
-            0
-        };
-        let platform_fee = total_fee.saturating_sub(arbiter_fee);
+    if total_fee <= 0 {
+        return net_payout;
+    }
 
-        if arbiter_fee > 0 {
-            if let Some(arb) = arbiter {
-                token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
-            }
-        }
+    // The arbiter pool is a proportion of the *total* fee, floor-rounded. With
+    // no beneficiaries there is nobody to owe, so the platform keeps it all.
+    let arbiter_pool = if arbiters.is_empty() {
+        0
+    } else {
+        fee::fee_from_bps_floor(total_fee, resolve_arbiter_bps(env, token_addr))
+    };
 
-        if platform_fee > 0 {
-            if let Some(collector) = active_collector(env) {
-                token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
-            } else {
-                // No collector configured: retain the platform portion in the
-                // contract as a queryable, admin-withdrawable accrued fee
-                // balance (Issue #866 / SC-W8-05) instead of leaving it
-                // silently unaccounted for in the contract's token balance.
-                storage::add_accrued_fee(env, token, platform_fee);
-            }
+    // Equal split, floor-rounded per beneficiary. The division remainder is
+    // intentionally not paid out: leaving it with the platform keeps the
+    // invariant exact and means a fee too small to divide pays the arbiters 0
+    // instead of overpaying them out of the platform's share.
+    let beneficiary_count = arbiters.len() as i128;
+    let per_arbiter = if arbiter_pool > 0 {
+        arbiter_pool / beneficiary_count
+    } else {
+        0
+    };
+    let arbiter_paid = per_arbiter.saturating_mul(beneficiary_count);
+    let platform_fee = total_fee.saturating_sub(arbiter_paid);
+
+    if per_arbiter > 0 {
+        for arbiter in arbiters.iter() {
+            token_client.transfer(&env.current_contract_address(), &arbiter, &per_arbiter);
         }
     }
 
-    (net_payout, total_fee)
+    if platform_fee > 0 {
+        if let Some(collector) = active_collector(env) {
+            token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
+        } else {
+            // No collector configured: retain the platform portion in the
+            // contract as a queryable, admin-withdrawable accrued fee
+            // balance (Issue #866 / SC-W8-05) instead of leaving it
+            // silently unaccounted for in the contract's token balance.
+            storage::add_accrued_fee(env, token_addr, platform_fee);
+        }
+    }
+
+    net_payout
+}
+
+/// Normalise the single-arbiter `Option<&Address>` into the beneficiary set
+/// [`distribute_payout`] takes, so both shapes share one implementation.
+fn single_arbiter_set(env: &Env, arbiter: Option<&Address>) -> Vec<Address> {
+    let mut set = Vec::new(env);
+    if let Some(addr) = arbiter {
+        set.push_back(addr.clone());
+    }
+    set
 }
 
 /// Price-aware payout routing with explicit oracle price validation.
 ///
-/// Same payout logic as [`route_payout`] but uses
+/// Uses
 /// [`calculate_fee_for_token_price_aware`](crate::fee::calculate_fee_for_token_price_aware)
 /// which REJECTS the transaction when an oracle fee config exists but no fresh
 /// price is available (rather than silently falling back to static bps).
@@ -184,38 +213,53 @@ pub fn route_payout_price_aware(
     }
 
     let total_fee = fee::calculate_fee_for_token_price_aware(env, token, amount)?;
-    let net_payout = amount.saturating_sub(total_fee);
+    let net_payout = distribute_payout(
+        env,
+        token,
+        recipient,
+        amount,
+        total_fee,
+        &single_arbiter_set(env, arbiter),
+    );
 
-    let token_client = token::Client::new(env, token);
-    token_client.transfer(&env.current_contract_address(), recipient, &net_payout);
+    Ok((net_payout, total_fee))
+}
 
-    if total_fee > 0 {
-        let arbiter_bps = resolve_arbiter_bps(env, token);
-        let arbiter_fee = if arbiter_bps > 0 && arbiter.is_some() {
-            fee::fee_from_bps_floor(total_fee, arbiter_bps)
-        } else {
-            0
-        };
-        let platform_fee = total_fee.saturating_sub(arbiter_fee);
-
-        if arbiter_fee > 0 {
-            if let Some(arb) = arbiter {
-                token_client.transfer(&env.current_contract_address(), arb, &arbiter_fee);
-            }
-        }
-
-        if platform_fee > 0 {
-            if let Some(collector) = active_collector(env) {
-                token_client.transfer(&env.current_contract_address(), &collector, &platform_fee);
-            } else {
-                // No collector configured: retain the platform portion in the
-                // contract as a queryable, admin-withdrawable accrued fee
-                // balance (Issue #866 / SC-W8-05) instead of leaving it
-                // silently unaccounted for in the contract's token balance.
-                storage::add_accrued_fee(env, token, platform_fee);
-            }
-        }
+/// Price-aware payout routing that divides the arbiter portion of the fee
+/// equally across a *set* of arbiters.
+///
+/// Used by multi-sig dispute resolution (Issue #1005). A single-arbiter
+/// resolution is performed by the arbiter themselves, so the fee is plainly
+/// owed to `Some(&caller)`. Multi-sig resolution is different: anyone may
+/// submit the resolving transaction once quorum is met, so paying the
+/// submitting caller would let an arbitrary address collect the arbiter fee.
+/// The fee is therefore owed to the arbiters whose fresh votes decided the
+/// outcome, and `resolve_dispute_multi_sig` passes exactly that set here.
+///
+/// An empty `arbiters` degrades to the platform taking the whole fee, exactly
+/// like passing `None` to [`route_payout_price_aware`].
+///
+/// # Arguments
+/// * `arbiters` — arbiter fee beneficiaries. Each receives
+///   `floor(arbiter_portion / arbiters.len())`; the division remainder stays
+///   with the platform. Callers MUST pass a duplicate-free set, or the same
+///   address would be paid once per occurrence.
+///
+/// # Errors
+/// Same as [`route_payout_price_aware`].
+pub fn route_payout_price_aware_split(
+    env: &Env,
+    token: &Address,
+    recipient: &Address,
+    amount: i128,
+    arbiters: &Vec<Address>,
+) -> Result<(i128, i128), crate::errors::QuickexError> {
+    if amount <= 0 {
+        return Ok((amount, 0));
     }
+
+    let total_fee = fee::calculate_fee_for_token_price_aware(env, token, amount)?;
+    let net_payout = distribute_payout(env, token, recipient, amount, total_fee, arbiters);
 
     Ok((net_payout, total_fee))
 }

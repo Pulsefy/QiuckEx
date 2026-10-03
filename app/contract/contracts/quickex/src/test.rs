@@ -356,7 +356,7 @@ fn event_data_map(env: &Env, data: Val) -> Map<Symbol, Val> {
 #[test]
 fn test_event_schema_catalog_locks_canonical_topics_and_payloads() {
     assert_eq!(EVENT_SCHEMA_VERSION, 4);
-    assert_eq!(EVENT_SCHEMAS.len(), 40);
+    assert_eq!(EVENT_SCHEMAS.len(), 41);
 
     let escrow_deposited = EVENT_SCHEMAS
         .iter()
@@ -4145,22 +4145,26 @@ fn test_multi_sig_vote_threshold_reached() {
     let amount: i128 = 5000;
     let salt = Bytes::from_slice(&env, b"multi_sig_salt");
 
-    // Create escrow with multi-sig arbiters (2-of-3)
+    // Create escrow with multi-sig arbiters (2-of-3) through the public
+    // deposit variant — no direct storage manipulation.
     let token_client = token::StellarAssetClient::new(&env, &token);
     token_client.mint(&owner, &amount);
-    // We need to manually create an escrow entry with multi-sig config
-    // For now, we'll test the vote and resolution logic directly
-    // This test assumes we have a way to create multi-sig escrows
-    // In production, this would be done via a new deposit function variant
-    // For testing purposes, we'll use the existing deposit and then manually
-    // update the storage to have multi-sig arbiters
-    let commitment = client.deposit(
+    let mut arbiters = soroban_sdk::Vec::new(&env);
+    for a in [
+        arbiter1.clone(),
+        Address::generate(&env),
+        Address::generate(&env),
+    ] {
+        arbiters.push_back(a);
+    }
+    let commitment = client.deposit_multi_sig(
         &token,
         &amount,
         &owner,
         &salt,
         &1000,
-        &Some(arbiter1),
+        &arbiters,
+        &2u32,
         &0u64,
         &u64::MAX,
     );
@@ -4170,9 +4174,10 @@ fn test_multi_sig_vote_threshold_reached() {
         client.get_commitment_state(&commitment),
         Some(EscrowStatus::Disputed)
     );
-    // Note: Full multi-sig testing requires updating the deposit functions
-    // to accept arbiters array and threshold. The core logic is implemented
-    // and tested via the escrow module functions directly.
+    // The escrow is now in multi-sig mode, so `vote_for_dispute` no longer
+    // rejects it with `NoArbiter`.
+    let vote = client.try_vote_for_dispute(&arbiter1, &commitment, &true, &0u64, &u64::MAX);
+    assert!(vote.is_ok());
 }
 
 #[test]

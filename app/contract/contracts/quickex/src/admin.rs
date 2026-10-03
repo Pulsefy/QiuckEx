@@ -2,8 +2,8 @@ use crate::errors::QuickexError;
 use crate::events::{
     publish_admin_changed, publish_admin_transfer_accepted, publish_admin_transfer_cancelled,
     publish_admin_transfer_proposed, publish_contract_initialized, publish_contract_migrated,
-    publish_contract_paused, publish_fee_collector_rotated, publish_fee_withdrawn,
-    publish_per_asset_fee_set, publish_upgrade_completed, publish_upgrade_started,
+    publish_fee_collector_rotated, publish_fee_withdrawn, publish_per_asset_fee_set,
+    publish_upgrade_completed, publish_upgrade_started,
 };
 use crate::fee;
 use crate::fee_router;
@@ -246,27 +246,6 @@ pub fn cancel_admin_transfer(env: &Env, caller: Address) -> Result<(), QuickexEr
 /// Get the currently pending admin-transfer proposal, if any.
 pub fn get_pending_admin_transfer(env: &Env) -> Option<PendingAdminProposal> {
     storage::get_pending_admin_proposal(env)
-}
-
-/// Set the paused state (**Admin or Operator only**).
-#[allow(dead_code)]
-pub fn set_paused(
-    env: &Env,
-    caller: Address,
-    new_state: bool,
-    reason: u32,
-) -> Result<(), QuickexError> {
-    require_any_role(env, &caller, &[Role::Admin, Role::Operator])?;
-
-    storage::set_paused(env, new_state, reason);
-    publish_contract_paused(env, caller.clone(), new_state, reason);
-
-    if new_state {
-        crate::events::publish_pause_enabled(env, caller, true, 0, reason);
-    } else {
-        crate::events::publish_pause_disabled(env, caller, true, 0, reason);
-    }
-    Ok(())
 }
 
 /// Check if the contract is paused.

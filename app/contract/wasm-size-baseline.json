@@ -1,7 +1,7 @@
 {
   "kind": "quickex-wasm-size-baseline-v1",
-  "baseline_bytes": 187824,
+  "baseline_bytes": 206165,
   "tolerance_pct": 5,
-  "updated_at": "2026-09-24",
-  "note": "Baseline release WASM size (bytes) for contracts/quickex, built with `cargo build -p quickex --target wasm32v1-none --release`. CI fails when the built WASM exceeds baseline_bytes * (1 + tolerance_pct / 100). Raise baseline_bytes only in a dedicated, reviewable PR that explains the size growth. 2026-09-24 (SC-W7-05 / #669): +13,340 bytes for HookInvocationFailed/HookInvocationSkipped event types, HookFailureReason enum, and their publish/classification logic in hook.rs."
+  "updated_at": "2026-09-28",
+  "note": "Baseline release WASM size (bytes) for contracts/quickex, built with `cargo build -p quickex --target wasm32v1-none --release`. CI fails when the built WASM exceeds baseline_bytes * (1 + tolerance_pct / 100). Raise baseline_bytes only in a dedicated, reviewable PR that explains the size growth. 2026-09-24 (SC-W7-05 / #669): +13,340 bytes for HookInvocationFailed/HookInvocationSkipped event types, HookFailureReason enum, and their publish/classification logic in hook.rs. 2026-09-28 (#1007): +18,341 bytes for exposing the batch escrow module as callable entrypoints (BatchCreateItem/BatchReleaseItem/BatchRefundItem/BatchItemResult types, authorize_distinct, per-item error propagation, and the new ActionType/EntryPoint variants), which routes every batch item through the shared deposit_item/withdraw_item/refund_item bodies."
 }

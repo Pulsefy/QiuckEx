@@ -34,8 +34,19 @@
 //! Voting itself closes at the snapshot's `deadline`
 //! ([`QuickexError::InvalidDisputeState`]) so arbiters get immediate
 //! feedback instead of casting a vote that silently never counts.
+//!
+//! ## Reachability
+//!
+//! The multi-sig surface (`vote_for_dispute`, `resolve_dispute_multi_sig`,
+//! `resolve_dispute_timeout`, and the snapshot machinery here) is reachable
+//! end-to-end from a public entrypoint: `deposit_multi_sig`
+//! ([`crate::escrow::deposit_multi_sig`]) is the only path that writes a
+//! non-empty `EscrowEntry.arbiters` with a non-zero `arbiter_threshold`, and
+//! it validates the set through [`validate_arbiter_set`] before writing. A
+//! dispute opened on such an escrow freezes its snapshot from the live
+//! policy in `dispute()`, exactly as described above.
 
-use soroban_sdk::{contracttype, Bytes, Env};
+use soroban_sdk::{contracttype, Address, Bytes, Env, Vec};
 
 use crate::{
     errors::QuickexError,
@@ -51,6 +62,17 @@ pub const MIN_QUORUM: u32 = 1;
 
 /// Absolute maximum quorum an admin may configure.
 pub const MAX_QUORUM: u32 = 15;
+
+/// Absolute maximum arbiters that may be assigned to a single multi-sig
+/// escrow at creation time.
+///
+/// The cap is intentionally tied to [`MAX_QUORUM`]: the frozen snapshot
+/// clamps the configured quorum to `arbiters.len()`, so a group larger than
+/// the largest configurable quorum could never raise its own threshold above
+/// the admin policy anyway. It also bounds the storage and iteration cost of
+/// `arbiters`, which is walked on every `dispute` open, `vote_for_dispute`,
+/// and `resolve_dispute_multi_sig` tally.
+pub const MAX_ARBITERS: u32 = 15;
 
 /// Default quorum when no config has ever been set.
 pub const DEFAULT_QUORUM: u32 = 2;
@@ -121,6 +143,55 @@ pub fn set_quorum_config(env: &Env, config: DisputeQuorumConfig) -> Result<(), Q
         LEDGER_THRESHOLD,
         SIX_MONTHS_IN_LEDGERS,
     );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Per-escrow arbiter set
+// ---------------------------------------------------------------------------
+
+/// Validate a multi-sig escrow's arbiter set and threshold at creation time.
+///
+/// Called by [`crate::escrow::deposit_multi_sig`] before any state is written,
+/// so a malformed arbiter set can never reach storage. Every failure reuses
+/// [`QuickexError::QuorumOutOfBounds`] — the arbiter set *is* the dispute's
+/// quorum configuration, and the error enum is already at the Soroban
+/// 50-variant ceiling (see [`crate::errors`]).
+///
+/// Enforced rules:
+///
+/// 1. **Non-empty** — `arbiters.len() >= 1`. An empty set leaves the escrow
+///    with no way to ever resolve a dispute.
+/// 2. **Bounded** — `arbiters.len() <= [`MAX_ARBITERS`]`, for gas/storage
+///    sanity and so a group can never exceed the configurable quorum range.
+/// 3. **Threshold in range** — `1 <= arbiter_threshold <= arbiters.len()`.
+///    `0` means single-arbiter mode and belongs on the `arbiter` field, not
+///    here; a threshold above the voter count could never be met.
+/// 4. **No duplicates** — every address appears at most once. Votes are
+///    stored per address, so a duplicated entry would let a single arbiter's
+///    one vote be counted twice and meet an M-of-N quorum alone.
+pub fn validate_arbiter_set(
+    arbiters: &Vec<Address>,
+    arbiter_threshold: u32,
+) -> Result<(), QuickexError> {
+    let count = arbiters.len();
+    if count == 0 || count > MAX_ARBITERS {
+        return Err(QuickexError::QuorumOutOfBounds);
+    }
+    if arbiter_threshold == 0 || arbiter_threshold > count {
+        return Err(QuickexError::QuorumOutOfBounds);
+    }
+
+    // O(n^2) duplicate scan: n is bounded by MAX_ARBITERS, so this is
+    // cheaper than allocating a second host collection.
+    let mut seen: Vec<Address> = Vec::new(arbiters.env());
+    for arbiter in arbiters.iter() {
+        if seen.iter().any(|existing| existing == arbiter) {
+            return Err(QuickexError::QuorumOutOfBounds);
+        }
+        seen.push_back(arbiter);
+    }
+
     Ok(())
 }
 

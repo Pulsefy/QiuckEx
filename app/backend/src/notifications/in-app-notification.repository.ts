@@ -2,6 +2,7 @@
 
 import { Injectable } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
+import { InAppNotification } from "./entities/in-app-notification.entity";
 
 @Injectable()
 export class InAppNotificationRepository {
@@ -39,7 +40,7 @@ export class InAppNotificationRepository {
     page = 1,
     limit = 20,
     previewScope?: string,
-  ) {
+  ): Promise<InAppNotification[]> {
     let query = this.db
       .getClient()
       .from("in_app_notifications")
@@ -52,9 +53,15 @@ export class InAppNotificationRepository {
       query = query.is("preview_scope", null);
     }
 
-    return query
+    const { data, error } = await query
       .range((page - 1) * limit, page * limit - 1)
       .order("createdAt", { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch notifications: ${error.message}`);
+    }
+
+    return (data as InAppNotification[]) ?? [];
   }
 
   async markAsRead(publicKey: string, id: string) {

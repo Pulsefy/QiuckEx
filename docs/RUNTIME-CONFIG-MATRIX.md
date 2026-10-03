@@ -156,7 +156,7 @@ Runtime:
 | # | Issue | Location | Impact | Fix |
 |---|---|---|---|---|
 | 1 | **Mobile services default to `localhost:3000`** (frontend port, not `:4000`) | `build.ts:14`, `transactions.ts:12`, `link-metadata.ts:11`, `in-app-notifications.ts:10`, `link-generator.tsx:26`, `app.config.ts:50` | Local mobile dev silently fails against local backend | Change all fallbacks to `http://localhost:4000` |
-| 2 | **`payment-confirmation.tsx` falls back to `api.quickex.com`** (`.com` vs `.to`) | `payment-confirmation.tsx:29` | Production mobile builds would hit a non-existent domain | Change to `https://api.quickex.to` or remove fallback |
+| 2 | ✅ **Resolved** — ~~`payment-confirmation.tsx` falls back to `api.quickex.com` (`.com` vs `.to`)~~ The screen no longer derives its own URL: it imports the shared `API_URL` from `src/config/build.ts` | `payment-confirmation.tsx` | ~~Production mobile builds would hit a non-existent domain~~ — a build with `EXPO_PUBLIC_API_URL` unset resolved to the dead `api.quickex.com` host | Done: imports the shared `API_URL` constant (`extra.apiUrl` → `EXPO_PUBLIC_API_URL` → `http://localhost:4000`), so it can never re-derive the wrong host |
 | 3 | **Mobile contract registry calls `/api/contracts/registry`** (wrong prefix) | `contract-registry.ts:25` | Escrow registry sync 404s on payment-confirmation screen | Drop the `/api` prefix |
 | 4 | **`vercel.json` hardcodes production URLs for all deployments** | `vercel.json:7-28` | Preview deployments get production API URLs unless dashboard-overridden | Remove `env` from `vercel.json`; set in Vercel dashboard per-environment |
 
@@ -238,7 +238,7 @@ AsyncStorage.getItem('@selected_environment')
 | Priority | Action | Tracks |
 |---|---|---|
 | P0 | Fix mobile fallback `localhost:3000` → `localhost:4000` (6 service files + `app.config.ts`) | #1, #9 |
-| P0 | Fix `payment-confirmation.tsx` `.com` → `.to` | #2 |
+| ~~P0~~ ✅ | ~~Fix `payment-confirmation.tsx` `.com` → `.to`~~ — resolved: the screen now imports the shared `API_URL` constant | ~~#2~~ Done |
 | P0 | Fix mobile contract registry path | #3 |
 | P0 | Remove hardcoded env from `vercel.json`; use Vercel dashboard per-environment | #4 |
 | P1 | Drive mobile environments from build-time `extra` not source-code map | #5 |

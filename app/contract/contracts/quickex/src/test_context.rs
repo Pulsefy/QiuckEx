@@ -30,7 +30,7 @@ use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token,
     xdr::ToXdr,
-    Address, Bytes, BytesN, Env,
+    Address, Bytes, BytesN, Env, Vec,
 };
 
 use crate::{types::FeeConfig, QuickexContract, QuickexContractClient};
@@ -169,6 +169,41 @@ impl<'a> TestContext<'a> {
             &self.salt(salt),
             &timeout_secs,
             &Some(self.arbiter.clone()),
+            &Self::TEST_DEPOSIT_NONCE,
+            &Self::TEST_DEPOSIT_VALID_UNTIL,
+        )
+    }
+
+    /// Mint tokens then deposit with an M-of-N arbiter set via the public
+    /// `deposit_multi_sig` entrypoint — the only way to create an escrow that
+    /// `vote_for_dispute` / `resolve_dispute_multi_sig` can act on.
+    ///
+    /// `arbiters` must satisfy the on-chain bounds
+    /// (`1..=MAX_ARBITERS`, no duplicates, `1 <= arbiter_threshold <= len`);
+    /// tests that need to exercise the rejected cases call
+    /// `client.deposit_multi_sig` directly.
+    pub fn deposit_with_arbiters(
+        &self,
+        owner: &Address,
+        amount: i128,
+        salt: &[u8],
+        timeout_secs: u64,
+        arbiters: &[Address],
+        arbiter_threshold: u32,
+    ) -> BytesN<32> {
+        self.mint(owner, amount);
+        let mut arbiters_vec = Vec::new(&self.env);
+        for arbiter in arbiters {
+            arbiters_vec.push_back(arbiter.clone());
+        }
+        self.client.deposit_multi_sig(
+            &self.token,
+            &amount,
+            owner,
+            &self.salt(salt),
+            &timeout_secs,
+            &arbiters_vec,
+            &arbiter_threshold,
             &Self::TEST_DEPOSIT_NONCE,
             &Self::TEST_DEPOSIT_VALID_UNTIL,
         )

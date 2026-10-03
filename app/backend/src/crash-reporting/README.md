@@ -8,7 +8,7 @@ The Crash Reporting module provides opt-in crash and log capture with strict red
 
 - **Opt-in by default**: Users must explicitly enable crash reporting
 - **Strict redaction**: Automatically removes secrets, keys, and PII from all captured data
-- **Log capture**: Captures the last 100 log lines before a crash
+- **Log capture**: Captures the last 100 log lines of the *current request* before a crash (per-request buffer, never shared between users — #1063)
 - **Export functionality**: Users can export their logs for support
 - **Privacy-first**: No sensitive data is ever stored or transmitted
 
@@ -20,16 +20,17 @@ The Crash Reporting module provides opt-in crash and log capture with strict red
 2. **CrashReportingService**: Main service for capturing crashes and managing settings
 3. **CrashReportingRepository**: Data persistence layer
 4. **CrashCaptureFilter**: Global exception filter that automatically captures crashes
-5. **LogCaptureInterceptor**: Interceptor that captures log lines
+5. **LogCaptureMiddleware**: Opens a separate log buffer for every request (AsyncLocalStorage, `log-capture.context.ts`)
+6. **LogCaptureInterceptor**: Interceptor that captures log lines into the current request's buffer
 
 ### Data Flow
 
 ```
-Request → LogCaptureInterceptor → Controller → Service
+Request → LogCaptureMiddleware (new buffer) → LogCaptureInterceptor → Controller → Service
                 ↓                                  ↓
          Capture log line                    Exception thrown
                 ↓                                  ↓
-         Log buffer                    CrashCaptureFilter
+   Per-request log buffer              CrashCaptureFilter
                 ↓                                  ↓
          (stored in memory)            Check user opt-in
                                                    ↓
@@ -230,22 +231,34 @@ import { CrashCaptureFilter } from './crash-reporting/crash-capture.filter';
 export class AppModule {}
 ```
 
-### Register Global Interceptor (Optional)
+### Per-request log capture (#1063)
+
+`CrashReportingModule` registers both pieces itself — do **not** add
+`LogCaptureInterceptor` to `AppModule` as well, or every line is captured twice:
+
+- `LogCaptureMiddleware` (applied to all routes) opens a fresh, empty log
+  buffer for each HTTP request using `AsyncLocalStorage`. The buffer follows the
+  request through guards, interceptors, the handler and `CrashCaptureFilter`.
+- `LogCaptureInterceptor` (registered with `APP_INTERCEPTOR`) writes the
+  request/response lines into that buffer.
+
+`captureCrash` and `exportLogs` only ever read the current request's buffer, so
+a crash report or export can never contain another user's concurrent request
+data. There is no process-wide buffer: `captureLogLine` calls made outside a
+request (bootstrap, schedulers) are dropped. Background work that wants its own
+lines attached to a crash report can wrap itself in `runWithLogScope()`:
 
 ```typescript
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { LogCaptureInterceptor } from './crash-reporting/log-capture.interceptor';
+import { runWithLogScope } from './crash-reporting';
 
-@Module({
-  providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: LogCaptureInterceptor,
-    },
-  ],
-})
-export class AppModule {}
+await runWithLogScope(async () => {
+  crashReportingService.captureLogLine('nightly job started');
+  await doWork(); // a captureCrash() in here sees only this job's lines
+});
 ```
+
+Redaction is unchanged: the same `RedactionService.redactLogLines` runs over the
+per-request buffer.
 
 ## Acceptance Criteria
 
@@ -257,7 +270,7 @@ export class AppModule {}
 ✅ **Users can export logs for support when opted-in**
 - Export endpoint requires opt-in
 - Returns redacted logs and crash reports
-- Includes current log buffer and historical crash reports
+- Includes the current request's log buffer and historical crash reports
 
 ✅ **Feature is disabled by default**
 - Users must explicitly opt-in via settings

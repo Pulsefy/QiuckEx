@@ -3,12 +3,16 @@
 //! # State Machine
 //!
 //! ```text
-//! [*] --> Pending  : deposit() / deposit_with_commitment()
+//! [*] --> Pending  : deposit() / deposit_with_commitment() / deposit_multi_sig()
 //! Pending --> Spent    : withdraw(proof)  [current_time < expires_at OR no expiry]
 //! Pending --> Refunded : refund(owner)    [current_time >= expires_at]
 //! Pending --> Disputed : dispute()        [any participant can call]
 //! Disputed --> Spent   : resolve_dispute() [arbiter decides for recipient]
 //! Disputed --> Refunded: resolve_dispute() [arbiter decides for owner]
+//!
+//! Multi-sig escrow (created by deposit_multi_sig, arbiter_threshold > 0):
+//! Disputed --> Spent/Refunded: resolve_dispute_multi_sig()  [fresh votes >= quorum]
+//! Disputed --> Refunded: resolve_dispute_timeout()         [deadline passed, quorum missed]
 //! ```
 //!
 //! # Time-lock Invariants
@@ -40,6 +44,12 @@
 //!   Once status is `Spent` or `Refunded`, no further state transitions are
 //!   permitted. All entry points check this before any other logic.
 //!
+//! **INV-6 (Multi-sig is quorum-only):**
+//!   An escrow with `arbiter_threshold > 0` can only leave `Disputed` through
+//!   `resolve_dispute_multi_sig` or `resolve_dispute_timeout`. `resolve_dispute`
+//!   refuses it even for a caller holding the global `Arbiter` role, so no
+//!   single address can settle a dispute the depositor required a quorum for.
+//!
 //! ## Asset Type Handling
 //!
 //! This module supports both Native XLM and Stellar Asset Contract (SAC) tokens:
@@ -57,8 +67,31 @@
 //! - `refund` fails with [`EscrowNotExpired`] if `expires_at == 0` or `now < expires_at`.
 //! - Both fail with [`AlreadySpent`] if status is not `Pending`.
 //! - `refund` fails with [`InvalidOwner`] if caller ≠ `entry.owner`.
-//! - `dispute` requires an assigned arbiter and `Pending` status.
-//! - `resolve_dispute` can only be called by the assigned arbiter.
+//! - `dispute` requires an assigned arbitration authority: a single `arbiter`,
+//!   or a non-empty `arbiters` set in multi-sig mode (`arbiter_threshold > 0`).
+//! - `resolve_dispute` can only be called by the assigned arbiter, and never
+//!   for a multi-sig escrow (INV-6).
+//!
+//! # Arbiter fee on dispute resolution
+//!
+//! A dispute resolved *for the recipient* pays a fee, and when the escrow's
+//! token has a per-asset `arbiter_bps > 0` config, part of that fee is owed to
+//! the arbiters. Resolving *for the owner* is a refund and always charges no
+//! fee, on both the single- and multi-sig paths (as does
+//! `resolve_dispute_timeout`, which only ever resolves for the owner).
+//!
+//! Who is owed differs only because the two resolution paths have different
+//! authority models:
+//!
+//! | Path | Authority model | Arbiter fee recipient |
+//! |------|-----------------|-----------------------|
+//! | [`resolve_dispute`] | Arbiter-gated; caller is necessarily the authorized arbiter | The calling arbiter, whole share |
+//! | [`resolve_dispute_multi_sig`] | Permissionless; any address may submit once quorum is met | The arbiters whose fresh votes decided the outcome, split equally |
+//!
+//! In both cases the rule is the same: the fee goes to the arbiters that
+//! decided the case. It cannot be the submitting caller in the multi-sig case —
+//! there is no arbiter behind that address, so paying it would let anyone
+//! front-run a resolution to collect the fee.
 
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, Vec};
 
@@ -126,9 +159,155 @@ fn compute_expires_at(env: &Env, timeout_secs: u64) -> Result<u64, QuickexError>
     Ok(expires_at)
 }
 
+/// Whether the caller has already satisfied `require_auth` for an address
+/// within the current invocation frame.
+///
+/// Soroban authorizes an `(address, contract)` pair at most once per frame and
+/// fails the second attempt with `Auth(ExistingValue)` ("frame is already
+/// authorized"). A batch therefore cannot simply call `require_auth` per item:
+/// two items owned by the same address would abort. The batch entry points
+/// instead authorize every *distinct* address exactly once, up front — before
+/// any state is mutated — and then run each item with [`AuthMode::Recorded`].
+///
+/// Collecting authorization up front also means a missing signature fails the
+/// whole transaction before any token has moved, rather than part-way through.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AuthMode {
+    /// The shared body must call `require_auth` for this address.
+    Required,
+    /// The enclosing entry point already recorded auth for this address in
+    /// this frame.
+    Recorded,
+}
+
 // ---------------------------------------------------------------------------
 // deposit
 // ---------------------------------------------------------------------------
+
+/// Shared tail for every deposit variant: write the entry, pull the funds,
+/// emit `EscrowDeposited`, and fire the `Create` hook.
+///
+/// All four deposit entrypoints funnel through here so the storage write,
+/// the token transfer, the event payload, and the hook call can never drift
+/// apart between the single-arbiter and multi-sig paths.
+///
+/// `transfer_amount` is the amount actually pulled from `owner` (the initial
+/// payment for a partially funded escrow); `entry.amount_due` and
+/// `entry.amount_paid` carry the amounts the event reports.
+fn commit_new_escrow(
+    env: &Env,
+    entry: EscrowEntry,
+    commitment: &BytesN<32>,
+    owner: Address,
+    transfer_amount: i128,
+) {
+    let token_address = entry.token.clone();
+    let commitment_bytes: Bytes = commitment.clone().into();
+
+    put_escrow(env, &commitment_bytes, &entry);
+
+    let token_client = token::Client::new(env, &token_address);
+    token_client.transfer(&owner, env.current_contract_address(), &transfer_amount);
+
+    events::publish_escrow_deposited(
+        env,
+        commitment.clone(),
+        owner.clone(),
+        token_address.clone(),
+        entry.amount_due,
+        entry.amount_paid,
+        entry.expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        commitment,
+        owner,
+        token_address,
+        transfer_amount,
+        0,
+    );
+}
+
+/// Shared per-item body for every deposit variant — the single source of truth
+/// for "validate → derive commitment → write entry → pull funds → emit → hook".
+///
+/// Both the single-item [`deposit`] and the batched `batch::batch_create` call
+/// this, so the storage write, the token transfer, the event payload, and the
+/// hook invocation can never drift apart between the two. `action` supplies the
+/// domain-separation tag for the replay-protection nonce, so a signature minted
+/// for a single deposit can never be replayed against a batch (or vice versa).
+///
+/// Returns the escrow commitment on success.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn deposit_item(
+    env: &Env,
+    token: Address,
+    amount: i128,
+    owner: Address,
+    salt: Bytes,
+    timeout_secs: u64,
+    arbiter: Option<Address>,
+    nonce_val: u64,
+    valid_until: u64,
+    action: ActionType,
+    auth: AuthMode,
+) -> Result<BytesN<32>, QuickexError> {
+    if amount <= 0 {
+        return Err(QuickexError::InvalidAmount);
+    }
+
+    if auth == AuthMode::Required {
+        owner.require_auth();
+    }
+
+    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, action)?;
+
+    // INV-3: validated, overflow-safe expiry computation
+    let expires_at = compute_expires_at(env, timeout_secs)?;
+
+    // Issue #304: deterministic escrow id over the full creation payload.
+    // If an identical request has already been recorded, return the
+    // existing commitment instead of creating a duplicate escrow.
+    let escrow_id =
+        escrow_id::derive_escrow_id(env, &token, amount, &owner, &salt, timeout_secs, &arbiter)?;
+    if let Some(existing) = get_escrow_id_mapping(env, &escrow_id) {
+        return Ok(existing);
+    }
+
+    let (commitment, legacy_commitment) =
+        commitment::amount_commitment_hashes(env, &owner, amount, &salt)?;
+    let now = env.ledger().timestamp();
+
+    let commitment_bytes: Bytes = commitment.clone().into();
+    if has_escrow(env, &commitment_bytes) {
+        return Err(QuickexError::CommitmentAlreadyExists);
+    }
+    if legacy_commitment != commitment {
+        let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+        if has_escrow(env, &legacy_commitment_bytes) {
+            return Err(QuickexError::CommitmentAlreadyExists);
+        }
+    }
+    let entry = EscrowEntry {
+        token, // moved
+        amount_due: amount,
+        amount_paid: amount, // Initial payment is the full amount
+        owner: owner.clone(),
+        status: EscrowStatus::Pending,
+        created_at: now,
+        expires_at,
+        arbiter,
+        arbiters: Vec::new(env),
+        arbiter_threshold: 0,
+    };
+
+    put_escrow_id_mapping(env, &escrow_id, &commitment);
+    commit_new_escrow(env, entry, &commitment, owner, amount);
+
+    Ok(commitment)
+}
 
 /// Deposit funds and create an escrow entry keyed by `SHA256(owner || amount_due || salt)`.
 ///
@@ -154,82 +333,19 @@ pub fn deposit(
     nonce_val: u64,
     valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
-    if amount <= 0 {
-        return Err(QuickexError::InvalidAmount);
-    }
-
-    owner.require_auth();
-
-    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, ActionType::Deposit)?;
-
-    // INV-3: validated, overflow-safe expiry computation
-    let expires_at = compute_expires_at(env, timeout_secs)?;
-
-    // Issue #304: deterministic escrow id over the full creation payload.
-    // If an identical request has already been recorded, return the
-    // existing commitment instead of creating a duplicate escrow.
-    let escrow_id =
-        escrow_id::derive_escrow_id(env, &token, amount, &owner, &salt, timeout_secs, &arbiter)?;
-    if let Some(existing) = get_escrow_id_mapping(env, &escrow_id) {
-        return Ok(existing);
-    }
-
-    let (commitment, legacy_commitment) =
-        commitment::amount_commitment_hashes(env, &owner, amount, &salt)?;
-    let now = env.ledger().timestamp();
-
-    // optimized: build client first (borrows token), then move token into entry
-    // commitment converted to Bytes once, reused
-    let token_client = token::Client::new(env, &token);
-    let commitment_bytes: Bytes = commitment.clone().into();
-    if has_escrow(env, &commitment_bytes) {
-        return Err(QuickexError::CommitmentAlreadyExists);
-    }
-    if legacy_commitment != commitment {
-        let legacy_commitment_bytes: Bytes = legacy_commitment.into();
-        if has_escrow(env, &legacy_commitment_bytes) {
-            return Err(QuickexError::CommitmentAlreadyExists);
-        }
-    }
-    let entry = EscrowEntry {
-        token, // moved
-        amount_due: amount,
-        amount_paid: amount, // Initial payment is the full amount
-        owner: owner.clone(),
-        status: EscrowStatus::Pending,
-        created_at: now,
-        expires_at,
-        arbiter,
-        arbiters: Vec::new(env),
-        arbiter_threshold: 0,
-    };
-
-    put_escrow(env, &commitment_bytes, &entry);
-    put_escrow_id_mapping(env, &escrow_id, &commitment);
-    token_client.transfer(&owner, env.current_contract_address(), &amount);
-
-    let token_address = token_client.address.clone();
-    events::publish_escrow_deposited(
+    deposit_item(
         env,
-        commitment.clone(),
-        owner.clone(),
-        token_address.clone(),
+        token,
         amount,
-        amount,
-        expires_at,
-    );
-
-    hook::invoke_hooks(
-        env,
-        HookEventKind::Create,
-        &commitment,
         owner,
-        token_address,
-        amount,
-        0,
-    );
-
-    Ok(commitment)
+        salt,
+        timeout_secs,
+        arbiter,
+        nonce_val,
+        valid_until,
+        ActionType::Deposit,
+        AuthMode::Required,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -281,17 +397,13 @@ pub fn deposit_with_commitment(
         return Err(QuickexError::CommitmentAlreadyExists);
     }
 
-    let token_client = token::Client::new(env, &token);
-    token_client.transfer(&from, env.current_contract_address(), &amount);
-
     let now = env.ledger().timestamp();
 
-    let from_ref = from.clone();
     let entry = EscrowEntry {
         token, // moved
         amount_due: amount,
         amount_paid: amount, // Initial payment is the full amount
-        owner: from,         // moved
+        owner: from.clone(),
         status: EscrowStatus::Pending,
         created_at: now,
         expires_at,
@@ -300,27 +412,7 @@ pub fn deposit_with_commitment(
         arbiter_threshold: 0,
     };
 
-    put_escrow(env, &commitment_bytes, &entry);
-    let token_addr = token_client.address.clone();
-    events::publish_escrow_deposited(
-        env,
-        commitment.clone(),
-        from_ref.clone(),
-        token_addr.clone(),
-        amount,
-        amount,
-        expires_at,
-    );
-
-    hook::invoke_hooks(
-        env,
-        HookEventKind::Create,
-        &commitment,
-        from_ref,
-        token_addr,
-        amount,
-        0,
-    );
+    commit_new_escrow(env, entry, &commitment, from, amount);
 
     Ok(())
 }
@@ -381,8 +473,6 @@ pub fn deposit_partial(
     let commitment = commitment::create_amount_commitment(env, owner.clone(), amount_due, salt)?;
     let now = env.ledger().timestamp();
 
-    let token_client = token::Client::new(env, &token);
-    let commitment_bytes: Bytes = commitment.clone().into();
     let entry = EscrowEntry {
         token, // moved
         amount_due,
@@ -396,29 +486,133 @@ pub fn deposit_partial(
         arbiter_threshold: 0,
     };
 
-    put_escrow(env, &commitment_bytes, &entry);
-    token_client.transfer(&owner, env.current_contract_address(), &initial_payment);
+    commit_new_escrow(env, entry, &commitment, owner, initial_payment);
 
-    let token_addr = token_client.address.clone();
-    events::publish_escrow_deposited(
+    Ok(commitment)
+}
+
+// ---------------------------------------------------------------------------
+// deposit_multi_sig
+// ---------------------------------------------------------------------------
+
+/// Deposit funds and create an escrow arbitrated by a set of arbiters
+/// (M-of-N), the only entrypoint that puts an escrow into multi-sig mode.
+///
+/// - Transfers `amount` from `owner` to the contract and stores the escrow
+///   under the same amount commitment as [`deposit`].
+/// - Sets `arbiter_threshold = arbiter_threshold` and `arbiters = arbiters`;
+///   the legacy single `arbiter` field stays `None`, because in multi-sig
+///   mode the threshold — not one named address — is the authority.
+/// - If `timeout_secs > 0`, the escrow expires `timeout_secs` seconds after
+///   creation. Pass `0` for a non-expiring escrow.
+///
+/// Multi-sig mode is what makes [`vote_for_dispute`],
+/// [`resolve_dispute_multi_sig`], and [`resolve_dispute_timeout`] reachable:
+/// they all require `arbiter_threshold > 0`, and this is the only path that
+/// can set it.
+///
+/// # Arbiter-set validation
+///
+/// [`dispute_quorum::validate_arbiter_set`] runs before any state is written
+/// and rejects an empty or oversized set, a threshold outside
+/// `1..=arbiters.len()`, and duplicate addresses (a duplicate would let one
+/// arbiter's single vote be counted twice and meet the quorum alone). All of
+/// those surface as [`QuorumOutOfBounds`].
+///
+/// # Idempotency
+///
+/// Like [`deposit`], a repeated request returns the existing commitment
+/// instead of erroring. The deterministic escrow id binds the arbiter set and
+/// threshold ([`escrow_id::derive_multi_sig_escrow_id`]), so a request that
+/// names *different* arbiters is a different escrow rather than a silent
+/// re-submission of the earlier one.
+///
+/// # Errors
+/// - [`InvalidAmount`] – amount ≤ 0.
+/// - [`InvalidSalt`] – salt > 1024 bytes.
+/// - [`QuorumOutOfBounds`] – arbiter set or threshold violates the bounds above.
+/// - [`CommitmentAlreadyExists`] – an escrow already exists for this commitment.
+#[allow(clippy::too_many_arguments)]
+pub fn deposit_multi_sig(
+    env: &Env,
+    token: Address,
+    amount: i128,
+    owner: Address,
+    salt: Bytes,
+    timeout_secs: u64,
+    arbiters: Vec<Address>,
+    arbiter_threshold: u32,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<BytesN<32>, QuickexError> {
+    if amount <= 0 {
+        return Err(QuickexError::InvalidAmount);
+    }
+
+    // Reject a malformed arbiter set before spending a nonce or touching the
+    // token balance, so a bad call can never leave a half-created escrow.
+    dispute_quorum::validate_arbiter_set(&arbiters, arbiter_threshold)?;
+
+    owner.require_auth();
+
+    nonce::verify_and_consume(
         env,
-        commitment.clone(),
-        owner.clone(),
-        token_addr.clone(),
-        amount_due,
-        initial_payment,
+        &owner,
+        nonce_val,
+        valid_until,
+        ActionType::DepositMultiSig,
+    )?;
+
+    // INV-3: validated, overflow-safe expiry computation
+    let expires_at = compute_expires_at(env, timeout_secs)?;
+
+    // Issue #304: deterministic escrow id over the full creation payload,
+    // including the arbiter set — otherwise a re-submission with different
+    // arbiters would resolve to the earlier escrow's commitment.
+    let escrow_id = escrow_id::derive_multi_sig_escrow_id(
+        env,
+        &token,
+        amount,
+        &owner,
+        &salt,
+        timeout_secs,
+        &arbiters,
+        arbiter_threshold,
+    )?;
+    if let Some(existing) = get_escrow_id_mapping(env, &escrow_id) {
+        return Ok(existing);
+    }
+
+    let (commitment, legacy_commitment) =
+        commitment::amount_commitment_hashes(env, &owner, amount, &salt)?;
+    let commitment_bytes: Bytes = commitment.clone().into();
+    if has_escrow(env, &commitment_bytes) {
+        return Err(QuickexError::CommitmentAlreadyExists);
+    }
+    if legacy_commitment != commitment {
+        let legacy_commitment_bytes: Bytes = legacy_commitment.into();
+        if has_escrow(env, &legacy_commitment_bytes) {
+            return Err(QuickexError::CommitmentAlreadyExists);
+        }
+    }
+
+    let now = env.ledger().timestamp();
+    let entry = EscrowEntry {
+        token, // moved
+        amount_due: amount,
+        amount_paid: amount,
+        owner: owner.clone(),
+        status: EscrowStatus::Pending,
+        created_at: now,
         expires_at,
-    );
+        // Multi-sig authority lives in `arbiters` + `arbiter_threshold`.
+        arbiter: None,
+        arbiters,
+        arbiter_threshold,
+    };
 
-    hook::invoke_hooks(
-        env,
-        HookEventKind::Create,
-        &commitment,
-        owner,
-        token_addr,
-        initial_payment,
-        0,
-    );
+    put_escrow_id_mapping(env, &escrow_id, &commitment);
+    commit_new_escrow(env, entry, &commitment, owner, amount);
 
     Ok(commitment)
 }
@@ -525,38 +719,34 @@ pub fn partial_payment(
 // withdraw – authorization matrix enforced (SC‑W6‑03)
 // ---------------------------------------------------------------------------
 
-/// Withdraw escrowed funds by proving commitment ownership.
+/// Shared per-item body for withdrawal — the single source of truth for
+/// "recompute commitment → validate state → mark spent → route payout → emit → hook".
 ///
-/// The caller (`to`) must authorize. The commitment is recomputed from
-/// `to`, `amount_due`, and `salt` and must match an existing pending escrow.
-/// The escrow must be fully paid (amount_paid >= amount_due).
+/// Both the single-item [`withdraw`] and the batched `batch::batch_release` call
+/// this, so the INV-1/INV-4/INV-5 checks, the fee-aware payout, the event
+/// payload, and the hook invocation can never drift apart between the two.
+/// `action` supplies the domain-separation tag for the replay-protection nonce.
 ///
-/// # Time-lock enforcement
-/// Enforces INV-1: if `expires_at > 0` and ledger timestamp >= `expires_at`,
-/// this function MUST fail. There is no admin override or bypass.
-///
-/// # Errors
-/// - [`InvalidAmount`] – amount_due ≤ 0.
-/// - [`CommitmentNotFound`] – no escrow for computed commitment.
-/// - [`EscrowExpired`] – escrow has passed its expiry.
-/// - [`AlreadySpent`] – escrow already spent or refunded.
-/// - [`InvalidCommitment`] – stored amount_due ≠ requested amount_due.
-/// - [`Overpayment`] – escrow is not fully paid yet.
-pub fn withdraw(
+/// Returns the resolved escrow commitment on success.
+pub(crate) fn withdraw_item(
     env: &Env,
     amount: i128,
     to: Address,
     salt: Bytes,
     nonce_val: u64,
     valid_until: u64,
-) -> Result<bool, QuickexError> {
+    action: ActionType,
+    auth: AuthMode,
+) -> Result<BytesN<32>, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
 
-    to.require_auth();
+    if auth == AuthMode::Required {
+        to.require_auth();
+    }
 
-    nonce::verify_and_consume(env, &to, nonce_val, valid_until, ActionType::Withdraw)?;
+    nonce::verify_and_consume(env, &to, nonce_val, valid_until, action)?;
 
     let (commitment, legacy_commitment) =
         commitment::amount_commitment_hashes(env, &to, amount, &salt)?;
@@ -626,40 +816,73 @@ pub fn withdraw(
         fee_amount,
     );
 
-    Ok(true)
+    Ok(commitment)
+}
+
+/// Withdraw escrowed funds by proving commitment ownership.
+///
+/// The caller (`to`) must authorize. The commitment is recomputed from
+/// `to`, `amount_due`, and `salt` and must match an existing pending escrow.
+/// The escrow must be fully paid (amount_paid >= amount_due).
+///
+/// # Time-lock enforcement
+/// Enforces INV-1: if `expires_at > 0` and ledger timestamp >= `expires_at`,
+/// this function MUST fail. There is no admin override or bypass.
+///
+/// # Errors
+/// - [`InvalidAmount`] – amount_due ≤ 0.
+/// - [`CommitmentNotFound`] – no escrow for computed commitment.
+/// - [`EscrowExpired`] – escrow has passed its expiry.
+/// - [`AlreadySpent`] – escrow already spent or refunded.
+/// - [`InvalidCommitment`] – stored amount_due ≠ requested amount_due.
+/// - [`Overpayment`] – escrow is not fully paid yet.
+pub fn withdraw(
+    env: &Env,
+    amount: i128,
+    to: Address,
+    salt: Bytes,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<bool, QuickexError> {
+    withdraw_item(
+        env,
+        amount,
+        to,
+        salt,
+        nonce_val,
+        valid_until,
+        ActionType::Withdraw,
+        AuthMode::Required,
+    )
+    .map(|_| true)
 }
 
 // ---------------------------------------------------------------------------
 // refund
 // ---------------------------------------------------------------------------
 
-/// Refund an expired escrow back to its original owner.
+/// Shared per-item body for refund — the single source of truth for
+/// "load entry → validate state → mark refunded → return funds → emit → hook".
 ///
-/// - Only callable after `expires_at` has been reached (and `expires_at > 0`).
-/// - Caller must be the original depositor (`entry.owner`).
-/// - Escrow must still be `Pending`.
-///
-/// # Time-lock enforcement
-/// Enforces INV-2: both conditions must hold simultaneously —
-/// `expires_at > 0` (was set) AND `now >= expires_at` (has elapsed).
-/// A non-expiring escrow (`expires_at == 0`) can never be refunded.
-///
-/// # Errors
-/// - [`CommitmentNotFound`] – no escrow for the given commitment.
-/// - [`AlreadySpent`] – escrow already in a terminal state (INV-5).
-/// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
-/// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
-/// - [`InvalidOwner`] – caller is not the original owner.
-pub fn refund(
+/// Both the single-item [`refund`] and the batched `batch::batch_refund` call
+/// this, so the INV-2/INV-4/INV-5 checks, the owner check, the transfer back to
+/// `entry.owner`, the event payload, and the hook invocation can never drift
+/// apart between the two. `action` supplies the domain-separation tag for the
+/// replay-protection nonce.
+pub(crate) fn refund_item(
     env: &Env,
     commitment: BytesN<32>,
     caller: Address,
     nonce_val: u64,
     valid_until: u64,
+    action: ActionType,
+    auth: AuthMode,
 ) -> Result<(), QuickexError> {
-    caller.require_auth();
+    if auth == AuthMode::Required {
+        caller.require_auth();
+    }
 
-    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, ActionType::Refund)?;
+    nonce::verify_and_consume(env, &caller, nonce_val, valid_until, action)?;
 
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
@@ -713,6 +936,41 @@ pub fn refund(
     );
 
     Ok(())
+}
+
+/// Refund an expired escrow back to its original owner.
+///
+/// - Only callable after `expires_at` has been reached (and `expires_at > 0`).
+/// - Caller must be the original depositor (`entry.owner`).
+/// - Escrow must still be `Pending`.
+///
+/// # Time-lock enforcement
+/// Enforces INV-2: both conditions must hold simultaneously —
+/// `expires_at > 0` (was set) AND `now >= expires_at` (has elapsed).
+/// A non-expiring escrow (`expires_at == 0`) can never be refunded.
+///
+/// # Errors
+/// - [`CommitmentNotFound`] – no escrow for the given commitment.
+/// - [`AlreadySpent`] – escrow already in a terminal state (INV-5).
+/// - [`InvalidDisputeState`] – escrow is disputed, funds locked (INV-4).
+/// - [`EscrowNotExpired`] – expiry not set or not yet reached (INV-2).
+/// - [`InvalidOwner`] – caller is not the original owner.
+pub fn refund(
+    env: &Env,
+    commitment: BytesN<32>,
+    caller: Address,
+    nonce_val: u64,
+    valid_until: u64,
+) -> Result<(), QuickexError> {
+    refund_item(
+        env,
+        commitment,
+        caller,
+        nonce_val,
+        valid_until,
+        ActionType::Refund,
+        AuthMode::Required,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -842,13 +1100,18 @@ pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexEr
 /// Initiate a dispute for a pending escrow, locking the funds.
 ///
 /// - Any participant can call this function.
-/// - Requires an assigned arbiter.
+/// - Requires an arbitration authority: a single `arbiter`, or — in multi-sig
+///   mode — a non-empty `arbiters` set. Escrows created by
+///   [`deposit_multi_sig`] carry only the latter.
 /// - Escrow must be in `Pending` status.
 /// - Changes status to `Disputed`, locking funds until resolution(INV4)
 /// - In multi-sig mode (`arbiter_threshold > 0`), freezes a
 ///   [`dispute_quorum::DisputeQuorumSnapshot`] from the *current* admin
 ///   quorum policy (Issue #865 / SC-W8-04). Later changes to that policy
-///   never affect this dispute.
+///   never affect this dispute. Single-arbiter disputes keep emitting
+///   [`events::EscrowDisputedEvent`]; multi-sig disputes emit
+///   [`events::MultiSigEscrowDisputedEvent`], which carries the whole set
+///   instead of one address.
 ///
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
@@ -860,29 +1123,51 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
-    // Guard: must have an arbiter assigned
-    let arbiter = entry.arbiter.as_ref().ok_or(QuickexError::NoArbiter)?;
+    // Guard: the escrow must name an arbitration authority. `arbiter_threshold
+    // > 0` is the mode switch, so a multi-sig escrow is authorized by
+    // `arbiters` and a single-arbiter escrow by `arbiter`. An escrow carrying
+    // neither can never be resolved and must not be disputable.
+    let multi_sig = entry.arbiter_threshold > 0;
+    let single_arbiter: Option<Address> = entry.arbiter.clone();
+    if multi_sig {
+        if entry.arbiters.is_empty() {
+            return Err(QuickexError::NoArbiter);
+        }
+    } else if single_arbiter.is_none() {
+        return Err(QuickexError::NoArbiter);
+    }
 
     // Guard: escrow must be in Pending state
     if entry.status != EscrowStatus::Pending {
         return Err(QuickexError::InvalidDisputeState);
     }
 
-    // Guard: a multi-sig escrow must actually have arbiters to vote.
-    if entry.arbiter_threshold > 0 && entry.arbiters.is_empty() {
-        return Err(QuickexError::NoArbiter);
-    }
-
     let mut updated = entry.clone();
     updated.status = EscrowStatus::Disputed;
     put_escrow(env, &commitment_bytes, &updated);
 
-    if entry.arbiter_threshold > 0 {
-        let disputed_at = env.ledger().timestamp();
-        dispute_quorum::open_snapshot(env, &commitment_bytes, disputed_at, entry.arbiters.len());
+    match (multi_sig, single_arbiter) {
+        // Freeze the quorum requirement from the live policy so later admin
+        // changes cannot alter this dispute (Issue #865 / SC-W8-04).
+        (true, _) => {
+            let disputed_at = env.ledger().timestamp();
+            dispute_quorum::open_snapshot(
+                env,
+                &commitment_bytes,
+                disputed_at,
+                entry.arbiters.len(),
+            );
+            events::publish_multi_sig_escrow_disputed(
+                env,
+                commitment,
+                entry.arbiters,
+                entry.arbiter_threshold,
+            );
+        }
+        (false, Some(arbiter)) => events::publish_escrow_disputed(env, commitment, arbiter),
+        // Unreachable: the guard above already returned `NoArbiter`.
+        (false, None) => return Err(QuickexError::NoArbiter),
     }
-
-    events::publish_escrow_disputed(env, commitment, arbiter.clone());
 
     Ok(())
 }
@@ -896,6 +1181,11 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 /// - Only callable by the assigned arbiter (or a globally authorized Arbiter role).
 /// - Escrow must be in `Disputed` status (INV4).
 /// - Arbiter decides whether funds go to owner (refund) or recipient (spend).
+/// - Refuses multi-sig escrows (`arbiter_threshold > 0`) outright, including
+///   for a global Arbiter: those are resolved by quorum through
+///   [`resolve_dispute_multi_sig`] (or [`resolve_dispute_timeout`]), so
+///   honouring a single-caller resolution here would let one address bypass
+///   the M-of-N requirement the depositor configured.
 ///
 /// # Arguments
 /// - `commitment`: The escrow commitment hash
@@ -905,7 +1195,8 @@ pub fn dispute(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
 /// # Errors
 /// - [`CommitmentNotFound`] – no escrow for the given commitment.
 /// - [`NotArbiter`] – caller is not the assigned arbiter.
-/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status.
+/// - [`InvalidDisputeState`] – escrow is not in `Disputed` status, or the
+///   escrow is in multi-sig mode and must be resolved by quorum.
 pub fn resolve_dispute(
     env: &Env,
     caller: Address,
@@ -918,6 +1209,14 @@ pub fn resolve_dispute(
     let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
+
+    // Guard: a multi-sig escrow is only ever resolved by quorum. Checked
+    // before `require_auth`/nonce consumption so a doomed call fails fast
+    // without burning the caller's nonce, and so the mode check cannot be
+    // ordered behind the global-Arbiter bypass below.
+    if entry.arbiter_threshold > 0 {
+        return Err(QuickexError::InvalidDisputeState);
+    }
 
     // Guard: caller must be either the assigned arbiter OR have the global Arbiter role.
     caller.require_auth();
@@ -1165,16 +1464,33 @@ pub fn vote_for_dispute(
 // resolve_dispute_multi_sig
 // ---------------------------------------------------------------------------
 
-/// Tally fresh (non-expired) votes for each side of a dispute.
+/// Fresh votes for a dispute, bucketed by the side each arbiter voted for.
+///
+/// The voter lists mirror the counts exactly, and are drawn from the same
+/// `entry.arbiters` set the counts are tallied over — so an address outside the
+/// escrow's arbiter set can never reach the fee split any more than it can
+/// reach quorum. `recipient_voters` is the recipient-side set that
+/// [`resolve_dispute_multi_sig`] pays the arbiter fee to.
+struct FreshVoteTally {
+    for_owner: u32,
+    for_recipient: u32,
+    recipient_voters: Vec<Address>,
+}
+
+/// Tally fresh (non-expired) votes for each side of a dispute, recording which
+/// arbiters voted on the recipient side.
 fn tally_fresh_votes(
     env: &Env,
     commitment_bytes: &Bytes,
     arbiters: &Vec<Address>,
     vote_ttl_secs: u64,
-) -> (u32, u32) {
+) -> FreshVoteTally {
     let now = env.ledger().timestamp();
-    let mut votes_for_owner: u32 = 0;
-    let mut votes_for_recipient: u32 = 0;
+    let mut tally = FreshVoteTally {
+        for_owner: 0,
+        for_recipient: 0,
+        recipient_voters: Vec::new(env),
+    };
 
     for arbiter in arbiters.iter() {
         if let Some(vote) = get_dispute_vote(env, commitment_bytes, &arbiter) {
@@ -1182,14 +1498,15 @@ fn tally_fresh_votes(
                 continue; // expired; does not count toward quorum or the outcome
             }
             if vote.resolve_for_owner {
-                votes_for_owner += 1;
+                tally.for_owner += 1;
             } else {
-                votes_for_recipient += 1;
+                tally.for_recipient += 1;
+                tally.recipient_voters.push_back(arbiter);
             }
         }
     }
 
-    (votes_for_owner, votes_for_recipient)
+    tally
 }
 
 /// Resolve a disputed escrow using multi-sig arbitration.
@@ -1202,6 +1519,31 @@ fn tally_fresh_votes(
 /// - Determines the outcome based on majority among fresh votes cast.
 /// - If quorum cannot be reached before the snapshot's deadline, see
 ///   `resolve_dispute_timeout` for the fallback resolution path.
+///
+/// # Arbiter fee
+///
+/// When the escrow's token has a per-asset config with `arbiter_bps > 0`, the
+/// arbiter share of the fee is paid on the `Spent` path (i.e. when the majority
+/// voted for the recipient). The refund path charges no fee at all.
+///
+/// It is split **equally across the arbiters who cast a fresh vote for the
+/// winning (recipient) side**, drawn from `entry.arbiters` — the same set the
+/// outcome is tallied over, so an address outside the escrow's arbiter set
+/// cannot receive any of it. Each receives
+/// `floor(arbiter_portion / winner_count)`; the division remainder stays with
+/// the platform collector, so the split never overpays.
+///
+/// The resolving caller is deliberately *not* the beneficiary. Unlike
+/// [`resolve_dispute`], this function is permissionless — it takes no `caller`
+/// argument and anyone may submit it once quorum is met — so paying the
+/// submitting caller would hand the arbiter fee to an arbitrary address that
+/// could simply front-run a resolution it had no part in. The arbiters whose
+/// votes produced the outcome are the parties actually owed.
+///
+/// This mirrors the single-arbiter rule in [`resolve_dispute`], which pays
+/// `Some(&caller)` because there the caller is necessarily the authorized
+/// arbiter. Both paths are the same policy — the fee goes to the arbiters that
+/// decided the case — specialised to each resolution path's authority model.
 ///
 /// # Arguments
 /// - `commitment`: The escrow commitment hash
@@ -1246,7 +1588,7 @@ pub fn resolve_dispute_multi_sig(
     }
 
     // Tally fresh votes for each side
-    let (votes_for_owner, votes_for_recipient) = tally_fresh_votes(
+    let tally = tally_fresh_votes(
         env,
         &commitment_bytes,
         &entry.arbiters,
@@ -1254,7 +1596,7 @@ pub fn resolve_dispute_multi_sig(
     );
 
     // Determine outcome by majority
-    let resolve_for_owner = votes_for_owner >= votes_for_recipient;
+    let resolve_for_owner = tally.for_owner >= tally.for_recipient;
 
     let (final_status, recipient_address) = if resolve_for_owner {
         (EscrowStatus::Refunded, entry.owner.clone())
@@ -1267,12 +1609,15 @@ pub fn resolve_dispute_multi_sig(
     put_escrow(env, &commitment_bytes, &updated);
 
     let fee_amount = if final_status == EscrowStatus::Spent {
-        let (_payout_amount, fee) = fee_router::route_payout_price_aware(
+        // Issue #1005: the arbiter share is split across the arbiters whose
+        // fresh votes decided the outcome, not across whoever submitted this
+        // transaction. See the "Arbiter fee" section of this function's docs.
+        let (_payout_amount, fee) = fee_router::route_payout_price_aware_split(
             env,
             &entry.token,
             &recipient_address,
             entry.amount_paid,
-            None,
+            &tally.recipient_voters,
         )?;
         fee
     } else {

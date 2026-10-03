@@ -1,28 +1,28 @@
 //! Tests for Issue #865 (SC-W8-04): dispute quorum configuration and vote expiry.
 //!
-//! There is no production entrypoint that assigns multiple arbiters to an
-//! escrow yet (multi-sig assignment is out of scope for this ticket — see
-//! `entry.arbiters` / `entry.arbiter_threshold` docs), so these tests build a
-//! multi-sig `Disputed` escrow the same way the rest of the test suite
-//! constructs raw fixtures: deposit with the legacy single-arbiter path, then
-//! directly write the extended arbiter fields via `storage::put_escrow`
-//! before opening the dispute through the real `dispute()` entrypoint.
+//! Every multi-sig escrow here is created through the public
+//! `deposit_multi_sig` entrypoint, then disputed through the real `dispute()`
+//! entrypoint — no test writes `EscrowEntry.arbiters` / `arbiter_threshold`
+//! directly, so the frozen-snapshot behaviour is exercised end-to-end
+//! exactly as a caller would reach it.
+//!
+//! Creation-time validation of the arbiter set (bounds, duplicates, threshold
+//! range) is covered separately in `multi_sig_deposit_test.rs`.
 
-use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Vec};
+use soroban_sdk::{testutils::Address as _, Address, BytesN};
 
 use crate::{
     assert_helpers::assert_qx_err,
     dispute_quorum::{DisputeQuorumConfig, MAX_QUORUM, MAX_VOTE_TTL_SECS, MIN_VOTE_TTL_SECS},
     errors::QuickexError,
-    storage::{get_escrow, put_escrow},
     test_context::TestContext,
     types::EscrowStatus,
 };
 
 const VOTE_TTL: u64 = MIN_VOTE_TTL_SECS; // 3600s; smallest legal window, easiest to reason about
 
-/// Deposit, then rewrite the stored entry with `arbiters`/`arbiter_threshold`,
-/// then open the dispute through the real `dispute()` entrypoint.
+/// Deposit an M-of-N escrow through the public entrypoint, then open the
+/// dispute through the real `dispute()` entrypoint.
 fn open_multi_sig_dispute(
     ctx: &TestContext,
     owner: &Address,
@@ -31,20 +31,7 @@ fn open_multi_sig_dispute(
     amount: i128,
     salt: &[u8],
 ) -> BytesN<32> {
-    let commitment = ctx.deposit_with_arbiter(owner, amount, salt, 0);
-    let commitment_bytes: Bytes = commitment.clone().into();
-
-    ctx.env.as_contract(&ctx.client.address, || {
-        let mut entry = get_escrow(&ctx.env, &commitment_bytes).unwrap();
-        let mut arbiters_vec = Vec::new(&ctx.env);
-        for a in arbiters {
-            arbiters_vec.push_back(a.clone());
-        }
-        entry.arbiters = arbiters_vec;
-        entry.arbiter_threshold = threshold;
-        put_escrow(&ctx.env, &commitment_bytes, &entry);
-    });
-
+    let commitment = ctx.deposit_with_arbiters(owner, amount, salt, 0, arbiters, threshold);
     ctx.client.dispute(&commitment);
     commitment
 }

@@ -163,6 +163,16 @@ Affected events:
 - `EscrowDisputed`
   - Topics: `TOPIC_ESCROW`, `EscrowDisputed`, `escrow_id`, `arbiter`
   - Data: `schema_version`, `timestamp`
+  - Single-arbiter escrows only: the `arbiter` topic is a required `Address`.
+
+- `MultiSigEscrowDisputed`
+  - Topics: `TOPIC_DISPUTE`, `MultiSigEscrowDisputed`, `escrow_id`
+  - Data: `arbiters`, `arbiter_threshold`, `schema_version`, `timestamp`
+  - Emitted instead of `EscrowDisputed` for escrows created by
+    `deposit_multi_sig`, which deliberately name no single arbiter. Indexers
+    that key on the `EscrowDisputed` name alone will not see multi-sig
+    disputes opening. Additive only — no existing event changed shape, so
+    the schema version is unchanged.
 
 ### Admin
 

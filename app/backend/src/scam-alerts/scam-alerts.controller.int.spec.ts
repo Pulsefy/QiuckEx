@@ -25,7 +25,7 @@ describe("ScamAlertsController", () => {
 		expect(controller).toBeDefined();
 	});
 
-	describe("POST /links/scan", () => {
+	describe("POST /scam-alerts/scan", () => {
 		it("should return scan results", async () => {
 			const scanDto = {
 				assetCode: "USDC",

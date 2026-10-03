@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MarketplaceListing, formatCountdown, placeBid } from "@/hooks/marketplaceApi";
+import { MarketplaceListing, formatCountdown, placeBid, BidErrorCode } from "@/hooks/marketplaceApi";
+import { useWallet } from "@/hooks/useWallet";
 import { SigningSummary } from "./SigningSummary";
 
 type BidModalProps = {
@@ -13,9 +14,11 @@ type BidModalProps = {
 type BidState = "idle" | "loading" | "success" | "error";
 
 export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
+  const { wallet } = useWallet();
   const [amount, setAmount] = useState("");
   const [bidState, setBidState] = useState<BidState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [errorCode, setErrorCode] = useState<BidErrorCode | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   const minBid = listing ? listing.currentBid + 1 : 1;
@@ -26,14 +29,19 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
     if (!listing || !isValid) return;
     setBidState("loading");
     setErrorMsg("");
+    setErrorCode(null);
 
-    const result = await placeBid(listing.username, parsedAmount);
+    const result = await placeBid(listing.id || listing.username, parsedAmount, {
+      listingId: listing.id,
+      bidderPublicKey: wallet.publicKey || undefined,
+    });
     if (result.success) {
       setBidState("success");
       onBidSuccess(listing.username, parsedAmount);
     } else {
       setBidState("error");
       setErrorMsg(result.reason);
+      setErrorCode(result.code || "unknown");
     }
   }
 
@@ -41,6 +49,7 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
     setBidState("idle");
     setAmount("");
     setErrorMsg("");
+    setErrorCode(null);
     setShowPreview(false);
     onClose();
   }
@@ -157,8 +166,40 @@ export function BidModal({ listing, onClose, onBidSuccess }: BidModalProps) {
 
               {/* Error */}
               {bidState === "error" && (
-                <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-bold">
-                  ⚠ {errorMsg}
+                <div
+                  data-testid="bid-error-banner"
+                  role="alert"
+                  className={`mb-4 px-4 py-3 rounded-xl border text-xs font-bold flex items-start gap-2.5 ${
+                    errorCode === "network"
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                      : errorCode === "insufficient_funds"
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                      : errorCode === "validation"
+                      ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
+                      : "bg-red-500/10 border-red-500/20 text-red-400"
+                  }`}
+                >
+                  <span className="text-base shrink-0 leading-none">
+                    {errorCode === "network" && "🌐"}
+                    {errorCode === "insufficient_funds" && "💳"}
+                    {errorCode === "validation" && "⚠️"}
+                    {errorCode !== "network" &&
+                      errorCode !== "insufficient_funds" &&
+                      errorCode !== "validation" &&
+                      "⚠"}
+                  </span>
+                  <div className="flex-1">
+                    <p className="uppercase tracking-wider text-[10px] font-black opacity-80 mb-0.5">
+                      {errorCode === "network" && "Network Connection Error"}
+                      {errorCode === "insufficient_funds" && "Insufficient Funds Error"}
+                      {errorCode === "validation" && "Validation Error"}
+                      {errorCode !== "network" &&
+                        errorCode !== "insufficient_funds" &&
+                        errorCode !== "validation" &&
+                        "Bid Error"}
+                    </p>
+                    <p className="leading-relaxed">{errorMsg}</p>
+                  </div>
                 </div>
               )}
 

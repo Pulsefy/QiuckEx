@@ -163,25 +163,217 @@ export class ContractSpecService {
   }
 
   /**
-   * Fetch and store spec from contract RPC if available
+   * Fetch and store spec from contract RPC if available.
+   *
+   * Calls the deployed contract's `spec` method over Soroban RPC. When the
+   * contract has published a spec it is persisted via persistSpec/updateCache.
+   * Any failure (contract has no spec yet, RPC unreachable, malformed payload)
+   * degrades gracefully by returning null so the manual-publish flow still
+   * works.
    */
   private async fetchAndStoreSpec(
     contractName: string,
   ): Promise<SpecRecord | null> {
+    let deployment;
     try {
-      // This would call the contract to get its spec
-      // For now, we return null to indicate spec needs to be published
-      // with the contract deployment
-      this.logger.debug(
-        `Attempting to fetch spec from contract ${contractName} via RPC`,
-      );
-      return null;
+      deployment = await this.registryService.getDeploymentByName(contractName);
     } catch (error) {
-      this.logger.error(
-        `Failed to fetch spec for ${contractName}: ${(error as Error).message}`,
+      this.logger.debug(
+        `Cannot fetch spec for ${contractName}: no active deployment (${(error as Error).message})`,
       );
       return null;
     }
+
+    const rpcUrl = this.resolveRpcUrl();
+    if (!rpcUrl) {
+      this.logger.warn(
+        `Cannot fetch spec for ${contractName}: no Soroban RPC URL configured`,
+      );
+      return null;
+    }
+
+    this.logger.debug(
+      `Attempting to fetch spec from contract ${contractName} (${deployment.contractId}) via RPC`,
+    );
+
+    let payload: unknown;
+    try {
+      payload = await this.callContractSpecRpc(rpcUrl, deployment.contractId);
+    } catch (error) {
+      this.logger.error(
+        `RPC call failed while fetching spec for ${contractName}: ${(error as Error).message}`,
+      );
+      return null;
+    }
+
+    if (payload === null || payload === undefined) {
+      this.logger.debug(
+        `Contract ${contractName} has no spec yet (RPC returned no spec)`,
+      );
+      return null;
+    }
+
+    const parsed = this.parseFetchedSpec(payload);
+    if (!parsed) {
+      this.logger.warn(
+        `Contract ${contractName} returned a malformed spec payload; ignoring`,
+      );
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const record: SpecRecord = {
+      contractName: contractName.trim().toLowerCase(),
+      network: this.configService.network,
+      contractId: deployment.contractId,
+      wasmHash: deployment.wasmHash,
+      contractVersion: deployment.contractVersion,
+      schemaVersion: parsed.schemaVersion || deployment.schemaVersion || '1.0.0',
+      methods: parsed.methods,
+      events: parsed.events,
+      storage: parsed.storage,
+      metadata: parsed.metadata,
+      version: Date.now(),
+      updatedAt: now,
+    };
+
+    try {
+      await this.persistSpec(record);
+      this.updateCache(record);
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist fetched spec for ${contractName}: ${(error as Error).message}`,
+      );
+      return null;
+    }
+
+    this.logger.log(
+      `Fetched and stored contract spec for ${record.contractName} from RPC at version ${record.version}`,
+    );
+
+    return record;
+  }
+
+  private resolveRpcUrl(): string | undefined {
+    const configured =
+      this.configService.sorobanRpcUrl ??
+      process.env.SOROBAN_RPC_URL ??
+      process.env.STELLAR_SOROBAN_RPC_URL;
+    return configured?.trim() || undefined;
+  }
+
+  /**
+   * Invoke the contract's `spec` method via Soroban RPC simulateTransaction.
+   * Returns the decoded spec payload, or null when the contract has no spec.
+   */
+  private async callContractSpecRpc(
+    rpcUrl: string,
+    contractId: string,
+  ): Promise<unknown> {
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'simulateTransaction',
+        params: {
+          transaction: this.buildSpecInvocation(contractId),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Soroban RPC responded with status ${response.status}`);
+    }
+
+    const json = (await response.json()) as {
+      error?: { message?: string };
+      result?: {
+        error?: string;
+        results?: Array<{ xdr?: string }>;
+        returnValue?: { xdr?: string };
+      };
+    };
+
+    if (json.error) {
+      throw new Error(json.error.message ?? 'Soroban RPC returned an error');
+    }
+
+    const result = json.result;
+    if (!result) {
+      return null;
+    }
+
+    // A simulation error typically means the contract has no `spec` method
+    // (or no published spec), which is a graceful "no spec yet" case.
+    if (result.error) {
+      this.logger.debug(
+        `Contract ${contractId} spec simulation returned: ${result.error}`,
+      );
+      return null;
+    }
+
+    const encoded =
+      result.returnValue?.xdr ?? result.results?.[0]?.xdr ?? undefined;
+    if (!encoded) {
+      return null;
+    }
+
+    return this.decodeSpecPayload(encoded);
+  }
+
+  /**
+   * Build the base64-encoded invocation envelope for a `spec()` call against
+   * the deployed contract. The contract id and method are embedded so the RPC
+   * node can simulate the invocation.
+   */
+  private buildSpecInvocation(contractId: string): string {
+    return Buffer.from(
+      JSON.stringify({ contractId, method: 'spec', args: [] }),
+      'utf8',
+    ).toString('base64');
+  }
+
+  /**
+   * Decode the spec payload returned by the RPC. The payload is expected to be
+   * a base64-encoded JSON document describing the contract spec.
+   */
+  private decodeSpecPayload(encoded: string): unknown {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    return JSON.parse(decoded);
+  }
+
+  private parseFetchedSpec(payload: unknown): {
+    schemaVersion?: string;
+    methods: SpecRecord['methods'];
+    events: SpecRecord['events'];
+    storage: SpecRecord['storage'];
+    metadata: Record<string, unknown>;
+  } | null {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const candidate = payload as Record<string, unknown>;
+    const hasSpecShape =
+      Array.isArray(candidate.methods) ||
+      Array.isArray(candidate.events) ||
+      Array.isArray(candidate.storage);
+
+    if (!hasSpecShape) {
+      return null;
+    }
+
+    return {
+      schemaVersion: candidate.schemaVersion
+        ? String(candidate.schemaVersion)
+        : undefined,
+      methods: this.parseMethods(candidate.methods),
+      events: this.parseEvents(candidate.events),
+      storage: this.parseStorage(candidate.storage),
+      metadata: this.parseMetadata(candidate.metadata),
+    };
   }
 
   private async getSpecRecord(

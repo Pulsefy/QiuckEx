@@ -142,6 +142,9 @@ mod tests {
                 ActionType::StealthWithdraw,
                 ActionType::SetPrivacy,
                 ActionType::Upgrade,
+                ActionType::BatchCreate,
+                ActionType::BatchRelease,
+                ActionType::BatchRefund,
             ];
             for action in &actions {
                 assert!(
