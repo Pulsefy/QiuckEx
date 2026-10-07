@@ -299,7 +299,7 @@ export default function AnalyticsDashboard() {
                 label="Top Asset"
                 value={
                   assetDist.length > 0
-                    ? `${assetDist.sort((a, b) => b.value - a.value)[0].name}`
+                    ? `${[...assetDist].sort((a, b) => b.value - a.value)[0].name}`
                     : "—"
                 }
               />

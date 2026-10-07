@@ -72,17 +72,58 @@ async function seedTheme(page: Page, theme: Theme): Promise<void> {
   );
 }
 
+/** Wallet session the app restores on boot (see useWallet's storage key). */
+const DEMO_WALLET = {
+  publicKey: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  network: "testnet",
+  walletType: "freighter",
+  connectedAt: 0,
+} as const;
+
+/**
+ * Seed a connected wallet. `/settings` and `/dashboard` only render their
+ * themeable surfaces once `useWallet` has restored a session, and it keeps a
+ * stored session only when the injected provider answers with the same key.
+ *
+ * Opt-in per route: the public pay page renders a "Connect Wallet" card for
+ * anonymous visitors, and that card is part of its goldens, so only the tests
+ * that cover a signed-in surface may call this.
+ */
+async function seedWallet(page: Page): Promise<void> {
+  await page.addInitScript((wallet) => {
+    const freighter = {
+      requestAccess: async () => ({ address: wallet.publicKey }),
+      getPublicKey: async () => ({ address: wallet.publicKey }),
+      getNetwork: async () => ({ network: "TESTNET" }),
+      signTransaction: async () => ({ signedTxXdr: "" }),
+    };
+    (window as unknown as { freighter?: unknown }).freighter = freighter;
+    try {
+      window.localStorage.setItem(
+        "quickex.wallet.session",
+        JSON.stringify(wallet),
+      );
+    } catch {
+      // Storage disabled — the restored key comes from the injected provider.
+    }
+  }, DEMO_WALLET);
+}
+
 /**
  * Prepare a fresh page for a themed screenshot: seed the theme, freeze the
- * clock, mock the backend, then navigate.
+ * clock, mock the backend, then navigate. `options.wallet` additionally seeds a
+ * connected wallet session for the signed-in surfaces.
  */
 async function openThemed(
   page: Page,
   theme: Theme,
   path: string,
-  options: { paymentState?: "ACTIVE" | "PAID" } = {},
+  options: { paymentState?: "ACTIVE" | "PAID"; wallet?: boolean } = {},
 ): Promise<void> {
   await seedTheme(page, theme);
+  if (options.wallet) {
+    await seedWallet(page);
+  }
   await page.clock.install({ time: new Date(FIXED_TIME) });
   await mockBackend(page, options);
   if (path === "/admin") {
@@ -169,7 +210,7 @@ test.describe("theme screenshot regression", () => {
       test("dashboard renders hero, metrics, analytics and activity feed", async ({
         page,
       }) => {
-        await openThemed(page, theme, "/dashboard");
+        await openThemed(page, theme, "/dashboard", { wallet: true });
         // Content (metrics, analytics, activity feed) renders on fake-clock
         // ticks after mocked API responses arrive; advance while polling until
         // it is all present so timing can't flake.
@@ -227,7 +268,7 @@ test.describe("theme screenshot regression", () => {
       test("settings page renders profile customization forms", async ({
         page,
       }) => {
-        await openThemed(page, theme, "/settings");
+        await openThemed(page, theme, "/settings", { wallet: true });
         await expect(page.locator('input[type="color"]')).toBeVisible();
         await expect(page.getByText("Social Links")).toBeVisible();
         await settlePage(page);

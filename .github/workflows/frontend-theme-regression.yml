@@ -1,115 +1,27 @@
-# name: Visual Theme Regression
-#
-# # FE-56: runs the theme regression screenshot suite against a freshly built
-# # app. This is a hermetic job — every backend call is mocked by
-# # e2e/tests/theme-mocks.ts, no deployed environment is required — so it gates
-# # every PR touching the frontend. Depends on the system Google Chrome that
-# # ships with ubuntu-latest; goldens therefore must be regenerated on Linux
-# # with the same browser (or here via the update-baselines dispatch).
-#
-# on:
-#   pull_request:
-#     paths:
-#       - 'app/frontend/**'
-#       - 'e2e/**'
-#       - '.github/workflows/frontend-theme-regression.yml'
-#   workflow_dispatch:
-#     inputs:
-#       update-baselines:
-#         description: 'Regenerate screenshot goldens instead of asserting (review the PNGs!)'
-#         required: true
-#         type: choice
-#         options:
-#           - 'false'
-#           - 'true'
-#
-# env:
-#   # The app validates these at runtime (app/frontend/src/lib/env.ts) and bakes
-#   # them into the build (NEXT_PUBLIC_*).
-#   # https://api.quickex.test satisfies the frontend CSP (connect-src https:)
-#   # and is never actually reached — page.route replaces every call.
-#   NEXT_PUBLIC_QUICKEX_API_URL: 'https://api.quickex.test'
-#   # testnet renders the deterministic StagingBanner + TESTNET network badge.
-#   NEXT_PUBLIC_STELLAR_NETWORK: 'testnet'
-#   NEXT_PUBLIC_SITE_URL: 'http://localhost:3000'
-#   NEXT_PUBLIC_ERROR_REPORTING_ENABLED: 'false'
-#   NEXT_PUBLIC_APP_VERSION: 'e2e-theme-regression'
-#
-# jobs:
-#   visual-theme:
-#     name: Theme regression screenshots
-#     runs-on: ubuntu-latest
-#
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
-#
-#       - name: Setup Node.js
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: '20'
-#           cache: 'npm'
-#           cache-dependency-path: app/frontend/package-lock.json
-#
-#       - name: Install api-client dependencies
-#         working-directory: ./packages/api-client
-#         run: npm install --no-package-lock
-#
-#       - name: Install frontend dependencies
-#         working-directory: ./app/frontend
-#         run: npm ci
-#
-#       - name: Build the app
-#         working-directory: ./app/frontend
-#         run: npm run build
-#
-#       - name: Start the app and run the suite
-#         working-directory: ./app/frontend
-#         env:
-#           # QUICKEX_INTERNAL_API_URL points at the app itself so the server-side
-#           # /pay metadata fetch fails fast against localhost (never the
-#           # network), keeping the metadata fallback path deterministic.
-#           QUICKEX_INTERNAL_API_URL: 'http://localhost:3000'
-#         run: |
-#           npm start &
-#           APP_PID=$!
-#           trap "kill $APP_PID" EXIT
-#           for i in $(seq 1 60); do
-#             if curl -s -o /dev/null http://localhost:3000; then
-#               echo "App is up after ${i}s"
-#               break
-#             fi
-#             if [ "$i" -eq 60 ]; then
-#               echo "App failed to boot" >&2
-#               exit 1
-#             fi
-#             sleep 1
-#           done
-#
-#           cd ../../e2e
-#           npm install
-#           if [ "${{ inputs.update-baselines || 'false' }}" = "true" ]; then
-#             echo "Updating baseline goldens..."
-#             npx playwright test --project=visual-theme --update-snapshots
-#           else
-#             npx playwright test --project=visual-theme
-#           fi
-#
-#       - name: Upload Playwright report (screenshots + traces)
-#         if: ${{ !cancelled() }}
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: theme-regression-report
-#           path: e2e/playwright-report
-#           retention-days: 7
-#
-#       - name: Upload generated goldens
-#         if: ${{ success() && (inputs.update-baselines || 'false') == 'true' }}
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: theme-regression-goldens
-#           path: e2e/tests/theme-regression.spec.ts-snapshots/**/*.png
-#           retention-days: 7
+name: Visual Theme Regression
+
+# FE-56: runs the theme regression screenshot suite against a freshly built
+# app. This is a hermetic job — every backend call is mocked by
+# e2e/tests/theme-mocks.ts, no deployed environment is required — so it gates
+# every PR touching the frontend. Depends on the system Google Chrome that
+# ships with ubuntu-latest; goldens therefore must be regenerated on Linux
+# with the same browser (or here via the update-baselines dispatch).
+
+on:
+  pull_request:
+    paths:
+      - 'app/frontend/**'
+      - 'e2e/**'
+      - '.github/workflows/frontend-theme-regression.yml'
+  workflow_dispatch:
+    inputs:
+      update-baselines:
+        description: 'Regenerate screenshot goldens instead of asserting (review the PNGs!)'
+        required: true
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 env:
   # The app validates these at runtime (app/frontend/src/lib/env.ts) and bakes
