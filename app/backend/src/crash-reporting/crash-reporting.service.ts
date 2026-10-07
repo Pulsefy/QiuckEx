@@ -176,6 +176,15 @@ export class CrashReportingService {
   }
 
   /**
+   * Get all crash reports (for admin retrieval)
+   * @param limit - Maximum number of reports to return
+   * @returns Array of crash reports
+   */
+  async getAllReports(limit = 50): Promise<CrashReport[]> {
+    return this.repository.getAllCrashReports(limit);
+  }
+
+  /**
    * Clear the current request's log buffer (useful for testing)
    */
   clearLogBuffer(): void {
@@ -202,6 +211,8 @@ export class CrashReportingService {
     const redactedDetails = dto.errorDetails ? this.redactionService.redact(dto.errorDetails) : undefined;
     const redactedEnvironment = dto.environment ? this.redactionService.redact(dto.environment) : undefined;
     const redactedRoute = dto.route ? this.redactionService.redact(dto.route) : undefined;
+    const redactedReproductionSteps = dto.reproductionSteps ? this.redactionService.redact(dto.reproductionSteps) : undefined;
+    const redactedAttachments = dto.attachments ? dto.attachments.map(a => this.redactionService.redact(a)) : undefined;
 
     const crashReport: Omit<CrashReport, 'id' | 'createdAt'> = {
       userId: undefined,
@@ -213,6 +224,8 @@ export class CrashReportingService {
       context: {
         environment: redactedEnvironment,
         route: redactedRoute,
+        reproductionSteps: redactedReproductionSteps,
+        attachments: redactedAttachments,
       },
       logLines: [],
       timestamp: new Date(),
