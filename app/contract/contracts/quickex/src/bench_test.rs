@@ -480,6 +480,16 @@ fn bench_core_lifecycle_costs() {
     }
 }
 
+/// Benchmark & Gate: per-entrypoint resource budget assertions (SC-W8-14 / Issue #875).
+///
+/// Asserts that each of the 93 public entrypoints operates within its recorded CPU and
+/// memory budget in `entrypoint-budgets.json`. Fails if any entrypoint regresses beyond
+/// the documented tolerance (10.0%), naming the entrypoint and delta in the failure report.
+#[test]
+fn bench_per_entrypoint_resource_budgets() {
+    crate::entrypoint_budget_test::assert_all_entrypoints_within_budget();
+}
+
 /// Benchmark: create_amount_commitment
 /// Deepest hot path — called inside every deposit and withdraw.
 #[test]
