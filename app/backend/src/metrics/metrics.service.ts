@@ -34,6 +34,8 @@ export class MetricsService implements OnModuleInit {
   private outboxDispatchTotal: client.Counter<string>;
   private reconciliationDriftActive: client.Gauge<string>;
   private reconciliationConsecutiveFailures: client.Gauge<string>;
+  private analyticsEventsValidatedTotal: client.Counter<string>;
+  private analyticsEventsRejectedTotal: client.Counter<string>;
   private initialized = false;
 
   onModuleInit() {
@@ -195,6 +197,18 @@ export class MetricsService implements OnModuleInit {
         help: "Number of consecutive failed or skipped reconciliation runs",
       });
 
+      this.analyticsEventsValidatedTotal = new client.Counter({
+        name: "analytics_events_validated_total",
+        help: "Total number of analytics events validated at emit time by outcome",
+        labelNames: ["event_name", "schema_version", "outcome"],
+      });
+
+      this.analyticsEventsRejectedTotal = new client.Counter({
+        name: "analytics_events_rejected_total",
+        help: "Total number of invalid analytics events rejected at emit time",
+        labelNames: ["event_name", "schema_version", "error_type"],
+      });
+
       this.register.registerMetric(this.httpRequestDuration);
       this.register.registerMetric(this.httpRequestTotal);
       this.register.registerMetric(this.rateLimitedRequestsTotal);
@@ -221,6 +235,8 @@ export class MetricsService implements OnModuleInit {
       this.register.registerMetric(this.outboxDispatchTotal);
       this.register.registerMetric(this.reconciliationDriftActive);
       this.register.registerMetric(this.reconciliationConsecutiveFailures);
+      this.register.registerMetric(this.analyticsEventsValidatedTotal);
+      this.register.registerMetric(this.analyticsEventsRejectedTotal);
 
       // BE-115: fail fast at boot if any registered metric uses a label source
       // that is not covered by the bounded-label policy.
@@ -517,6 +533,42 @@ export class MetricsService implements OnModuleInit {
     if (!this.initialized || !this.reconciliationConsecutiveFailures) return;
     try {
       this.reconciliationConsecutiveFailures.set(count);
+    } catch (error) {}
+  }
+
+  recordAnalyticsEventAccepted(eventName: string, schemaVersion: number) {
+    if (!this.initialized || !this.analyticsEventsValidatedTotal) return;
+    try {
+      this.analyticsEventsValidatedTotal
+        .labels(
+          boundedMetricLabel("event_name", eventName),
+          boundedMetricLabel("schema_version", String(schemaVersion)),
+          "accepted",
+        )
+        .inc();
+    } catch (error) {}
+  }
+
+  recordAnalyticsEventRejected(
+    eventName: string,
+    schemaVersion: number | null,
+    errorType: string,
+  ) {
+    if (!this.initialized) return;
+    try {
+      const versionLabel = boundedMetricLabel(
+        "schema_version",
+        schemaVersion !== null && schemaVersion !== undefined
+          ? String(schemaVersion)
+          : "0",
+      );
+      const boundedEvent = boundedMetricLabel("event_name", eventName);
+      this.analyticsEventsValidatedTotal
+        ?.labels(boundedEvent, versionLabel, "rejected")
+        .inc();
+      this.analyticsEventsRejectedTotal
+        ?.labels(boundedEvent, versionLabel, errorType)
+        .inc();
     } catch (error) {}
   }
 }

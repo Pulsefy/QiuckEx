@@ -1,4 +1,17 @@
-import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Optional,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
@@ -11,12 +24,18 @@ import {
   ReportFormat,
 } from './dto/analytics-query.dto';
 import { DashboardSummaryQueryDto } from './dto/dashboard-summary.dto';
+import { EmitAnalyticsEventDto } from './dto/analytics-event.dto';
+import { AnalyticsEventRegistryService } from './events/analytics-event-registry.service';
 
 @ApiTags('analytics')
 @UseGuards(ApiKeyGuard)
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    @Optional()
+    private readonly eventRegistry: AnalyticsEventRegistryService = new AnalyticsEventRegistryService(),
+  ) {}
 
   @Get('report')
   @RateLimitTier('public-read')
@@ -133,5 +152,64 @@ export class AnalyticsController {
       query.endDate,
       req.organizationContext?.organizationId,
     );
+  }
+
+  @Get('schemas')
+  @RateLimitTier('public-read')
+  @ApiOperation({
+    summary: 'Export the central analytics event schema registry for dashboards and consumers',
+  })
+  @ApiResponse({ status: 200, description: 'Analytics event schema registry exported' })
+  getSchemas() {
+    return this.eventRegistry.exportRegistry();
+  }
+
+  @Get('schemas/:eventName')
+  @RateLimitTier('public-read')
+  @ApiOperation({
+    summary: 'Export a single analytics event schema by event name',
+  })
+  @ApiResponse({ status: 200, description: 'Analytics event schema returned' })
+  @ApiResponse({ status: 404, description: 'Event schema not found' })
+  getEventSchema(@Param('eventName') eventName: string) {
+    const schema = this.eventRegistry.exportEventSchema(eventName);
+    if (!schema) {
+      throw new NotFoundException({
+        code: 'ANALYTICS_SCHEMA_NOT_FOUND',
+        message: `Analytics event schema "${eventName}" was not found in the registry`,
+      });
+    }
+    return schema;
+  }
+
+  @Post('events')
+  @RateLimitTier('authenticated')
+  @ApiOperation({
+    summary: 'Validate and record an analytics event against its registered schema',
+  })
+  @ApiResponse({ status: 201, description: 'Analytics event validated and recorded' })
+  @ApiResponse({ status: 400, description: 'Analytics event failed schema validation' })
+  emitEvent(@Body() body: EmitAnalyticsEventDto) {
+    const result = this.eventRegistry.emit(body);
+    if (!result.accepted) {
+      throw new BadRequestException({
+        code: 'ANALYTICS_EVENT_SCHEMA_INVALID',
+        message: `Event "${body.eventName}" failed schema validation`,
+        eventName: result.validation.eventName,
+        schemaVersion: result.validation.schemaVersion,
+        issues: result.validation.issues,
+      });
+    }
+    return result;
+  }
+
+  @Get('events/stats')
+  @RateLimitTier('public-read')
+  @ApiOperation({
+    summary: 'Fetch analytics event schema validation and rejection counters',
+  })
+  @ApiResponse({ status: 200, description: 'Analytics event validation stats returned' })
+  getEventValidationStats() {
+    return this.eventRegistry.getValidationStats();
   }
 }
