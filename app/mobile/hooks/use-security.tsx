@@ -1,29 +1,29 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { AppState, Platform } from "react-native";
 
 import { PinAuthModal } from "@/components/security/pin-auth-modal";
 import {
-    clearBiometricSession,
+  clearBiometricSession,
   clearSensitiveSecurityData,
-    getSecuritySettings,
-    getSensitiveToken,
-    getSessionExpiryExplanation,
-    hasFallbackPin,
-    isBiometricSessionValid,
-    recordBiometricAuth,
-    saveSecuritySettings,
-    saveSensitiveToken,
-    setFallbackPin,
-    verifyFallbackPin,
+  getSecuritySettings,
+  getSensitiveToken,
+  getSessionExpiryExplanation,
+  hasFallbackPin,
+  isBiometricSessionValid,
+  recordBiometricAuth,
+  saveSecuritySettings,
+  saveSensitiveToken,
+  setFallbackPin,
+  verifyFallbackPin,
 } from "@/services/security";
 import type { SecurityAuthReason, SecuritySettings } from "@/types/security";
 
@@ -73,14 +73,19 @@ const PIN_DESCRIPTION_BY_REASON: Record<SecurityAuthReason, string> = {
   app_unlock: "Enter your fallback PIN to unlock QuickEx.",
   payment_authorization: "Enter your fallback PIN to authorize this payment.",
   sensitive_data_access: "Enter your fallback PIN to reveal sensitive data.",
-  session_expired: "Your session has expired. Enter your fallback PIN to continue.",
+  session_expired:
+    "Your session has expired. Enter your fallback PIN to continue.",
 };
 
 function isValidPin(pin: string) {
   return /^\d{4,6}$/.test(pin);
 }
 
-type BiometricStatus = "available" | "no_hardware" | "not_enrolled" | "unsupported";
+type BiometricStatus =
+  | "available"
+  | "no_hardware"
+  | "not_enrolled"
+  | "unsupported";
 
 async function checkBiometricAvailability(): Promise<BiometricStatus> {
   if (Platform.OS === "web") return "unsupported";
@@ -101,7 +106,8 @@ async function checkBiometricAvailability(): Promise<BiometricStatus> {
 export function SecurityProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SecuritySettings>(DEFAULT_SETTINGS);
   const [isReady, setIsReady] = useState(false);
-  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus>("unsupported");
+  const [biometricStatus, setBiometricStatus] =
+    useState<BiometricStatus>("unsupported");
   const isBiometricAvailable = biometricStatus === "available";
   const [hasPinConfigured, setHasPinConfigured] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
@@ -110,6 +116,8 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
   const [pinPromptDescription, setPinPromptDescription] = useState(
     PIN_DESCRIPTION_BY_REASON.app_unlock,
   );
+  const [pinPromptReason, setPinPromptReason] =
+    useState<SecurityAuthReason>("app_unlock");
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [verifyingPin, setVerifyingPin] = useState(false);
@@ -156,18 +164,22 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [settings.biometricLockEnabled]);
 
-  const openPinPrompt = useCallback((reason: SecurityAuthReason, fallbackReason?: string) => {
-    return new Promise<boolean>((resolve) => {
-      pinResolverRef.current = resolve;
-      const defaultDesc = PIN_DESCRIPTION_BY_REASON[reason];
-      setPinPromptDescription(
-        fallbackReason ? `${fallbackReason}\n\n${defaultDesc}` : defaultDesc,
-      );
-      setPinInput("");
-      setPinError(null);
-      setPinPromptVisible(true);
-    });
-  }, []);
+  const openPinPrompt = useCallback(
+    (reason: SecurityAuthReason, fallbackReason?: string) => {
+      return new Promise<boolean>((resolve) => {
+        pinResolverRef.current = resolve;
+        setPinPromptReason(reason);
+        const defaultDesc = PIN_DESCRIPTION_BY_REASON[reason];
+        setPinPromptDescription(
+          fallbackReason ? `${fallbackReason}\n\n${defaultDesc}` : defaultDesc,
+        );
+        setPinInput("");
+        setPinError(null);
+        setPinPromptVisible(true);
+      });
+    },
+    [],
+  );
 
   const resolvePinPrompt = useCallback((result: boolean) => {
     if (pinResolverRef.current) {
@@ -184,7 +196,10 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       reason: SecurityAuthReason,
     ): Promise<{ success: boolean; fallbackReason?: string }> => {
       if (!settings.biometricLockEnabled) {
-        return { success: false, fallbackReason: "Biometric lock is disabled." };
+        return {
+          success: false,
+          fallbackReason: "Biometric lock is disabled.",
+        };
       }
 
       if (biometricStatus === "no_hardware") {
@@ -228,7 +243,8 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
         if (result.error === "lockout") {
           return {
             success: false,
-            fallbackReason: "Biometric authentication is locked out due to too many attempts.",
+            fallbackReason:
+              "Biometric authentication is locked out due to too many attempts.",
           };
         }
 
@@ -444,16 +460,10 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Record successful PIN auth as a biometric session
-    await recordBiometricAuth(pinPromptDescription.includes("session_expired")
-      ? "session_expired"
-      : pinPromptDescription.includes("payment")
-        ? "payment_authorization"
-        : pinPromptDescription.includes("sensitive")
-          ? "sensitive_data_access"
-          : "app_unlock");
+    await recordBiometricAuth(pinPromptReason);
 
     resolvePinPrompt(true);
-  }, [pinInput, pinPromptDescription, resolvePinPrompt]);
+  }, [pinInput, pinPromptReason, resolvePinPrompt]);
 
   const onCancelPin = useCallback(() => {
     resolvePinPrompt(false);
