@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Documented allowlist for backend routes and DTO schema exceptions in QuickEx OpenAPI documentation.",
+  "routes": [
+    {
+      "path": "/health",
+      "method": "get",
+      "reason": "Lightweight shallow health check probe for load balancers; returns plain status without complex DTO model."
+    },
+    {
+      "path": "/metrics",
+      "method": "get",
+      "reason": "Prometheus text format exposition endpoint for Prometheus scraper; content-type is text/plain."
+    },
+    {
+      "path": "/admin/audit/export",
+      "method": "get",
+      "reason": "Direct CSV file download stream for administrative compliance exports."
+    },
+    {
+      "path": "/seed-reset/status",
+      "method": "get",
+      "reason": "Internal test/demo harness reset status probe."
+    },
+    {
+      "path": "/seed-reset/reset",
+      "method": "post",
+      "reason": "Internal test/demo sandbox database re-seeding endpoint; restricted to development/demo environments."
+    },
+    {
+      "path": "/api/seed-reset/status",
+      "method": "get",
+      "reason": "Legacy compatibility alias for demo seed-reset status."
+    },
+    {
+      "path": "/api/seed-reset/reset",
+      "method": "post",
+      "reason": "Legacy compatibility alias for demo seed-reset reset."
+    }
+  ],
+  "schemas": [
+    {
+      "schema": "Record<string,unknown>",
+      "property": "metadata",
+      "reason": "Dynamic unstructured JSON metadata dictionary allowed on telemetry, notification, and audit records."
+    }
+  ]
+}

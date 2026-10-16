@@ -1,7 +1,8 @@
 import { Controller, Get, Query, UsePipes, ValidationPipe } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DashboardFeedService } from './dashboard-feed.service';
 import { GetFeedQueryDto } from './dto/get-feed.dto';
+import { FeedResponseDto } from './dto/dashboard-feed-response.dto';
 import type { FeedResponse } from './dashboard-feed.types';
 import { RateLimitTier } from '../auth/decorators/rate-limit-group.decorator';
 import {
@@ -30,7 +31,12 @@ export class DashboardFeedController {
       'username actions for the given address. Feed ordering is deterministic ' +
       'across repeated requests (timestamp DESC, id DESC).',
   })
+  @ApiOkResponse({
+    description: 'Cursor-paginated activity feed',
+    type: FeedResponseDto,
+  })
   async getFeed(@Query() query: GetFeedQueryDto): Promise<FeedResponse> {
     return this.feedService.getFeed(query);
   }
 }
+

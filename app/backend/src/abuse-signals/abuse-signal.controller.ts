@@ -7,9 +7,15 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
 } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiQuery } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiQuery, ApiOkResponse } from "@nestjs/swagger";
 import { AbuseSignalService } from "./abuse-signal.service";
 import { RateLimitTier } from "../auth/decorators/rate-limit-group.decorator";
+import {
+  AbuseScoreSummaryDto,
+  AbuseSignalAggregationDto,
+  ListAbuseSignalsResponseDto,
+  PruneAbuseSignalsResponseDto,
+} from "./dto/abuse-signal-response.dto";
 
 @ApiTags("admin/abuse-signals")
 @Controller("admin/abuse-signals")
@@ -37,10 +43,14 @@ export class AbuseSignalController {
     required: false,
     example: 50,
   })
+  @ApiOkResponse({
+    description: "List of suspicious abuse signals",
+    type: ListAbuseSignalsResponseDto,
+  })
   async getSuspicious(
     @Query("minScore", new DefaultValuePipe(20), ParseIntPipe) minScore: number,
     @Query("limit", new DefaultValuePipe(50), ParseIntPipe) limit: number,
-  ) {
+  ): Promise<ListAbuseSignalsResponseDto> {
     const signals = await this.abuseSignalService.getHighScoreSignals(
       minScore,
       Math.min(limit, 200),
@@ -69,10 +79,14 @@ export class AbuseSignalController {
     required: false,
     example: 50,
   })
+  @ApiOkResponse({
+    description: "List of signals matching IP hash",
+    type: ListAbuseSignalsResponseDto,
+  })
   async getByIp(
     @Query("ipHash") ipHash: string,
     @Query("limit", new DefaultValuePipe(50), ParseIntPipe) limit: number,
-  ) {
+  ): Promise<ListAbuseSignalsResponseDto> {
     if (!ipHash) {
       return { signals: [], count: 0 };
     }
@@ -98,10 +112,14 @@ export class AbuseSignalController {
     required: false,
     example: 60,
   })
+  @ApiOkResponse({
+    description: "Aggregated abuse summary",
+    type: AbuseSignalAggregationDto,
+  })
   async getSummary(
     @Query("sinceMinutes", new DefaultValuePipe(60), ParseIntPipe)
     sinceMinutes: number,
-  ) {
+  ): Promise<AbuseSignalAggregationDto> {
     return this.abuseSignalService.getAggregation(sinceMinutes);
   }
 
@@ -126,10 +144,14 @@ export class AbuseSignalController {
     required: false,
     example: 20,
   })
+  @ApiOkResponse({
+    description: "List of per-IP abuse summaries",
+    type: [AbuseScoreSummaryDto],
+  })
   async getIpSummaries(
     @Query("minScore", new DefaultValuePipe(20), ParseIntPipe) minScore: number,
     @Query("limit", new DefaultValuePipe(20), ParseIntPipe) limit: number,
-  ) {
+  ): Promise<AbuseScoreSummaryDto[]> {
     return this.abuseSignalService.getIpSummaries(
       minScore,
       Math.min(limit, 100),
@@ -145,8 +167,13 @@ export class AbuseSignalController {
       "Manually trigger cleanup of signals past their retention_until date. " +
       "Cleanup also runs automatically via a scheduled task.",
   })
-  async prune() {
+  @ApiOkResponse({
+    description: "Pruning operation result count",
+    type: PruneAbuseSignalsResponseDto,
+  })
+  async prune(): Promise<PruneAbuseSignalsResponseDto> {
     const count = await this.abuseSignalService.pruneExpiredSignals();
     return { pruned: count };
   }
 }
+

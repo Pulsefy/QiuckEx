@@ -74,7 +74,10 @@
     "lint": "eslint \"{src,test,perf}/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "check:routes": "ts-node scripts/check-route-conventions.ts",
+    "openapi:generate": "ts-node scripts/generate-openapi.ts",
+    "openapi:check": "ts-node scripts/check-openapi-schemas.ts",
     "test": "jest --config jest.config.ts",
+
     "test:unit": "jest --config jest.unit.config.ts",
     "test:unit:coverage": "jest --config jest.unit.config.ts --coverage",
     "test:int": "jest --config jest.int.config.ts",

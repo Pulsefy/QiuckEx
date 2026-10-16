@@ -19,6 +19,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiOkResponse, ApiParam } from "@nestjs/swagger";
 import { ReceiptsService } from "./receipts.service";
 import { ReceiptHashService } from "./receipt-hash.service";
 import {
@@ -34,6 +35,7 @@ import {
   IndexerLagPolicy,
 } from "../indexer-lag/requires-indexer-lag-check.decorator";
 
+@ApiTags("receipts")
 @Controller("v1/receipts")
 export class ReceiptsController {
   constructor(
@@ -53,6 +55,15 @@ export class ReceiptsController {
   @Get("tx/:txHash")
   @RateLimitTier("public-read")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Get normalized receipt by transaction hash",
+    description: "Returns a single normalized receipt for a transaction and operation index.",
+  })
+  @ApiParam({ name: "txHash", description: "Stellar transaction hash" })
+  @ApiOkResponse({
+    description: "Normalized receipt response",
+    type: ReceiptResponse,
+  })
   // Joins live Horizon/RPC data against the indexed `receipts` table. A
   // receipt that silently omits its indexed metadata reads as a valid receipt
   // with fewer fields, so this route fails closed rather than degrading.
@@ -83,6 +94,15 @@ export class ReceiptsController {
   @Get("address/:address")
   @RateLimitTier("search")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Get normalized receipts for an address",
+    description: "Returns a paginated list of normalized receipts for a Stellar address.",
+  })
+  @ApiParam({ name: "address", description: "Stellar account address" })
+  @ApiOkResponse({
+    description: "Paginated receipts response",
+    type: ReceiptListResponse,
+  })
   // A receipt history list is a browse surface: entries are ordered newest
   // first and the caller can re-poll, so serving a slightly stale list with an
   // explicit staleness header is better than failing the whole page.
@@ -116,6 +136,14 @@ export class ReceiptsController {
   @Post("verify-hash")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Verify receipt hash against canonical inputs",
+    description: "Verifies that a receipt hash matches the provided canonical inputs.",
+  })
+  @ApiOkResponse({
+    description: "Hash verification result",
+    type: VerifyReceiptHashResponse,
+  })
   async verifyHash(
     @Body() dto: VerifyReceiptHashDto,
   ): Promise<VerifyReceiptHashResponse> {
@@ -128,3 +156,4 @@ export class ReceiptsController {
     };
   }
 }
+

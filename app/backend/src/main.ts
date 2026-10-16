@@ -9,8 +9,9 @@ import "reflect-metadata";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
-import { NestFactory } from "@nestjs/core"; //installed
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { NestFactory } from "@nestjs/core";
+import { SwaggerModule } from "@nestjs/swagger";
+import { createSwaggerDocument } from "./config/swagger.config";
 import helmet from "helmet";
 
 import { WinstonModule } from "nest-winston";
@@ -145,26 +146,7 @@ async function bootstrap() {
   );
 
   // Swagger setup
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("QuickEx Backend")
-    .setDescription(
-      "QuickEx API documentation - A Stellar-based exchange platform. " +
-        `Currently connected to: ${configService.network}`,
-    )
-    .setVersion("v1")
-    .addTag("health", "Health check endpoints")
-    .addTag("usernames", "Username management endpoints")
-    .addTag("links", "Payment link validation and metadata endpoints")
-    .addTag("transactions", "Stellar transaction and payment history")
-    .addTag("scam-alerts", "Fraud detection and link scanning")
-    .addTag("analytics", "Dashboard analytics, time-series insights, and report exports")
-    .addTag("metrics", "Application performance and health metrics")
-    .addTag("stellar", "Verified assets, path preview, Soroban preflight")
-    .addTag("contracts", "Contract registry publication and discovery")
-    .addTag("developer", "Developer self-service: ping, webhook testing, key management, health score")
-    .build();
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  const document = createSwaggerDocument(app, configService.network);
   SwaggerModule.setup("docs", app, document, {
     swaggerOptions: {
       persistAuthorization: true,

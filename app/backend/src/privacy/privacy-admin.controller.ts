@@ -1,20 +1,12 @@
 import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Request } from "express";
 
 import { RequireScopes } from "../auth/decorators/require-scopes.decorator";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
-import {
-  ErasureSubject,
-  PrivacyRetentionService,
-} from "./privacy-retention.service";
+import { PrivacyRetentionService } from "./privacy-retention.service";
 import { RateLimitTier } from "../auth/decorators/rate-limit-group.decorator";
-
-class ErasureRequestDto implements ErasureSubject {
-  publicKey?: string;
-  username?: string;
-  userId?: string;
-}
+import { ErasureRequestDto, PrivacyWorkflowResultDto } from "./dto/privacy.dto";
 
 @ApiTags("Admin - Privacy")
 @Controller("admin/privacy")
@@ -29,6 +21,7 @@ export class PrivacyAdminController {
   @ApiOperation({
     summary: "Run the privacy retention sweeper immediately",
   })
+  @ApiResponse({ status: 201, type: PrivacyWorkflowResultDto })
   enforceRetentionNow() {
     return this.retentionService.enforceRetention();
   }
@@ -38,6 +31,7 @@ export class PrivacyAdminController {
   @ApiOperation({
     summary: "Service a right-to-erasure request across declared data stores",
   })
+  @ApiResponse({ status: 201, type: PrivacyWorkflowResultDto })
   eraseSubject(@Body() body: ErasureRequestDto, @Req() req: Request) {
     const actor =
       req.organizationContext?.organizationId ?? req.apiKey?.id ?? "admin";

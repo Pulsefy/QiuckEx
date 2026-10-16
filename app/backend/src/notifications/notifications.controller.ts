@@ -4,7 +4,9 @@ import { Request } from "express";
 import { InAppNotificationRepository } from "./in-app-notification.repository";
 import { MarkManyReadDto } from "./dto/mark-many-read.dto";
 import { InAppNotificationResponseDto } from "./dto/in-app-notification-response.dto";
+import { NotificationActionResponseDto } from "./dto/notification-action-response.dto";
 import { RateLimitTier } from "../auth/decorators/rate-limit-group.decorator";
+
 
 interface AuthenticatedRequest extends Request {
   user: { publicKey: string };
@@ -34,7 +36,12 @@ export class NotificationsController {
 
   @Post("in-app/:id/read")
   @RateLimitTier("mutation")
-  async markRead(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+  @ApiOperation({ summary: "Mark a single in-app notification as read" })
+  @ApiOkResponse({
+    description: "Action result and remaining unread count",
+    type: NotificationActionResponseDto,
+  })
+  async markRead(@Req() req: AuthenticatedRequest, @Param("id") id: string): Promise<NotificationActionResponseDto> {
     await this.inAppRepo.markAsRead(req.user.publicKey, id);
 
     const unreadCount = await this.inAppRepo.getUnreadCount(req.user.publicKey);
@@ -48,7 +55,12 @@ export class NotificationsController {
 
   @Post("in-app/read")
   @RateLimitTier("mutation")
-  async markManyRead(@Req() req: AuthenticatedRequest, @Body() body: MarkManyReadDto) {
+  @ApiOperation({ summary: "Mark multiple in-app notifications as read" })
+  @ApiOkResponse({
+    description: "Action result and remaining unread count",
+    type: NotificationActionResponseDto,
+  })
+  async markManyRead(@Req() req: AuthenticatedRequest, @Body() body: MarkManyReadDto): Promise<NotificationActionResponseDto> {
     await this.inAppRepo.markManyAsRead(req.user.publicKey, body.ids);
 
     const unreadCount = await this.inAppRepo.getUnreadCount(req.user.publicKey);
@@ -62,7 +74,12 @@ export class NotificationsController {
 
   @Post("in-app/read-all")
   @RateLimitTier("mutation")
-  async markAll(@Req() req: AuthenticatedRequest) {
+  @ApiOperation({ summary: "Mark all in-app notifications as read" })
+  @ApiOkResponse({
+    description: "Action result and remaining unread count",
+    type: NotificationActionResponseDto,
+  })
+  async markAll(@Req() req: AuthenticatedRequest): Promise<NotificationActionResponseDto> {
     await this.inAppRepo.markAllAsRead(req.user.publicKey);
 
     const unreadCount = await this.inAppRepo.getUnreadCount(req.user.publicKey);
