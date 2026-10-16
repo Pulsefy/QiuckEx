@@ -35,6 +35,10 @@ import {
 import { TransactionsService } from "./transaction.service";
 import { ContractMethodAllowlistGuard } from "../contracts/contract-method-allowlist.guard";
 import {
+  ContractCompatibilityGuard,
+  EnforceContractCompatibility,
+} from "../contracts/contract-compatibility.guard";
+import {
   IdempotencyInterceptor,
   IDEMPOTENCY_KEY_HEADER,
 } from "../common/idempotency/idempotency.interceptor";
@@ -108,7 +112,8 @@ export class TransactionsController {
   @Post("compose")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard, ContractCompatibilityGuard)
+  @EnforceContractCompatibility("pay_initiation")
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @EmergencyClassification(
     "blocked",
@@ -123,7 +128,8 @@ export class TransactionsController {
   @Post("build")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard, ContractCompatibilityGuard)
+  @EnforceContractCompatibility("pay_initiation")
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @EmergencyClassification(
     "blocked",
@@ -145,7 +151,8 @@ export class TransactionsController {
   @Post("simulate")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard)
+  @UseGuards(NetworkSafetyGuard, ContractMethodAllowlistGuard, ContractCompatibilityGuard)
+  @EnforceContractCompatibility("pay_initiation")
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @EmergencyClassification(
     "blocked",
@@ -166,7 +173,8 @@ export class TransactionsController {
   @Post("submit")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
+  @UseGuards(NetworkSafetyGuard, ContractCompatibilityGuard)
+  @EnforceContractCompatibility("pay_initiation")
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @EmergencyClassification(
     "blocked",

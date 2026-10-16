@@ -1,3 +1,5 @@
+import { ContractCompatibilityMetadataDto } from "../../contracts/dto";
+
 export interface ResourceEstimate {
   cpuInstructions: number;
   memoryBytes: number;
@@ -24,6 +26,7 @@ export interface ComposeTransactionResponse {
   minResourceFee: string;
   simulationLatencyMs: number;
   idempotencyKey: string;
+  contractCompatibility?: ContractCompatibilityMetadataDto;
   simulationSummary: {
     status: "success";
     footprint: {
@@ -46,6 +49,7 @@ export interface ComposeTransactionError {
   error: string;
   userMessage: string;
   details?: Record<string, unknown>;
+  contractCompatibility?: ContractCompatibilityMetadataDto;
 }
 
 export interface SubmitTransactionResponse {
@@ -57,6 +61,7 @@ export interface SubmitTransactionResponse {
   error?: string;
   userMessage?: string;
   details?: Record<string, unknown>;
+  contractCompatibility?: ContractCompatibilityMetadataDto;
 }
 
 export interface SimulationResponse {
@@ -70,6 +75,7 @@ export interface SimulationResponse {
   details?: Record<string, unknown>;
   idempotencyKey: string;
   simulationLatencyMs: number;
+  contractCompatibility?: ContractCompatibilityMetadataDto;
 }
 
 export interface DeterministicFailureDefinition {

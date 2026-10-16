@@ -20,6 +20,13 @@ import { ContractSpecController } from './contract-spec.controller';
 import { ContractSpecService } from './contract-spec.service';
 import { SmokeScenariosController } from './smoke-scenarios/smoke-scenarios.controller';
 import { SmokeScenariosService } from './smoke-scenarios/smoke-scenarios.service';
+import {
+  CONTRACT_CONFIG_READER,
+  CONTRACT_REGISTRY_READER,
+  ContractCompatibilityService,
+} from './contract-compatibility.service';
+import { ContractCompatibilityGuard } from './contract-compatibility.guard';
+import { AppConfigService } from '../config/app-config.service';
 
 @Module({
   imports: [ApiKeysModule, AuditModule, SupabaseModule],
@@ -43,6 +50,17 @@ import { SmokeScenariosService } from './smoke-scenarios/smoke-scenarios.service
     DeploymentArtifactsService,
     ContractSpecService, // Add new service
     SmokeScenariosService,
+    {
+      provide: CONTRACT_REGISTRY_READER,
+      useExisting: ContractRegistryService,
+    },
+    {
+      provide: CONTRACT_CONFIG_READER,
+      useFactory: (config?: AppConfigService) => config,
+      inject: [{ token: AppConfigService, optional: true }],
+    },
+    ContractCompatibilityService,
+    ContractCompatibilityGuard,
   ],
   exports: [
     ContractRegistryService,
@@ -51,6 +69,10 @@ import { SmokeScenariosService } from './smoke-scenarios/smoke-scenarios.service
     ContractMethodAllowlistGuard,
     ContractSpecService, // Export new service
     SmokeScenariosService,
+    CONTRACT_REGISTRY_READER,
+    CONTRACT_CONFIG_READER,
+    ContractCompatibilityService,
+    ContractCompatibilityGuard,
   ],
 })
 export class ContractsModule {}

@@ -37,6 +37,10 @@ import { CreateQuoteDto, QuoteResponseDto } from "./dto/quote.dto";
 import { SorobanPreflightDto } from "./dto/soroban-preflight.dto";
 import { PathPreviewService } from "./path-preview.service";
 import { QuoteService } from "./quote.service";
+import {
+  ContractCompatibilityGuard,
+  EnforceContractCompatibility,
+} from "../contracts/contract-compatibility.guard";
 
 @ApiTags("stellar")
 @ApiHeader({
@@ -101,7 +105,8 @@ export class StellarController {
   @Post("soroban-preflight")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
-  @UseGuards(NetworkSafetyGuard)
+  @UseGuards(NetworkSafetyGuard, ContractCompatibilityGuard)
+  @EnforceContractCompatibility("quote")
   @RequiresFlag(TESTNET_CONTRACT_WRITES_FLAG)
   @EmergencyClassification(
     "blocked",
@@ -114,7 +119,7 @@ export class StellarController {
       "Uses the same pipeline as POST /transactions/compose against QUICKEX_CONTRACT_ID.",
   })
   async sorobanPreflight(@Body() body: SorobanPreflightDto) {
-    const contractId = this.appConfig.quickexContractId;
+    const contractId = body.contractId?.trim() || this.appConfig.quickexContractId;
     if (!contractId?.trim()) {
       throw new ServiceUnavailableException({
         code: "CONTRACT_NOT_CONFIGURED",
@@ -128,12 +133,16 @@ export class StellarController {
       method: "health_check",
       params: [],
       sourceAccount: body.sourceAccount,
+      contractVersion: body.contractVersion,
+      schemaVersion: body.schemaVersion,
     });
   }
 
   @Post("quote")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ContractCompatibilityGuard)
+  @EnforceContractCompatibility("quote")
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
     summary: "Create a path payment quote",
@@ -149,6 +158,10 @@ export class StellarController {
   @ApiResponse({
     status: 400,
     description: "No path found or invalid parameters",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Contract version or schema incompatible",
   })
   async createQuote(@Body() body: CreateQuoteDto): Promise<QuoteResponseDto> {
     return this.quoteService.createQuote(body);

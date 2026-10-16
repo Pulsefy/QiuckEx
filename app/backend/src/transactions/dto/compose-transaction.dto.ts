@@ -6,6 +6,9 @@ import {
   ValidateNested,
   MaxLength,
   IsEnum,
+  IsInt,
+  Min,
+  Max,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { MemoType } from "../../dto/validators/stellar-memo.validator";
@@ -60,6 +63,21 @@ export class ComposeTransactionDto {
   @Type(() => CanonicalMemoDto)
   @IsOptional()
   memo?: CanonicalMemoDto; // Canonical memo support
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  contractVersion?: number;
+
+  @IsOptional()
+  @IsString()
+  schemaVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  contractName?: string;
 }
 
 export class SubmitSignedTransactionDto {
@@ -75,6 +93,25 @@ export class SubmitSignedTransactionDto {
   @IsNotEmpty()
   @MaxLength(128)
   idempotencyKey: string; // Required idempotency key for submit
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  contractVersion?: number;
+
+  @IsOptional()
+  @IsString()
+  schemaVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  contractId?: string;
+
+  @IsOptional()
+  @IsString()
+  contractName?: string;
 }
 
 export class SimulateOperationDto {
@@ -104,4 +141,19 @@ export class SimulateOperationDto {
   @IsString()
   @IsOptional()
   simulateFailure?: string; // Optional: force specific failure scenario for testing
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  contractVersion?: number;
+
+  @IsOptional()
+  @IsString()
+  schemaVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  contractName?: string;
 }

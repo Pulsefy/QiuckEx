@@ -146,6 +146,31 @@ export class UpsertContractDeploymentDto {
   @IsNotEmpty()
   contractId: string;
 
+  @ApiPropertyOptional({
+    example: 'CD2J6K7T3YJ77QXZP3OLDEXAMPLE',
+    description: 'Previous contract ID for dual-read during transition window',
+  })
+  @IsOptional()
+  @IsString()
+  previousContractId?: string;
+
+  @ApiPropertyOptional({
+    example: 47_000_000,
+    description: 'Ledger number after which to stop reading from previous contract ID',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  effectiveLedger?: number;
+
+  @ApiPropertyOptional({
+    example: '2026-06-02T12:00:00Z',
+    description: 'ISO 8601 timestamp after which to stop reading from previous contract ID',
+  })
+  @IsOptional()
+  @IsISO8601()
+  effectiveTime?: string;
+
   @ApiProperty({ example: '0xabcdef1234567890' })
   @IsString()
   @IsNotEmpty()
@@ -241,6 +266,15 @@ export class ContractDeploymentItemDto {
 
   @ApiProperty({ example: 'CD2J6K7T3YJ77QXZP3EXAMPLE' })
   contractId: string;
+
+  @ApiPropertyOptional({ example: 'CD2J6K7T3YJ77QXZP3OLDEXAMPLE' })
+  previousContractId?: string;
+
+  @ApiPropertyOptional({ example: 47_000_000 })
+  effectiveLedger?: number;
+
+  @ApiPropertyOptional({ example: '2026-06-02T12:00:00Z' })
+  effectiveTime?: string;
 
   @ApiProperty({ example: '0xabcdef1234567890' })
   wasmHash: string;

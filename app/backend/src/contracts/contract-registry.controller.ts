@@ -4,27 +4,33 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Post,
   Put,
+  Query,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireScopes } from '../auth/decorators/require-scopes.decorator';
 import { RateLimitGroupTag, RateLimitTier } from '../auth/decorators/rate-limit-group.decorator';
 import { ContractRegistryService } from './contract-registry.service';
+import { ContractCompatibilityService } from './contract-compatibility.service';
 import {
+  ContractCompatibilityFlow,
+  ContractCompatibilityMetadataDto,
   ContractDeploymentItemDto,
   ContractDeploymentsResponseDto,
   ContractRegistryResponseDto,
   PublishContractRegistryDto,
   RollbackContractRegistryDto,
   UpsertContractDeploymentDto,
+  ValidateWriteCompatibilityDto,
 } from './dto';
 
 @ApiTags('contracts')
@@ -40,7 +46,49 @@ import {
 // docs/ROUTING-CONVENTIONS.md. Do not add further aliases.
 @Controller(['contracts', 'api/contracts', 'mobile/contracts', 'api/mobile/contracts'])
 export class ContractRegistryController {
-  constructor(private readonly contractRegistryService: ContractRegistryService) {}
+  private readonly compatibilityService: ContractCompatibilityService;
+
+  constructor(
+    private readonly contractRegistryService: ContractRegistryService,
+    @Optional() compatibilityService?: ContractCompatibilityService,
+  ) {
+    this.compatibilityService =
+      compatibilityService ??
+      new ContractCompatibilityService(this.contractRegistryService);
+  }
+
+  @Get('registry/compatibility')
+  @RateLimitTier('public-read')
+  @ApiOperation({
+    summary: 'Get contract compatibility metadata and flow requirements',
+  })
+  @ApiQuery({
+    name: 'flow',
+    required: false,
+    enum: ['link', 'quote', 'pay_initiation'],
+  })
+  @ApiQuery({ name: 'contractName', required: false })
+  @ApiResponse({ status: 200, type: ContractCompatibilityMetadataDto })
+  getCompatibility(
+    @Query('flow') flow?: ContractCompatibilityFlow,
+    @Query('contractName') contractName?: string,
+  ) {
+    return this.compatibilityService.getCompatibilityMetadata(
+      flow ?? 'pay_initiation',
+      contractName ?? 'quickex',
+    );
+  }
+
+  @Post('registry/compatibility/validate')
+  @RateLimitTier('public-read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Validate client contract version/schema assertions for a write flow',
+  })
+  @ApiResponse({ status: 200, type: ContractCompatibilityMetadataDto })
+  validateCompatibility(@Body() body: ValidateWriteCompatibilityDto) {
+    return this.compatibilityService.validateWriteCompatibility(body);
+  }
 
   @Get('registry/deployments')
   @RateLimitTier('public-read')

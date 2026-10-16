@@ -92,11 +92,20 @@ export class RuntimeConfigService {
       const entries: Record<string, ContractEntryDto> = {};
       for (const [name, data] of Object.entries(registry.data)) {
         const typed = data as Record<string, unknown>;
+        const rawCompat = typed.schemaCompatibility as
+          | { min?: string; max?: string }
+          | undefined;
         entries[name] = {
           contractId: String(typed.id ?? ''),
           wasmHash: String(typed.wasmHash ?? ''),
           version: Number(typed.version ?? 0),
           schemaVersion: String(typed.schemaVersion ?? '1.0.0'),
+          schemaCompatibility: rawCompat
+            ? {
+                min: rawCompat.min ?? '1.0.0',
+                max: rawCompat.max ?? '2.0.0',
+              }
+            : undefined,
         };
       }
       return entries;

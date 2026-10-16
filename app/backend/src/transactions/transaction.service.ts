@@ -18,6 +18,8 @@ import { buildScVal } from "./utils/param-builder";
 import { SorobanRpcService } from "./soroban-rpc.service";
 import { mapSorobanError } from "../common/soroban-errors";
 import { SorobanErrorCode } from "../common/soroban-errors";
+import { ContractCompatibilityService } from "../contracts/contract-compatibility.service";
+import { Optional } from "@nestjs/common";
 
 const STROOPS_PER_XLM = 10_000_000;
 const BASE_FEE = 100; // stroops
@@ -35,12 +37,29 @@ export class TransactionsService {
     { success: boolean; hash?: string; error?: string; userMessage?: string }
   >();
   private readonly submitIdempotencyFingerprints = new Map<string, string>();
+  private readonly contractCompatibilityService: ContractCompatibilityService;
 
-  constructor(private readonly sorobanRpcService: SorobanRpcService) {}
+  constructor(
+    private readonly sorobanRpcService: SorobanRpcService,
+    @Optional() contractCompatibilityService?: ContractCompatibilityService,
+  ) {
+    this.contractCompatibilityService =
+      contractCompatibilityService ?? new ContractCompatibilityService();
+  }
 
   async composeTransaction(
     dto: ComposeTransactionDto,
   ): Promise<ComposeTransactionResponse | ComposeTransactionError> {
+    const contractCompatibility =
+      await this.contractCompatibilityService.validateWriteCompatibility({
+        flow: "pay_initiation",
+        contractName: dto.contractName ?? "quickex",
+        contractId: dto.contractId,
+        contractVersion: dto.contractVersion,
+        schemaVersion: dto.schemaVersion,
+        method: dto.method,
+      });
+
     this.validatePayload(dto);
 
     const payloadFingerprint = this.buildFingerprint(dto);
@@ -145,6 +164,7 @@ export class TransactionsService {
         error: mapped.code,
         userMessage: mapped.message,
         details: mapped.details,
+        contractCompatibility,
       };
       this.rememberResponse(idempotencyKey, payloadFingerprint, failedResponse);
       return failedResponse;
@@ -160,6 +180,7 @@ export class TransactionsService {
         details: {
           restorePreamble: simulationResult.restorePreamble,
         },
+        contractCompatibility,
       } as ComposeTransactionError;
       this.rememberResponse(idempotencyKey, payloadFingerprint, restoreResponse);
       return restoreResponse;
@@ -215,6 +236,7 @@ export class TransactionsService {
       minResourceFee,
       simulationLatencyMs,
       idempotencyKey,
+      contractCompatibility,
       simulationSummary: {
         status: "success" as const,
         footprint: {
@@ -236,7 +258,23 @@ export class TransactionsService {
 
   async simulateOperation(
     dto: SimulateOperationDto,
-  ): Promise<{ success: boolean; error?: string; userMessage?: string; details?: Record<string, unknown> }> {
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    userMessage?: string;
+    details?: Record<string, unknown>;
+    contractCompatibility?: import("../contracts/dto").ContractCompatibilityMetadataDto;
+  }> {
+    const contractCompatibility =
+      await this.contractCompatibilityService.validateWriteCompatibility({
+        flow: "pay_initiation",
+        contractName: dto.contractName ?? "quickex",
+        contractId: dto.contractId,
+        contractVersion: dto.contractVersion,
+        schemaVersion: dto.schemaVersion,
+        method: dto.method,
+      });
+
     // This endpoint returns deterministic failure reasons based on input parameters
     const { contractId, method, params } = dto;
     
@@ -249,42 +287,48 @@ export class TransactionsService {
         success: false,
         error: SorobanErrorCode.INSUFFICIENT_BALANCE,
         userMessage: 'Insufficient balance to complete this operation. Please add funds to your account.',
-        details: { required: '10.0 XLM', available: '5.0 XLM' }
+        details: { required: '10.0 XLM', available: '5.0 XLM' },
+        contractCompatibility,
       };
     } else if (inputHash.startsWith('01')) {
       return {
         success: false,
         error: SorobanErrorCode.UNAUTHORIZED,
         userMessage: 'You are not authorised to perform this operation on this contract.',
-        details: { caller: dto.sourceAccount, requiredRole: 'admin' }
+        details: { caller: dto.sourceAccount, requiredRole: 'admin' },
+        contractCompatibility,
       };
     } else if (inputHash.startsWith('02')) {
       return {
         success: false,
         error: SorobanErrorCode.CONTRACT_PAUSED,
         userMessage: 'The contract is currently paused. Please try again later.',
-        details: { pausedUntil: '2025-12-31T23:59:59Z' }
+        details: { pausedUntil: '2025-12-31T23:59:59Z' },
+        contractCompatibility,
       };
     } else if (inputHash.startsWith('03')) {
       return {
         success: false,
         error: SorobanErrorCode.BUDGET_EXCEEDED,
         userMessage: 'The transaction exceeds Soroban compute limits. Try simplifying the operation.',
-        details: { used: '150000000', limit: '100000000' }
+        details: { used: '150000000', limit: '100000000' },
+        contractCompatibility,
       };
     } else if (inputHash.startsWith('04')) {
       return {
         success: false,
         error: SorobanErrorCode.RESTORE_REQUIRED,
         userMessage: 'Some contract state entries have expired and must be restored before this transaction can proceed.',
-        details: { entriesToRestore: 3 }
+        details: { entriesToRestore: 3 },
+        contractCompatibility,
       };
     } else if (inputHash.startsWith('05')) {
       return {
         success: false,
         error: SorobanErrorCode.STORAGE_MISSING,
         userMessage: 'A required contract state entry does not exist. The resource may not have been initialised.',
-        details: { missingKey: 'user_profile:123' }
+        details: { missingKey: 'user_profile:123' },
+        contractCompatibility,
       };
     }
     
@@ -297,13 +341,29 @@ export class TransactionsService {
         ledgerReads: 5,
         ledgerWrites: 2,
         eventBytes: 128
-      }
+      },
+      contractCompatibility,
     };
   }
 
   async submitSignedTransaction(
     dto: SubmitSignedTransactionDto,
-  ): Promise<{ success: boolean; hash?: string; error?: string; userMessage?: string }> {
+  ): Promise<{
+    success: boolean;
+    hash?: string;
+    error?: string;
+    userMessage?: string;
+    contractCompatibility?: import("../contracts/dto").ContractCompatibilityMetadataDto;
+  }> {
+    const contractCompatibility =
+      await this.contractCompatibilityService.validateWriteCompatibility({
+        flow: "pay_initiation",
+        contractName: dto.contractName ?? "quickex",
+        contractId: dto.contractId,
+        contractVersion: dto.contractVersion,
+        schemaVersion: dto.schemaVersion,
+      });
+
     // Validate the signed XDR is properly formatted (never extracts private keys)
     try {
       // Just validate the XDR can be parsed - we don't need to use the transaction object
@@ -330,7 +390,7 @@ export class TransactionsService {
     // Return cached response if already processed this idempotency key
     const cached = this.submitIdempotencyResponses.get(idempotencyKey);
     if (cached) {
-      return cached;
+      return { ...cached, contractCompatibility };
     }
 
     // Submit to network (in production would send to Soroban RPC)
@@ -343,13 +403,15 @@ export class TransactionsService {
     if (isSuccess) {
       response = {
         success: true,
-        hash: txHash
+        hash: txHash,
+        contractCompatibility,
       };
     } else {
       response = {
         success: false,
         error: 'NETWORK_ERROR',
-        userMessage: 'Transaction submission failed due to network conditions. Please retry with the same idempotency key.'
+        userMessage: 'Transaction submission failed due to network conditions. Please retry with the same idempotency key.',
+        contractCompatibility,
       };
     }
 

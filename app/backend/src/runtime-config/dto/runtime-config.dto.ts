@@ -20,6 +20,8 @@ export class NetworkConfigDto {
   explorerUrl: string;
 }
 
+import { ContractSchemaCompatibilityDto } from '../../contracts/dto';
+
 export class ContractEntryDto {
   @ApiProperty({ example: 'CD2J6K7T3YJ77QXZP3EXAMPLE' })
   contractId: string;
@@ -32,6 +34,9 @@ export class ContractEntryDto {
 
   @ApiProperty({ example: '1.0.0' })
   schemaVersion: string;
+
+  @ApiPropertyOptional({ type: ContractSchemaCompatibilityDto })
+  schemaCompatibility?: ContractSchemaCompatibilityDto;
 }
 
 export class FeatureFlagEntryDto {

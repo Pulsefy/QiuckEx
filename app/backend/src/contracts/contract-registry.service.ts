@@ -13,6 +13,7 @@ import { AppConfigService } from '../config';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   ContractRegistryEntryDto,
+  ContractRegistryResponseDto,
   ContractSchemaCompatibilityDto,
   PublishContractRegistryDto,
   RollbackContractRegistryDto,
@@ -77,7 +78,7 @@ export class ContractRegistryService {
       .filter(Boolean);
   }
 
-  async getRegistry() {
+  async getRegistry(): Promise<ContractRegistryResponseDto> {
     const records = await this.readRecords();
     const active = records.filter((record) => record.active);
     const data = Object.fromEntries(
@@ -85,6 +86,9 @@ export class ContractRegistryService {
         record.name,
         {
           id: record.contractId,
+          previousContractId: record.previousContractId,
+          effectiveLedger: record.effectiveLedger,
+          effectiveTime: record.effectiveTime,
           wasmHash: record.wasmHash,
           version: record.contractVersion,
           schemaVersion: record.schemaVersion,
@@ -174,9 +178,9 @@ export class ContractRegistryService {
       name: normalizedName,
       network: dto.network,
       contractId: dto.contractId,
-      previousContractId: undefined,
-      effectiveLedger: undefined,
-      effectiveTime: undefined,
+      previousContractId: dto.previousContractId,
+      effectiveLedger: dto.effectiveLedger,
+      effectiveTime: dto.effectiveTime,
       wasmHash: dto.wasmHash,
       contractVersion: dto.contractVersion ?? (currentActive?.contractVersion ?? 1),
       schemaVersion: dto.schemaVersion,
@@ -513,6 +517,9 @@ export class ContractRegistryService {
       name: contract.name.toLowerCase(),
       network: this.configService.network,
       contractId: contract.contractId,
+      previousContractId: contract.previousContractId,
+      effectiveLedger: contract.effectiveLedger,
+      effectiveTime: contract.effectiveTime,
       wasmHash: contract.wasmHash,
       contractVersion: contract.contractVersion ?? 1,
       schemaVersion: contract.schemaVersion ?? '1.0.0',
@@ -632,6 +639,9 @@ export class ContractRegistryService {
       network: record.network,
       networkPassphrase: record.networkPassphrase,
       contractId: record.contractId,
+      previousContractId: record.previousContractId,
+      effectiveLedger: record.effectiveLedger,
+      effectiveTime: record.effectiveTime,
       wasmHash: record.wasmHash,
       contractVersion: record.contractVersion,
       schemaVersion: record.schemaVersion,

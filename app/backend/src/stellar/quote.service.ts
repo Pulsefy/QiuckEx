@@ -9,6 +9,8 @@ import * as crypto from "crypto";
 
 import { PathPreviewService } from "./path-preview.service";
 import type { CreateQuoteDto, QuoteResponseDto, QuotePathDto } from "./dto/quote.dto";
+import { ContractCompatibilityService } from "../contracts/contract-compatibility.service";
+import { Optional } from "@nestjs/common";
 
 const DEFAULT_SLIPPAGE_BPS = 50; // 0.5%
 const DEFAULT_TTL_SECONDS = 30;
@@ -34,8 +36,15 @@ export class QuoteService {
   private readonly store = new Map<string, StoredQuote>();
   /** Cache for Horizon/Soroban path preview results. */
   private readonly cache = new Map<string, CacheEntry>();
+  private readonly contractCompatibilityService: ContractCompatibilityService;
 
-  constructor(private readonly pathPreview: PathPreviewService) {}
+  constructor(
+    private readonly pathPreview: PathPreviewService,
+    @Optional() contractCompatibilityService?: ContractCompatibilityService,
+  ) {
+    this.contractCompatibilityService =
+      contractCompatibilityService ?? new ContractCompatibilityService();
+  }
 
   private getCacheKey(dto: CreateQuoteDto): string {
     const dest = dto.destinationAsset.issuer
@@ -49,6 +58,15 @@ export class QuoteService {
   }
 
   async createQuote(dto: CreateQuoteDto): Promise<QuoteResponseDto> {
+    const contractCompatibility =
+      await this.contractCompatibilityService.validateWriteCompatibility({
+        flow: "quote",
+        contractName: "quickex",
+        contractVersion: dto.contractVersion,
+        schemaVersion: dto.schemaVersion,
+        contractId: dto.contractId,
+      });
+
     const slippageBps = dto.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS;
     const ttl = dto.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
@@ -152,6 +170,7 @@ export class QuoteService {
       preflight,
       age,
       cacheSource,
+      contractCompatibility,
     };
 
     this.store.set(quoteId, { response, expiresAt, fetchedAt, cacheSource });

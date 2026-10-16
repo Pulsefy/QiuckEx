@@ -70,4 +70,19 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
     status: HttpStatus.GATEWAY_TIMEOUT,
     meaning: "The server, while acting as a gateway or proxy, did not get a response in time from the upstream server that it needed in order to complete the request.",
   },
+  CONTRACT_VERSION_MISMATCH: {
+    code: "CONTRACT_VERSION_MISMATCH",
+    status: HttpStatus.CONFLICT,
+    meaning: "The client contract version does not match the active contract deployment.",
+  },
+  CONTRACT_SCHEMA_INCOMPATIBLE: {
+    code: "CONTRACT_SCHEMA_INCOMPATIBLE",
+    status: HttpStatus.CONFLICT,
+    meaning: "The client contract schema version is outside the deployed contract's supported compatibility window.",
+  },
+  CONTRACT_DEPLOYMENT_OUTDATED: {
+    code: "CONTRACT_DEPLOYMENT_OUTDATED",
+    status: HttpStatus.CONFLICT,
+    meaning: "The client is targeting an outdated or inactive contract deployment ID.",
+  },
 };

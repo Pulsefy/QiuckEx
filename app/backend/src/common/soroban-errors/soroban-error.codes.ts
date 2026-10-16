@@ -40,6 +40,10 @@ export enum SorobanErrorCode {
   // ── Version / upgrade ─────────────────────────────────────────────────────
   /** Contract schema version is not supported by this client. */
   VERSION_MISMATCH = 'CONTRACT_VERSION_MISMATCH',
+  /** Client schema version is outside the deployed contract's supported compatibility window. */
+  SCHEMA_INCOMPATIBLE = 'CONTRACT_SCHEMA_INCOMPATIBLE',
+  /** Client is targeting an outdated or rolled-back contract deployment. */
+  DEPLOYMENT_OUTDATED = 'CONTRACT_DEPLOYMENT_OUTDATED',
   /** WASM hash provided for upgrade is invalid. */
   INVALID_WASM_HASH = 'CONTRACT_INVALID_WASM_HASH',
 
