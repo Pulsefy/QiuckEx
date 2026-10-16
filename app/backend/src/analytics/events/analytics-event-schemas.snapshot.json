@@ -1,0 +1,175 @@
+{
+  "snapshotFormatVersion": 1,
+  "events": {
+    "payment.initiated": {
+      "eventName": "payment.initiated",
+      "version": 1,
+      "fields": {
+        "paymentId": {
+          "type": "string",
+          "required": true
+        },
+        "asset": {
+          "type": "string",
+          "required": true
+        },
+        "amount": {
+          "type": "number",
+          "required": true
+        },
+        "amountUsd": {
+          "type": "number",
+          "required": false
+        },
+        "organizationId": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "payment.completed": {
+      "eventName": "payment.completed",
+      "version": 1,
+      "fields": {
+        "paymentId": {
+          "type": "string",
+          "required": true
+        },
+        "txHash": {
+          "type": "string",
+          "required": true
+        },
+        "asset": {
+          "type": "string",
+          "required": true
+        },
+        "amount": {
+          "type": "number",
+          "required": true
+        },
+        "amountUsd": {
+          "type": "number",
+          "required": true
+        },
+        "settlementLatencyMs": {
+          "type": "number",
+          "required": false
+        },
+        "organizationId": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "payment.failed": {
+      "eventName": "payment.failed",
+      "version": 1,
+      "fields": {
+        "paymentId": {
+          "type": "string",
+          "required": true
+        },
+        "asset": {
+          "type": "string",
+          "required": true
+        },
+        "amount": {
+          "type": "number",
+          "required": true
+        },
+        "reasonCode": {
+          "type": "string",
+          "required": true
+        },
+        "organizationId": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "link.created": {
+      "eventName": "link.created",
+      "version": 1,
+      "fields": {
+        "linkId": {
+          "type": "string",
+          "required": true
+        },
+        "linkType": {
+          "type": "string",
+          "required": true,
+          "enumValues": [
+            "one_time",
+            "recurring",
+            "open_amount"
+          ]
+        },
+        "asset": {
+          "type": "string",
+          "required": true
+        },
+        "isPrivate": {
+          "type": "boolean",
+          "required": true
+        },
+        "organizationId": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "refund.requested": {
+      "eventName": "refund.requested",
+      "version": 1,
+      "fields": {
+        "refundId": {
+          "type": "string",
+          "required": true
+        },
+        "paymentId": {
+          "type": "string",
+          "required": true
+        },
+        "amountUsd": {
+          "type": "number",
+          "required": true
+        },
+        "reason": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "escrow.lifecycle": {
+      "eventName": "escrow.lifecycle",
+      "version": 1,
+      "fields": {
+        "escrowId": {
+          "type": "string",
+          "required": true
+        },
+        "action": {
+          "type": "string",
+          "required": true,
+          "enumValues": [
+            "deposited",
+            "withdrawn",
+            "refunded"
+          ]
+        },
+        "token": {
+          "type": "string",
+          "required": true
+        },
+        "amount": {
+          "type": "number",
+          "required": true
+        },
+        "receiptReference": {
+          "type": "string",
+          "required": false
+        }
+      }
+    }
+  }
+}
