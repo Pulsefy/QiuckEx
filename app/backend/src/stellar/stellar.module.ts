@@ -11,9 +11,17 @@ import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { ApiKeyGuard } from "../auth/guards/api-key.guard";
 import { FeatureFlagsModule } from "../feature-flags/feature-flags.module";
 import { AuditModule } from "../audit/audit.module";
+import { ContractsModule } from "../contracts/contracts.module";
 
 @Module({
-  imports: [TransactionsModule, ApiKeysModule, FeatureFlagsModule, AuditModule, forwardRef(() => AssetMetadataModule)],
+  imports: [
+    TransactionsModule,
+    ApiKeysModule,
+    FeatureFlagsModule,
+    AuditModule,
+    ContractsModule,
+    forwardRef(() => AssetMetadataModule),
+  ],
   controllers: [StellarController],
   providers: [LinkService, HorizonService, PathPreviewService, QuoteService, ApiKeyGuard],
   exports: [LinkService, HorizonService, PathPreviewService, QuoteService],

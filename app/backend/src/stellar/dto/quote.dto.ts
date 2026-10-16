@@ -87,6 +87,33 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsBoolean()
   revalidate?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Expected on-chain contract deployment version asserted by the client",
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  contractVersion?: number;
+
+  @ApiPropertyOptional({
+    description: "Client contract schema version (semver)",
+    example: "1.0.0",
+  })
+  @IsOptional()
+  @IsString()
+  schemaVersion?: string;
+
+  @ApiPropertyOptional({
+    description: "Target contract ID asserted by the client",
+    example: "CD2J6K7T3YJ77QXZP3EXAMPLE",
+  })
+  @IsOptional()
+  @IsString()
+  contractId?: string;
 }
 
 export class QuotePathDto {
@@ -99,6 +126,8 @@ export class QuotePathDto {
   @ApiProperty() rateDescription!: string;
   @ApiProperty({ type: FeeBreakdownDto }) feeBreakdown!: FeeBreakdownDto;
 }
+
+import { ContractCompatibilityMetadataDto } from "../../contracts/dto";
 
 export class QuoteResponseDto {
   @ApiProperty({ description: "Unique quote ID" }) quoteId!: string;
@@ -114,4 +143,10 @@ export class QuoteResponseDto {
 
   @ApiProperty({ description: "Source of the quote data (hit or miss)", example: "miss" })
   cacheSource!: "hit" | "miss";
+
+  @ApiPropertyOptional({
+    description: "Contract schema and deployment compatibility metadata for the quote flow",
+    type: () => ContractCompatibilityMetadataDto,
+  })
+  contractCompatibility?: ContractCompatibilityMetadataDto;
 }

@@ -24,6 +24,10 @@ import {
   IdempotencyInterceptor,
   IDEMPOTENCY_KEY_HEADER,
 } from "../common/idempotency/idempotency.interceptor";
+import {
+  ContractCompatibilityGuard,
+  EnforceContractCompatibility,
+} from "../contracts/contract-compatibility.guard";
 
 @ApiTags("links")
 @ApiHeader({
@@ -45,6 +49,8 @@ export class LinksController {
   constructor(private readonly linksService: LinksService) {}
 
   @Post("metadata")
+  @UseGuards(ContractCompatibilityGuard)
+  @EnforceContractCompatibility("link")
   @RateLimitTier("mutation")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -61,6 +67,10 @@ export class LinksController {
   @ApiResponse({
     status: 400,
     description: "Validation failed",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Contract version or schema incompatible",
   })
   @ApiResponse({
     status: 429,

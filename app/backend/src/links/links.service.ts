@@ -7,17 +7,32 @@ import {
   type PathPreviewRow,
 } from '../stellar/path-preview.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { ContractCompatibilityService } from '../contracts/contract-compatibility.service';
 
 @Injectable()
 export class LinksService {
   private readonly logger = new Logger(LinksService.name);
+  private readonly contractCompatibilityService: ContractCompatibilityService;
 
   constructor(
     @Optional() private readonly pathPreviewService?: PathPreviewService,
     @Optional() private readonly privacyService?: PrivacyService,
-  ) {}
+    @Optional() contractCompatibilityService?: ContractCompatibilityService,
+  ) {
+    this.contractCompatibilityService =
+      contractCompatibilityService ?? new ContractCompatibilityService();
+  }
 
   async generateMetadata(request: LinkMetadataRequestDto): Promise<LinkMetadataResponseDto> {
+    const contractCompatibility =
+      await this.contractCompatibilityService.validateWriteCompatibility({
+        flow: 'link',
+        contractName: 'quickex',
+        contractVersion: request.contractVersion,
+        schemaVersion: request.schemaVersion,
+        contractId: request.contractId,
+      });
+
     const amt = this.validateAmount(request.amount);
 
     const { memo, memoType } = this.validateMemo(request.memo, request.memoType);
@@ -100,10 +115,12 @@ export class LinksService {
       referenceId,
       acceptedAssets,
       swapOptions,
+      contractCompatibility,
       metadata: {
         normalized,
         warnings: warnings.length > 0 ? warnings : undefined,
         stealthRecipientEnvelope,
+        contractCompatibility,
         ...additionalMetadata,
       },
     };

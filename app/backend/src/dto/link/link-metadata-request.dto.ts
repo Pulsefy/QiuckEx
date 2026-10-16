@@ -166,4 +166,31 @@ export class LinkMetadataRequestDto {
   @IsOptional()
   @IsString()
   recipientViewPublicKeyPem?: string;
+
+  @ApiPropertyOptional({
+    description: 'Expected on-chain contract deployment version asserted by the client',
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100_000)
+  contractVersion?: number;
+
+  @ApiPropertyOptional({
+    description: 'Client contract schema version (semver)',
+    example: '1.0.0',
+  })
+  @IsOptional()
+  @IsString()
+  schemaVersion?: string;
+
+  @ApiPropertyOptional({
+    description: 'Target contract ID asserted by the client',
+    example: 'CD2J6K7T3YJ77QXZP3EXAMPLE',
+  })
+  @IsOptional()
+  @IsString()
+  contractId?: string;
 }

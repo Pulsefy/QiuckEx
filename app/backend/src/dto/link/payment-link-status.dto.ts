@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { LinkState } from "../../links/link-state-machine";
+import { ContractCompatibilityMetadataDto } from "../../contracts/dto";
 
 export class PaymentLinkStatusDto {
   @ApiProperty({
@@ -100,4 +101,10 @@ export class PaymentLinkStatusDto {
     example: ["pay", "share"],
   })
   availableActions?: string[];
+
+  @ApiPropertyOptional({
+    description: "Contract schema and deployment compatibility metadata for the link flow",
+    type: () => ContractCompatibilityMetadataDto,
+  })
+  contractCompatibility?: ContractCompatibilityMetadataDto;
 }

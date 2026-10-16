@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { PathPreviewRow } from '../../stellar/path-preview.service';
+import { ContractCompatibilityMetadataDto } from '../../contracts/dto';
 
 /**
  * Response DTO for link metadata
@@ -103,6 +104,12 @@ export class LinkMetadataResponseDto {
   })
   swapOptions?: PathPreviewRow[] | null;
 
+  @ApiPropertyOptional({
+    description: 'Contract schema and deployment compatibility metadata for the link flow',
+    type: () => ContractCompatibilityMetadataDto,
+  })
+  contractCompatibility?: ContractCompatibilityMetadataDto;
+
   @ApiProperty({
     description: 'Metadata information',
     example: {
@@ -115,6 +122,7 @@ export class LinkMetadataResponseDto {
   metadata!: {
     normalized: boolean;
     warnings?: string[];
+    contractCompatibility?: ContractCompatibilityMetadataDto;
     [key: string]: unknown;
   };
 }

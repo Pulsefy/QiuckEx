@@ -10,11 +10,13 @@ import {
 } from "../links/payment-links.repository";
 
 import { LinkMetadataResponseDto } from "../dto/link/link-metadata-response.dto";
+import { ContractCompatibilityService } from "../contracts/contract-compatibility.service";
 
 @Injectable()
 export class PaymentLinkService {
   private readonly logger = new Logger(PaymentLinkService.name);
   private readonly DEFAULT_EXPIRY_DAYS = 30;
+  private readonly contractCompatibilityService: ContractCompatibilityService;
 
   constructor(
     private readonly horizonService: HorizonService,
@@ -22,7 +24,11 @@ export class PaymentLinkService {
     private readonly paymentLinksRepository: PaymentLinksRepository,
     private readonly linksService: LinksService,
     @Optional() private readonly pathPreviewService?: PathPreviewService,
-  ) {}
+    @Optional() contractCompatibilityService?: ContractCompatibilityService,
+  ) {
+    this.contractCompatibilityService =
+      contractCompatibilityService ?? new ContractCompatibilityService();
+  }
 
   /**
    * Get the current state of a payment link
@@ -71,6 +77,10 @@ export class PaymentLinkService {
     // 6. Build user-friendly message and available actions
     const { userMessage, availableActions } = this.buildUserContext(state);
 
+    const contractCompatibility =
+      metadata.contractCompatibility ??
+      (await this.contractCompatibilityService.getCompatibilityMetadata("link", "quickex"));
+
     return {
       state,
       username: metadata.username || username,
@@ -86,6 +96,7 @@ export class PaymentLinkService {
       acceptedAssets: metadata.acceptedAssets || null,
       userMessage,
       availableActions,
+      contractCompatibility,
     };
   }
 
