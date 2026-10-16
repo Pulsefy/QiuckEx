@@ -1,5 +1,6 @@
 import { mapSorobanError } from './soroban-error.mapper';
 import { SorobanErrorCode } from './soroban-error.codes';
+import { OverloadedErrorReason } from './soroban-error.reasons';
 
 describe('mapSorobanError', () => {
   // ── Auth ────────────────────────────────────────────────────────────────
@@ -32,6 +33,60 @@ describe('mapSorobanError', () => {
   it('maps bare "paused" to CONTRACT_PAUSED', () => {
     const result = mapSorobanError('operation rejected: paused');
     expect(result.code).toBe(SorobanErrorCode.CONTRACT_PAUSED);
+  });
+
+  // ── Overloaded error codes ──────────────────────────────────────────────
+  // The QuickexError enum sits at 49/50 of Soroban's variant cap, so several
+  // conditions intentionally share a code. Each distinct condition must still
+  // be distinguishable via `reason` so clients can render accurate UI text.
+  // These tests pin the (code, reason) pair against accidental renumbering.
+
+  it('maps "upgrade window not active" to CONTRACT_PAUSED with UPGRADE_WINDOW_NOT_ACTIVE reason', () => {
+    const result = mapSorobanError('upgrade window not active');
+    expect(result.code).toBe(SorobanErrorCode.CONTRACT_PAUSED);
+    expect(result.reason).toBe(OverloadedErrorReason.UPGRADE_WINDOW_NOT_ACTIVE);
+  });
+
+  it('maps "upgrade already in progress" to CONTRACT_PAUSED with UPGRADE_ALREADY_IN_PROGRESS reason', () => {
+    const result = mapSorobanError('upgrade already in progress');
+    expect(result.code).toBe(SorobanErrorCode.CONTRACT_PAUSED);
+    expect(result.reason).toBe(OverloadedErrorReason.UPGRADE_ALREADY_IN_PROGRESS);
+  });
+
+  it('maps "amount exceeds accrued fee balance" to OVERPAYMENT with FEE_BALANCE_EXCEEDED reason', () => {
+    const result = mapSorobanError('amount exceeds accrued fee balance');
+    expect(result.code).toBe(SorobanErrorCode.OVERPAYMENT);
+    expect(result.reason).toBe(OverloadedErrorReason.FEE_BALANCE_EXCEEDED);
+  });
+
+  it('maps "escrow not in terminal state" to ALREADY_SPENT with NON_TERMINAL_STATE reason', () => {
+    const result = mapSorobanError('escrow not in terminal state');
+    expect(result.code).toBe(SorobanErrorCode.ALREADY_SPENT);
+    expect(result.reason).toBe(OverloadedErrorReason.NON_TERMINAL_STATE);
+  });
+
+  it('maps "dispute already voted" to INVALID_DISPUTE_STATE with DISPUTE_ALREADY_VOTED reason', () => {
+    const result = mapSorobanError('dispute already voted');
+    expect(result.code).toBe(SorobanErrorCode.INVALID_DISPUTE_STATE);
+    expect(result.reason).toBe(OverloadedErrorReason.DISPUTE_ALREADY_VOTED);
+  });
+
+  it('maps "dispute not open" to INVALID_DISPUTE_STATE with DISPUTE_NOT_OPEN reason', () => {
+    const result = mapSorobanError('dispute not open');
+    expect(result.code).toBe(SorobanErrorCode.INVALID_DISPUTE_STATE);
+    expect(result.reason).toBe(OverloadedErrorReason.DISPUTE_NOT_OPEN);
+  });
+
+  it('maps "dispute timeout not reached" to INVALID_DISPUTE_STATE with DISPUTE_TIMEOUT_NOT_REACHED reason', () => {
+    const result = mapSorobanError('dispute timeout not reached');
+    expect(result.code).toBe(SorobanErrorCode.INVALID_DISPUTE_STATE);
+    expect(result.reason).toBe(OverloadedErrorReason.DISPUTE_TIMEOUT_NOT_REACHED);
+  });
+
+  it('leaves reason undefined for non-overloaded errors', () => {
+    const result = mapSorobanError('insufficient balance for transfer');
+    expect(result.code).toBe(SorobanErrorCode.INSUFFICIENT_BALANCE);
+    expect(result.reason).toBeUndefined();
   });
 
   // ── Escrow state ────────────────────────────────────────────────────────
@@ -181,5 +236,16 @@ describe('mapSorobanError', () => {
   it('always returns a non-empty message', () => {
     const result = mapSorobanError('');
     expect(result.message.length).toBeGreaterThan(0);
+  });
+
+  // ── Error code stability (public API pin) ───────────────────────────────
+  // Error codes are part of the public API. These numeric pins guard against
+  // accidental renumbering when the enum is refactored to free variant space.
+
+  it('pins overloaded error codes to their current numeric values', () => {
+    expect(SorobanErrorCode.CONTRACT_PAUSED).toBe(3);
+    expect(SorobanErrorCode.OVERPAYMENT).toBe(17);
+    expect(SorobanErrorCode.ALREADY_SPENT).toBe(21);
+    expect(SorobanErrorCode.INVALID_DISPUTE_STATE).toBe(34);
   });
 });
