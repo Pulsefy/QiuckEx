@@ -24,7 +24,7 @@ Clients can rely on this contract for all key flows.
 |---|---|---|---|
 | `success` | `false` | ✅ | Always `false` for error responses |
 | `error.code` | `string` | ✅ | Machine-readable error code (see table below) |
-| `error.message` | `string \| string[]` | ✅ | Human-readable description |
+| `error.message` | `string \ | string[]` | ✅ | Human-readable description |
 | `error.request_id` | `string` | When available | UUID that ties the response to server logs. Also sent as `x-request-id` and `x-correlation-id` response headers. Pass this to support when reporting issues. |
 | `error.correlationId` | `string` | When available | Alias for `request_id` (kept for backward compatibility) |
 | `error.fields` | `object` | Validation errors only | Map of field name → array of messages |
@@ -128,6 +128,77 @@ request header. The resolved value is echoed back in:
 
 ---
 
+## Contract Error Codes (QuickexError Enum)
+
+The QuickEx Soroban contract exposes a `QuickexError` enum that is part of the
+public API. Soroban caps an error enum at 50 variants, and the enum is currently
+at 49. To stay under the cap, some conditions share a code. This section lists
+every overloaded code and the distinct conditions it can mean.
+
+### Overloaded Error Codes
+
+| Code | Original meaning | Overloaded meanings | Disambiguating signal |
+|---|---|---|---|
+| `InvalidAmount` | Amount is zero, negative, or out of range | Admin upgrade window not active (`admin.rs`) | `error.details.reason = "UPGRADE_WINDOW_NOT_ACTIVE"` |
+| `ContractPaused` | Contract is paused by admin | Admin upgrade already in progress (`admin.rs`) | `error.details.reason = "UPGRADE_ALREADY_IN_PROGRESS"` |
+| `Overpayment` | Payer sent more than the required amount | Withdraw amount exceeds accrued fee balance (`withdraw_fees`) | `error.details.reason = "FEE_BALANCE_EXCEEDED" |
+| `AlreadySpent` | Escrow has already been claimed or refunded | Escrow is in any non-terminal state (`cleanup_escrow`) | `error.details.reason = "ESCROW_NOT_TERMINAL" `error.details.state` |
+| `InvalidDisputeState` | Dispute is not in a valid state for the operation | `vote_for_dispute`: dispute not open, voting window closed, or voter already voted | `error.details.reason = "DISPUTE_NOT_OPEN" | "DISPUTE_VOTING_CLOSED" | "VOTE_ALREADY_CAST" |
+| `InvalidDisputeState` | Dispute is not in a valid state for the operation | `resolve_dispute_timeout`: dispute not open, resolution window not elapsed, or dispute already resolved | `error.details.reason = "DISPUTE_NOT_OPEN" | "RESOLUTION_WINDOW_NOT_ELAPSED" | "DISPUTE_ALREADY_RESOLVED" |
+
+### How to disambiguate in client code
+
+When a code is overloaded, branch on `error.details.reason` (not only `error.code`):
+
+```typescript
+function describeContractError(error: { code: string; details?: { reason?: string; state?: string } }) {
+  switch (error.code) {
+    case 'InvalidAmount':
+      if (error.details?.reason === 'UPGRADE_WINDOW_NOT_ACTIVE')
+        return 'Upgrade window is not active yet.';
+      return 'Amount is invalid.';
+    case 'ContractPaused':
+      if (error.details.reason === 'UPGRADE_ALREADY_IN_PROGRESS')
+        return 'An upgrade is already in progress.';
+      return 'Contract is paused.';
+    case 'Overpayment':
+      if (error.details.reason === 'FEE_BALANCE_EXCEEDED')
+        return 'Withdraw amount exceeds accrued fee balance.';
+      return 'Payer overpaid.';
+    case 'AlreadySpent':
+      if (error.details.reason === 'ESCROW_NOT_TERMINAL')
+        return `Escrow is not in a terminal state (${error.details.state}).`;
+      return 'Escrow has already been spent.';
+    case 'InvalidDisputeState':
+      switch (error.details.reason) {
+        case 'DISPUTE_NOT_OPEN': return 'Dispute is not open.';
+        case 'DISPUTE_VOTING_CLOSED': return 'Voting window has closed.';
+        case 'VOTE_ALREADY_CAST': return 'You have already voted on this dispute.';
+        case 'RESOLUTION_WINDOW_NOT_ELAPSED': return 'Resolution window has not elapsed.';
+        case 'DISPUTE_ALREADY_RESOLVED': return 'Dispute has already been resolved.';
+        default: return 'Dispute is in an invalid state.';
+      }
+    default:
+      return `error.code: ${error.message}`;
+  }
+}
+```
+
+### Migration / Compat Note
+
+Error codes are part of the public API. The contract enum is at 49 of 50 variants, so
+no variants were removed or renumbered in this release. Instead, overloaded codes are
+disambiguated by an additive `error.details.reason` field:
+
+- Existing clients that branch only on `error.code` continue to work unchanged.
+- New clients should branch on `error.details[
+"reason"]` when the code is one of the
+  overloaded codes listed above.
+- No code numeric values changed; any future renumbering would be a breaking change
+  and would be announced in a changelog entry with a deprecation window.
+
+---
+
 ## Complete Error Code Reference Table
 
 | Code | HTTP | Category | Resolution |
@@ -159,7 +230,7 @@ request header. The resolved value is echoed back in:
 | `STELLAR_PATH_NOT_FOUND` | 404 | Stellar | No liquidity path exists; try different assets or amounts |
 | `LISTING_NOT_FOUND` | 404 | Marketplace | Verify the listing ID |
 | `BID_NOT_FOUND` | 404 | Marketplace | Verify the bid ID |
-| `LISTING_ALREADY_ACTIVE` | 409 | Marketplace | Cancel the existing listing before relisting |
+| `LISTING_ALREADY_ACTIVE@ | 409 | Marketplace | Cancel the existing listing before relisting |
 | `BID_BELOW_MINIMUM` | 422 | Marketplace | Bid must meet or exceed the listing's asking price |
 | `WEBHOOK_NOT_FOUND` | 404 | Webhooks | Verify the webhook ID and public key |
 | `WEBHOOK_DELIVERY_FAILED` | 502 | Webhooks | Check delivery logs; verify your endpoint returns 200 |
@@ -270,6 +341,22 @@ request header. The resolved value is echoed back in:
 }
 ```
 
+### Overloaded contract error (422)
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "InvalidAmount",
+    "message": "Upgrade window is not active",
+    "request_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "details": {
+      "reason": "UPGRADE_WINDOW_NOT_ACTIVE"
+    }
+  }
+}
+```
+
 ---
 
 ## Error Handling Best Practices
@@ -333,235 +420,16 @@ async function retryableRequest<T>(
     try {
       return await fn();
     } catch (err) {
-      const error = err?.response?.data?.error;
+      const error = err.response?.data?.error;
       const isRetryable = ['RATE_LIMIT_EXCEEDED', 'STELLAR_NETWORK_ERROR', 'INTERNAL_SERVER_ERROR']
-        .includes(error?.code);
+        .includes(error.code);
 
       if (!isRetryable || attempt === maxRetries) throw err;
 
       const delay = baseDelayMs * Math.pow(2, attempt);
-      const retryAfter = error.details?.retryAfterSeconds;
-      const waitMs = retryAfter ? retryAfter * 1000 : delay;
-
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  throw new Error('Unreachable');
+  throw new Error('unreachable');
 }
 ```
-
-### 4. Handle Validation Errors Gracefully
-
-```typescript
-catch (err) {
-  const error = err.response?.data?.error;
-  if (error?.code === 'VALIDATION_ERROR' && error.fields) {
-    for (const [field, messages] of Object.entries(error.fields)) {
-      console.log(`${field}: ${messages.join(', ')}`);
-    }
-    // amount: amount must be a positive number
-    // asset: asset must be a valid Stellar asset code
-  }
-}
-```
-
----
-
-## Troubleshooting Guide
-
-### Common Issues and Solutions
-
-#### "I keep getting `RATE_LIMIT_EXCEEDED`"
-
-**Symptoms:** Frequent 429 responses even at low traffic.
-
-**Resolution:**
-1. Check if you're sending an API key in the `X-API-Key` header — it increases limits from 20 to 120 req/min.
-2. Implement client-side request deduplication (don't send the same request twice).
-3. Add caching for read endpoints (e.g., `/stellar/verified-assets` rarely changes).
-4. Use cursor-based pagination instead of making many small requests.
-5. If you need higher limits, contact the QuickEx team for a custom rate limit.
-
-```typescript
-// Simple in-memory cache
-const cache = new Map<string, { data: any; expiry: number }>();
-
-async function cachedFetch<T>(url: string, ttlMs = 60000): Promise<T> {
-  const cached = cache.get(url);
-  if (cached && Date.now() < cached.expiry) return cached.data;
-
-  const data = await fetch(url).then(r => r.json());
-  cache.set(url, { data, expiry: Date.now() + ttlMs });
-  return data;
-}
-```
-
----
-
-#### "I get `STELLAR_NETWORK_ERROR` frequently"
-
-**Symptoms:** Intermittent 502 errors when querying transactions or payments.
-
-**Resolution:**
-1. The Horizon API may be temporarily unreachable. Implement retry with exponential backoff.
-2. QuickEx caches responses for 60 seconds — don't bypass caching by varying query params.
-3. If errors persist for > 5 minutes, check the Stellar status page.
-4. Consider using the `cursor` parameter instead of re-fetching from the beginning.
-
----
-
-#### "Payment link shows `EXPIRED` but should still be active"
-
-**Symptoms:** `LINK_EXPIRED` (410) for a recently created link.
-
-**Resolution:**
-1. Check the `expirationDays` parameter used when creating the link (default: no expiration).
-2. Verify the server clock is synchronized (NTP).
-3. A link can be re-activated after expiration. Contact support or create a new link.
-
----
-
-#### "Username creation fails with `USERNAME_INVALID`"
-
-**Symptoms:** 400 error when trying to create a username.
-
-**Resolution:**
-1. Usernames must be 3-32 characters.
-2. Only lowercase letters, numbers, and underscores are allowed.
-3. Cannot start or end with a special character.
-4. Pattern: `^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$` or `^[a-z0-9]{1,32}$`
-
-```typescript
-function isValidUsername(username: string): boolean {
-  return /^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$|^[a-z0-9]{1,32}$/.test(username);
-}
-
-isValidUsername('alice_123'); // true
-isValidUsername('Alice');     // false (uppercase)
-isValidUsername('ab');        // false (too short)
-isValidUsername('_alice');    // false (starts with special char)
-```
-
----
-
-#### "`STELLAR_PATH_NOT_FOUND` when creating a quote"
-
-**Symptoms:** 404 error when requesting a path payment conversion.
-
-**Resolution:**
-1. No liquidity path exists between the requested asset pair at the requested amount.
-2. Try a smaller amount — large amounts may exceed available liquidity.
-3. Try a different source or destination asset.
-4. Check if the asset has an active AMM pool on Stellar.
-5. Retry after a few minutes — liquidity is dynamic.
-
----
-
-#### "Webhooks are not being delivered"
-
-**Symptoms:** Webhook events are not reaching your endpoint.
-
-**Resolution:**
-1. Check delivery logs: `GET /webhooks/:publicKey/:id/logs`
-2. Verify your endpoint returns HTTP 200 within 10 seconds.
-3. Ensure your endpoint is publicly accessible (not localhost or behind auth).
-4. Check that the `webhookUrl` starts with `https://` (or `http://` in dev only).
-5. Try manual redelivery: `POST /webhooks/:publicKey/:id/redeliver`
-6. Verify the webhook is enabled (`enabled: true` in the response).
-7. If using `minAmountStroops`, verify the payment amount meets the threshold.
-
----
-
-#### "`UNAUTHORIZED` even with an API key"
-
-**Symptoms:** 401 error despite providing an API key.
-
-**Resolution:**
-1. Verify the key is in the `X-API-Key` header (not `Authorization` or `API-Key`).
-2. Check the key hasn't been revoked: `GET /api-keys`.
-3. Ensure you're using the correct key prefix (`qk_live_` vs `qk_test_`).
-4. If the key was recently rotated, use the new key (old key is immediately invalid).
-
----
-
-#### "`FORBIDDEN` when accessing admin endpoints"
-
-**Symptoms:** 403 error on `/admin/refunds` or other admin endpoints.
-
-**Resolution:**
-1. Your API key needs the `refunds:write` scope for refund endpoints.
-2. Admin endpoints require the `admin` scope.
-3. Create a new API key with the required scope.
-
-```typescript
-// Create a key with refund scope
-const response = await fetch('http://localhost:3000/api-keys', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    name: 'Refund Admin',
-    scopes: ['refunds:write'],
-  }),
-});
-```
-
----
-
-#### "`STELLAR_INSUFFICIENT_FUNDS` on recurring payments"
-
-**Symptoms:** Recurring payment execution fails with insufficient funds.
-
-**Resolution:**
-1. The platform account needs enough XLM to cover the payment amount + base reserve + transaction fees.
-2. Check the `STELLAR_SECRET_KEY` environment variable is set on the server.
-3. Fund the platform account on testnet via the friendbot.
-4. On mainnet, ensure the account is sufficiently funded.
-5. Check execution logs: `GET /links/recurring/:id/executions` for failure details.
-
----
-
-#### "`CONTRACT_NOT_CONFIGURED` on Soroban preflight"
-
-**Symptoms:** 503 error when calling `/stellar/soroban-preflight`.
-
-**Resolution:**
-1. The `QUICKEX_CONTRACT_ID` environment variable is not set on the server.
-2. This is a server-side configuration issue — contact the QuickEx team.
-3. In development, set it in your `.env` file:
-   ```env
-   QUICKEX_CONTRACT_ID=CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM
-   ```
-
----
-
-#### "Transaction queries return empty results"
-
-**Symptoms:** `GET /transactions?accountId=...` returns empty `transactions` array.
-
-**Resolution:**
-1. Verify the account ID is a valid Stellar public key starting with `G`.
-2. The account may not have any payment operations yet.
-3. Responses are cached for 60 seconds — recent transactions may not appear immediately.
-4. Try without the `asset` filter first to see all transactions.
-5. If the account was just created, it may not have a trustline for the requested asset.
-
----
-
-## HTTP Status Code Summary
-
-| Status | Meaning | Common Codes |
-|---|---|---|
-| 200 | Success | (all endpoints) |
-| 201 | Created | `USERNAME_TAKEN` won't trigger this |
-| 204 | No Content | Successful DELETE operations |
-| 400 | Bad Request | `VALIDATION_ERROR`, `USERNAME_INVALID`, `STELLAR_INVALID_*` |
-| 401 | Unauthorized | `UNAUTHORIZED` |
-| 403 | Forbidden | `FORBIDDEN`, `USERNAME_LIMIT_EXCEEDED` |
-| 404 | Not Found | `NOT_FOUND`, `USERNAME_NOT_FOUND`, `LINK_NOT_FOUND` |
-| 409 | Conflict | `USERNAME_TAKEN`, `LINK_ALREADY_PAID`, `LISTING_ALREADY_ACTIVE` |
-| 410 | Gone | `LINK_EXPIRED`, `LINK_CANCELLED` |
-| 422 | Unprocessable | `STELLAR_TRANSACTION_FAILED`, `BID_BELOW_MINIMUM`, `LINK_LIMIT_EXCEEDED` |
-| 429 | Rate Limited | `RATE_LIMIT_EXCEEDED` |
-| 500 | Server Error | `INTERNAL_SERVER_ERROR` |
-| 502 | Bad Gateway | `STELLAR_NETWORK_ERROR`, `WEBHOOK_DELIVERY_FAILED` |
-| 503 | Unavailable | `CONTRACT_NOT_CONFIGURED`, Horizon backoff |
