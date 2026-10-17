@@ -14,6 +14,10 @@ import {
   RECEIPT_METADATA_REPOSITORY,
   SupabaseReceiptMetadataRepository,
 } from "./receipt-metadata.repository";
+import {
+  RECEIPT_REPOSITORY,
+  SupabaseReceiptRepository,
+} from "./receipts.repository";
 
 @Module({
   imports: [SupabaseModule],
@@ -26,7 +30,11 @@ import {
       provide: RECEIPT_METADATA_REPOSITORY,
       useClass: SupabaseReceiptMetadataRepository,
     },
+    {
+      provide: RECEIPT_REPOSITORY,
+      useClass: SupabaseReceiptRepository,
+    },
   ],
-  exports: [ReceiptsService, ReceiptHashService],
+  exports: [ReceiptsService, ReceiptHashService, RECEIPT_REPOSITORY],
 })
 export class ReceiptsModule {}
