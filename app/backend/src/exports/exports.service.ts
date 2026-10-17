@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -23,6 +24,11 @@ const DELIVERY_METHODS = ['webhook', 'email', 'download'] as const;
  */
 export const EXPORT_WEBHOOK_TARGET_MISSING = 'EXPORT_WEBHOOK_TARGET_MISSING';
 
+export interface ExportRequester {
+  owner_id?: string | null;
+  organization_id?: string | null;
+}
+
 @Injectable()
 export class ExportsService {
   constructor(
@@ -30,10 +36,14 @@ export class ExportsService {
     private readonly notificationPrefsRepo: NotificationPreferencesRepository,
   ) {}
 
-  async requestExport(dto: RequestExportDto): Promise<{ jobId: string; message: string }> {
+  async requestExport(
+    dto: RequestExportDto,
+    requester: ExportRequester,
+  ): Promise<{ jobId: string; message: string }> {
     this.validateRequest(dto);
 
     const userId = dto.userId.trim();
+    this.assertCanAccessUser(userId, requester);
 
     // Fail fast at the API boundary rather than inside the background handler:
     // a webhook export with no registered target can never be delivered, and
@@ -57,11 +67,12 @@ export class ExportsService {
     };
   }
 
-  async getStatus(jobId: string): Promise<ExportStatusDto> {
+  async getStatus(jobId: string, requester: ExportRequester): Promise<ExportStatusDto> {
     const job = await this.jobQueueService.getJob<ExportGenerationPayload>(jobId);
     if (!job || job.type !== JobType.EXPORT_GENERATION) {
       throw new NotFoundException(`Export ${jobId} not found`);
     }
+    this.assertCanAccessUser(job.payload.userId, requester);
 
     const status = job.status === JobStatus.PENDING
       ? 'queued'
@@ -78,6 +89,12 @@ export class ExportsService {
       ...(job.status === JobStatus.COMPLETED ? { deliveryReference: job.id } : {}),
       ...(job.failureReason ? { failureReason: job.failureReason } : {}),
     };
+  }
+
+  private assertCanAccessUser(userId: string, requester: ExportRequester): void {
+    if (requester.owner_id !== userId && requester.organization_id !== userId) {
+      throw new ForbiddenException('API key does not have access to this user exports');
+    }
   }
 
   /**

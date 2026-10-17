@@ -9,6 +9,7 @@ declare namespace Express {
       name: string;
       scopes: string[];
       rateLimit: number;
+      owner_id?: string | null;
       organization_id?: string | null;
     };
     organizationContext?: {

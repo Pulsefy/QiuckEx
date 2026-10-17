@@ -1,4 +1,4 @@
-import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ExportsService, EXPORT_WEBHOOK_TARGET_MISSING } from './exports.service';
 import { JobQueueService } from '../job-queue/job-queue.service';
 import { ExportGenerationPayload } from '../job-queue/types/job-payloads.types';
@@ -20,6 +20,7 @@ describe('ExportsService', () => {
     format: 'csv',
     deliveryMethod: 'download',
   };
+  const requester = { owner_id: request.userId, organization_id: null };
 
   beforeEach(() => {
     jobQueueService = {
@@ -38,7 +39,7 @@ describe('ExportsService', () => {
   it('validates and enqueues an export job', async () => {
     jobQueueService.enqueue.mockResolvedValue('export-123');
 
-    await expect(service.requestExport(request)).resolves.toEqual({
+    await expect(service.requestExport(request, requester)).resolves.toEqual({
       jobId: 'export-123',
       message: 'Export job enqueued successfully. Job ID: export-123',
     });
@@ -74,7 +75,7 @@ describe('ExportsService', () => {
       visibilityTimeout: null,
     } as Job<ExportGenerationPayload>);
 
-    const result = await service.getStatus('export-123');
+    const result = await service.getStatus('export-123', requester);
 
     expect(result).toMatchObject({
       exportId: 'export-123',
@@ -91,6 +92,27 @@ describe('ExportsService', () => {
     }
   });
 
+  it('rejects export requests for users outside the API key organization before enqueue', async () => {
+    const organizationApiKey = { owner_id: null, organization_id: 'org-1' };
+
+    await expect(
+      service.requestExport({ ...request, userId: 'user-456' }, organizationApiKey),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(jobQueueService.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('rejects status reads for exports outside the API key organization', async () => {
+    jobQueueService.getJob.mockResolvedValue({
+      id: 'export-123',
+      type: JobType.EXPORT_GENERATION,
+      payload: request as ExportGenerationPayload,
+    } as Job<ExportGenerationPayload>);
+
+    await expect(
+      service.getStatus('export-123', { owner_id: null, organization_id: 'org-1' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it.each([
     { name: 'blank userId', value: { ...request, userId: '  ' } },
     { name: 'unsupported export type', value: { ...request, exportType: 'unknown' } },
@@ -99,7 +121,7 @@ describe('ExportsService', () => {
     { name: 'array filters', value: { ...request, filters: ['not', 'an', 'object'] } },
     { name: 'nested filter value', value: { ...request, filters: { amount: { gte: 10 } } } },
   ])('rejects an invalid request: $name', async ({ value }) => {
-    await expect(service.requestExport(value as RequestExportDto))
+    await expect(service.requestExport(value as RequestExportDto, requester))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(jobQueueService.enqueue).not.toHaveBeenCalled();
   });
@@ -107,7 +129,7 @@ describe('ExportsService', () => {
   it('returns not found for missing or non-export jobs', async () => {
     jobQueueService.getJob.mockResolvedValue(null);
 
-    await expect(service.getStatus('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getStatus('missing', requester)).rejects.toBeInstanceOf(NotFoundException);
   });
 
   describe('webhook delivery target validation (#1150)', () => {
@@ -131,7 +153,7 @@ describe('ExportsService', () => {
       notificationPrefsRepo.getWebhooksByPublicKey.mockResolvedValue([makePreference()] as never);
       jobQueueService.enqueue.mockResolvedValue('export-123');
 
-      await expect(service.requestExport(webhookRequest)).resolves.toMatchObject({
+      await expect(service.requestExport(webhookRequest, requester)).resolves.toMatchObject({
         jobId: 'export-123',
       });
       expect(notificationPrefsRepo.getWebhooksByPublicKey).toHaveBeenCalledWith('user-123');
@@ -141,7 +163,7 @@ describe('ExportsService', () => {
     it('does not consult webhook preferences for non-webhook delivery methods', async () => {
       jobQueueService.enqueue.mockResolvedValue('export-123');
 
-      await service.requestExport(request);
+      await service.requestExport(request, requester);
 
       expect(notificationPrefsRepo.getWebhooksByPublicKey).not.toHaveBeenCalled();
     });
@@ -155,7 +177,7 @@ describe('ExportsService', () => {
     ])('rejects a webhook export with a 4xx: $name', async ({ value }) => {
       notificationPrefsRepo.getWebhooksByPublicKey.mockResolvedValue(value as never);
 
-      await expect(service.requestExport(webhookRequest)).rejects.toMatchObject({
+      await expect(service.requestExport(webhookRequest, requester)).rejects.toMatchObject({
         response: {
           code: EXPORT_WEBHOOK_TARGET_MISSING,
         },
@@ -168,7 +190,7 @@ describe('ExportsService', () => {
         new Error('supabase unavailable'),
       );
 
-      await expect(service.requestExport(webhookRequest)).rejects.toBeInstanceOf(
+      await expect(service.requestExport(webhookRequest, requester)).rejects.toBeInstanceOf(
         InternalServerErrorException,
       );
       expect(jobQueueService.enqueue).not.toHaveBeenCalled();

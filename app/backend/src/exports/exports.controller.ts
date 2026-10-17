@@ -9,18 +9,22 @@
 
 import {
   Controller,
+  ForbiddenException,
   Post,
   Get,
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   Logger,
   Res,
   HttpStatus,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { RequireApiKey } from '../auth/decorators/require-api-key.decorator';
 import { RateLimitTier } from '../auth/decorators/rate-limit-group.decorator';
 import { RequestExportDto } from './dto/request-export.dto';
 import { ExportStatusDto } from './dto/export-status.dto';
@@ -61,6 +65,7 @@ export class ExportsController {
    * The export will be delivered via the specified deliveryMethod.
    */
   @Post()
+  @RequireApiKey()
   @RateLimitTier('export')
   @ApiOperation({ summary: 'Request a data export' })
   @ApiResponse({
@@ -83,17 +88,32 @@ export class ExportsController {
     description:
       'deliveryMethod is "webhook" but the caller has no enabled webhook target with a valid https URL (code EXPORT_WEBHOOK_TARGET_MISSING)',
   })
-  async requestExport(@Body() dto: RequestExportDto): Promise<{ jobId: string; message: string }> {
-    return this.exportsService.requestExport(dto);
+  async requestExport(
+    @Body() dto: RequestExportDto,
+    @Req() request: Request,
+  ): Promise<{ jobId: string; message: string }> {
+    const apiKey = request.apiKey;
+    if (!apiKey) {
+      throw new ForbiddenException('A valid API key is required to request an export');
+    }
+    return this.exportsService.requestExport(dto, apiKey);
   }
 
   @Get(':id/status')
+  @RequireApiKey()
   @RateLimitTier('public-read')
   @ApiOperation({ summary: 'Get export status' })
   @ApiResponse({ status: 200, type: ExportStatusDto })
   @ApiResponse({ status: 404, description: 'Export not found' })
-  async getStatus(@Param('id') id: string): Promise<ExportStatusDto> {
-    return this.exportsService.getStatus(id);
+  async getStatus(
+    @Param('id') id: string,
+    @Req() request: Request,
+  ): Promise<ExportStatusDto> {
+    const apiKey = request.apiKey;
+    if (!apiKey) {
+      throw new ForbiddenException('A valid API key is required to read export status');
+    }
+    return this.exportsService.getStatus(id, apiKey);
   }
 
   /**
