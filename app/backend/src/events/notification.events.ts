@@ -11,6 +11,9 @@ export enum NotificationEvent {
   RecurringPaymentExecuted = 'recurring.payment.executed',
   RecurringPaymentFailed = 'recurring.payment.failed',
 
+  /** Emitted when a terminal escrow's storage entries are reclaimed. */
+  EscrowCleanedUp = 'escrow.cleaned.up',
+
   // ── SEP-24 fiat-ramp lifecycle events ─────────────────────────────────────
   /** Emitted when an anchor transaction reaches a terminal state. */
   Sep24TransactionTerminal = 'sep24.transaction.terminal',
@@ -87,6 +90,17 @@ export class RecurringPaymentFailedEvent {
     public readonly executionId: string,
     public readonly failureReason: string,
     public readonly permanent: boolean,
+  ) {}
+}
+
+/**
+ * Emitted when a terminal escrow's storage entries are removed by
+ * `cleanup_escrow`, allowing off-chain indexers to reconstruct storage state.
+ */
+export class EscrowCleanedUpEvent {
+  constructor(
+    public readonly commitment: string,
+    public readonly finalStatus: string,
   ) {}
 }
 

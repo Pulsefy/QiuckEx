@@ -2,6 +2,7 @@ export const ContractRegistryPublishedEvent =
   'contract_registry.published';
 export const ContractRegistryRolledBackEvent =
   'contract_registry.rolled_back';
+export const EscrowCleanedUpEvent = 'escrow.cleaned_up';
 
 export class ContractRegistryPublishedEventPayload {
   constructor(
@@ -25,5 +26,12 @@ export class ContractRegistryRolledBackEventPayload {
     public readonly wasmHash: string,
     public readonly contractVersion: number,
     public readonly actor: string,
+  ) {}
+}
+
+export class EscrowCleanedUpEventPayload {
+  constructor(
+    public readonly commitment: string,
+    public readonly status: string,
   ) {}
 }

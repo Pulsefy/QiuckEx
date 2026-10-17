@@ -1079,14 +1079,19 @@ pub fn is_refund_eligible(env: &Env, commitment: BytesN<32>) -> Result<bool, Qui
 /// Cleanup terminal escrow entries to reclaim storage deposits.
 ///
 /// Only escrows in `Spent` or `Refunded` status can be removed.
+///
+/// Emits [`events::EscrowCleanedUpEvent`] with the commitment and the terminal
+/// status that was reclaimed, so off-chain indexers can reconstruct storage
+/// state. No event is emitted when the escrow is not in a terminal state.
 pub fn cleanup_escrow(env: &Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
-    let commitment_bytes: Bytes = commitment.into();
+    let commitment_bytes: Bytes = commitment.clone().into();
     let entry: EscrowEntry =
         get_escrow(env, &commitment_bytes).ok_or(QuickexError::CommitmentNotFound)?;
 
     match entry.status {
         EscrowStatus::Spent | EscrowStatus::Refunded => {
             remove_escrow(env, &commitment_bytes);
+            events::publish_escrow_cleaned_up(env, commitment, entry.status);
             Ok(())
         }
         _ => Err(QuickexError::AlreadySpent), // Reuse error or add a more specific one if needed
