@@ -228,7 +228,7 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
       }
 
       const record = records[i];
-      const values = headers.map(h => this.escapeCsvValue(String(record[h] ?? '')));
+      const values = headers.map(h => this.escapeCsvValue(record[h] ?? ''));
       lines.push(values.join(','));
     }
 
@@ -238,11 +238,16 @@ export class ExportGenerationHandler implements JobHandler<ExportGenerationPaylo
   /**
    * Escape CSV value (handle quotes, commas, newlines)
    */
-  private escapeCsvValue(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`;
+  private escapeCsvValue(value: unknown): string {
+    const text = String(value);
+    const safeText = typeof value === 'string' && /^[=+\-@\t\r]/.test(value)
+      ? `'${text}`
+      : text;
+
+    if (safeText.includes(',') || safeText.includes('"') || safeText.includes('\n') || safeText.includes('\r')) {
+      return `"${safeText.replace(/"/g, '""')}"`;
     }
-    return value;
+    return safeText;
   }
 
   /**

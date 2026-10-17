@@ -157,6 +157,21 @@ describe('AnalyticsService', () => {
     expect(pdf.toString('utf8')).toContain('%PDF-1.4');
   });
 
+  it('neutralizes formula-injection values in CSV payment fields', async () => {
+    const { report, payments } = await service.getAnalyticsReport(
+      'GB1234567890123456789012345678901234567890123456789012345',
+      '2026-04-01T00:00:00.000Z',
+      '2026-04-29T23:59:59.999Z',
+      AnalyticsInterval.MONTHLY,
+    );
+    payments[0].asset = '=cmd|calc';
+
+    const csv = service.buildCsvReport(report, payments, ReportType.ACCOUNTING);
+
+    expect(csv).toContain(",'=cmd|calc,");
+    expect(csv).toContain(',10.0000000,10.00,completed');
+  });
+
   it('uses SQL RPC aggregation when available', async () => {
     mockClient.rpc
       .mockResolvedValueOnce({

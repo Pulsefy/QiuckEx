@@ -80,8 +80,10 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
   let notificationService: jest.Mocked<NotificationService>;
   let notificationPrefsRepo: jest.Mocked<NotificationPreferencesRepository>;
   let jobQueueService: jest.Mocked<JobQueueService>;
+  let uploadedContent: string | undefined;
 
   beforeEach(async () => {
+    uploadedContent = undefined;
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExportGenerationHandler,
@@ -161,6 +163,56 @@ describe("ExportGenerationHandler – email delivery (BE-101)", () => {
       ).resolves.toBeUndefined();
       expect(notificationService.deliverExportEmail).toHaveBeenCalled();
     });
+  });
+
+  it("neutralizes formula-injection text in exported CSV while preserving negative numbers", async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ExportGenerationHandler,
+        {
+          provide: SupabaseService,
+          useValue: makeSupabaseMock([{
+            memo: '=cmd|calc',
+            plus: '+plus',
+            minus: '-minus',
+            at: '@at',
+            tab: '\ttab',
+            carriageReturn: '\rcarriage',
+            amount: -12.5,
+          }]),
+        },
+        {
+          provide: NotificationService,
+          useValue: { deliverExportEmail: jest.fn(), notifyExportFailed: jest.fn() },
+        },
+        {
+          provide: ExportStorageService,
+          useValue: {
+            uploadArtifact: jest.fn().mockImplementation(({ content }: { content: string }) => {
+              uploadedContent = content;
+              return Promise.resolve({ storageKey: 'exports/GUSER123/job-42.csv', sizeBytes: 10 });
+            }),
+            issueDownloadToken: jest.fn().mockReturnValue({ token: 'test-token', expiresAt: 1 }),
+          },
+        },
+        { provide: NotificationPreferencesRepository, useValue: { getWebhooksByPublicKey: jest.fn() } },
+        { provide: JobQueueService, useValue: { enqueue: jest.fn() } },
+      ],
+    }).compile();
+    handler = module.get<ExportGenerationHandler>(ExportGenerationHandler);
+
+    await handler.execute(
+      makeJob({ deliveryMethod: "download" }),
+      makeCancellationToken(),
+    );
+
+    expect(uploadedContent).toContain("'=cmd|calc");
+    expect(uploadedContent).toContain("'+plus");
+    expect(uploadedContent).toContain("'-minus");
+    expect(uploadedContent).toContain("'@at");
+    expect(uploadedContent).toContain("'\ttab");
+    expect(uploadedContent).toContain("\"'\rcarriage\"");
+    expect(uploadedContent).toContain(",-12.5");
   });
 
   describe("execute – provider/template failure handling", () => {
