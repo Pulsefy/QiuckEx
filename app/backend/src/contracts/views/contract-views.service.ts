@@ -103,6 +103,8 @@ export class ContractViewsService {
 
   /** Soroban RPC server instance, lazily initialised */
   private rpc: StellarSdk.rpc.Server | null = null;
+  /** Horizon server instance, lazily initialised */
+  private horizon: StellarSdk.Horizon.Server | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -343,13 +345,13 @@ export class ContractViewsService {
     }
   }
 
-  private parseEscrowSummary(
+  private async parseEscrowSummary(
     val:      StellarSdk.xdr.ScVal,
     escrowId: string,
-  ): EscrowSummaryView {
+  ): Promise<EscrowSummaryView> {
     const map          = this.scValToMap(val);
     const expiryLedger = Number(StellarSdk.scValToNative(this.requireMapField(map, 'expiry_ledger')));
-    const currentLedger = 0; // Would be fetched from horizon in a full impl; safe default
+    const currentLedger = await this.getCurrentLedgerSequence();
 
     return {
       id:            escrowId,
@@ -360,7 +362,7 @@ export class ContractViewsService {
       released:      Boolean(StellarSdk.scValToNative(this.requireMapField(map, 'released'))),
       refunded:      Boolean(StellarSdk.scValToNative(this.requireMapField(map, 'refunded'))),
       expiryLedger,
-      expired:       currentLedger > 0 && currentLedger > expiryLedger,
+      expired:       currentLedger > expiryLedger,
     };
   }
 
@@ -441,6 +443,38 @@ export class ContractViewsService {
 
     this.rpc = new StellarSdk.rpc.Server(rpcUrl, { allowHttp: false });
     return this.rpc;
+  }
+
+  private async getCurrentLedgerSequence(): Promise<number> {
+    const response = await this.getHorizonServer()
+      .ledgers()
+      .order('desc')
+      .limit(1)
+      .call();
+    const sequence = Number(response.records[0]?.sequence);
+
+    if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+      throw new Error('Horizon did not return a valid latest ledger sequence');
+    }
+
+    return sequence;
+  }
+
+  private getHorizonServer(): StellarSdk.Horizon.Server {
+    if (this.horizon) return this.horizon;
+
+    const stellarCfg = this.configService.get<{
+      network: 'testnet' | 'mainnet';
+      horizonBaseUrl: string;
+    }>('stellar');
+    const horizonUrl = stellarCfg?.horizonBaseUrl
+      ?? process.env['HORIZON_URL']
+      ?? (stellarCfg?.network === 'mainnet'
+        ? 'https://horizon.stellar.org'
+        : 'https://horizon-testnet.stellar.org');
+
+    this.horizon = new StellarSdk.Horizon.Server(horizonUrl);
+    return this.horizon;
   }
 
   private requireContractId(): string {
