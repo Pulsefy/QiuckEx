@@ -60,6 +60,15 @@ The backend validates all environment variables at startup using a Joi schema. I
 
 **Note:** For security, actual secret values are never logged—only the key names.
 
+### Idempotency deployment limit
+
+The `Idempotency-Key` store is process-local and is scoped by authenticated API
+key/organization or verified wallet identity. Set `IDEMPOTENCY_INSTANCE_COUNT`
+to the actual number of backend instances. Startup fails when the value is
+greater than `1`; retry guarantees are not shared across instances, so
+horizontal scaling requires moving the store to shared storage before increasing
+the replica count. Unauthenticated requests are scoped by client IP.
+
 ## Stellar configuration
 
 ### Network

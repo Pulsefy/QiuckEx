@@ -9,9 +9,13 @@ import {
 } from "./idempotency.interceptor";
 
 describe("IdempotencyStore", () => {
-  const buildStore = (retentionHours = 24): IdempotencyStore =>
+  const buildStore = (
+    retentionHours = 24,
+    idempotencyInstanceCount = 1,
+  ): IdempotencyStore =>
     new IdempotencyStore({
       idempotencyRetentionHours: retentionHours,
+      idempotencyInstanceCount,
     } as unknown as AppConfigService);
 
   it("begins a fresh key as PENDING and returns undefined", () => {
@@ -77,6 +81,13 @@ describe("IdempotencyStore", () => {
     expect(store.peek("stale")).toBeUndefined();
     expect(store.peek("live")).toBeDefined();
   });
+
+  it("rejects startup when configured for multiple instances", () => {
+    const store = buildStore(24, 2);
+    expect(() => store.onModuleInit()).toThrow(
+      "The in-memory idempotency store supports exactly one backend instance",
+    );
+  });
 });
 
 describe("IdempotencyInterceptor", () => {
@@ -89,6 +100,7 @@ describe("IdempotencyInterceptor", () => {
     url: string,
     body: unknown,
     headers: Record<string, string> = {},
+    caller?: { apiKeyId?: string; organizationId?: string; publicKey?: string },
   ): {
     context: ExecutionContext;
     res: Record<string, unknown>;
@@ -103,6 +115,16 @@ describe("IdempotencyInterceptor", () => {
       method,
       originalUrl: url,
       body,
+      ip: "127.0.0.1",
+      apiKey: caller?.apiKeyId
+        ? {
+            id: caller.apiKeyId,
+            organization_id: caller.organizationId,
+          }
+        : undefined,
+      user: caller?.publicKey
+        ? { publicKey: caller.publicKey }
+        : undefined,
       header: (name: string) => normalizedHeaders[name.toLowerCase()],
     };
     const res: Record<string, unknown> = {
@@ -214,6 +236,61 @@ describe("IdempotencyInterceptor", () => {
     expect(handlerCalls).toBe(1);
   });
 
+  it("isolates identical keys used by different authenticated callers", async () => {
+    const firstCaller = buildContext(
+      "POST",
+      "/transactions/submit",
+      { signedXdr: "AAA" },
+      { [IDEMPOTENCY_KEY_HEADER]: "shared-client-key" },
+      { apiKeyId: "api-key-1" },
+    );
+    const secondCaller = buildContext(
+      "POST",
+      "/transactions/submit",
+      { signedXdr: "AAA" },
+      { [IDEMPOTENCY_KEY_HEADER]: "shared-client-key" },
+      { apiKeyId: "api-key-2" },
+    );
+
+    const firstResult = await lastValueFrom(
+      interceptor.intercept(firstCaller.context, runHandler({ hash: "H1" })),
+    );
+    const secondResult = await lastValueFrom(
+      interceptor.intercept(secondCaller.context, runHandler({ hash: "H2" })),
+    );
+
+    expect(firstResult).toEqual({ hash: "H1" });
+    expect(secondResult).toEqual({ hash: "H2" });
+    expect(handlerCalls).toBe(2);
+
+    const firstReplay = buildContext(
+      "POST",
+      "/transactions/submit",
+      { signedXdr: "AAA" },
+      { [IDEMPOTENCY_KEY_HEADER]: "shared-client-key" },
+      { apiKeyId: "api-key-1" },
+    );
+    const secondReplay = buildContext(
+      "POST",
+      "/transactions/submit",
+      { signedXdr: "AAA" },
+      { [IDEMPOTENCY_KEY_HEADER]: "shared-client-key" },
+      { apiKeyId: "api-key-2" },
+    );
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(firstReplay.context, runHandler({ hash: "never" })),
+      ),
+    ).resolves.toEqual({ hash: "H1" });
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(secondReplay.context, runHandler({ hash: "never" })),
+      ),
+    ).resolves.toEqual({ hash: "H2" });
+    expect(handlerCalls).toBe(2);
+  });
+
   it("replays the original HTTP status code", async () => {
     const first = buildContext(
       "POST",
@@ -231,7 +308,10 @@ describe("IdempotencyInterceptor", () => {
         }),
     } as unknown as CallHandler;
     await lastValueFrom(interceptor.intercept(first.context, handler));
-    expect(store.peek("status-key")?.statusCode).toBe(202);
+    expect(
+      store.peek(JSON.stringify(["anonymous:127.0.0.1", "status-key"]))
+        ?.statusCode,
+    ).toBe(202);
 
     const replay = buildContext(
       "POST",
@@ -300,7 +380,10 @@ describe("IdempotencyInterceptor", () => {
         buildFingerprint: (r: unknown) => string;
       }
     ).buildFingerprint(req);
-    store.begin("race-key", fingerprint);
+    store.begin(
+      JSON.stringify(["anonymous:127.0.0.1", "race-key"]),
+      fingerprint,
+    );
 
     const err = await interceptError(context);
     expect(err?.response?.code).toBe("IDEMPOTENCY_KEY_IN_PROGRESS");
@@ -370,7 +453,9 @@ describe("IdempotencyInterceptor", () => {
     await expect(
       lastValueFrom(interceptor.intercept(first.context, failingHandler)),
     ).rejects.toThrow("horizon down");
-    expect(store.peek("retry-key")).toBeUndefined();
+    expect(
+      store.peek(JSON.stringify(["anonymous:127.0.0.1", "retry-key"])),
+    ).toBeUndefined();
 
     // Retry with the same key now executes normally.
     const retry = buildContext(

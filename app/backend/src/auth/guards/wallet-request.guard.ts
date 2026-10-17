@@ -34,6 +34,7 @@ export class WalletRequestGuard implements CanActivate {
       path: request.originalUrl.split("?")[0],
       body: request.method === "PUT" ? request.body : null,
     });
+    request.user = { publicKey };
     return true;
   }
 }

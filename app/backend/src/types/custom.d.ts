@@ -4,6 +4,10 @@ declare module 'winston';
 
 declare namespace Express {
   interface Request {
+    user?: {
+      id?: string;
+      publicKey?: string;
+    };
     apiKey?: {
       id: string;
       name: string;

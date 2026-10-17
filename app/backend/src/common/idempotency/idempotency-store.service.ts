@@ -29,17 +29,17 @@ export interface IdempotencyRecord {
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * In-process store backing `Idempotency-Key` support on mutating payment and
- * link endpoints (BE-109).
+ * Single-instance store backing `Idempotency-Key` support on mutating payment
+ * and link endpoints (BE-109).
  *
  * Keys expire lazily (checked on access) and via a periodic sweep after the
- * configurable retention window (`IDEMPOTENCY_RETENTION_HOURS`). Records live
- * in memory, matching the existing transaction-service idempotency pattern;
- * deployments running multiple instances should back this store with Redis or
- * Postgres in a follow-up.
+ * configurable retention window (`IDEMPOTENCY_RETENTION_HOURS`). This store
+ * does not share records between backend instances; startup rejects configured
+ * deployments with more than one instance.
  */
 @Injectable()
 export class IdempotencyStore implements OnModuleInit, OnModuleDestroy {
+  /** Keys are caller-scoped by the interceptor. */
   private readonly records = new Map<string, IdempotencyRecord>();
   private sweepTimer?: NodeJS.Timeout;
 
@@ -121,6 +121,13 @@ export class IdempotencyStore implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
+    if (this.appConfig.idempotencyInstanceCount !== 1) {
+      throw new Error(
+        "The in-memory idempotency store supports exactly one backend instance. " +
+          "Set IDEMPOTENCY_INSTANCE_COUNT=1 or configure a shared idempotency store before scaling out.",
+      );
+    }
+
     this.sweepTimer = setInterval(
       () => this.sweepExpired(),
       SWEEP_INTERVAL_MS,

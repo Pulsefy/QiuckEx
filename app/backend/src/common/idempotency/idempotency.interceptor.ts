@@ -69,7 +69,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const fingerprint = this.buildFingerprint(req);
-    const existing = this.store.begin(key, fingerprint);
+    const callerNamespace = this.getCallerNamespace(req);
+    const scopedKey = JSON.stringify([callerNamespace, key]);
+    const existing = this.store.begin(scopedKey, fingerprint);
 
     if (existing) {
       if (existing.fingerprint !== fingerprint) {
@@ -104,7 +106,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((body) => {
         this.store.complete(
-          key,
+          scopedKey,
           capturedStatus ?? res.statusCode ?? 200,
           body,
         );
@@ -112,7 +114,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       }),
       catchError((err: unknown) => {
         // Release the key so the client can retry the same key after failure.
-        this.store.release(key);
+        this.store.release(scopedKey);
         return throwError(() => err);
       }),
     );
@@ -132,5 +134,27 @@ export class IdempotencyInterceptor implements NestInterceptor {
         }),
       )
       .digest("hex");
+  }
+
+  /**
+   * Prefer verified API-key or wallet identity. Public, unauthenticated
+   * requests are isolated by their client address rather than sharing one
+   * process-wide namespace.
+   */
+  private getCallerNamespace(req: Request): string {
+    if (req.apiKey?.organization_id) {
+      return `organization:${req.apiKey.organization_id}`;
+    }
+    if (req.apiKey?.id) {
+      return `api-key:${req.apiKey.id}`;
+    }
+    if (req.user?.publicKey) {
+      return `wallet:${req.user.publicKey}`;
+    }
+    if (req.user?.id) {
+      return `user:${req.user.id}`;
+    }
+
+    return `anonymous:${req.ip || req.socket.remoteAddress || "unknown"}`;
   }
 }
