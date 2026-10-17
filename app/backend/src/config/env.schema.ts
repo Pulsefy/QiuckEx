@@ -642,6 +642,14 @@ export const envSchema = Joi.object({
       "How long completed Idempotency-Key records are retained before expiry",
     ),
 
+  IDEMPOTENCY_INSTANCE_COUNT: Joi.number()
+    .integer()
+    .min(1)
+    .default(1)
+    .description(
+      "Configured backend instance count; the in-memory idempotency store only supports 1",
+    ),
+
   // ── API Key Rotation Overlap (BE-118) ───────────────────────────────────
   API_KEY_ROTATION_OVERLAP_HOURS: Joi.number()
     .integer()
@@ -864,6 +872,7 @@ export interface EnvConfig {
   ABUSE_SIGNAL_GEO_ENABLED: boolean;
   ABUSE_SIGNAL_HASH_SALT: string;
   IDEMPOTENCY_RETENTION_HOURS: number;
+  IDEMPOTENCY_INSTANCE_COUNT: number;
   API_KEY_ROTATION_OVERLAP_HOURS: number;
   PREVIEW_INACTIVITY_THRESHOLD_MS: number;
   PREVIEW_MAX_AGE_MS: number;

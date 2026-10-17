@@ -447,6 +447,15 @@ export class AppConfigService {
   }
 
   /**
+   * Configured backend instance count for the in-memory idempotency store.
+   */
+  get idempotencyInstanceCount(): number {
+    return this.configService.get("IDEMPOTENCY_INSTANCE_COUNT", {
+      infer: true,
+    });
+  }
+
+  /**
    * Overlap window (hours) for key rotation grace period (BE-118)
    */
   get apiKeyRotationOverlapHours(): number {
