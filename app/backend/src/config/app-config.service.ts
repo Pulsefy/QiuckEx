@@ -322,6 +322,24 @@ export class AppConfigService {
     return this.configService.get("HORIZON_URL", { infer: true });
   }
 
+  /**
+   * Timeout in milliseconds for outbound Horizon requests made by HorizonService.
+   */
+  get horizonRequestTimeoutMs(): number {
+    return this.configService.get("HORIZON_REQUEST_TIMEOUT_MS", {
+      infer: true,
+    });
+  }
+
+  /**
+   * Timeout in milliseconds for scam-alerts external blocklist fetches.
+   */
+  get scamAlertsFetchTimeoutMs(): number {
+    return this.configService.get("SCAM_ALERTS_FETCH_TIMEOUT_MS", {
+      infer: true,
+    });
+  }
+
   get sorobanRpcUrl(): string | undefined {
     return this.configService.get("SOROBAN_RPC_URL", { infer: true });
   }

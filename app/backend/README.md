@@ -32,6 +32,8 @@ cp .env.example .env
 | `SUPABASE_URL`     | **Yes**  | -             | Supabase project URL (e.g., `https://xxx.supabase.co`)|
 | `SUPABASE_ANON_KEY`| **Yes**  | -             | Supabase anonymous (public) API key                   |
 | `MAX_USERNAMES_PER_WALLET` | No | (no limit) | Max usernames per wallet; omit for no limit           |
+| `HORIZON_REQUEST_TIMEOUT_MS` | No | `10000` | Timeout (ms) for outbound Horizon requests issued by the SDK-backed HorizonService; min 1000 |
+| `SCAM_ALERTS_FETCH_TIMEOUT_MS` | No | `3000` | Timeout (ms) for each external scam-alerts blocklist fetch; min 100 |
 
 #### Getting Supabase credentials
 

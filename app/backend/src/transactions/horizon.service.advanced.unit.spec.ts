@@ -6,7 +6,11 @@ jest.mock('@stellar/stellar-sdk', () => {
         order: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         cursor: jest.fn().mockReturnThis(),
+        accounts: jest.fn().mockReturnThis(),
+        accountId: jest.fn().mockReturnThis(),
+        payments: jest.fn().mockReturnThis(),
         call: jest.fn(),
+        httpClient: { defaults: {} },
     };
     
     return {
@@ -30,6 +34,7 @@ describe('HorizonService - Advanced Features', () => {
             network: 'testnet',
             cacheMaxItems: 100,
             cacheTtlMs: 5000,
+            horizonRequestTimeoutMs: 10000,
         };
 
         const module: TestingModule = await Test.createTestingModule({

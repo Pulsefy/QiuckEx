@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { HorizonService } from "../transactions/horizon.service";
+import { AppConfigService } from "../config";
 import {
 	ASSETS_REQUIRING_MEMO,
 	WHITELISTED_ASSETS,
@@ -34,7 +35,10 @@ export class ScamAlertsService {
 	private readonly accountAgeCache = new Map<string, { isRecent: boolean; timestamp: number }>();
 	private readonly accountAgeCacheTtl = 10 * 60 * 1000; // 10 minutes
 
-	constructor(private readonly horizonService: HorizonService) {}
+	constructor(
+		private readonly horizonService: HorizonService,
+		private readonly configService: AppConfigService,
+	) {}
 
 	/**
 	 * List of active scam detection rules
@@ -57,18 +61,20 @@ export class ScamAlertsService {
 	async scanLink(linkData: PaymentLinkData): Promise<ScanResult> {
 		this.logger.log(`Scanning link: ${JSON.stringify(linkData)}`);
 
-		const alerts: ScamAlert[] = []; // Changed from 'let' to 'const' as it's not reassigned
+		const alerts: ScamAlert[] = [];
 
-		// Execute rule engine
-		for (const rule of this.rules) {
-			try {
-				const ruleAlerts = await rule(linkData);
-				alerts.push(...ruleAlerts);
-			} catch (error) {
-				this.logger.warn(`Error in scam rule: ${error.message}`);
-				// Continue with other rules even if one fails
-			}
-		}
+		// Rules run concurrently (results stay in rule order) so one slow or
+		// hanging external check cannot delay the rest of the scan; every
+		// external check is individually timeout-bounded (see #1226).
+		const ruleAlerts = await Promise.all(
+			this.rules.map((rule) =>
+				rule(linkData).catch((error) => {
+					this.logger.warn(`Error in scam rule: ${error.message}`);
+					return [] as ScamAlert[];
+				}),
+			),
+		);
+		alerts.push(...ruleAlerts.flat());
 
 		// Calculate severity counts
 		const counts = this.calculateSeverityCounts(alerts);
@@ -249,21 +255,14 @@ export class ScamAlertsService {
 		}
 
 		try {
-			// Use the existing HorizonService to get account info
-			const horizonUrl = process.env.NETWORK === 'mainnet'
-				? 'https://horizon.stellar.org'
-				: 'https://horizon-testnet.stellar.org';
-				
-			const response = await fetch(`${horizonUrl}/accounts/${linkData.recipientAddress}`);
-			
-			if (!response.ok) {
-				throw new Error(`Horizon API returned status ${response.status}`);
-			}
-			
-			const accountData = await response.json();
-			
-			if (accountData && accountData.created_at) {
-				const creationDate = new Date(accountData.created_at);
+			// Account lookup (incl. creation time) goes through HorizonService,
+			// which selects the network endpoint and applies its request timeout.
+			const account = await this.horizonService.getAccount(
+				linkData.recipientAddress,
+			);
+
+			if (account && account.created_at) {
+				const creationDate = new Date(account.created_at);
 				const now = new Date();
 				const ageInDays = (now.getTime() - creationDate.getTime()) / (1000 * 60 * 60 * 24);
 
@@ -312,22 +311,13 @@ export class ScamAlertsService {
 			const cutoffDate = new Date(Date.now() - timeWindowMs);
 			const cutoffTimeString = cutoffDate.toISOString();
 
-			// Fetch recent payments to the recipient using Horizon API
-			const horizonUrl = process.env.NETWORK === 'mainnet'
-				? 'https://horizon.stellar.org'
-				: 'https://horizon-testnet.stellar.org';
-				
-			const response = await fetch(
-				`${horizonUrl}/accounts/${linkData.recipientAddress}/payments` +
-				`?limit=100&order=desc&created_at:gt=${encodeURIComponent(cutoffTimeString)}`
+			// Recent payments come from HorizonService, which applies its
+			// network selection and request timeout.
+			const payments = await this.horizonService.getPaymentsSince(
+				linkData.recipientAddress,
+				cutoffTimeString,
+				100,
 			);
-			
-			if (!response.ok) {
-				throw new Error(`Horizon API returned status ${response.status}`);
-			}
-			
-			const data = await response.json();
-			const payments = data._embedded?.records || [];
 			
 			// Count payments that are below the low value threshold
 			let lowValuePaymentCount = 0;
@@ -389,51 +379,84 @@ export class ScamAlertsService {
 			return [];
 		}
 
+		// Fetch every source concurrently, each with its own timeout, so one
+		// slow or hanging blocklist source neither delays the others nor the
+		// rest of the scan. A failed or timed-out source is treated as "no
+		// signal": log a warning and continue with whatever the other sources
+		// returned.
+		const timeoutMs = this.configService.scamAlertsFetchTimeoutMs;
+		const sourceResults = await Promise.all(
+			EXTERNAL_BLOCKLIST_SOURCES.map(async (source) => {
+				try {
+					return await this.fetchBlocklist(source.url, timeoutMs);
+				} catch (error) {
+					this.logger.warn(
+						`Could not fetch external blocklist from ${source.name}: ${error.message}`,
+					);
+					return null;
+				}
+			}),
+		);
+
+		// Process results in source order so caching and the early exit on a
+		// critical hit behave exactly as the sequential version did.
 		const alerts: ScamAlert[] = [];
-
-		// Check each external blocklist source
-		for (const source of EXTERNAL_BLOCKLIST_SOURCES) {
-			try {
-				const response = await fetch(source.url);
-				
-				if (!response.ok) {
-					throw new Error(`Blocklist API returned status ${response.status}`);
-				}
-				
-				const blocklistData = await response.json();
-				
-				if (Array.isArray(blocklistData)) {
-					const blocklistAddresses = blocklistData as string[];
-					
-					if (blocklistAddresses.includes(linkData.recipientAddress)) {
-						// Cache the result
-						this.blocklistCache.set(cacheKey, {
-							data: blocklistAddresses,
-							timestamp: Date.now()
-						});
-
-						alerts.push({
-							...SCAM_RULES[ScamAlertType.BLACKLISTED_EXTERNAL],
-							type: ScamAlertType.BLACKLISTED_EXTERNAL,
-						});
-						
-						// Break early since this is a critical alert
-						break;
-					} else {
-						// Still cache the blocklist for this source
-						this.blocklistCache.set(cacheKey, {
-							data: blocklistAddresses,
-							timestamp: Date.now()
-						});
-					}
-				}
-			} catch (error) {
-				this.logger.warn(`Could not fetch external blocklist from ${source.name}: ${error.message}`);
-				// Continue to next source
+		for (const sourceData of sourceResults) {
+			if (!Array.isArray(sourceData)) {
+				continue;
 			}
+
+			const blocklistAddresses = sourceData as string[];
+
+			if (blocklistAddresses.includes(linkData.recipientAddress)) {
+				// Cache the result
+				this.blocklistCache.set(cacheKey, {
+					data: blocklistAddresses,
+					timestamp: Date.now(),
+				});
+
+				alerts.push({
+					...SCAM_RULES[ScamAlertType.BLACKLISTED_EXTERNAL],
+					type: ScamAlertType.BLACKLISTED_EXTERNAL,
+				});
+
+				// Stop processing further sources since this is a critical alert
+				break;
+			}
+
+			// Still cache the blocklist for this source
+			this.blocklistCache.set(cacheKey, {
+				data: blocklistAddresses,
+				timestamp: Date.now(),
+			});
 		}
 
 		return alerts;
+	}
+
+	/**
+	 * Fetch one external blocklist payload with an explicit timeout.
+	 * The timer is cleared in `finally` so it never leaks.
+	 */
+	private async fetchBlocklist(url: string, timeoutMs: number): Promise<unknown> {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
+		try {
+			const response = await fetch(url, { signal: controller.signal });
+
+			if (!response.ok) {
+				throw new Error(`Blocklist API returned status ${response.status}`);
+			}
+
+			return await response.json();
+		} catch (error) {
+			if ((error as { name?: string })?.name === "AbortError") {
+				throw new Error(`Blocklist request timed out after ${timeoutMs}ms`);
+			}
+			throw error;
+		} finally {
+			clearTimeout(timer);
+		}
 	}
 
 	/**

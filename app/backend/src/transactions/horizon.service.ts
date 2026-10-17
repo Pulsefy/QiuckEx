@@ -5,10 +5,30 @@ import { AppConfigService } from '../config/app-config.service';
 import { TransactionItemDto, TransactionResponseDto } from './dto/transaction.dto';
 import { withSpan } from '../tracing/trace-span.util';
 
+/**
+ * Loose shape of the Horizon account resource; only the fields callers
+ * actually read are typed, the rest is passed through untouched.
+ */
+export interface HorizonAccountRecord {
+    account_id?: string;
+    created_at?: string;
+    [key: string]: unknown;
+}
+
+/** Record returned by Horizon's /accounts/:id/payments endpoint. */
+export interface HorizonPaymentRecord {
+    type: string;
+    amount?: string;
+    asset_type?: string;
+    created_at: string;
+}
+
 @Injectable()
 export class HorizonService {
     private readonly logger = new Logger(HorizonService.name);
     private readonly server: Horizon.Server;
+    private readonly horizonUrl: string;
+    private readonly requestTimeoutMs: number;
     private readonly cache: LRUCache<string, TransactionResponseDto>;
     private readonly backoffCache: LRUCache<string, { attempts: number; lastAttempt: number }>;
     private readonly maxRetries = 3;
@@ -16,11 +36,16 @@ export class HorizonService {
     private readonly maxDelay = 30000;
 
     constructor(private readonly configService: AppConfigService) {
-        const horizonUrl = this.configService.network === 'mainnet'
+        this.horizonUrl = this.configService.network === 'mainnet'
             ? 'https://horizon.stellar.org'
             : 'https://horizon-testnet.stellar.org';
+        this.requestTimeoutMs = this.configService.horizonRequestTimeoutMs;
 
-        this.server = new Horizon.Server(horizonUrl);
+        this.server = new Horizon.Server(this.horizonUrl);
+
+        // Bound every SDK-issued Horizon request; without this a hung endpoint
+        // can stall callers indefinitely (see #1226).
+        this.server.httpClient.defaults.timeout = this.requestTimeoutMs;
 
         this.cache = new LRUCache({
             max: this.configService.cacheMaxItems || 500,
@@ -35,6 +60,75 @@ export class HorizonService {
 
         this.logger.log(`HorizonService initialized for ${this.configService.network} network`);
         this.logger.log(`Cache configured: max=${this.cache.max}, ttl=${this.cache.ttl}ms`);
+    }
+
+    /**
+     * Fetch a single account from Horizon.
+     * Returns null when the account does not exist (404).
+     * Single attempt: no retry loop, so callers on latency-sensitive paths are
+     * bounded by one request timeout.
+     */
+    async getAccount(accountId: string): Promise<HorizonAccountRecord | null> {
+        return withSpan(
+            'horizon.getAccount',
+            {
+                'rpc.system': 'horizon',
+                'horizon.account_id': accountId,
+            },
+            async (span) => {
+                const { status, data } = await this.fetchJson<HorizonAccountRecord>(
+                    `/accounts/${accountId}`,
+                );
+                span.setAttribute('http.status_code', status);
+
+                if (status === 404) {
+                    this.logger.debug(`Account ${accountId} not found on Horizon`);
+                    return null;
+                }
+                if (status >= 400) {
+                    this.handleHorizonError(this.toHorizonError(status));
+                }
+                return data;
+            },
+        );
+    }
+
+    /**
+     * Fetch recent payments for an account from Horizon, newest first,
+     * filtered server-side to records created after `sinceIso`.
+     * Returns an empty list when the account does not exist (404).
+     * Single attempt: no retry loop, bounded by one request timeout.
+     */
+    async getPaymentsSince(
+        accountId: string,
+        sinceIso: string,
+        limit: number = 100,
+    ): Promise<HorizonPaymentRecord[]> {
+        return withSpan(
+            'horizon.getPaymentsSince',
+            {
+                'rpc.system': 'horizon',
+                'horizon.account_id': accountId,
+            },
+            async (span) => {
+                const { status, data } = await this.fetchJson<{
+                    _embedded?: { records?: HorizonPaymentRecord[] };
+                }>(
+                    `/accounts/${accountId}/payments` +
+                    `?limit=${limit}&order=desc&created_at:gt=${encodeURIComponent(sinceIso)}`,
+                );
+                span.setAttribute('http.status_code', status);
+
+                if (status === 404) {
+                    this.logger.debug(`No payment history for ${accountId} on Horizon`);
+                    return [];
+                }
+                if (status >= 400) {
+                    this.handleHorizonError(this.toHorizonError(status));
+                }
+                return data?._embedded?.records ?? [];
+            },
+        );
     }
 
     async getPayments(
@@ -211,6 +305,51 @@ export class HorizonService {
         }
 
         throw lastError;
+    }
+
+    /**
+     * GET a Horizon path as JSON with an explicit request timeout.
+     * The timer is cleared in `finally` so it never leaks, and the timeout
+     * covers reading the response body, not just receiving headers.
+     * Non-2xx responses are returned (not thrown) so callers can special-case
+     * statuses such as 404.
+     */
+    private async fetchJson<T>(
+        path: string,
+    ): Promise<{ status: number; data: T | null }> {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+        try {
+            const response = await fetch(`${this.horizonUrl}${path}`, {
+                headers: { Accept: 'application/json' },
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                return { status: response.status, data: null };
+            }
+
+            const data = (await response.json()) as T;
+            return { status: response.status, data };
+        } catch (error) {
+            if ((error as { name?: string })?.name === 'AbortError') {
+                throw new Error(
+                    `Horizon request timed out after ${this.requestTimeoutMs}ms`,
+                );
+            }
+            throw error;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /** Shape a plain status code like the SDK's axios errors for handleHorizonError. */
+    private toHorizonError(status: number): Error & { response?: { status: number; data: unknown } } {
+        const error = new Error(`Horizon returned ${status}`) as Error & {
+            response?: { status: number; data: unknown };
+        };
+        error.response = { status, data: null };
+        return error;
     }
 
     private calculateDelay(attempt: number): number {

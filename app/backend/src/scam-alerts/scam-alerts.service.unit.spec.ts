@@ -1,7 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ScamAlertsService } from "./scam-alerts.service";
-import { ScamAlertType, ScamSeverity } from "./constants/scam-rules.constants";
+import {
+	ScamAlertType,
+	ScamSeverity,
+	EXTERNAL_BLOCKLIST_SOURCES,
+} from "./constants/scam-rules.constants";
 import { HorizonService } from "../transactions/horizon.service";
+import { AppConfigService } from "../config";
 
 // Define a type that represents the internal structure of the service for testing
 type InternalScamAlertsService = {
@@ -9,8 +14,19 @@ type InternalScamAlertsService = {
   blocklistCache: Map<string, { data: string[]; timestamp: number }>;
 };
 
-// Mock fetch globally for the tests
+// Mock fetch globally for the tests (only blocklist sources use it now;
+// Horizon calls go through the mocked HorizonService).
 global.fetch = jest.fn();
+
+const mockHorizonService = {
+  getAccount: jest.fn(),
+  getPaymentsSince: jest.fn(),
+};
+
+const mockConfigService = {
+  // Small enough to keep the timeout tests fast, large enough to stay stable.
+  scamAlertsFetchTimeoutMs: 150,
+};
 
 describe("ScamAlertsService", () => {
 	let service: ScamAlertsService;
@@ -21,15 +37,27 @@ describe("ScamAlertsService", () => {
 				ScamAlertsService,
 				{
 					provide: HorizonService,
-					useValue: {},
+					useValue: mockHorizonService,
+				},
+				{
+					provide: AppConfigService,
+					useValue: mockConfigService,
 				},
 			],
 		}).compile();
 
 		service = module.get<ScamAlertsService>(ScamAlertsService);
-		
-		// Reset fetch mock
-		(global.fetch as jest.MockedFunction<typeof fetch>).mockClear();
+
+		// Reset fetch mock with a harmless default response
+		(global.fetch as jest.MockedFunction<typeof fetch>)
+			.mockReset()
+			.mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => [],
+			} as Response);
+		mockHorizonService.getAccount.mockReset().mockResolvedValue(null);
+		mockHorizonService.getPaymentsSince.mockReset().mockResolvedValue([]);
 	});
 
 	it("should be defined", () => {
@@ -158,15 +186,10 @@ describe("ScamAlertsService", () => {
 		});
 
 		it("should flag newly created accounts", async () => {
-			// Mock fetch response for a newly created account
-			(global.fetch as jest.MockedFunction<typeof fetch>)
-				.mockResolvedValueOnce({
-					ok: true,
-					status: 200,
-					json: async () => ({
-						created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-					}),
-				} as Response);
+			// Account lookup goes through HorizonService
+			mockHorizonService.getAccount.mockResolvedValue({
+				created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+			});
 
 			const result = await service.scanLink({
 				assetCode: "USDC",
@@ -180,18 +203,16 @@ describe("ScamAlertsService", () => {
 			);
 			expect(newAccountAlert).toBeDefined();
 			expect(newAccountAlert?.severity).toBe(ScamSeverity.MEDIUM);
+			expect(mockHorizonService.getAccount).toHaveBeenCalledWith(
+				"GNEWLYCREATEDACCOUNTHASBEENREGISTEREDRECENTLY123456789",
+			);
 		});
 
 		it("should not flag older accounts", async () => {
-			// Mock fetch response for an older account
-			(global.fetch as jest.MockedFunction<typeof fetch>)
-				.mockResolvedValueOnce({
-					ok: true,
-					status: 200,
-					json: async () => ({
-						created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
-					}),
-				} as Response);
+			// Account lookup goes through HorizonService
+			mockHorizonService.getAccount.mockResolvedValue({
+				created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+			});
 
 			const result = await service.scanLink({
 				assetCode: "USDC",
@@ -214,36 +235,14 @@ describe("ScamAlertsService", () => {
 		});
 
 		it("should flag addresses on external blocklist", async () => {
-			(global.fetch as jest.MockedFunction<typeof fetch>).mockImplementation(
-				async (input: RequestInfo | URL) => {
-					const url = String(input);
-
-					if (url.includes("/accounts/") && !url.includes("/payments")) {
-						return {
-							ok: true,
-							status: 200,
-							json: async () => ({ created_at: "2025-01-01T00:00:00Z" }),
-						} as Response;
-					}
-
-					if (url.includes("/payments")) {
-						return {
-							ok: true,
-							status: 200,
-							json: async () => ({ _embedded: { records: [] } }),
-						} as Response;
-					}
-
-					return {
-						ok: true,
-						status: 200,
-						json: async () => [
-							"GBLACKLISTEDADDRESS123456789",
-							"GANOTHERBLACKLISTEDADDR456789",
-						],
-					} as Response;
-				},
-			);
+			(global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => [
+					"GBLACKLISTEDADDRESS123456789",
+					"GANOTHERBLACKLISTEDADDR456789",
+				],
+			} as Response);
 
 			const result = await service.scanLink({
 				assetCode: "USDC",
@@ -383,6 +382,180 @@ describe("ScamAlertsService", () => {
 				(a) => a.type === ScamAlertType.HIGH_VALUE_MISSING_MEMO,
 			);
 			expect(highValueMissingMemoAlert).toBeUndefined();
+		});
+	});
+
+	describe("Horizon checks via HorizonService", () => {
+		const recipient = "GRECIPIENTACCOUNT123456789ABCDEFGHIJKLMNO";
+
+		it("performs account and payment checks through HorizonService, not raw fetch", async () => {
+			mockHorizonService.getAccount.mockResolvedValue({
+				created_at: new Date(
+					Date.now() - 30 * 24 * 60 * 60 * 1000,
+				).toISOString(),
+			});
+
+			const result = await service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				memo: "test",
+				recipientAddress: recipient,
+			});
+
+			expect(result).toBeDefined();
+			expect(mockHorizonService.getAccount).toHaveBeenCalledWith(recipient);
+			expect(mockHorizonService.getPaymentsSince).toHaveBeenCalledTimes(1);
+
+			const [accountId, sinceIso, limit] =
+				mockHorizonService.getPaymentsSince.mock.calls[0];
+			expect(accountId).toBe(recipient);
+			expect(limit).toBe(100);
+			// The cutoff sits inside the trailing one-hour window
+			const windowAgeMs = Date.now() - Date.parse(sinceIso as string);
+			expect(windowAgeMs).toBeGreaterThanOrEqual(60 * 60 * 1000 - 5000);
+			expect(windowAgeMs).toBeLessThanOrEqual(60 * 60 * 1000 + 5000);
+
+			// Any direct fetch is confined to the configured blocklist sources
+			const blocklistUrls = EXTERNAL_BLOCKLIST_SOURCES.map((s) => s.url);
+			const fetchCalls = (global.fetch as jest.MockedFunction<typeof fetch>)
+				.mock.calls;
+			expect(fetchCalls.length).toBeGreaterThan(0);
+			for (const call of fetchCalls) {
+				expect(blocklistUrls).toContain(String(call[0]));
+			}
+		});
+
+		it("flags high-frequency low-value patterns from HorizonService payments", async () => {
+			mockHorizonService.getPaymentsSince.mockResolvedValue(
+				Array.from({ length: 5 }, () => ({
+					type: "payment",
+					amount: "1.0",
+					asset_type: "native",
+					created_at: new Date().toISOString(),
+				})),
+			);
+
+			const result = await service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				memo: "test",
+				recipientAddress: recipient,
+			});
+
+			const frequencyAlert = result.alerts.find(
+				(a) => a.type === ScamAlertType.HIGH_FREQUENCY_LOW_VALUE,
+			);
+			expect(frequencyAlert).toBeDefined();
+			expect(frequencyAlert?.severity).toBe(ScamSeverity.HIGH);
+		});
+	});
+
+	describe("Horizon failure handling", () => {
+		it("treats Horizon failures as no signal and still completes the scan", async () => {
+			mockHorizonService.getAccount.mockRejectedValue(
+				new Error("Horizon request timed out after 10000ms"),
+			);
+			mockHorizonService.getPaymentsSince.mockRejectedValue(
+				new Error(
+					"Horizon service temporarily unavailable. Please try again later.",
+				),
+			);
+
+			const result = await service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				// No memo: proves the local rules still ran
+				recipientAddress: "GFAILUREHANDLINGRECIPIENT123456789ABCDEFGHI",
+			});
+
+			expect(
+				result.alerts.find(
+					(a) => a.type === ScamAlertType.NEWLY_CREATED_ACCOUNT,
+				),
+			).toBeUndefined();
+			expect(
+				result.alerts.find(
+					(a) => a.type === ScamAlertType.HIGH_FREQUENCY_LOW_VALUE,
+				),
+			).toBeUndefined();
+			expect(
+				result.alerts.find((a) => a.type === ScamAlertType.MISSING_MEMO),
+			).toBeDefined();
+		});
+	});
+
+	describe("External timeout handling", () => {
+		beforeEach(() => {
+			// Clear the cache before each test using a properly typed cast
+			(service as unknown as InternalScamAlertsService).blocklistCache.clear();
+		});
+
+		it("completes the scan within the timeout budget when blocklist endpoints hang", async () => {
+			const timeoutMs = mockConfigService.scamAlertsFetchTimeoutMs;
+			let inFlight = 0;
+			let maxInFlight = 0;
+			(global.fetch as jest.MockedFunction<typeof fetch>).mockImplementation(
+				(_input: RequestInfo | URL, init?: RequestInit) => {
+					inFlight++;
+					maxInFlight = Math.max(maxInFlight, inFlight);
+					return new Promise<Response>((_resolve, reject) => {
+						init?.signal?.addEventListener("abort", () => {
+							inFlight--;
+							reject(
+								new DOMException("This operation was aborted", "AbortError"),
+							);
+						});
+					});
+				},
+			);
+
+			const startedAt = Date.now();
+			const result = await service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				memo: "test",
+				recipientAddress: "GHANGINGBLOCKLISTRECIPIENT123456789ABCDEF",
+			});
+			const elapsedMs = Date.now() - startedAt;
+
+			expect(
+				result.alerts.find(
+					(a) => a.type === ScamAlertType.BLACKLISTED_EXTERNAL,
+				),
+			).toBeUndefined();
+			expect(elapsedMs).toBeLessThan(timeoutMs + 1000);
+			// Every source was in flight at once: a hanging source did not delay
+			// the others.
+			expect(maxInFlight).toBe(EXTERNAL_BLOCKLIST_SOURCES.length);
+		});
+
+		it("keeps checking the other sources when one blocklist source fails", async () => {
+			const flaggedRecipient = "GFLAGGEDBYSECONDSOURCE123456789ABCDEF";
+			(global.fetch as jest.MockedFunction<typeof fetch>).mockImplementation(
+				async (input: RequestInfo | URL) => {
+					if (String(input) === EXTERNAL_BLOCKLIST_SOURCES[0].url) {
+						throw new Error("connect ECONNREFUSED 127.0.0.1:1");
+					}
+					return {
+						ok: true,
+						status: 200,
+						json: async () => [flaggedRecipient],
+					} as Response;
+				},
+			);
+
+			const result = await service.scanLink({
+				assetCode: "USDC",
+				amount: 100,
+				memo: "test",
+				recipientAddress: flaggedRecipient,
+			});
+
+			expect(
+				result.alerts.find(
+					(a) => a.type === ScamAlertType.BLACKLISTED_EXTERNAL,
+				),
+			).toBeDefined();
 		});
 	});
 });

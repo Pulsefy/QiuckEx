@@ -132,6 +132,20 @@ export const envSchema = Joi.object({
     .default(3)
     .description("Max retry attempts for transient Soroban RPC failures"),
 
+  HORIZON_REQUEST_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .description("Timeout in milliseconds for outbound Horizon requests made by HorizonService"),
+
+  SCAM_ALERTS_FETCH_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .default(3000)
+    .description(
+      "Timeout in milliseconds for scam-alerts external blocklist fetches",
+    ),
+
   STELLAR_EXPLORER_URL: Joi.string()
     .uri({ scheme: ["http", "https"] })
     .optional()
@@ -781,6 +795,8 @@ export interface EnvConfig {
   SOROBAN_RPC_URLS?: string;
   SOROBAN_RPC_TIMEOUT_MS: number;
   SOROBAN_RPC_MAX_RETRIES: number;
+  HORIZON_REQUEST_TIMEOUT_MS: number;
+  SCAM_ALERTS_FETCH_TIMEOUT_MS: number;
   STELLAR_EXPLORER_URL?: string;
   STELLAR_SECRET_KEY?: string;
   STELLAR_PUBLIC_KEY?: string;

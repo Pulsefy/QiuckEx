@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ScamAlertsController } from "./scam-alerts.controller";
 import { ScamAlertsService } from "./scam-alerts.service";
 import { HorizonService } from "../transactions/horizon.service";
+import { AppConfigService } from "../config";
 
 describe("ScamAlertsController", () => {
 	let controller: ScamAlertsController;
@@ -14,6 +15,12 @@ describe("ScamAlertsController", () => {
 				{
 					provide: HorizonService,
 					useValue: {},
+				},
+				{
+					provide: AppConfigService,
+					useValue: {
+						scamAlertsFetchTimeoutMs: 3000,
+					},
 				},
 			],
 		}).compile();

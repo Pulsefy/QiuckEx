@@ -310,6 +310,62 @@ describe("Ingestion lag health guard configuration", () => {
   });
 });
 
+describe("Horizon and scam-alerts timeout configuration", () => {
+  const validEnv = {
+    PORT: 4000,
+    NETWORK: "testnet",
+    SUPABASE_URL: "https://example.supabase.co",
+    SUPABASE_ANON_KEY: "test-anon-key-12345",
+    NODE_ENV: "development",
+  };
+
+  it("defaults the Horizon request timeout to 10000ms", () => {
+    const { error, value } = envSchema.validate(validEnv);
+
+    expect(error).toBeUndefined();
+    expect(value.HORIZON_REQUEST_TIMEOUT_MS).toBe(10000);
+  });
+
+  it("accepts an explicit Horizon request timeout", () => {
+    const env = { ...validEnv, HORIZON_REQUEST_TIMEOUT_MS: 5000 };
+    const { error, value } = envSchema.validate(env);
+
+    expect(error).toBeUndefined();
+    expect(value.HORIZON_REQUEST_TIMEOUT_MS).toBe(5000);
+  });
+
+  it("rejects a Horizon request timeout below 1000ms", () => {
+    const env = { ...validEnv, HORIZON_REQUEST_TIMEOUT_MS: 999 };
+    const { error } = envSchema.validate(env);
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain("HORIZON_REQUEST_TIMEOUT_MS");
+  });
+
+  it("defaults the scam-alerts fetch timeout to 3000ms", () => {
+    const { error, value } = envSchema.validate(validEnv);
+
+    expect(error).toBeUndefined();
+    expect(value.SCAM_ALERTS_FETCH_TIMEOUT_MS).toBe(3000);
+  });
+
+  it("accepts an explicit scam-alerts fetch timeout", () => {
+    const env = { ...validEnv, SCAM_ALERTS_FETCH_TIMEOUT_MS: 2500 };
+    const { error, value } = envSchema.validate(env);
+
+    expect(error).toBeUndefined();
+    expect(value.SCAM_ALERTS_FETCH_TIMEOUT_MS).toBe(2500);
+  });
+
+  it("rejects a scam-alerts fetch timeout below 100ms", () => {
+    const env = { ...validEnv, SCAM_ALERTS_FETCH_TIMEOUT_MS: 99 };
+    const { error } = envSchema.validate(env);
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain("SCAM_ALERTS_FETCH_TIMEOUT_MS");
+  });
+});
+
 it("rejects unknown environment variables when strict validation enabled", () => {
   const result = envSchema.validate(
     {
