@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "node init && expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -13,7 +13,7 @@
     "test:ci": "jest --ci --maxWorkers=2",
     "type-check": "tsc --noEmit",
     "check:i18n": "node scripts/check-i18n-parity.mjs",
-    "build": "pnpm type-check && pnpm lint"
+    "build": "node init && pnpm type-check && pnpm lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
