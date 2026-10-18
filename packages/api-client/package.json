@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "generate": "node scripts/generate.mjs",
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-schemas.mjs",
+    "build": "node init && tsc -p tsconfig.build.json && node scripts/copy-schemas.mjs",
     "regenerate": "npm run generate && npm run build",
     "type-check": "tsc -p tsconfig.json --noEmit"
   },
