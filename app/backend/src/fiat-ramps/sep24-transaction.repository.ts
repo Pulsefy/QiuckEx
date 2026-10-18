@@ -75,7 +75,7 @@ export class Sep24TransactionRepository {
     anchorStatus: string | null,
     stellarTxHash: string | null,
     opts?: { failureReason?: string; terminalAt?: string },
-  ): Promise<void> {
+  ): Promise<boolean> {
     const now = new Date().toISOString();
 
     const { error } = await this.supabase
@@ -97,7 +97,10 @@ export class Sep24TransactionRepository {
       this.logger.error(
         `Failed to update status for SEP-24 transaction ${id}: ${error.message}`,
       );
+      return false;
     }
+
+    return true;
   }
 
   /**

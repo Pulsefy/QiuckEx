@@ -433,9 +433,81 @@ describe('FiatRampsService', () => {
   // ─── handleKycCallback ───────────────────────────────────────────────────
 
   describe('handleKycCallback', () => {
-    it('returns acknowledged for KYC callback data', async () => {
-      const result = await service.handleKycCallback({ status: 'approved' });
+    it('persists a rejected SEP-24 KYC decision on its transaction', async () => {
+      mockSep24Repository.findByAnchorTransactionId.mockResolvedValue({
+        id: 'uuid-kyc-001',
+        anchor_transaction_id: 'anchor-tx-kyc-001',
+        stellar_tx_hash: null,
+      });
+      mockSep24Repository.updateStatus.mockResolvedValue(true);
+
+      const result = await service.handleKycCallback({
+        transaction_id: 'anchor-tx-kyc-001',
+        status: 'rejected',
+        reason: 'identity_verification_failed',
+      });
+
       expect(result).toEqual({ status: 'acknowledged' });
+      expect(mockSep24Repository.updateStatus).toHaveBeenCalledWith(
+        'uuid-kyc-001',
+        Sep24InternalStatus.Failed,
+        'rejected',
+        null,
+        { terminalAt: expect.any(String) },
+      );
+    });
+
+    it('persists pending-info as a queryable pending SEP-24 status', async () => {
+      mockSep24Repository.findByAnchorTransactionId.mockResolvedValue({
+        id: 'uuid-kyc-002',
+        anchor_transaction_id: 'anchor-tx-kyc-002',
+        stellar_tx_hash: null,
+      });
+      mockSep24Repository.updateStatus.mockResolvedValue(true);
+
+      await service.handleKycCallback({
+        id: 'anchor-tx-kyc-002',
+        kyc_status: 'pending-info',
+      });
+
+      expect(mockSep24Repository.updateStatus).toHaveBeenCalledWith(
+        'uuid-kyc-002',
+        Sep24InternalStatus.Pending,
+        'pending_info',
+        null,
+      );
+    });
+
+    it('persists approval as a pending SEP-24 status', async () => {
+      mockSep24Repository.findByAnchorTransactionId.mockResolvedValue({
+        id: 'uuid-kyc-003',
+        anchor_transaction_id: 'anchor-tx-kyc-003',
+        stellar_tx_hash: null,
+      });
+      mockSep24Repository.updateStatus.mockResolvedValue(true);
+
+      await service.handleKycCallback({
+        transaction_id: 'anchor-tx-kyc-003',
+        status: 'approved',
+      });
+
+      expect(mockSep24Repository.updateStatus).toHaveBeenCalledWith(
+        'uuid-kyc-003',
+        Sep24InternalStatus.Pending,
+        'approved',
+        null,
+      );
+    });
+
+    it('does not update a transaction for malformed or unrecognized callbacks', async () => {
+      await service.handleKycCallback({ transaction_id: 'anchor-tx-1' });
+      await service.handleKycCallback({
+        transaction_id: 'anchor-tx-1',
+        status: 'unknown_decision',
+      });
+
+      expect(mockSep24Repository.findByAnchorTransactionId).not.toHaveBeenCalled();
+      expect(mockSep24Repository.updateStatus).not.toHaveBeenCalled();
     });
   });
 

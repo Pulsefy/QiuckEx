@@ -23,6 +23,16 @@ const CLIENT_ERRORS: readonly string[] = [
   Sep24InitiationError.name,
 ];
 
+const KYC_OUTCOMES: Readonly<Record<string, Sep24InternalStatus>> = {
+  approved: Sep24InternalStatus.Pending,
+  rejected: Sep24InternalStatus.Failed,
+  pending_info: Sep24InternalStatus.Pending,
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function isClientError(err: unknown): boolean {
   return err instanceof Error && CLIENT_ERRORS.includes(err.name);
 }
@@ -306,7 +316,57 @@ export class FiatRampsService {
   }
 
   async handleKycCallback(callbackData: unknown) {
-    this.logger.log(`Received KYC callback update: ${JSON.stringify(callbackData)}`);
+    if (!isRecord(callbackData)) {
+      this.logger.warn('Ignoring malformed KYC callback: expected an object payload');
+      return { status: 'acknowledged' };
+    }
+
+    const transactionId = callbackData['transaction_id'] ?? callbackData['id'];
+    const rawOutcome = callbackData['kyc_status'] ?? callbackData['status'];
+    if (
+      typeof transactionId !== 'string' ||
+      !transactionId.trim() ||
+      typeof rawOutcome !== 'string' ||
+      !rawOutcome.trim()
+    ) {
+      this.logger.warn('Ignoring malformed KYC callback: transaction ID or outcome is missing');
+      return { status: 'acknowledged' };
+    }
+
+    const outcome = rawOutcome.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const internalStatus = Object.prototype.hasOwnProperty.call(KYC_OUTCOMES, outcome)
+      ? KYC_OUTCOMES[outcome]
+      : undefined;
+    if (!internalStatus) {
+      this.logger.warn(
+        `Ignoring KYC callback with unrecognized outcome "${rawOutcome}" ` +
+        `for anchor_tx=${transactionId}`,
+      );
+      return { status: 'acknowledged' };
+    }
+
+    const existing = await this.sep24Repository.findByAnchorTransactionId(transactionId.trim());
+    if (!existing) {
+      this.logger.warn(`Ignoring KYC callback for unknown anchor_tx=${transactionId}`);
+      return { status: 'acknowledged' };
+    }
+
+    const persisted = await this.sep24Repository.updateStatus(
+      existing.id,
+      internalStatus,
+      outcome,
+      existing.stellar_tx_hash,
+      outcome === 'rejected' ? { terminalAt: new Date().toISOString() } : undefined,
+    );
+    if (!persisted) {
+      this.logger.error(`Failed to persist KYC callback for anchor_tx=${transactionId}`);
+      return { status: 'acknowledged' };
+    }
+
+    this.logger.log(
+      `KYC callback processed for anchor_tx=${transactionId}: outcome=${outcome} ` +
+      `internal=${internalStatus}`,
+    );
     return { status: 'acknowledged' };
   }
 
