@@ -24,6 +24,8 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
   user?: { id?: string };
   apiKey?: { id?: string };
   ip?: string;
+  socket?: { remoteAddress?: string };
+  connection?: { remoteAddress?: string };
   route?: { path?: string };
   baseUrl?: string;
   path?: string;
@@ -36,7 +38,7 @@ type RequestWithRateLimitContext = Record<string, unknown> & {
   };
 };
 
-@Injectable()
+@injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   @Inject(MetricsService)
   private readonly metricsService: MetricsService;
@@ -79,7 +81,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       return true;
     }
     
-    // Check if IP is allowlisted
+    // Check if IP is allowlisted (only trusted client IP is used)
     const ip = this.getIp(req);
     if (ip && this.isIpInAllowlist(ip)) {
       return true;
@@ -249,12 +251,114 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     return undefined;
   }
 
+  /**
+   * Resolve the client IP for rate-limiting and allowlist decisions.
+   *
+   * X-Forwarded-For is only trusted when the immediate peer (socket remote
+   * address) is a configured trusted proxy. The header is walked from right to
+   * left, skipping trusted proxies, and the first untrusted address is
+   * returned. This prevents a client from spoofing an arbitrary value in the
+   * header to obtain a fresh rate-limit bucket or to impersonate an
+   * allowlisted IP.
+   */
   private getIp(req: RequestWithRateLimitContext): string {
-    const forwardedFor = req.headers?.["x-forwarded-for"];
-    if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
-      return forwardedFor.split(",")[0].trim();
+    const socketIp = this.getSocketIp(req);
+    const trustedProxies = this.getTrustedProxies();
+
+    // Direct internet traffic (connection not from a trusted proxy) must not
+    // be able to influence its effective IP via a self-reported header.
+    if (!this.isTrustedProxy(socketIp, trustedProxies)) {
+      return socketIp;
     }
 
-    return req.ip ?? "unknown";
+    const forwardedFor = req.headers?.["x-forwarded-for"];
+    const chain = this.parseForwardedChain(forwardedFor);
+    if (chain.length === 0) {
+      return socketIp;
+    }
+
+    // Walk from the right (closest hop) to the left, skipping trusted proxies.
+    // The first address that is not a trusted proxy is the real client.
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const hopIp = chain[i];
+      if (!this.isTrustedProxy(hopIp, trustedProxies)) {
+        return hopIp;
+      }
+    }
+
+    // All hops in the chain are trusted proxies; fall back to the leftmost
+    // address (the original client as reported by the trusted chain).
+    return chain[0];
+  }
+
+  private getSocketIp(req: RequestWithRateLimitContext): string {
+    const remoteAddress =
+      req.socket?.remoteAddress ?? req.connection?.remoteAddress ?? req.ip;
+    if (typeof remoteAddress === "string" && remoteAddress.length > 0) {
+      return this.normalizeIp(remoteAddress);
+    }
+    return "unknown";
+  }
+
+  private getTrustedProxies(): string[] {
+    const configured = throttlerConfig.trustedProxies;
+    if (Array.isArray(configured)) {
+      return configured;
+    }
+    return [];
+  }
+
+  private isTrustedProxy(ip: string, trustedProxies: string[]): boolean {
+    if (trustedProxies.length === 0) {
+      return false;
+    }
+
+    const normalized = this.normalizeIp(ip);
+    if (normalized === "unknown") {
+      return false;
+    }
+
+    for (const entry of trustedProxies) {
+      if (this.matchesProxyEntry(normalized, entry)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private matchesProxyEntry(ip: string, entry: string): boolean {
+    try {
+      const clientIp = parse(ip);
+      if (entry.includes("/")) {
+        const [range, prefix] = entry.split("/");
+        return parse(range).match(clientIp, parseInt(prefix, 10));
+      }
+      return clientIp.toString() === parse(entry).toString();
+    } catch {
+      return false;
+    }
+  }
+
+  private parseForwardedChain(value: string | string[] | undefined): string[] {
+    if (!value) return [];
+    const raw = Array.isArray(value) ? value.join(",") : value;
+    return raw
+      .split(",")
+      .map((part) => this.normalizeIp(part.trim()))
+      .filter((ip) => ip !== "unknown");
+  }
+
+  private normalizeIp(ip: string): string {
+    const trimmed = ip.trim();
+    if (!trimmed) return "unknown";
+    // Strip IPv6 bucket syntax (e.g. "[::1]:443") and zone identifiers.
+    const withoutBuckets = trimmed.replace(/^\[([^\]]+)\](.*)$/, "$1");
+    const withoutZone = withoutBuckets.split("%")[0];
+    try {
+      return parse(withoutZone).toString();
+    } catch {
+      return "unknown";
+    }
   }
 }

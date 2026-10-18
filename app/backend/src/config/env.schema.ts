@@ -1,4 +1,5 @@
 import * as Joi from "joi";
+import { ipOrCidrList } from "./validators/ip-or-cidr.validator";
 
 /**
  * Environment variable validation schema.
@@ -11,6 +12,18 @@ export const envSchema = Joi.object({
     .port()
     .default(4000)
     .description("Port number for the server"),
+
+  TRUST_PROXY: Joi.alternatives()
+    .try(
+      Joi.boolean(),
+      Joi.number().integer().min(0),
+      ipOrCidrList(),
+    )
+    .default(false)
+    .description(
+      "Express 'trust proxy' setting. Controls whether X-Forwarded-For is trusted. " +
+        "Accepts false, true, a hop count, or a comma-separated list of trusted proxy IPs/CIDRs.",
+    ),
 
   API_BASE_URL: Joi.string()
     .uri({ scheme: ["http", "https"] })
@@ -773,6 +786,7 @@ export const envSchema = Joi.object({
  */
 export interface EnvConfig {
   PORT: number;
+  TRUST_PROXY: boolean | number | string;
   API_BASE_URL?: string;
   APP_VERSION?: string;
   MOBILE_MIN_SUPPORTED_VERSION: string;
@@ -803,6 +817,9 @@ export interface EnvConfig {
   NODE_ENV: "development" | "production" | "test";
   PUBLIC_API_URL?: string;
 
+  RATE_LIMIT_ALLOWLIST_CIDRS?: string;
+  RATE_LIMIT_ALLOWLIST_API_KEYS?: string;
+  RATE_LIMIT_ALLOWLIST_USER_IDS?: string;
   CORS_ALLOWED_ORIGINS?: string;
   CORS_VERCEL_PROJECT?: string;
   MAX_USERNAMES_PER_WALLET?: number;

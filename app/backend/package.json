@@ -67,10 +67,10 @@
     ]
   },
   "scripts": {
-    "dev": "nest start --watch",
-    "start:dev": "nest start --watch",
-    "build": "nest build",
-    "start": "node dist/main",
+    "dev": "node init && nest start --watch",
+    "start:dev": "node init && nest start --watch",
+    "build": "node init && nest build",
+    "start": "node init && node dist/main",
     "lint": "eslint \"{src,test,perf}/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "check:routes": "ts-node scripts/check-route-conventions.ts",

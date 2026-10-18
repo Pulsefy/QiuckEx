@@ -1,6 +1,7 @@
 // OpenTelemetry MUST be imported before everything else so it can patch
 // http/express/undici before those modules are required elsewhere.
 import "./tracing/tracing";
+import type { Express } from "express";
 
 // Sentry instrumentation MUST be imported before everything else
 import "./sentry/instrument";
@@ -75,6 +76,48 @@ function validateCriticalConfig(
   logger.log('Critical configuration validated successfully');
 }
 
+/**
+ * Configures Express 'trust proxy' so that X-Forwarded-For is only honored
+ * when the request genuinely passed through a configured number of trusted
+ * proxy hops. Without this, req.ip (and thus rate-limit keys and IP
+ * allowlist checks) can be spoofed via a client-supplied X-Forwarded-For.
+ *
+ * TRUST_PROXY may be:
+ *   - unset / "false" / "0": trust no proxies (use socket IP)
+ *   - a positive integer N: trust N proxy hops from the socket
+ *   - a comma-separated list of proxy IPs/CIDRs: trust those proxies
+ *   - "loopback" / "linklocal" / "uniquelocal": Express named subnets
+ */
+function configureTrustProxy(
+  app: { getHttpAdapter: () => { getInstance: () => Express } },
+  rawValue: string | undefined,
+  logger: Logger,
+): void {
+  const value = (rawValue ?? "").trim();
+  const instance = app.getHttpAdapter().getInstance();
+
+  if (!value || value === "false" || value === "0") {
+    instance.set("trust proxy", false);
+    logger.log("trust proxy: disabled (X-Forwarded-For will be ignored)");
+    return;
+  }
+
+  if (/^\d+$/.test(value)) {
+    const hops = Number.parseInt(value, 10);
+    instance.set("trust proxy", hops);
+    logger.log(`trust proxy: ${hops} hop(s)`);
+    return;
+  }
+
+  // Comma-separated proxy IPs/CIDRs or named subnets (e.g. "loopback").
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  instance.set("trust proxy", entries);
+  logger.log(`trust proxy: ${entries.join(", ")}`);
+}
+
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
@@ -84,6 +127,10 @@ async function bootstrap() {
   });
 
   const configService = app.get(AppConfigService);
+
+  // Configure trusted proxy hops BEFORE any middleware reads req.ip so that
+  // X-Forwarded-For is only honored from configured, trusted proxies.
+  configureTrustProxy(app, process.env.TRUST_PROXY, logger);
 
   // Validate critical configuration at startup
   validateCriticalConfig(configService, logger);
@@ -107,6 +154,10 @@ async function bootstrap() {
 
   // Use Helmet for security headers
   app.use(helmet());
+
+  // Explicitly disable the X-Forwarded-For header from being trusted by
+  // downstream consumers unless Express 'trust proxy' (set above) allows it.
+  app.getHttpAdapter().getInstance().set("x-powered-by", false);
 
   app.enableCors(
     buildCorsOptions({

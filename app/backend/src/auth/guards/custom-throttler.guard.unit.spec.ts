@@ -237,4 +237,14 @@ describe("CustomThrottlerGuard", () => {
     const tracker = await guard.getTracker({ ip: "10.0.0.9" });
     expect(tracker).toBe("ip:10.0.0.9");
   });
+
+  it("ignores spoofed X-Forwarded-For from an untrusted source and uses the socket IP", async () => {
+    const tracker = await guard.getTracker({
+      headers: { "x-forwarded-for": "203.0.113.250, 10.0.0.9" },
+      ip: "10.0.0.9",
+      socket: { remoteAddress: "10.0.0.9" },
+    } as ReqShape);
+
+    expect(tracker).toBe("ip:10.0.0.9");
+  });
 });
