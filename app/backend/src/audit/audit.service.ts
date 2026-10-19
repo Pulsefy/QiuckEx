@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuditLog, QueryAuditLogsDto } from './audit.model';
+import { AuditLog, AuditLogSource, QueryAuditLogsDto } from './audit.model';
 import { randomUUID } from 'crypto';
 import { isPrivacyDebugPath } from '../privacy/privacy-debug.guard';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -25,6 +25,7 @@ const SENSITIVE_AUDIT_KEYS = new Set([
 
 @Injectable()
 export class AuditService {
+  private static readonly MAX_IN_MEMORY_LOGS = 1000;
   private readonly logger = new Logger(AuditService.name);
   private logs: AuditLog[] = [];
 
@@ -56,8 +57,12 @@ export class AuditService {
       metadata: sanitizedMetadata,
       requestId,
       createdAt: new Date(),
+      source: 'fallback',
     };
     this.logs.push(entry);
+    if (this.logs.length > AuditService.MAX_IN_MEMORY_LOGS) {
+      this.logs.splice(0, this.logs.length - AuditService.MAX_IN_MEMORY_LOGS);
+    }
     this.logger.log(`Audit Event: ${action} by ${actor}`);
 
     try {
@@ -111,7 +116,8 @@ export class AuditService {
   }
 
   async query(dto: QueryAuditLogsDto) {
-    let result = await this.readLogs();
+    const { logs, source } = await this.readLogs();
+    let result = logs;
 
     if (dto.action) {
       result = result.filter(log => log.action === dto.action);
@@ -128,7 +134,6 @@ export class AuditService {
       result = result.filter(log => log.createdAt.getTime() <= end);
     }
 
-    // Pagination
     const page = Number(dto.page) || 1;
     const limit = Number(dto.limit) || 50;
     const startIndex = (page - 1) * limit;
@@ -139,25 +144,28 @@ export class AuditService {
       total: result.length,
       page,
       limit,
+      source,
     };
   }
 
   async exportCsv(): Promise<string> {
-    const logs = await this.readLogs();
+    const { logs } = await this.readLogs();
     if (logs.length === 0) return 'id,actor,action,target,requestId,createdAt\n';
-    
+
     const header = 'id,actor,action,target,requestId,createdAt\n';
-    const rows = logs.map(log => {
-      return `${log.id},${log.actor},${log.action},${log.target || ''},${log.requestId || ''},${log.createdAt.toISOString()}`;
-    }).join('\n');
-    
+    const rows = logs
+      .map(log => {
+        return `${log.id},${log.actor},${log.action},${log.target || ''},${log.requestId || ''},${log.createdAt.toISOString()}`;
+      })
+      .join('\n');
+
     return header + rows;
   }
 
   async applyRetention(days: number = 90) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    
+
     const initialCount = this.logs.length;
     this.logs = this.logs.filter(log => log.createdAt > cutoff);
     const deletedCount = initialCount - this.logs.length;
@@ -170,12 +178,12 @@ export class AuditService {
         `Failed to apply audit retention in store: ${(error as Error).message}`,
       );
     }
-    
+
     this.logger.log(`Applied retention policy: deleted ${deletedCount} logs older than ${days} days`);
     return { deletedCount };
   }
 
-  private async readLogs(): Promise<AuditLog[]> {
+  private async readLogs(): Promise<{ logs: AuditLog[]; source: 'supabase' | 'fallback' }> {
     try {
       const client = this.supabaseService.getClient();
       const { data, error } = await client
@@ -187,25 +195,35 @@ export class AuditService {
         throw error;
       }
 
-      return (data ?? []).map((row) => ({
-        id: String(row.id),
-        actor: String(row.actor),
-        action: String(row.action),
-        target: row.target ? String(row.target) : undefined,
-        metadata:
-          row.metadata && typeof row.metadata === 'object'
-            ? (row.metadata as Record<string, unknown>)
-            : undefined,
-        requestId: row.request_id ? String(row.request_id) : undefined,
-        createdAt: new Date(String(row.created_at)),
-      }));
+      return {
+        logs: (data ?? []).map((row) => ({
+          id: String(row.id),
+          actor: String(row.actor),
+          action: String(row.action),
+          target: row.target ? String(row.target) : undefined,
+          metadata:
+            row.metadata && typeof row.metadata === 'object'
+              ? (row.metadata as Record<string, unknown>)
+              : undefined,
+          requestId: row.request_id ? String(row.request_id) : undefined,
+          createdAt: new Date(String(row.created_at)),
+          source: 'supabase' as AuditLogSource,
+        })),
+        source: 'supabase',
+      };
     } catch (error) {
       this.logger.warn(
         `Reading audit logs from memory fallback: ${(error as Error).message}`,
       );
-      return [...this.logs].sort(
-        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-      );
+      return {
+        logs: [...this.logs]
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+          .map(log => ({
+            ...log,
+            source: 'fallback' as AuditLogSource,
+          })),
+        source: 'fallback',
+      };
     }
   }
 }
