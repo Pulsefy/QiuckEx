@@ -1,3 +1,5 @@
+export type AuditLogSource = 'supabase' | 'fallback';
+
 export interface AuditLog {
   id: string;
   actor: string;
@@ -6,6 +8,7 @@ export interface AuditLog {
   metadata?: Record<string, unknown>;
   requestId?: string;
   createdAt: Date;
+  source: AuditLogSource;
 }
 
 export interface QueryAuditLogsDto {
