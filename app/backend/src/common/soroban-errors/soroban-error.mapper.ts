@@ -9,6 +9,8 @@ export interface MappedSorobanError {
   technicalError: string;
   /** Optional structured details (error type / code from HostError). */
   details?: Record<string, unknown>;
+  /** True when the error indicates the transaction was rejected before broadcast (e.g. simulation failure). */
+  retryable?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ const ERROR_MAPPINGS: Array<{
   pattern: RegExp;
   code: SorobanErrorCode;
   message: string;
+  retryable?: boolean;
 }> = [
   // ── Structured HostErrors (Highest Priority) ─────────────────────────────
   {
@@ -54,6 +57,7 @@ const ERROR_MAPPINGS: Array<{
     pattern: /HostError.*Error.*Budget.*ExceededLimit/i,
     code: SorobanErrorCode.BUDGET_EXCEEDED,
     message: 'The transaction exceeds Soroban compute limits. Try simplifying the operation.',
+    retryable: false,
   },
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -61,6 +65,7 @@ const ERROR_MAPPINGS: Array<{
     pattern: /not\s+authorized/i,
     code: SorobanErrorCode.UNAUTHORIZED,
     message: 'You are not authorised to perform this operation.',
+    retryable: false,
   },
 
   // ── Contract paused ───────────────────────────────────────────────────────
@@ -68,6 +73,7 @@ const ERROR_MAPPINGS: Array<{
     pattern: /contract.*paused/i,
     code: SorobanErrorCode.CONTRACT_PAUSED,
     message: 'The contract is currently paused. Please try again later.',
+    retryable: true,
   },
   {
     pattern: /paused/i,
@@ -109,6 +115,7 @@ const ERROR_MAPPINGS: Array<{
     pattern: /insufficient.*balance|balance.*insufficient/i,
     code: SorobanErrorCode.INSUFFICIENT_BALANCE,
     message: 'Insufficient balance to complete this operation.',
+    retryable: false,
   },
   {
     pattern: /invalid.*amount|amount.*invalid|amount.*zero|zero.*amount/i,
@@ -157,6 +164,7 @@ const ERROR_MAPPINGS: Array<{
     pattern: /transaction.*too large/i,
     code: SorobanErrorCode.BUDGET_EXCEEDED,
     message: 'The transaction is too large. Consider reducing the complexity of the operation.',
+    retryable: false,
   },
 ];
 
@@ -173,9 +181,9 @@ const ERROR_MAPPINGS: Array<{
  * logging; it should be omitted from production API responses.
  */
 export function mapSorobanError(rawError: string): MappedSorobanError {
-  for (const { pattern, code, message } of ERROR_MAPPINGS) {
+  for (const { pattern, code, message, retryable } of ERROR_MAPPINGS) {
     if (pattern.test(rawError)) {
-      return { code, message, technicalError: rawError };
+      return { code, message, technicalError: rawError, retryable };
     }
   }
 
@@ -186,6 +194,7 @@ export function mapSorobanError(rawError: string): MappedSorobanError {
       code: SorobanErrorCode.UNKNOWN,
       message: 'An unexpected contract error occurred. Please verify the transaction parameters and try again.',
       technicalError: rawError,
+      retryable: false,
       details: {
         errorType: hostErrorMatch[1],
         errorCode: hostErrorMatch[2],
@@ -197,5 +206,6 @@ export function mapSorobanError(rawError: string): MappedSorobanError {
     code: SorobanErrorCode.UNKNOWN,
     message: 'An unexpected contract error occurred. Please try again or contact support.',
     technicalError: rawError,
+    retryable: true,
   };
 }
