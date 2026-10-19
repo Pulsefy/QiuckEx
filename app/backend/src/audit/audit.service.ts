@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuditLog, QueryAuditLogsDto } from './audit.model';
+import { AuditLog, AuditLogSource, QueryAuditLogsDto } from './audit.model';
 import { randomUUID } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -26,6 +26,7 @@ export class AuditService {
       metadata,
       requestId,
       createdAt: new Date(),
+      source: 'fallback',
     };
     this.logs.push(entry);
     if (this.logs.length > AuditService.MAX_IN_MEMORY_LOGS) {
@@ -74,7 +75,6 @@ export class AuditService {
       result = result.filter(log => log.createdAt.getTime() <= end);
     }
 
-    // Pagination
     const page = Number(dto.page) || 1;
     const limit = Number(dto.limit) || 50;
     const startIndex = (page - 1) * limit;
@@ -92,19 +92,21 @@ export class AuditService {
   async exportCsv(): Promise<string> {
     const { logs } = await this.readLogs();
     if (logs.length === 0) return 'id,actor,action,target,requestId,createdAt\n';
-    
+
     const header = 'id,actor,action,target,requestId,createdAt\n';
-    const rows = logs.map(log => {
-      return `${log.id},${log.actor},${log.action},${log.target || ''},${log.requestId || ''},${log.createdAt.toISOString()}`;
-    }).join('\n');
-    
+    const rows = logs
+      .map(log => {
+        return `${log.id},${log.actor},${log.action},${log.target || ''},${log.requestId || ''},${log.createdAt.toISOString()}`;
+      })
+      .join('\n');
+
     return header + rows;
   }
 
   async applyRetention(days: number = 90) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    
+
     const initialCount = this.logs.length;
     this.logs = this.logs.filter(log => log.createdAt > cutoff);
     const deletedCount = initialCount - this.logs.length;
@@ -117,7 +119,7 @@ export class AuditService {
         `Failed to apply audit retention in store: ${(error as Error).message}`,
       );
     }
-    
+
     this.logger.log(`Applied retention policy: deleted ${deletedCount} logs older than ${days} days`);
     return { deletedCount };
   }
@@ -146,6 +148,7 @@ export class AuditService {
               : undefined,
           requestId: row.request_id ? String(row.request_id) : undefined,
           createdAt: new Date(String(row.created_at)),
+          source: 'supabase' as AuditLogSource,
         })),
         source: 'supabase',
       };
@@ -154,9 +157,12 @@ export class AuditService {
         `Reading audit logs from memory fallback: ${(error as Error).message}`,
       );
       return {
-        logs: [...this.logs].sort(
-          (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-        ),
+        logs: [...this.logs]
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+          .map(log => ({
+            ...log,
+            source: 'fallback' as AuditLogSource,
+          })),
         source: 'fallback',
       };
     }
