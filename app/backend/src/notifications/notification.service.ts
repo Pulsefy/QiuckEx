@@ -502,6 +502,39 @@ export class NotificationService implements OnModuleInit {
     };
   }
 
+  async sendTeamInvitationEmail(input: {
+    email: string;
+    organizationId: string;
+    acceptUrl: string;
+    token: string;
+  }): Promise<void> {
+    const provider = this.providerMap.get("email");
+    if (!provider) throw new Error("Email notification provider is unavailable");
+
+    const payload: NotificationPayload = {
+      eventType: "team.invitation",
+      eventId: `team-invitation:${input.organizationId}:${input.token}`,
+      recipientPublicKey: input.organizationId,
+      title: "You have been invited to a QuickEx team",
+      body: `Accept your team invitation by submitting this one-time code to ${input.acceptUrl}: ${input.token}`,
+      occurredAt: new Date().toISOString(),
+      metadata: { organizationId: input.organizationId, acceptUrl: input.acceptUrl },
+    } as NotificationPayload;
+
+    await provider.send(
+      {
+        id: payload.eventId,
+        publicKey: input.organizationId,
+        channel: "email",
+        email: input.email,
+        events: null,
+        minAmountStroops: 0n,
+        enabled: true,
+      },
+      payload,
+    );
+  }
+
   /**
    * Notify the requesting user that their export job has permanently failed.
    *

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TeamMember, TeamMemberStatus, TeamRole } from './teams.model';
 
@@ -26,7 +27,7 @@ export class TeamsRepository {
     return (data ?? []).map((row) => this.map(row as TeamRow));
   }
 
-  async insert(organizationId: string, invitedBy: string, input: { name: string; email: string; role: TeamRole }): Promise<TeamMember> {
+  async insert(organizationId: string, invitedBy: string, input: { name: string; email: string; role: TeamRole; inviteTokenHash: string; inviteExpiresAt: string }): Promise<TeamMember> {
     const { data, error } = await this.supabase.getClient()
       .from('team_members')
       .insert({
@@ -36,11 +37,33 @@ export class TeamsRepository {
         email: input.email.trim().toLowerCase(),
         role: input.role,
         status: 'pending',
+        invite_token_hash: input.inviteTokenHash,
+        invite_expires_at: input.inviteExpiresAt,
       })
       .select('id,name,email,role,status,created_at,updated_at')
       .single();
     if (error) throw new Error(`Failed to invite team member: ${error.message}`);
     return this.map(data as TeamRow);
+  }
+
+  async acceptInvite(token: string): Promise<TeamMember | null> {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const { data, error } = await this.supabase.getClient()
+      .from('team_members')
+      .update({
+        status: 'active',
+        invite_token_hash: null,
+        invite_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('invite_token_hash', tokenHash)
+      .eq('status', 'pending')
+      .gt('invite_expires_at', new Date().toISOString())
+      .select('id,name,email,role,status,created_at,updated_at')
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to accept team invitation: ${error.message}`);
+    return data ? this.map(data as TeamRow) : null;
   }
 
   async updateRole(organizationId: string, id: string, role: TeamRole): Promise<TeamMember> {

@@ -31,7 +31,8 @@ export type NotificationEventType =
   | "auto_reconciliation.succeeded"
   | "payment.link.expired"
   | "export.completed"
-  | "export.failed";
+  | "export.failed"
+  | "team.invitation";
 
 export type PaymentLinkExpiredEvent = "payment.link.expired";
 
