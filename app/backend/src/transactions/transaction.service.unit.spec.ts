@@ -61,10 +61,23 @@ jest.mock('@stellar/stellar-sdk', () => {
     }),
   }));
 
+  const MockTransactionFromXDR = jest.fn((xdr: string, passphrase: string) => {
+    const decoded = Buffer.from(xdr, 'base64').toString('utf8');
+    return {
+      xdr: decoded,
+      passphrase,
+      toEnvelope: () => ({ toXDR: () => xdr }),
+      toXDR: () => xdr,
+    };
+  });
+
   return {
     Account: MockAccount,
     Contract: MockContract,
     TransactionBuilder: MockTransactionBuilder,
+    Transaction: {
+      fromXDR: MockTransactionFromXDR,
+    },
     TimeoutInfinite: 0,
     rpc: {
       assembleTransaction,
@@ -78,18 +91,20 @@ jest.mock('@stellar/stellar-sdk', () => {
 
 import { BadRequestException } from '@nestjs/common';
 
-import { SorobanRpcService } from './soroban-rpc.service';
+import { SorobanErrorCode, SorobanRpcService } from './soroban-rpc.service';
 import { TransactionsService } from './transaction.service';
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
   let mockSorobanRpcService: jest.Mocked<Partial<SorobanRpcService>>;
 
+  const signedXDR = Buffer.from('signed-transaction-envelope').toString('base64');
+
   beforeEach(() => {
     mockSorobanRpcService = {
-      getNetworkPassphrase: jest.fn().mockResolvedValue('Test SDF Network ; September 2015'),
-      getAccount: jest.fn().mockResolvedValue({ accountId: 'G123', sequence: '1' }),
-      simulateTransaction: jest.fn().mockResolvedValue({
+      getNetworkPassphrase: jest.fn().mockResolved('Test DF Network ; September 2015'),
+      getAccount: jest.fn().mockResolved({ accountId: 'G123', sequence: '1' }),
+      simulateTransaction: jest.fn().mockResolved({
         transactionData: {
           build: () => ({
             resources: () => ({
@@ -108,6 +123,11 @@ describe('TransactionsService', () => {
             toXDR: () => 'retval-xdr',
           },
         },
+      }),
+      submitTransaction: jest.fn().mockResolved({
+        hash: 'network-assigned-hash',
+        status: 'PENDING',
+        latestLedger: 1234,
       }),
     };
 
@@ -164,5 +184,51 @@ describe('TransactionsService', () => {
         idempotencyKey: 'same-key',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('broadcasts the signed transaction through SorobanRpcService and returns the network-hash', async () => {
+    const result = await service.submitSignedXHR(signedXDR);
+
+    expect(mockSorobanRpcService.submitTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSorobanRpcService.submitTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ toXDR: expect.any(String) }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.hash).toBe('network-assigned-hash');
+      expect(result.status).toBe('PENDING');
+      expect(result.latestLedger).toBe(1234);
+    }
+  });
+
+  it('caches the real submission result for the same idempotency key', async () => {
+    const first = await service.submitSignedXHR(signedXHR, 'id-1');
+    const second = await service.submitSignedXHR(signedXHR, 'id-1');
+
+    expect(second).toEqual(first);
+    expect(mockSorobanRpcService.submitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps real submission errors to the SorobanErrorCode catalog', async () => {
+    (mockSorobanRpcService.submitTransaction as jest.Mock).mockRejected(
+      new Error('tx_bad_seq: transaction sequence is out of order'),
+    );
+
+    const result = await service.submitSignedXHR(signedXHR);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorCode).toBe(SorobanErrorCode.TX_BAD_SEQ);
+    }
+  });
+
+  it('returns an invalid-xdr error without broadcasting malformed input', async () => {
+    const result = await service.submitSignedXHR('');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorCode).toBe(SorobanErrorCode.INVALID_XDR);
+    }
+    expect(mockSorobanRpcService.submitTransaction).not.toHaveBeenCalled();
   });
 });

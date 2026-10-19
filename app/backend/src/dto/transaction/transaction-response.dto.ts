@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * Individual transaction in the response
  */
 export class TransactionDto {
-  @ApiProperty({
+  @ApiProperty( {
     description: 'Transaction hash',
     example: 'abc123def456...',
   })
@@ -43,7 +43,7 @@ export class TransactionDto {
 
   @ApiProperty({
     description: 'Asset issuer (for non-native assets)',
-    example: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    example: 'GA5ZSEJYB37JRC5AVCIA5MOP4RhTM335X2KGX3IHOJAPP5RE34K4KZVN',
     nullable: true,
   })
   assetIssuer!: string | null;
@@ -77,6 +77,43 @@ export class TransactionDto {
 }
 
 /**
+ * Response for submitting a signed transaction to the network
+ */
+export class SubmitTransactionResponseDto {
+  @ApiProperty({
+    description: 'Network-assigned transaction hash',
+    example: '3389c7b3ed4a5f607b7a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f45a6b7c8d9e0',
+  })
+  hash!: string;
+
+  @ApiProperty({
+    description: 'Ledger sequence the transaction was included in (0 if not yet confirmed)',
+    example: 12345678,
+  })
+  ledger!: number;
+
+  @ApiProperty({
+    description: 'Submission status',
+    example: 'PENDING',
+    enum: ['PENDING', 'SUCCESS', 'FAILED'],
+  })
+  status!: 'PENDING' | 'SUCCESS' | 'FAILED';
+
+  @ApiProperty({
+    description: 'Result code returned by the network (if failed)',
+    example: 'tx_bad_seq',
+    nullable: true,
+  })
+  resultCode!: string | null;
+
+  @ApiProperty({
+    description: 'Human-readable message describing the submission outcome',
+    example: 'Transaction submitted to the network',
+  })
+  message!: string;
+}
+
+/**
  * Response DTO for transaction queries
  * 
  * @example
@@ -92,7 +129,7 @@ export class TransactionDto {
  *       "assetCode": "XLM",
  *       "assetIssuer": null,
  *       "amount": "100.5000000",
- *       "destinationAccount": "GABC123...",
+ *       "destinationAccount": "G*ABC123...",
  *       "memo": "Payment for service",
  *       "memoType": "text"
  *     }
