@@ -558,6 +558,20 @@ pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
 
 /// Remove an escrow entry from storage and reclaim the storage deposit.
 pub fn remove_escrow(env: &Env, commitment: &Bytes) {
+    if let Some(entry) = get_escrow(env, commitment) {
+        if let Some(arbiter) = entry.arbiter.clone() {
+            let vote_key = DataKey::DisputeVote(commitment.clone(), arbiter);
+            env.storage().persistent().remove(&vote_key);
+        }
+        for arbiter in entry.arbiters.iter() {
+            let vote_key = DataKey::DisputeVote(commitment.clone(), arbiter.clone());
+            env.storage().persistent().remove(&vote_key);
+        }
+        env.storage()
+            .persistent()
+            .remove(&DataKey::DisputeQuorum(commitment.clone()));
+    }
+
     env.storage()
         .persistent()
         .remove(&compact_escrow_key(commitment));

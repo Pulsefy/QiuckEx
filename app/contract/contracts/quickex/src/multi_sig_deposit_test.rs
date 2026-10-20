@@ -21,7 +21,7 @@ use crate::{
     assert_helpers::{assert_escrow_disputed, assert_escrow_spent, assert_qx_err},
     dispute_quorum::{DisputeQuorumConfig, MAX_ARBITERS, MIN_VOTE_TTL_SECS},
     errors::QuickexError,
-    storage::get_escrow,
+    storage::{get_escrow, DataKey},
     test_context::TestContext,
     types::{EscrowStatus, PerAssetFeeConfig, Role},
     PauseFlag,
@@ -534,6 +534,47 @@ fn multi_sig_dispute_refunds_owner_when_majority_votes_for_owner() {
     );
     assert_eq!(ctx.balance(&owner), AMOUNT);
     assert_eq!(ctx.balance(&recipient), 0);
+}
+
+#[test]
+fn multi_sig_cleanup_removes_orphaned_vote_and_snapshot_storage() {
+    let ctx = TestContext::with_admin();
+    let owner = ctx.alice.clone();
+    let recipient = ctx.bob.clone();
+    let arbiters = [
+        Address::generate(&ctx.env),
+        Address::generate(&ctx.env),
+        Address::generate(&ctx.env),
+    ];
+    let commitment = ctx.deposit_with_arbiters(&owner, AMOUNT, SALT, 0, &arbiters, 2);
+
+    ctx.client.dispute(&commitment);
+    for arbiter in arbiters.iter().take(2) {
+        ctx.client
+            .vote_for_dispute(arbiter, &commitment, &false, &0, &NEVER);
+    }
+    ctx.client
+        .resolve_dispute_multi_sig(&commitment, &recipient);
+    assert_escrow_spent(&ctx.client, &commitment);
+
+    let commitment_bytes: Bytes = commitment.clone().into();
+    let vote_key_0 = DataKey::DisputeVote(commitment_bytes.clone(), arbiters[0].clone());
+    let vote_key_1 = DataKey::DisputeVote(commitment_bytes.clone(), arbiters[1].clone());
+    let snapshot_key = DataKey::DisputeQuorum(commitment_bytes.clone());
+
+    ctx.env.as_contract(&ctx.client.address, || {
+        assert!(ctx.env.storage().persistent().has(&vote_key_0));
+        assert!(ctx.env.storage().persistent().has(&vote_key_1));
+        assert!(ctx.env.storage().persistent().has(&snapshot_key));
+    });
+
+    ctx.client.cleanup_escrow(&commitment);
+
+    ctx.env.as_contract(&ctx.client.address, || {
+        assert!(!ctx.env.storage().persistent().has(&vote_key_0));
+        assert!(!ctx.env.storage().persistent().has(&vote_key_1));
+        assert!(!ctx.env.storage().persistent().has(&snapshot_key));
+    });
 }
 
 #[test]
