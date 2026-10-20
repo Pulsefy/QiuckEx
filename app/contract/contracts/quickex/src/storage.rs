@@ -355,6 +355,13 @@ pub enum DataKey {
     /// to the commitment key of the escrow it identifies. Enables
     /// idempotent deduplication of identical creation requests.
     EscrowIdMap(BytesN<32>),
+    /// Reverse mapping `commitment → escrow_id`, so [`storage::remove_escrow`]
+    /// — which only knows the commitment — can locate and delete the
+    /// corresponding [`DataKey::EscrowIdMap`] entry during cleanup. Without
+    /// this, cleanup would leave a stale `escrow_id → commitment` mapping
+    /// that makes a later identical deposit silently return the old
+    /// commitment without moving any funds (Issue #1163).
+    CommitmentToEscrowId(Bytes),
     /// Roles assigned to an address.
     UserRole(Address),
     /// Per-asset fee override keyed by token address (Fee Router v2).
@@ -740,6 +747,11 @@ pub fn put_escrow(env: &Env, commitment: &Bytes, entry: &EscrowEntry) {
 }
 
 /// Remove an escrow entry from storage and reclaim the storage deposit.
+///
+/// Also removes the `escrow_id → commitment` idempotency mapping (and its
+/// reverse) associated with this commitment, so that a later identical
+/// deposit after cleanup is treated as a fresh create rather than silently
+/// returning the stale commitment without moving any funds (Issue #1163).
 pub fn remove_escrow(env: &Env, commitment: &Bytes) {
     env.storage()
         .persistent()
@@ -750,6 +762,10 @@ pub fn remove_escrow(env: &Env, commitment: &Bytes) {
     env.storage()
         .persistent()
         .remove(&legacy_escrow_key(commitment));
+
+    // Remove the idempotency mapping so a re-deposit after cleanup creates a
+    // new escrow instead of no-op'ing against a stale mapping.
+    remove_escrow_id_mapping(env, commitment);
 }
 
 /// Get an escrow entry from storage.
@@ -1431,10 +1447,36 @@ pub fn get_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>) -> Option<BytesN
 
 /// Record the mapping `escrow_id → commitment` so future identical creates
 /// can be recognized and deduplicated.
+///
+/// Also records the reverse `commitment → escrow_id` mapping under
+/// [`DataKey::CommitmentToEscrowId`], which [`remove_escrow`] uses to find
+/// and delete the forward mapping when an escrow is cleaned up (Issue #1163).
 pub fn put_escrow_id_mapping(env: &Env, escrow_id: &BytesN<32>, commitment: &BytesN<32>) {
     let key = DataKey::EscrowIdMap(escrow_id.clone());
     env.storage().persistent().set(&key, commitment);
     set_or_extend_ttl(env, &key, RecordType::EscrowIdMap);
+
+    // Reverse mapping so cleanup (which only knows the commitment) can
+    // locate and remove the forward EscrowIdMap entry.
+    let reverse_key = DataKey::CommitmentToEscrowId(commitment.clone().into());
+    env.storage().persistent().set(&reverse_key, escrow_id);
+    set_or_extend_ttl(env, &reverse_key, RecordType::EscrowIdMap);
+}
+
+/// Remove the `escrow_id → commitment` mapping and its reverse companion.
+///
+/// Called by [`remove_escrow`] during cleanup so that a later identical
+/// deposit is treated as a fresh create rather than silently no-op'ing
+/// against a stale mapping (Issue #1163).
+pub fn remove_escrow_id_mapping(env: &Env, commitment: &Bytes) {
+    let reverse_key = DataKey::CommitmentToEscrowId(commitment.clone());
+    let escrow_id: Option<BytesN<32>> = env.storage().persistent().get(&reverse_key);
+    if let Some(escrow_id) = escrow_id {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::EscrowIdMap(escrow_id));
+    }
+    env.storage().persistent().remove(&reverse_key);
 }
 
 // -----------------------------------------------------------------------------

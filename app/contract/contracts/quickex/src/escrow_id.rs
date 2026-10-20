@@ -100,6 +100,15 @@ fn append_len_prefixed(env: &Env, payload: &mut Bytes, field: &Bytes) {
 /// See the module doc for the exact canonical serialization and the
 /// invariants it guarantees.
 ///
+/// The `escrow_id → commitment` mapping this id keys is **cleared on
+/// cleanup**: when an escrow reaches a terminal state (`Spent` or
+/// `Refunded`) and [`crate::storage::remove_escrow`] is invoked (via
+/// [`crate::escrow::cleanup_escrow`]), both the forward
+/// `escrow_id → commitment` entry and its reverse are removed. This means
+/// a re-deposit with identical parameters after cleanup is treated as a
+/// fresh create with a real token transfer, rather than silently
+/// returning a stale commitment (Issue #1163).
+///
 /// # Errors
 ///
 /// - [`QuickexError::InvalidAmount`] if `amount < 0`.
@@ -187,6 +196,13 @@ pub fn derive_escrow_id(
 /// The list is order-sensitive, exactly like the stored entry: reordering the
 /// same set of arbiters is a different creation payload and therefore a
 /// different id.
+///
+/// Like [`derive_escrow_id`], the `escrow_id → commitment` mapping keyed by
+/// this id is **cleared on cleanup**: [`crate::storage::remove_escrow`]
+/// (invoked via [`crate::escrow::cleanup_escrow`]) removes both the forward
+/// and reverse id-mapping entries once the escrow reaches a terminal state,
+/// so a re-deposit after cleanup performs a real transfer instead of
+/// silently no-op'ing against a stale mapping (Issue #1163).
 ///
 /// # Errors
 ///

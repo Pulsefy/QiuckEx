@@ -26,6 +26,8 @@ mod errors;
 mod escrow;
 mod escrow_id;
 #[cfg(test)]
+mod escrow_id_cleanup_test;
+#[cfg(test)]
 mod escrow_id_test;
 mod events;
 mod fee;
