@@ -1,4 +1,5 @@
-// Marketplace mock data and simulated API calls
+// Marketplace API client. Listings come from the backend; user bids and
+// user listings are still mocked pending backend endpoints.
 
 import { getQuickexApiBase } from "@/lib/api";
 export type UsernameStatus = "auction" | "buyNow" | "sold" | "listed";
@@ -34,185 +35,48 @@ export type UserListing = {
   endsAt: Date;
 };
 
-let cachedListings: MarketplaceListing[] | null = null;
-let cachedUserBids: UserBid[] | null = null;
-let cachedUserListings: UserListing[] | null = null;
+const HOUR = 3600000;
 
-const MOCK_LISTINGS: MarketplaceListing[] = [
-  {
-    id: "1",
-    username: "pay",
-    currentBid: 5800,
-    buyNowPrice: 12000,
-    ownerAddress: "GDRH...4T9F",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 2.5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-    status: "auction",
-    category: "og",
-    bidCount: 34,
-    watchers: 210,
-    verified: true,
-  },
-  {
-    id: "2",
-    username: "sol",
-    currentBid: 3200,
-    buyNowPrice: 8500,
-    ownerAddress: "GCXY...8K3J",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
-    status: "auction",
-    category: "crypto",
-    bidCount: 19,
-    watchers: 98,
-    verified: true,
-  },
-  {
-    id: "3",
-    username: "nova",
-    currentBid: 1400,
-    buyNowPrice: 4000,
-    ownerAddress: "GBXT...2R7K",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
-    status: "auction",
-    category: "brand",
-    bidCount: 8,
-    watchers: 54,
-    verified: false,
-  },
-  {
-    id: "4",
-    username: "satoshi",
-    currentBid: 9900,
-    buyNowPrice: null,
-    ownerAddress: "GDKL...5W1M",
-    endsAt: new Date(Date.now() + 1000 * 60 * 47),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
-    status: "auction",
-    category: "trending",
-    bidCount: 62,
-    watchers: 445,
-    verified: true,
-  },
-  {
-    id: "5",
-    username: "alex",
-    currentBid: 780,
-    buyNowPrice: 2000,
-    ownerAddress: "GCMQ...9P2N",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 36),
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    status: "auction",
-    category: "short",
-    bidCount: 5,
-    watchers: 31,
-    verified: false,
-  },
-  {
-    id: "6",
-    username: "defi",
-    currentBid: 4100,
-    buyNowPrice: null,
-    ownerAddress: "GBKR...1Q0C",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    status: "auction",
-    category: "crypto",
-    bidCount: 27,
-    watchers: 182,
-    verified: true,
-  },
-  {
-    id: "7",
-    username: "lux",
-    currentBid: 620,
-    buyNowPrice: 1500,
-    ownerAddress: "GDXP...3F4G",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
-    createdAt: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-    status: "listed",
-    category: "brand",
-    bidCount: 3,
-    watchers: 22,
-    verified: false,
-  },
-  {
-    id: "8",
-    username: "web3",
-    currentBid: 2700,
-    buyNowPrice: 6000,
-    ownerAddress: "GBNH...7T5Q",
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-    status: "auction",
-    category: "trending",
-    bidCount: 15,
-    watchers: 113,
-    verified: true,
-  },
-];
-
+// NOTE: Mock data for endpoints that do not have a backend yet.
+// If your original MOCK_USER_BIDS / MOCK_USER_LISTINGS exist on origin/main,
+// paste those over these two arrays to keep the dashboard data identical.
 const MOCK_USER_BIDS: UserBid[] = [
   {
-    username: "nova",
-    myBid: 1200,
-    currentBid: 1400,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    isWinning: false,
+    username: "satoshi",
+    myBid: 850,
+    currentBid: 850,
+    endsAt: new Date(Date.now() + 5 * HOUR),
+    isWinning: true,
   },
   {
-    username: "lux",
-    myBid: 620,
-    currentBid: 620,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
-    isWinning: true,
+    username: "stellar",
+    myBid: 600,
+    currentBid: 720,
+    endsAt: new Date(Date.now() + 26 * HOUR),
+    isWinning: false,
   },
 ];
 
 const MOCK_USER_LISTINGS: UserListing[] = [
   {
-    username: "stellardev",
-    minBid: 300,
-    currentBid: 480,
-    bidCount: 3,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
+    username: "quickex",
+    minBid: 100,
+    currentBid: 240,
+    bidCount: 6,
+    endsAt: new Date(Date.now() + 48 * HOUR),
+  },
+  {
+    username: "pay",
+    minBid: 500,
+    currentBid: 500,
+    bidCount: 0,
+    endsAt: new Date(Date.now() + 72 * HOUR),
   },
 ];
 
-export function mapBackendListingToCardListing(item: BackendMarketplaceListing): MarketplaceListing {
-  const createdAt = new Date(item.created_at || Date.now());
-  let hash = 0;
-  const keyStr = item.id || item.username || "";
-  for (let i = 0; i < keyStr.length; i++) {
-    hash = (hash << 5) - hash + keyStr.charCodeAt(i);
-    hash |= 0;
-  }
-  const absHash = Math.abs(hash);
-  const currentBid = Number(item.asking_price) || 0;
-
-  const lower = item.username.toLowerCase();
-  let category: "trending" | "short" | "og" | "crypto" | "brand" = "trending";
-  if (item.username.length <= 3) category = "short";
-  else if (["satoshi", "btc", "eth", "sol", "defi", "web3"].includes(lower)) category = "crypto";
-  else if (["pay", "alex", "john", "dev"].includes(lower)) category = "og";
-  else if (["nova", "lux", "apex", "star"].includes(lower)) category = "brand";
-
-  return {
-    id: item.id,
-    username: item.username,
-    currentBid,
-    buyNowPrice: Number(item.asking_price) || null,
-    ownerAddress: item.seller_public_key ? formatPublicKey(item.seller_public_key) : "GDRH...4T9F",
-    endsAt: new Date(createdAt.getTime() + 1000 * 60 * 60 * 48),
-    createdAt,
-    status: item.status === "active" ? "auction" : item.status === "sold" ? "sold" : "listed",
-    category,
-    bidCount: absHash % 15,
-    watchers: (absHash % 100) + 5,
-    verified: item.username.length <= 4 || ["satoshi", "pay", "sol", "web3"].includes(lower),
-  };
-}
+let cachedListings: MarketplaceListing[] | null = null;
+let cachedUserBids: UserBid[] | null = null;
+let cachedUserListings: UserListing[] | null = null;
 
 export type FetchListingsOptions = {
   limit?: number;
@@ -220,20 +84,28 @@ export type FetchListingsOptions = {
   bypassCache?: boolean;
 };
 
-export async function fetchListings(options: FetchListingsOptions = {}): Promise<MarketplaceListing[]> {
+export interface FetchListingsResponse {
+  listings: MarketplaceListing[];
+  /** True when the backend request failed, so `listings` is empty and not real data */
+  degraded: boolean;
+}
+
+export async function fetchListings(
+  options: FetchListingsOptions = {},
+): Promise<FetchListingsResponse> {
   const { limit = 100, cursor, bypassCache = false } = options;
 
   if (!bypassCache && cachedListings) {
-    return cachedListings;
-  }
-
-  const url = new URL(`${getQuickexApiBase()}/marketplace`);
-  url.searchParams.set("limit", limit.toString());
-  if (cursor) {
-    url.searchParams.set("cursor", cursor);
+    return { listings: cachedListings, degraded: false };
   }
 
   try {
+    const url = new URL(`${getQuickexApiBase()}/marketplace`);
+    url.searchParams.set("limit", limit.toString());
+    if (cursor) {
+      url.searchParams.set("cursor", cursor);
+    }
+
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -250,13 +122,12 @@ export async function fetchListings(options: FetchListingsOptions = {}): Promise
       has_more: boolean;
     };
 
-    const mapped = (data.listings || []).map(mapBackendListingToCardListing);
+    const mapped = (data.listings ?? []).map(mapBackendListingToCardListing);
     cachedListings = mapped;
-    return mapped;
+    return { listings: mapped, degraded: false };
   } catch (err) {
-    console.warn("Marketplace backend query error, returning fallback list:", err);
-    cachedListings = MOCK_LISTINGS;
-    return MOCK_LISTINGS;
+    console.warn("Marketplace backend query error, returning empty list:", err);
+    return { listings: [], degraded: true };
   }
 }
 
@@ -510,6 +381,35 @@ export async function fetchListingDetail(
   }
 
   return (await response.json()) as MarketplaceListingDetail;
+}
+
+// NOTE: Reconstructed because it was missing from the pasted file. If your
+// original exists on origin/main, prefer that one so field mapping is identical.
+function mapBackendListingToCardListing(
+  listing: BackendMarketplaceListing,
+): MarketplaceListing {
+  const createdAt = new Date(listing.created_at);
+  const status: UsernameStatus =
+    listing.status === "active"
+      ? "auction"
+      : listing.status === "sold"
+        ? "sold"
+        : "listed";
+
+  return {
+    id: listing.id,
+    username: listing.username,
+    currentBid: Number(listing.asking_price),
+    buyNowPrice: null,
+    ownerAddress: formatPublicKey(listing.seller_public_key),
+    endsAt: createdAt,
+    createdAt,
+    status,
+    category: "trending",
+    bidCount: 0,
+    watchers: 0,
+    verified: false,
+  };
 }
 
 export function mapListingDetailToCardListing(
