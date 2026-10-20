@@ -17,8 +17,12 @@ export default function Home() {
     const handlePrefetch = () => {
       router.prefetch("/dashboard");
       router.prefetch("/marketplace");
-      fetchListings();
-      fetchAnalytics("30d");
+      fetchListings().catch(() => {
+        // Silently ignore prefetch errors
+      });
+      fetchAnalytics("30d").catch(() => {
+        // Silently ignore prefetch errors
+      });
     };
     const id = window.setTimeout(handlePrefetch, 250);
     return () => window.clearTimeout(id);

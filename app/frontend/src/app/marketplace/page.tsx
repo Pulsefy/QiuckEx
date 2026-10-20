@@ -90,6 +90,7 @@ function MarketplacePageContent() {
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(false);
 
   const { watchlist, isInWatchlist, toggleWatchlist } = useWatchlist();
   const {
@@ -103,9 +104,11 @@ function MarketplacePageContent() {
   const loadListings = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setDegraded(false);
     try {
-      const data = await fetchListings({ bypassCache: true });
-      setListings(data);
+      const response = await fetchListings({ bypassCache: true });
+      setListings(response.listings);
+      setDegraded(response.degraded);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -273,6 +276,29 @@ function MarketplacePageContent() {
 
       {/* ── MAIN CONTENT ─────────────────────────────── */}
       <div className="max-w-5xl mx-auto px-6 pb-24">
+        {/* Degraded mode banner */}
+        {degraded && (
+          <div className="mb-8 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="font-bold text-foreground text-sm mb-1">
+                  Marketplace data unavailable
+                </h3>
+                <p className="text-subtle text-xs">
+                  Unable to load listings from the server. Please try again later.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => void loadListings()}
+              className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs rounded-xl transition shadow-lg"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {!loading && <StatsBar listings={listings} />}
 
         {/* ── CONTROLS ─────────────────────────────── */}
@@ -397,6 +423,24 @@ function MarketplacePageContent() {
                 className="h-72 rounded-3xl bg-surface border border-border animate-pulse"
               />
             ))}
+          </div>
+        ) : degraded ? (
+          <div className="py-32 text-center space-y-6">
+            <div className="text-6xl mb-4">📡</div>
+            <div>
+              <h3 className="text-2xl font-black mb-2">
+                Marketplace unavailable
+              </h3>
+              <p className="text-subtle text-sm max-w-md mx-auto leading-relaxed">
+                We&apos;re having trouble connecting to the marketplace service. Please check your connection and try again.
+              </p>
+            </div>
+            <button
+              onClick={() => void loadListings()}
+              className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl transition shadow-lg"
+            >
+              Retry loading listings
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-32 text-center space-y-6">
