@@ -112,6 +112,8 @@ pub enum ActionType {
     BatchRelease,
     /// Batch refund (`lib.rs::batch_refund`).
     BatchRefund,
+    /// Batch M-of-N deposit (`lib.rs::batch_create_multi_sig`).
+    BatchCreateMultiSig,
 }
 
 // NOTE ON VARIANT ORDER
@@ -144,6 +146,7 @@ impl ActionType {
             ActionType::BatchCreate => b"BATCH_CREATE",
             ActionType::BatchRelease => b"BATCH_RELEASE",
             ActionType::BatchRefund => b"BATCH_REFUND",
+            ActionType::BatchCreateMultiSig => b"BATCH_CREATE_MULTI_SIG",
         }
     }
 }

@@ -763,6 +763,20 @@ impl QuickexContract {
         batch::batch_create(&env, items)
     }
 
+    /// Create up to [`batch::MAX_BATCH_SIZE`] M-of-N escrows in one call.
+    /// Each item follows the same validation, transfer, and escrow storage
+    /// path as [`deposit_multi_sig`], with an independent batch nonce domain.
+    /// Per-item validation errors are returned without stopping later items;
+    /// authorization and token-transfer traps remain transaction-atomic.
+    pub fn batch_create_multi_sig(
+        env: Env,
+        items: Vec<batch::BatchCreateMultiSigItem>,
+    ) -> Result<Vec<batch::BatchItemResult>, QuickexError> {
+        pause_policy::require_entry_allowed(&env, EntryPoint::BatchCreateMultiSig)?;
+        hook::assert_not_reentrant(&env)?;
+        batch::batch_create_multi_sig(&env, items)
+    }
+
     /// Release up to [`batch::MAX_BATCH_SIZE`] escrows in a single call.
     ///
     /// The batched counterpart of [`withdraw`](QuickexContract::withdraw). Every
