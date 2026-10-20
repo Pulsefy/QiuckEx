@@ -1042,7 +1042,7 @@ impl QuickexContract {
     /// Fallback once a multi-sig dispute's deadline passes with quorum still
     /// unmet: refunds the owner so funds can't stay stuck indefinitely.
     pub fn resolve_dispute_timeout(env: Env, commitment: BytesN<32>) -> Result<(), QuickexError> {
-        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeMultiSig)?;
+        pause_policy::require_entry_allowed(&env, EntryPoint::ResolveDisputeTimeout)?;
         hook::assert_not_reentrant(&env)?;
         escrow::resolve_dispute_timeout(&env, commitment)
     }

@@ -5,8 +5,8 @@ use crate::{
         EVENT_TOPIC_ESCROW, EVENT_TOPIC_PRIVACY,
     },
     storage::{
-        put_escrow, DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
-        MIN_ADMIN_TRANSFER_DELAY, PRIVACY_ENABLED_KEY,
+        DataKey, PauseFlag, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
+        MIN_ADMIN_TRANSFER_DELAY, PRIVACY_ENABLED_KEY, put_escrow,
     },
     EscrowEntry, EscrowStatus, QuickexContract, QuickexContractClient,
 };
@@ -4343,6 +4343,119 @@ fn test_single_arbiter_still_works() {
         Some(EscrowStatus::Spent)
     );
     assert_eq!(token_client.balance(&recipient), amount);
+}
+
+#[test]
+fn test_resolve_dispute_timeout_works_during_emergency_mode() {
+    // Validates that resolve_dispute_timeout (pure refund path) works during emergency mode
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"timeout_emergency_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    // Create escrow with arbiter
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
+    );
+
+    // Manually upgrade to multi-sig mode for testing resolve_dispute_timeout
+    // since deposit doesn't accept arbiters array yet
+    use soroban_sdk::Vec;
+    env.as_contract(&client.address, || {
+        let commitment_bytes: soroban_sdk::Bytes = commitment.clone().into();
+        let mut entry = crate::storage::get_escrow(&env, &commitment_bytes).unwrap();
+        let mut arbiters = Vec::new(&env);
+        arbiters.push_back(arbiter.clone());
+        entry.arbiters = arbiters;
+        entry.arbiter_threshold = 1; // Enable multi-sig mode
+        crate::storage::put_escrow(&env, &commitment_bytes, &entry);
+    });
+
+    // Initiate dispute
+    client.dispute(&commitment);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Disputed)
+    );
+
+    // Activate emergency mode
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+    client.activate_emergency_mode(&admin);
+
+    // Advance time past the dispute deadline
+    env.ledger().set_timestamp(u64::MAX);
+
+    // resolve_dispute_timeout should succeed and refund owner despite emergency mode
+    client.resolve_dispute_timeout(&commitment);
+
+    // Verify owner got refund
+    assert_eq!(token_client.balance(&owner), amount);
+    assert_eq!(token_client.balance(&client.address), 0);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Refunded)
+    );
+}
+
+#[test]
+fn test_resolve_dispute_multi_sig_blocked_during_emergency_mode() {
+    // Validates that resolve_dispute_multi_sig is blocked during emergency mode
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let amount: i128 = 5000;
+    let salt = Bytes::from_slice(&env, b"multisig_blocked_emergency_salt");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    // Create escrow with arbiter
+    let commitment = client.deposit(
+        &token,
+        &amount,
+        &owner,
+        &salt,
+        &1000,
+        &Some(arbiter.clone()),
+        &0u64,
+        &u64::MAX,
+    );
+
+    // Initiate dispute
+    client.dispute(&commitment);
+    assert_eq!(
+        client.get_commitment_state(&commitment),
+        Some(EscrowStatus::Disputed)
+    );
+
+    // Activate emergency mode
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+    client.activate_emergency_mode(&admin);
+
+    // resolve_dispute_multi_sig should be blocked during emergency mode
+    let res = client.try_resolve_dispute_multi_sig(&commitment, &recipient);
+    assert_eq!(res, Err(Ok(crate::errors::QuickexError::ContractPaused)));
+
+    // Verify funds still in contract
+    assert_eq!(token_client.balance(&owner), 0);
+    assert_eq!(token_client.balance(&recipient), 0);
+    assert_eq!(token_client.balance(&client.address), amount);
 }
 
 #[test]

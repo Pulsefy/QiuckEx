@@ -36,16 +36,17 @@ pub enum EntryPoint {
     ResolveDispute = 10,
     VoteForDispute = 11,
     ResolveDisputeMultiSig = 12,
-    SetPrivacy = 13,
-    CleanupEscrow = 14,
-    ExtendEscrowTtl = 15,
-    WithdrawFees = 16,
+    ResolveDisputeTimeout = 13,
+    SetPrivacy = 14,
+    CleanupEscrow = 15,
+    ExtendEscrowTtl = 16,
+    WithdrawFees = 17,
     /// `QuickexContract::batch_create` — batched counterpart of `Deposit`.
-    BatchCreate = 17,
+    BatchCreate = 18,
     /// `QuickexContract::batch_release` — batched counterpart of `Withdraw`.
-    BatchRelease = 18,
+    BatchRelease = 19,
     /// `QuickexContract::batch_refund` — batched counterpart of `Refund`.
-    BatchRefund = 19,
+    BatchRefund = 20,
 }
 
 impl EntryPoint {
@@ -72,6 +73,7 @@ impl EntryPoint {
             | EntryPoint::ResolveDispute
             | EntryPoint::VoteForDispute
             | EntryPoint::ResolveDisputeMultiSig
+            | EntryPoint::ResolveDisputeTimeout
             | EntryPoint::CleanupEscrow
             | EntryPoint::ExtendEscrowTtl => None,
         }
@@ -82,6 +84,14 @@ impl EntryPoint {
     /// `WithdrawFees` is deliberately excluded: it moves protocol revenue,
     /// not user funds, so it should stay blocked during an emergency freeze
     /// like other non-fund-recovery admin actions.
+    ///
+    /// `ResolveDisputeTimeout` is included because it only refunds the owner
+    /// (fail-closed default), unlike `ResolveDisputeMultiSig` which can pay
+    /// an arbitrary recipient and is blocked during emergencies.
+    ///
+    /// BatchRelease and BatchRefund are included because they are batched
+    /// counterparts of Withdraw and Refund respectively, both of which are
+    /// emergency-allowlisted.
     pub fn is_emergency_safe(self) -> bool {
         matches!(
             self,
@@ -90,6 +100,7 @@ impl EntryPoint {
                 | EntryPoint::StealthWithdraw
                 | EntryPoint::CleanupEscrow
                 | EntryPoint::ExtendEscrowTtl
+                | EntryPoint::ResolveDisputeTimeout
                 | EntryPoint::BatchRelease
                 | EntryPoint::BatchRefund
         )
