@@ -545,6 +545,38 @@ pub fn deposit_multi_sig(
     nonce_val: u64,
     valid_until: u64,
 ) -> Result<BytesN<32>, QuickexError> {
+    deposit_multi_sig_item(
+        env,
+        token,
+        amount,
+        owner,
+        salt,
+        timeout_secs,
+        arbiters,
+        arbiter_threshold,
+        nonce_val,
+        valid_until,
+        ActionType::DepositMultiSig,
+        AuthMode::Required,
+    )
+}
+
+/// Shared multi-sig deposit body for the single-item and batch entry points.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn deposit_multi_sig_item(
+    env: &Env,
+    token: Address,
+    amount: i128,
+    owner: Address,
+    salt: Bytes,
+    timeout_secs: u64,
+    arbiters: Vec<Address>,
+    arbiter_threshold: u32,
+    nonce_val: u64,
+    valid_until: u64,
+    action: ActionType,
+    auth: AuthMode,
+) -> Result<BytesN<32>, QuickexError> {
     if amount <= 0 {
         return Err(QuickexError::InvalidAmount);
     }
@@ -553,15 +585,11 @@ pub fn deposit_multi_sig(
     // token balance, so a bad call can never leave a half-created escrow.
     dispute_quorum::validate_arbiter_set(&arbiters, arbiter_threshold)?;
 
-    owner.require_auth();
+    if auth == AuthMode::Required {
+        owner.require_auth();
+    }
 
-    nonce::verify_and_consume(
-        env,
-        &owner,
-        nonce_val,
-        valid_until,
-        ActionType::DepositMultiSig,
-    )?;
+    nonce::verify_and_consume(env, &owner, nonce_val, valid_until, action)?;
 
     // INV-3: validated, overflow-safe expiry computation
     let expires_at = compute_expires_at(env, timeout_secs)?;

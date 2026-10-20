@@ -105,6 +105,7 @@ fn test_emergency_allowlist_includes_fund_recovery_paths() {
     assert!(client.is_entry_allowed_in_emergency(&EntryPoint::CleanupEscrow));
     assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::Deposit));
     assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::DepositWithCommitment));
+    assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::BatchCreateMultiSig));
 }
 
 #[test]

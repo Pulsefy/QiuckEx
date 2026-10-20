@@ -73,6 +73,13 @@ use crate::{errors::QuickexError, escrow, escrow::AuthMode, nonce::ActionType};
 /// - Max `deposit` batch: 200,000,000 / 1,800,000 ≈ 111 items
 /// - Max `withdraw`/`refund` batch: 200,000,000 / 1,500,000 ≈ 133 items
 ///
+/// Multi-sig batch creation also validates up to `MAX_ARBITERS` (15) addresses
+/// per item and stores that bounded quorum set. The shared limit of **20** is
+/// retained: even with 300 arbiter entries, validation is bounded and the
+/// resulting ledger entries stay below the transaction entry cap. A separate
+/// multi-sig cap is unnecessary until measured WASM resource tests show that
+/// this ceiling exceeds the network budget.
+///
 /// We choose **20** as a conservative limit that:
 /// 1. Stays well within budget even with storage contention or auth overhead
 /// 2. Avoids hitting ledger read/write entry limits (max 200 entries per tx)
@@ -176,6 +183,62 @@ pub struct BatchCreateItem {
     pub nonce: u64,
     /// Replay-protection expiry, scoped to `ActionType::BatchCreate`.
     pub valid_until: u64,
+}
+
+/// Parameters for a multi-sig escrow created inside a batch.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchCreateMultiSigItem {
+    pub token: Address,
+    pub amount: i128,
+    pub owner: Address,
+    pub salt: Bytes,
+    pub timeout_secs: u64,
+    pub arbiters: Vec<Address>,
+    pub arbiter_threshold: u32,
+    pub nonce: u64,
+    pub valid_until: u64,
+}
+
+/// Create up to [`MAX_BATCH_SIZE`] M-of-N escrows in one call.
+///
+/// Size is checked before authorization or state changes. Per-item argument
+/// validation errors are returned in the corresponding result, while an auth
+/// or token-transfer trap aborts the complete Soroban transaction.
+pub fn batch_create_multi_sig(
+    env: &Env,
+    items: Vec<BatchCreateMultiSigItem>,
+) -> Result<Vec<BatchItemResult>, QuickexError> {
+    check_batch_size(items.len())?;
+
+    let mut owners: soroban_sdk::Vec<Address> = soroban_sdk::Vec::new(env);
+    for item in items.iter() {
+        owners.push_back(item.owner.clone());
+    }
+    authorize_distinct(env, owners);
+
+    let mut results: soroban_sdk::Vec<BatchItemResult> = soroban_sdk::Vec::new(env);
+    for (i, item) in items.iter().enumerate() {
+        let idx = i as u32;
+        match escrow::deposit_multi_sig_item(
+            env,
+            item.token,
+            item.amount,
+            item.owner,
+            item.salt,
+            item.timeout_secs,
+            item.arbiters,
+            item.arbiter_threshold,
+            item.nonce,
+            item.valid_until,
+            ActionType::BatchCreateMultiSig,
+            AuthMode::Recorded,
+        ) {
+            Ok(commitment) => results.push_back(ok(idx, &commitment)),
+            Err(error) => results.push_back(fail(idx, error, None)),
+        }
+    }
+    Ok(results)
 }
 
 /// Create up to [`MAX_BATCH_SIZE`] escrows in one call.
