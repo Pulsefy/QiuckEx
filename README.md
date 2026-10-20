@@ -194,6 +194,7 @@ Contributions are welcome and encouraged to help evolve QuickEx! To get started:
   - Update shared packages (`packages/ui` or `packages/stellar-sdk`) only when needed, and bump versions.
   - Run `pnpm turbo run lint --filter=...` for targeted checks (e.g., `--filter=app/frontend`).
 - **Database Schema**: Before writing a query or a new Supabase migration, read [docs/DATA-MODEL.md](docs/DATA-MODEL.md). It has the ER diagram, the table-by-table data dictionary with owning modules and keys, and an explanation of why migrations are split across folders. Any migration that changes tables or keys must update that document in the same PR. [docs/BACKEND-MODULE-MAP.md](docs/BACKEND-MODULE-MAP.md) explains what each backend module owns and which modules may import which.
+- **API Versioning & Deprecation**: Before changing or removing a REST endpoint, read [docs/REST-API-VERSIONING-AND-DEPRECATION.md](docs/REST-API-VERSIONING-AND-DEPRECATION.md). It defines what counts as a breaking vs. non-breaking change, the 90-day minimum deprecation notice period, how deprecated routes are marked (response headers, OpenAPI annotation, changelog), how compatibility aliases are introduced and retired, and how API-key integrators are notified. Any deprecation PR must update [docs/BACKEND-CLIENT-CONTRACT-MAP.md](docs/BACKEND-CLIENT-CONTRACT-MAP.md) and the changelog section of that policy in the same change.
 
 All contributors must adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) and sign off commits for DCO compliance. For more, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

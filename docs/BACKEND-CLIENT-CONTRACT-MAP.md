@@ -2,7 +2,7 @@
 
 This document maps the backend HTTP endpoints actually consumed by the **frontend** (`app/frontend`) and **mobile** (`app/mobile`) apps to their owning backend modules (`app/backend/src/*`), so route mismatches and payload drift are caught before contributor work diverges.
 
-Scope: REST contracts between clients and the NestJS backend. On-chain/Soroban event schemas are covered separately in `app/backend/doc/EVENTS.md` and `app/contract/docs/events-schema.md`.
+Scope: REST contracts between clients and the NestJS backend. On-chain/Soroban event schemas are covered separately in `app/backend/doc/EVENTS.md` and `app/contract/docs/events-schema.md`. How the REST API introduces breaking changes, marks deprecated routes, and sunsets them is governed by the [REST API Versioning & Deprecation Policy](./REST-API-VERSIONING-AND-DEPRECATION.md).
 
 > **Important:** the backend registers **no global route prefix** (`app/backend/src/main.ts` never calls `setGlobalPrefix`). Controller prefixes are the full public paths. Anything a client prepends (like `/api`) is a bug — see [Known mismatches](#known-mismatches--payload-drift). The prefix convention and its enforced exemption list are in [Routing Conventions](./ROUTING-CONVENTIONS.md).
 
@@ -69,6 +69,8 @@ Explicitly tracked so contributors don't re-discover them:
 8. **Notification list response shape is loose** — mobile handles both a raw array and a Supabase-style envelope from `/notifications/in-app`. Pin the backend DTO before removing the client's defensive unwrapping.
 
 ## Compatibility aliases & migration paths
+
+The lifecycle of an alias (introduce → deprecate → retire, including the 90-day minimum notice period, the `Deprecation`/`Sunset` headers, and the `410` tombstone window) is governed by the [REST API Versioning & Deprecation Policy](./REST-API-VERSIONING-AND-DEPRECATION.md).
 
 - **`POST /transactions/build` is a deliberate alias of `POST /transactions/compose`** — both invoke `TransactionsService.composeTransaction()` and return unsigned XDR + `correlationId`. Prefer `compose` in new code; `build` exists for compatibility.
 - **Feature-flag gate on contract writes** — `POST /transactions/compose|build|simulate` and `POST /stellar/soroban-preflight` all require `TESTNET_CONTRACT_WRITES_FLAG` + `NetworkSafetyGuard` (+ `ContractMethodAllowlistGuard` on transactions). Clients must handle 403/503 on mainnet or when the flag is off.
