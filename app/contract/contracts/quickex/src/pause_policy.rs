@@ -46,6 +46,9 @@ pub enum EntryPoint {
     BatchRelease = 18,
     /// `QuickexContract::batch_refund` — batched counterpart of `Refund`.
     BatchRefund = 19,
+    /// `QuickexContract::deposit_multi_sig` — multi-arbiter counterpart of
+    /// `Deposit`.
+    DepositMultiSig = 20,
 }
 
 impl EntryPoint {
@@ -60,7 +63,8 @@ impl EntryPoint {
             | EntryPoint::DepositPartial
             | EntryPoint::PartialPayment
             | EntryPoint::StealthDeposit
-            | EntryPoint::BatchCreate => Some(PauseFlag::Deposit),
+            | EntryPoint::BatchCreate
+            | EntryPoint::DepositMultiSig => Some(PauseFlag::Deposit),
             EntryPoint::DepositWithCommitment => Some(PauseFlag::DepositWithCommitment),
             EntryPoint::Withdraw | EntryPoint::StealthWithdraw | EntryPoint::BatchRelease => {
                 Some(PauseFlag::Withdrawal)
@@ -94,6 +98,35 @@ impl EntryPoint {
                 | EntryPoint::BatchRefund
         )
     }
+
+    /// Every variant, in discriminant order.
+    ///
+    /// Kept next to the enum so the exhaustive classification test in
+    /// `pause_policy_test.rs` can iterate every entry point. Append new
+    /// variants here when adding them.
+    #[cfg(test)]
+    pub const ALL: [EntryPoint; 20] = [
+        EntryPoint::Deposit,
+        EntryPoint::DepositWithCommitment,
+        EntryPoint::DepositPartial,
+        EntryPoint::PartialPayment,
+        EntryPoint::Withdraw,
+        EntryPoint::Refund,
+        EntryPoint::StealthDeposit,
+        EntryPoint::StealthWithdraw,
+        EntryPoint::Dispute,
+        EntryPoint::ResolveDispute,
+        EntryPoint::VoteForDispute,
+        EntryPoint::ResolveDisputeMultiSig,
+        EntryPoint::SetPrivacy,
+        EntryPoint::CleanupEscrow,
+        EntryPoint::ExtendEscrowTtl,
+        EntryPoint::WithdrawFees,
+        EntryPoint::BatchCreate,
+        EntryPoint::BatchRelease,
+        EntryPoint::BatchRefund,
+        EntryPoint::DepositMultiSig,
+    ];
 }
 
 /// Returns `true` when the entry point may execute during emergency mode.

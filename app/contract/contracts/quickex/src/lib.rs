@@ -333,6 +333,13 @@ impl QuickexContract {
         nonce: u64,
         valid_until: u64,
     ) -> Result<BytesN<32>, QuickexError> {
+        // Pause/emergency classification is taken from
+        // `EntryPoint::DepositMultiSig`, which mirrors `EntryPoint::Deposit`:
+        // the `Deposit` feature flag gates it, and it is not on the
+        // emergency-mode allowlist. The checks stay inline (as in `deposit`)
+        // so a blocked call still emits `PauseEnforced` with the pause
+        // reason, but the gate itself is derived from the same variant that
+        // `is_entry_allowed_in_emergency` reports.
         if storage::is_emergency_mode(&env) {
             return Err(QuickexError::ContractPaused);
         }
@@ -346,15 +353,17 @@ impl QuickexContract {
             );
             return Err(QuickexError::ContractPaused);
         }
-        if is_feature_paused(&env, PauseFlag::Deposit) {
-            let reason = storage::get_feature_pause_reason(&env, PauseFlag::Deposit);
-            events::publish_pause_enforced(
-                &env,
-                Some(owner.clone()),
-                Symbol::new(&env, "deposit_multi_sig"),
-                reason,
-            );
-            return Err(QuickexError::OperationPaused);
+        if let Some(flag) = EntryPoint::DepositMultiSig.pause_flag() {
+            if is_feature_paused(&env, flag) {
+                let reason = storage::get_feature_pause_reason(&env, flag);
+                events::publish_pause_enforced(
+                    &env,
+                    Some(owner.clone()),
+                    Symbol::new(&env, "deposit_multi_sig"),
+                    reason,
+                );
+                return Err(QuickexError::OperationPaused);
+            }
         }
         hook::assert_not_reentrant(&env)?;
         escrow::deposit_multi_sig(

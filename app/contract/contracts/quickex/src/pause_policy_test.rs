@@ -105,6 +105,68 @@ fn test_emergency_allowlist_includes_fund_recovery_paths() {
     assert!(client.is_entry_allowed_in_emergency(&EntryPoint::CleanupEscrow));
     assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::Deposit));
     assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::DepositWithCommitment));
+    assert!(!client.is_entry_allowed_in_emergency(&EntryPoint::DepositMultiSig));
+}
+
+/// Exhaustive expected classification. The match deliberately has no wildcard
+/// arm: adding a new `EntryPoint` variant forces a decision here at compile
+/// time, so an unclassified entry point cannot slip through.
+fn expected_emergency_safe(entry: EntryPoint) -> bool {
+    match entry {
+        EntryPoint::Withdraw
+        | EntryPoint::Refund
+        | EntryPoint::StealthWithdraw
+        | EntryPoint::CleanupEscrow
+        | EntryPoint::ExtendEscrowTtl
+        | EntryPoint::BatchRelease
+        | EntryPoint::BatchRefund => true,
+        EntryPoint::Deposit
+        | EntryPoint::DepositMultiSig
+        | EntryPoint::DepositWithCommitment
+        | EntryPoint::DepositPartial
+        | EntryPoint::PartialPayment
+        | EntryPoint::StealthDeposit
+        | EntryPoint::Dispute
+        | EntryPoint::ResolveDispute
+        | EntryPoint::VoteForDispute
+        | EntryPoint::ResolveDisputeMultiSig
+        | EntryPoint::SetPrivacy
+        | EntryPoint::WithdrawFees
+        | EntryPoint::BatchCreate => false,
+    }
+}
+
+#[test]
+fn test_all_entry_point_variants_have_deterministic_emergency_behavior() {
+    let (_env, client) = setup();
+
+    for (index, entry) in EntryPoint::ALL.iter().enumerate() {
+        // `ALL` must stay in discriminant order with no gaps, so a variant
+        // cannot be silently omitted from the enumeration.
+        assert_eq!(*entry as u32, index as u32 + 1);
+
+        let expected = expected_emergency_safe(*entry);
+        let first = client.is_entry_allowed_in_emergency(entry);
+        let second = client.is_entry_allowed_in_emergency(entry);
+
+        assert_eq!(
+            first, expected,
+            "unexpected emergency classification for {:?}",
+            entry
+        );
+        assert_eq!(
+            second, first,
+            "non-deterministic emergency classification for {:?}",
+            entry
+        );
+    }
+
+    // The multi-sig deposit must mirror the single-arbiter deposit exactly.
+    assert_eq!(
+        EntryPoint::DepositMultiSig.pause_flag(),
+        EntryPoint::Deposit.pause_flag()
+    );
+    assert!(!EntryPoint::DepositMultiSig.is_emergency_safe());
 }
 
 #[test]
@@ -160,6 +222,22 @@ fn test_risky_entry_points_blocked_in_emergency_mode() {
             &salt,
             &0,
             &None,
+            &0u64,
+            &u64::MAX,
+        ),
+        QuickexError::ContractPaused,
+    );
+
+    let arbiters = soroban_sdk::vec![&env, user.clone()];
+    assert_contract_error(
+        client.try_deposit_multi_sig(
+            &token,
+            &amount,
+            &user,
+            &salt,
+            &0u64,
+            &arbiters,
+            &1u32,
             &0u64,
             &u64::MAX,
         ),
