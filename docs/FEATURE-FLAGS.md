@@ -238,6 +238,9 @@ The contract has its own pause controls, and they are not feature flags:
   `ExtendEscrowTtl`. Every deposit, dispute, and privacy entry point, and every
   admin/config mutation, is rejected with `ContractPaused`.
   `is_entry_allowed_in_emergency(entry)` exposes the allowlist for reads.
+- Every pausable entry point has a matching `EntryPoint` variant (for example
+  `DepositMultiSig` for `deposit_multi_sig`), so off-chain tooling and
+  dashboards can introspect the classification instead of guessing.
 
 How this interacts with backend flags:
 
