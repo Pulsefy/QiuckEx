@@ -76,19 +76,24 @@ pub struct EscrowEntry {
 ///
 /// Returned by [`QuickexContract::get_escrow_details`] instead of the raw
 /// [`EscrowEntry`]. Sensitive fields (`amount_due`, `amount_paid`, `owner`) are set to `None`
-/// when the escrow owner has privacy enabled and the caller is not the owner.
+/// when the escrow owner has privacy enabled and the caller is neither the owner nor an
+/// assigned arbiter. This includes members of a multi-sig escrow's `arbiters` set.
+/// The `arbiter` field remains `None` for multi-sig escrows because they have no single arbiter.
 ///
 /// ## Field visibility
 ///
-/// | Field        | Privacy off | Privacy on + caller is owner | Privacy on + caller is stranger |
-/// |--------------|-------------|------------------------------|---------------------------------|
-/// | `token`      | ✓           | ✓                            | ✓                               |
-/// | `status`     | ✓           | ✓                            | ✓                               |
-/// | `created_at` | ✓           | ✓                            | ✓                               |
-/// | `expires_at` | ✓           | ✓                            | ✓                               |
-/// | `amount_due` | ✓           | ✓                            | `None`                          |
-/// | `amount_paid`| ✓           | ✓                            | `None`                          |
-/// | `owner`      | ✓           | ✓                            | `None`                          |
+/// | Field         | Privacy off | Privacy on + owner | Privacy on + assigned arbiter | Privacy on + stranger |
+/// |---------------|-------------|--------------------|-------------------------------|-----------------------|
+/// | `token`       | ✓           | ✓                  | ✓                             | ✓                     |
+/// | `status`      | ✓           | ✓                  | ✓                             | ✓                     |
+/// | `created_at`  | ✓           | ✓                  | ✓                             | ✓                     |
+/// | `expires_at`  | ✓           | ✓                  | ✓                             | ✓                     |
+/// | `amount_due`  | ✓           | ✓                  | ✓                             | `None`                |
+/// | `amount_paid` | ✓           | ✓                  | ✓                             | `None`                |
+/// | `owner`       | ✓           | ✓                  | ✓                             | `None`                |
+///
+/// An assigned arbiter can be the legacy single arbiter or any member of a multi-sig
+/// arbiter set. The `arbiter` field itself represents only the legacy single-arbiter value.
 #[contracttype]
 #[derive(Clone)]
 pub struct PrivacyAwareEscrowView {

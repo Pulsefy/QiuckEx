@@ -96,6 +96,36 @@ fn deposit_multi_sig_persists_arbiter_set_and_threshold() {
 }
 
 #[test]
+fn get_escrow_details_shows_private_multi_sig_details_to_arbiter_only() {
+    let ctx = TestContext::with_admin();
+    let owner = ctx.alice.clone();
+    let arbiter = Address::generate(&ctx.env);
+    let other_arbiter = Address::generate(&ctx.env);
+    let stranger = Address::generate(&ctx.env);
+    let arbiters = [arbiter.clone(), other_arbiter];
+
+    let commitment =
+        ctx.deposit_with_arbiters(&owner, AMOUNT, b"private_multi_sig_view", 0, &arbiters, 1);
+    ctx.client.set_privacy(&owner, &true);
+
+    let arbiter_view = ctx
+        .client
+        .get_escrow_details(&commitment, &arbiter)
+        .unwrap();
+    assert_eq!(arbiter_view.amount_due, Some(AMOUNT));
+    assert_eq!(arbiter_view.amount_paid, Some(AMOUNT));
+    assert_eq!(arbiter_view.owner, Some(owner));
+
+    let stranger_view = ctx
+        .client
+        .get_escrow_details(&commitment, &stranger)
+        .unwrap();
+    assert_eq!(stranger_view.amount_due, None);
+    assert_eq!(stranger_view.amount_paid, None);
+    assert_eq!(stranger_view.owner, None);
+}
+
+#[test]
 fn deposit_multi_sig_derivable_id_matches_and_binds_the_arbiter_set() {
     let ctx = TestContext::new();
     let owner = ctx.alice.clone();
