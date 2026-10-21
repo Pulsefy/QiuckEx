@@ -1,4 +1,12 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import {
+  Injectable,
+  HttpException,
+  HttpStatus,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from "@nestjs/common";
+import { randomInt } from "node:crypto";
 import { Context, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
 import { TelegramRepository } from "./telegram.repository";
@@ -9,6 +17,8 @@ interface ExtendedContext extends Context {
     verificationCode?: string;
   };
 }
+
+const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
@@ -142,7 +152,10 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         ctx.session.linkingPublicKey = text;
 
         // Generate verification code
-        const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const verificationCode = randomInt(36 ** 6)
+          .toString(36)
+          .padStart(6, "0")
+          .toUpperCase();
         ctx.session.verificationCode = verificationCode;
 
         // Save mapping with verification code
@@ -151,6 +164,9 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
           username: ctx.from?.username ?? undefined,
           publicKey: text,
           verificationCode,
+          verificationExpiresAt: new Date(
+            Date.now() + VERIFICATION_CODE_TTL_MS,
+          ),
         });
 
         await ctx.reply(
@@ -381,15 +397,20 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
    * Verify a user with the verification code
    */
   async verifyUser(telegramId: number, verificationCode: string): Promise<boolean> {
-    const mapping = await this.telegramRepo.findByTelegramId(telegramId);
+    const result = await this.telegramRepo.verifyVerificationCode(
+      telegramId,
+      verificationCode,
+    );
 
-    if (!mapping || !mapping.verificationCode) {
-      return false;
+    if (result === "verified") {
+      return true;
     }
 
-    if (mapping.verificationCode.toUpperCase() === verificationCode.toUpperCase()) {
-      await this.telegramRepo.markAsVerified(telegramId);
-      return true;
+    if (result === "locked") {
+      throw new HttpException(
+        "Too many invalid verification attempts. Try again later.",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     return false;

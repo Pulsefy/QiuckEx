@@ -8,6 +8,7 @@ export interface TelegramUserMapping {
   publicKey: string;
   isVerified: boolean;
   verificationCode?: string;
+  verificationExpiresAt?: Date;
   enabled: boolean;
   minAmountStroops: bigint;
   lastNotificationAt?: Date;
@@ -23,6 +24,7 @@ interface RawTelegramUserMapping {
   public_key: string;
   is_verified: boolean;
   verification_code: string | null;
+  verification_expires_at: string | null;
   enabled: boolean;
   min_amount_stroops: string;
   last_notification_at: string | null;
@@ -92,6 +94,7 @@ export class TelegramRepository {
     publicKey: string;
     isVerified?: boolean;
     verificationCode?: string;
+    verificationExpiresAt?: Date;
     enabled?: boolean;
     minAmountStroops?: bigint;
   }): Promise<TelegramUserMapping> {
@@ -101,6 +104,10 @@ export class TelegramRepository {
       public_key: mapping.publicKey,
       is_verified: mapping.isVerified ?? false,
       verification_code: mapping.verificationCode ?? null,
+      verification_expires_at:
+        mapping.verificationExpiresAt?.toISOString() ?? null,
+      verification_attempts: 0,
+      verification_locked_until: null,
       enabled: mapping.enabled ?? true,
       min_amount_stroops: (mapping.minAmountStroops ?? 0n).toString(),
     };
@@ -120,6 +127,28 @@ export class TelegramRepository {
     }
 
     return this.mapRow(data);
+  }
+
+  /** Atomically consume an attempt and verify a pending Telegram link. */
+  async verifyVerificationCode(
+    telegramId: number,
+    verificationCode: string,
+  ): Promise<"verified" | "invalid" | "expired" | "locked"> {
+    const { data, error } = await this.supabase
+      .getClient()
+      .rpc("verify_telegram_link", {
+        p_telegram_id: telegramId,
+        p_verification_code: verificationCode,
+      });
+
+    if (error) {
+      this.logger.error(
+        `Failed to verify Telegram link for ${telegramId}: ${error.message}`,
+      );
+      throw error;
+    }
+
+    return data as "verified" | "invalid" | "expired" | "locked";
   }
 
   /**
@@ -303,6 +332,9 @@ export class TelegramRepository {
       publicKey: row.public_key,
       isVerified: row.is_verified,
       verificationCode: row.verification_code ?? undefined,
+      verificationExpiresAt: row.verification_expires_at
+        ? new Date(row.verification_expires_at)
+        : undefined,
       enabled: row.enabled,
       minAmountStroops: BigInt(row.min_amount_stroops ?? "0"),
       lastNotificationAt: row.last_notification_at

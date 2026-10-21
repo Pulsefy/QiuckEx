@@ -356,7 +356,7 @@ There is **no `transactions` table**. The `transactions` module reads payment hi
 - **Defined in:** `20260328000001_create_telegram_bot_tables.sql`
 - **PK:** `id uuid`
 - **Unique:** `telegram_id`, `public_key`
-- **Columns:** `id`, `telegram_id`, `username` *(Telegram handle, **not** a QuickEx username)*, `public_key`, `is_verified`, `verification_code`, `enabled`, `min_amount_stroops`, `created_at`, `updated_at`, `last_notification_at`
+- **Columns:** `id`, `telegram_id`, `username` *(Telegram handle, **not** a QuickEx username)*, `public_key`, `is_verified`, `verification_code`, `verification_expires_at`, `verification_attempts`, `verification_locked_until`, `enabled`, `min_amount_stroops`, `created_at`, `updated_at`, `last_notification_at`
 
 #### `telegram_notification_log`
 - **Owning module:** `notifications`
