@@ -32,6 +32,18 @@ export type RateLimitConfig = {
     apiKeys: string[];
     userIds: string[];
   };
+  /**
+   * Number of trusted reverse-proxy hops to skip when deriving the
+   * client IP from X-Forwarded-For. 0 means X-Forwarded-For is never trusted
+   * and the real socket address is always used.
+   */
+  trustedProxyHops: number;
+  /**
+   * Explicit allowlist of proxy IPs/CIDRs. When non-empty, a request is
+   * only considered to have come from a trusted proxy if the immediate socket
+   * peer matches one of these entries.
+   */
+  trustedProxies: string[];
 };
 
 const DEFAULT_KEY_ORDER: RateLimitKeyType[] = ["api_key", "user_id", "ip"];
@@ -57,8 +69,15 @@ function parseAllowlist<T>(raw?: string): T[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean) as T[];
 }
 
+function parseTrustedProxyHops(raw?: string): number {
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
 // Testnet-specific defaults
-const isTestnet = process.env.NETWORK === "testnet";
+const isTestnet = process.env["NETWORK"] === "testnet";
 const TESTNET_PUBLIC_BURST_LIMIT = 20;
 const TESTNET_PUBLIC_SUSTAINED_LIMIT = 60;
 const TESTNET_AUTH_BURST_LIMIT = 80;
@@ -168,6 +187,8 @@ export const throttlerConfig: RateLimitConfig = {
     apiKeys: parseAllowlist<string>(process.env["RATE_LIMIT_ALLOWLIST_API_KEYS"]),
     userIds: parseAllowlist<string>(process.env["RATE_LIMIT_ALLOWLIST_USER_IDS"]),
   },
+  trustedProxyHops: parseTrustedProxyHops(process.env["RATE_LIMIT_TRUSTED_PROXY_HOPS"]),
+  trustedProxies: parseAllowlist<string>(process.env["RATE_LIMIT_TRUSTED_PROXIES"]),
 };
 
 export const throttlerModuleProfiles = [
