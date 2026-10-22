@@ -29,6 +29,7 @@ import {
   DEFAULT_FALLBACK_CONFIGS,
 } from '../services/runtime-config';
 import { ContractRegistryService } from '../services/contract-registry';
+import { APP_VERSION } from '../src/config/build';
 import type {
   RuntimeConfig,
   NetworkConfig,
@@ -111,7 +112,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
       setMetadata(data);
 
       const minVersion = data.minAppVersion ?? '0.0.0';
-      const appVersion = '1.0.0'; // In production, read from build config
+      const appVersion = APP_VERSION;
 
       if (compareVersions(appVersion, minVersion) < 0) {
         setCompatibility({
