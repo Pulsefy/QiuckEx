@@ -53,7 +53,7 @@ export class TransactionQueryDto {
   @ApiPropertyOptional({
     description: 'Asset code to filter transactions',
     example: 'XLM',
-    enum: ['XLM', 'USDC', 'AQUA', 'yXLM'],
+    enum: ['XLM', 'USDC', 'AQUA', 'yXLM',],
   })
   @IsOptional()
   @IsString()
