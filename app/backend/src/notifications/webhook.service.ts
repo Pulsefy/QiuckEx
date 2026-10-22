@@ -1,9 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import * as crypto from "crypto";
 
 import { NotificationPreferencesRepository } from "./notification-preferences.repository";
 import { NotificationLogRepository } from "./notification-log.repository";
 import { WebhookReplayService } from "./webhook-replay.service";
+import { validateWebhookTarget, WebhookTargetBlockedError, InvalidWebhookUrlError } from "./webhook-target.util";
 import type { NotificationPreference } from "./types/notification.types";
 import type {
   CreateWebhookDto,
@@ -32,6 +33,18 @@ export class WebhookService {
     publicKey: string,
     dto: CreateWebhookDto,
   ): Promise<WebhookResponseDto> {
+    try {
+      await validateWebhookTarget(dto.webhookUrl);
+    } catch (error) {
+      if (error instanceof WebhookTargetBlockedError) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof InvalidWebhookUrlError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
     const secret = dto.secret ?? this.generateSecret();
 
     const preference = await this.prefsRepo.upsertPreference(
@@ -78,6 +91,20 @@ export class WebhookService {
     const existing = await this.prefsRepo.getWebhookById(id);
     if (!existing || existing.publicKey !== publicKey) {
       return null;
+    }
+
+    if (dto.webhookUrl) {
+      try {
+        await validateWebhookTarget(dto.webhookUrl);
+      } catch (error) {
+        if (error instanceof WebhookTargetBlockedError) {
+          throw new BadRequestException(error.message);
+        }
+        if (error instanceof InvalidWebhookUrlError) {
+          throw new BadRequestException(error.message);
+        }
+        throw error;
+      }
     }
 
     const updated = await this.prefsRepo.upsertPreference(

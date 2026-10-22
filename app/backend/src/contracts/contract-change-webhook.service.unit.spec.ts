@@ -1,6 +1,17 @@
 import { ContractChangeWebhookService } from './contract-change-webhook.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
+// ---------------------------------------------------------------------------
+// Mock validateWebhookTarget so unit tests never make real DNS lookups.
+// ---------------------------------------------------------------------------
+jest.mock('../notifications/webhook-target.util', () => ({
+  ...jest.requireActual('../notifications/webhook-target.util'),
+  validateWebhookTarget: jest.fn().mockResolvedValue({
+    hostname: 'example.com',
+    resolvedIps: ['93.184.216.34'],
+  }),
+}));
+
 describe('ContractChangeWebhookService', () => {
   const store: Array<{ id: string } & Record<string, unknown>> = [];
 

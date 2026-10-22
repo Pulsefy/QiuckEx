@@ -14,6 +14,11 @@ import { NotificationLogRepository } from '../../notifications/notification-log.
 import { NotificationEventType } from '../../notifications/types/notification.types';
 import { WebhookProvider } from '../../notifications/providers/notification-provider.interface';
 import { JobRepository } from '../job.repository';
+import {
+  validateWebhookTarget,
+  WebhookTargetBlockedError,
+  InvalidWebhookUrlError,
+} from '../../notifications/webhook-target.util';
 
 /**
  * Error thrown for permanent job failures (no retry)
@@ -74,6 +79,26 @@ export class WebhookDeliveryHandler implements JobHandler<WebhookDeliveryPayload
     this.logger.log(
       `Delivering webhook to ${webhookUrl} (eventType: ${eventType}, eventId: ${eventId}, jobId: ${job.id}, correlationId: ${correlationId ?? 'N/A'})`,
     );
+
+    // DNS-rebinding protection: resolve the hostname immediately before the
+    // actual HTTP request and reject if it now points to a blocked range.
+    // This catches cases where the hostname resolved to a safe IP at
+    // registration time but DNS has since been updated to an internal address.
+    try {
+      await validateWebhookTarget(webhookUrl);
+    } catch (ssrfError) {
+      if (
+        ssrfError instanceof WebhookTargetBlockedError ||
+        ssrfError instanceof InvalidWebhookUrlError
+      ) {
+        // Treat SSRF-blocked targets as permanent failures — retrying will
+        // not help and we must not make repeated outbound requests.
+        throw new PermanentJobError(
+          `SSRF protection blocked webhook delivery to ${webhookUrl}: ${ssrfError.message}`,
+        );
+      }
+      throw ssrfError;
+    }
 
     try {
       // Create abort controller for request timeout

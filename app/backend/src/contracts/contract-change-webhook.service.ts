@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { validateWebhookTarget, WebhookTargetBlockedError, InvalidWebhookUrlError } from '../notifications/webhook-target.util';
 
 interface AdminWebhookSubscription {
   id: string;
@@ -21,6 +22,18 @@ export class ContractChangeWebhookService {
     webhookUrl: string,
     secret?: string,
   ): Promise<AdminWebhookSubscription> {
+    try {
+      await validateWebhookTarget(webhookUrl);
+    } catch (error) {
+      if (error instanceof WebhookTargetBlockedError) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof InvalidWebhookUrlError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
     const id = `cwh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const now = new Date().toISOString();
 

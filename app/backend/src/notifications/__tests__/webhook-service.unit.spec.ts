@@ -1,5 +1,23 @@
+import { BadRequestException } from "@nestjs/common";
 import { WebhookService } from "../webhook.service";
+import { WebhookTargetBlockedError, InvalidWebhookUrlError } from "../webhook-target.util";
 import type { NotificationPreference } from "../types/notification.types";
+
+// ---------------------------------------------------------------------------
+// Mock validateWebhookTarget so unit tests never make real DNS lookups.
+// Default behaviour: resolves successfully (safe URL).
+// Individual tests override this when they need to simulate a blocked target.
+// ---------------------------------------------------------------------------
+const mockValidateWebhookTarget = jest.fn().mockResolvedValue({
+  hostname: "example.com",
+  resolvedIps: ["93.184.216.34"],
+});
+
+jest.mock("../webhook-target.util", () => ({
+  ...jest.requireActual("../webhook-target.util"),
+  validateWebhookTarget: (...args: unknown[]) =>
+    mockValidateWebhookTarget(...args),
+}));
 
 describe("WebhookService", () => {
   let service: WebhookService;
@@ -27,6 +45,13 @@ describe("WebhookService", () => {
   }
 
   beforeEach(() => {
+    // Reset SSRF mock to the default "safe" behaviour before every test.
+    mockValidateWebhookTarget.mockReset();
+    mockValidateWebhookTarget.mockResolvedValue({
+      hostname: "example.com",
+      resolvedIps: ["93.184.216.34"],
+    });
+
     mockPrefsRepo = {
       upsertPreference: jest.fn(),
       getWebhookById: jest.fn(),
@@ -129,6 +154,49 @@ describe("WebhookService", () => {
         }),
       );
     });
+
+    it("should throw BadRequestException when URL resolves to a blocked IP (SSRF)", async () => {
+      mockValidateWebhookTarget.mockRejectedValue(
+        new WebhookTargetBlockedError("127.0.0.1", "127.0.0.1"),
+      );
+
+      await expect(
+        service.createWebhook(PUBLIC_KEY, {
+          webhookUrl: "https://127.0.0.1/hook",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      // Repository should never be reached when SSRF check fails.
+      expect(mockPrefsRepo.upsertPreference).not.toHaveBeenCalled();
+    });
+
+    it("should throw BadRequestException when URL resolves to metadata IP 169.254.169.254 (SSRF)", async () => {
+      mockValidateWebhookTarget.mockRejectedValue(
+        new WebhookTargetBlockedError("169.254.169.254", "169.254.169.254"),
+      );
+
+      await expect(
+        service.createWebhook(PUBLIC_KEY, {
+          webhookUrl: "https://169.254.169.254/latest/meta-data/",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(mockPrefsRepo.upsertPreference).not.toHaveBeenCalled();
+    });
+
+    it("should throw BadRequestException for an invalid (non-https) URL", async () => {
+      mockValidateWebhookTarget.mockRejectedValue(
+        new InvalidWebhookUrlError("Webhook URL must use https protocol, got: http:"),
+      );
+
+      await expect(
+        service.createWebhook(PUBLIC_KEY, {
+          webhookUrl: "http://example.com/hook",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(mockPrefsRepo.upsertPreference).not.toHaveBeenCalled();
+    });
   });
 
   describe("listWebhooks", () => {
@@ -210,6 +278,21 @@ describe("WebhookService", () => {
       });
 
       expect(result).toBeNull();
+    });
+
+    it("should throw BadRequestException when updated URL resolves to a blocked IP (SSRF)", async () => {
+      mockPrefsRepo.getWebhookById.mockResolvedValue(makePref());
+      mockValidateWebhookTarget.mockRejectedValue(
+        new WebhookTargetBlockedError("10.0.0.1", "10.0.0.1"),
+      );
+
+      await expect(
+        service.updateWebhook("webhook-1", PUBLIC_KEY, {
+          webhookUrl: "https://internal.corp/hook",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(mockPrefsRepo.upsertPreference).not.toHaveBeenCalled();
     });
   });
 

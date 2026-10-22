@@ -1,10 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { ApiKeyCreated } from '../api-keys/api-keys.types';
 import { WebhookService } from '../notifications/webhook.service';
 import { AuditService } from '../audit/audit.service';
+import {
+  validateWebhookTarget,
+  WebhookTargetBlockedError,
+  InvalidWebhookUrlError,
+} from '../notifications/webhook-target.util';
 
 import {
   BulkRevokeDto,
@@ -52,6 +57,19 @@ export class DeveloperService {
   ): Promise<WebhookTestResultDto> {
     const webhook = await this.webhookService.getWebhook(webhookId);
     if (!webhook) throw new NotFoundException('Webhook not found');
+
+    // SSRF protection: validate the webhook URL (including DNS resolution) before
+    // sending any outbound request from the backend.
+    try {
+      await validateWebhookTarget(webhook.webhookUrl);
+    } catch (error) {
+      if (error instanceof WebhookTargetBlockedError || error instanceof InvalidWebhookUrlError) {
+        throw new BadRequestException(
+          `Cannot send test event: ${error.message}`,
+        );
+      }
+      throw error;
+    }
 
     const eventType = dto.event_type ?? 'payment.received';
     const sentAt = dto.timestamp ?? new Date().toISOString();
