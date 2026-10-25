@@ -3,7 +3,7 @@ import renderer from "react-test-renderer";
 import EscrowDetailScreen from "../app/escrow/[id]";
 import { useEscrowDetail } from "../hooks/useEscrowDetail";
 import type { EscrowDetail } from "../services/escrow";
-
+import "../src/lib/i18n";
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "escrow-123", status: "open" }),
   useRouter: () => ({ back: jest.fn() }),

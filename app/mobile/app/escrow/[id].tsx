@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from 'react-i18next';
 
 import { useEscrowDetail } from "../../hooks/useEscrowDetail";
 import { useWallet } from "../../hooks/useWallet";
@@ -23,6 +24,7 @@ import { useTheme } from "../../src/theme/ThemeContext";
 import type { ThemeTokens } from "../../src/theme/tokens";
 
 export default function EscrowDetailScreen() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -102,6 +104,7 @@ function EscrowContent({
   viewerPublicKey?: string;
   theme: ThemeTokens;
 }) {
+  const { t } = useTranslation();
   const status = getEscrowStatus(detail);
   const statusColor = getStatusColor(status, theme);
   const depositor = detail.depositor || "Not disclosed";
@@ -145,23 +148,23 @@ function EscrowContent({
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Timing</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t("escrow.timing")}</Text>
         {timestampRows.length > 0 ? (
           timestampRows.map((row) => (
             <DetailRow key={row.label} label={row.label} value={row.value} theme={theme} />
           ))
         ) : (
-          <Text style={[styles.bodyText, { color: theme.textSecondary }]}>No timing details were returned.</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t("escrow.timing")}</Text>
         )}
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Actions</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>{t("escrow.actions")}</Text>
         <Text style={[styles.bodyText, { color: theme.textSecondary }]}>
           {actionGuidance(status)}
         </Text>
         <Text style={[styles.actionNote, { color: theme.textMuted }]}>
-          These next steps are informational only: the escrow detail endpoint is read-only, and this mobile app does not yet have secure wallet signing for escrow transactions. No release, dispute, refund, or cancellation transaction is submitted from this screen.
+         {t("escrow.actionNote")}
         </Text>
       </View>
     </>

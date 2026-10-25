@@ -22,8 +22,10 @@ import { resolveSwappableAssets } from "../services/swappable-assets";
 import { API_URL } from "../src/config/build";
 import { NetworkMismatchGuard } from "@/components/wallet/NetworkMismatchGuard";
 import { WalletSwitchHelpModal } from "@/components/wallet/WalletSwitchHelpModal";
+import { useTranslation } from 'react-i18next';
 
 export default function PaymentConfirmationScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [showHelpModal, setShowHelpModal] = React.useState(false);
   const { theme } = useTheme();
@@ -93,17 +95,17 @@ export default function PaymentConfirmationScreen() {
   const handlePayWithWallet = async () => {
     if (isConnected === false) {
       Alert.alert(
-        "Offline Mode",
-        "You cannot send payments while offline. Please connect to the internet and try again."
+        t("paymentConfirmation.offlineMode"),
+        t("paymentConfirmation.offlinePaymentDisabled")
       );
       return;
     }
 
     if (selectedSwapPath && isExpired) {
       Alert.alert(
-        "Quote Expired",
-        "The exchange rate has expired. Please refresh the quote before paying.",
-        [{ text: "Refresh Now", onPress: () => void refetch() }, { text: "Cancel", style: "cancel" }]
+        t("paymentConfirmation.quoteExpired"),
+        t("paymentConfirmation.quoteExpiredMessage"),
+        [{ text: t("paymentConfirmation.refreshNow"), onPress: () => void refetch() }, { text: t("paymentConfirmation.cancel"), style: "cancel" }]
       );
       return;
     }
@@ -113,8 +115,8 @@ export default function PaymentConfirmationScreen() {
     );
     if (!authorized) {
       Alert.alert(
-        "Authentication Required",
-        "You must authenticate with biometrics or PIN before sending payment.",
+        t("paymentConfirmation.authenticationRequired"),
+        t("paymentConfirmation.authenticationRequiredMessage"),
       );
       return;
     }
@@ -140,9 +142,9 @@ export default function PaymentConfirmationScreen() {
       await Linking.openURL(stellarUri);
     } else {
       Alert.alert(
-        "No Wallet Found",
-        "Install a Stellar-compatible wallet to complete this payment.",
-        [{ text: "OK" }],
+        t("paymentConfirmation.noWalletFound"),
+        t("paymentConfirmation.noWalletFoundMessage"),
+        [{ text: t("paymentConfirmation.ok") }],
       );
     }
   };
@@ -155,14 +157,14 @@ export default function PaymentConfirmationScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
         <ErrorState
-          title={isMissingDefinition ? "Contract definition missing" : "Contract registry unavailable"}
+          title={isMissingDefinition ? t("paymentConfirmation.contractDefinitionMissing") : t("paymentConfirmation.contractRegistryUnavailable")}
           message={
             isMissingDefinition
-              ? `The registry does not include ${missingContracts.join(", ")}. Refresh contract metadata to recover from a stale or incompatible registry.`
-              : registryError || "Contract metadata could not be loaded. Refresh the registry and try again."
+              ? t("paymentConfirmation.contractRegistryMissingMessage", { contracts: missingContracts.join(", ") })
+              : registryError || t("paymentConfirmation.contractRegistryErrorMessage")
           }
           onRetry={() => void refreshRegistry()}
-          retryLabel={registryRefreshing ? "Refreshing..." : "Refresh Registry"}
+          retryLabel={registryRefreshing ? t("paymentConfirmation.refreshing") : t("paymentConfirmation.refreshRegistry")}
         />
         <Pressable
           style={styles.secondaryBtn}
@@ -171,7 +173,7 @@ export default function PaymentConfirmationScreen() {
           accessibilityRole="button"
           accessibilityHint="Double-tap to navigate back to the previous screen"
         >
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Go Back</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.goBack")}</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -183,10 +185,10 @@ export default function PaymentConfirmationScreen() {
         <ActivityIndicator
           size="large"
           color={theme.primary}
-          accessibilityLabel={`${registryRefreshing ? "Refreshing contract registry" : "Verifying secure contracts"} in progress`}
+          accessibilityLabel={`${registryRefreshing ? t("paymentConfirmation.refreshingContractRegistry") : t("paymentConfirmation.verifyingSecureContracts")} in progress`}
         />
         <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 10 }} accessibilityRole="status">
-          {registryRefreshing ? "Refreshing contract registry..." : "Verifying secure contracts..."}
+          {registryRefreshing ? t("paymentConfirmation.refreshingContractRegistryProgress") : t("paymentConfirmation.verifyingSecureContractsProgress")}
         </Text>
         <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6 }} accessibilityElementsHidden={true} importantForAccessibility="no">
           {lastUpdatedLabel}
@@ -205,10 +207,9 @@ export default function PaymentConfirmationScreen() {
             accessibilityRole="alert"
           >
             <Text style={[styles.errorIcon, { color: theme.status.error, backgroundColor: theme.status.errorBg }]} accessibilityElementsHidden={true} importantForAccessibility="no">!</Text>
-            <Text style={[styles.errorTitle, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Invalid Payment Link</Text>
+            <Text style={[styles.errorTitle, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.invalidPaymentLink")}</Text>
             <Text style={[styles.errorBody, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
-              This payment link is missing required information. Please try
-              scanning again or check the link.
+              {t("paymentConfirmation.invalidPaymentLinkMessage")}
             </Text>
           </View>
           <Pressable
@@ -218,7 +219,7 @@ export default function PaymentConfirmationScreen() {
             accessibilityRole="button"
             accessibilityHint="Double-tap to return to the home screen"
           >
-            <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Go Back</Text>
+            <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.goBack")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -229,8 +230,8 @@ export default function PaymentConfirmationScreen() {
   async function handleSaveContact() {
     if (isConnected === false) {
       Alert.alert(
-        "Offline Mode",
-        "Saving contacts is unavailable while offline."
+        t("paymentConfirmation.offlineMode"),
+        t("paymentConfirmation.savingContactsUnavailable")
       );
       return;
     }
@@ -243,9 +244,9 @@ export default function PaymentConfirmationScreen() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      Alert.alert("Contact saved!", "Recipient has been added to your contacts.");
+      Alert.alert(t("paymentConfirmation.contactSaved"), t("paymentConfirmation.contactSavedMessage"));
     } catch (e) {
-      Alert.alert("Failed to save contact");
+      Alert.alert(t("paymentConfirmation.failedToSaveContact"));
     } finally {
       setSavingContact(false);
     }
@@ -255,12 +256,12 @@ export default function PaymentConfirmationScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">Confirm Payment</Text>
+          <Text style={[styles.heading, { color: theme.textPrimary }]} accessibilityRole="header">{t("paymentConfirmation.title")}</Text>
           <Text
             style={[styles.subheading, { color: theme.textSecondary }]}
             accessibilityRole="status"
           >
-            {isConnected === false ? "Read-only mode: payment is disabled" : "Review the details below before paying"}
+            {isConnected === false ? t("paymentConfirmation.readOnlyMode") : t("paymentConfirmation.reviewDetails")}
           </Text>
 
           <View
@@ -277,7 +278,7 @@ export default function PaymentConfirmationScreen() {
           >
             <View style={styles.registryTextGroup} accessibilityElementsHidden={true} importantForAccessibility="no">
               <Text style={[styles.registryTitle, { color: theme.textPrimary }]}>
-                Registry {registryStatus === "stale" ? "stale" : registryFetchSource === "cache" ? "cached" : "verified"}
+                Registry {registryStatus === "stale" ? t("paymentConfirmation.registryStale") : registryFetchSource === "cache" ? t("paymentConfirmation.registryCached") : t("paymentConfirmation.registryVerified")}
               </Text>
               <Text style={[styles.registryMeta, { color: theme.textSecondary }]}>
                 {lastUpdatedLabel}
@@ -296,25 +297,25 @@ export default function PaymentConfirmationScreen() {
               accessibilityState={{ disabled: registryRefreshing }}
             >
               <Text style={[styles.registryRefreshText, { color: theme.buttonPrimaryBg }]} accessibilityElementsHidden={true} importantForAccessibility="no">
-                {registryRefreshing ? "Refreshing" : "Refresh"}
+                {registryRefreshing ? t("paymentConfirmation.refreshing") : t("paymentConfirmation.refreshRegistry")}
               </Text>
             </Pressable>
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.surface }]}>
-            <Row label="Recipient" value={`@${username}`} />
+            <Row label={t("paymentConfirmation.recipient")} value={`@${username}`} />
             <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
-            <Row label="Amount" value={`${amount} ${asset}`} highlight />
+            <Row label={t("paymentConfirmation.amount")} value={`${amount} ${asset}`} highlight />
             {memo ? (
               <>
                 <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
-                <Row label="Memo" value={memo} />
+                <Row label={t("paymentConfirmation.memo")} value={memo} />
               </>
             ) : null}
             {isPrivate ? (
               <>
                 <View style={[styles.divider, { backgroundColor: theme.divider }]} accessibilityElementsHidden={true} importantForAccessibility="no" />
-                <Row label="Privacy" value="X-Ray enabled" />
+                <Row label={t("paymentConfirmation.privacy")} value={t("paymentConfirmation.xRayEnabled")} />
               </>
             ) : null}
           </View>
@@ -340,7 +341,7 @@ export default function PaymentConfirmationScreen() {
                         style={{ color: theme.buttonPrimaryBg, fontWeight: '700', fontSize: 13 }}
                         accessibilityElementsHidden={true}
                         importantForAccessibility="no"
-                      >Retry Search</Text>
+                      >{t("paymentConfirmation.retrySearch")}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -364,12 +365,12 @@ export default function PaymentConfirmationScreen() {
           {selectedSwapPath && (
             <>
               <View style={[styles.costComparisonCard, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.costComparisonTitle, { color: theme.textPrimary }]} accessibilityRole="header">Payment Summary</Text>
+                <Text style={[styles.costComparisonTitle, { color: theme.textPrimary }]} accessibilityRole="header">{t("paymentConfirmation.paymentSummary")}</Text>
                 <View
                   style={styles.costRow}
                   accessibilityLabel={`You pay: ${selectedSwapPath.sourceAmount} ${selectedSwapPath.sourceAsset}. Total source amount before fees.`}
                 >
-                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">You pay:</Text>
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.youPay")}</Text>
                   <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
                     {selectedSwapPath.sourceAmount} {selectedSwapPath.sourceAsset}
                   </Text>
@@ -379,7 +380,7 @@ export default function PaymentConfirmationScreen() {
                   style={styles.costRow}
                   accessibilityLabel={`Exchange rate: ${selectedSwapPath.rateDescription}.`}
                 >
-                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Exchange rate:</Text>
+                  <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.exchangeRate")}</Text>
                   <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{selectedSwapPath.rateDescription}</Text>
                 </View>
                 {selectedSwapPath.hopCount > 0 && (
@@ -389,11 +390,11 @@ export default function PaymentConfirmationScreen() {
                       style={styles.costRow}
                       accessibilityLabel={`Payment route: ${selectedSwapPath.hopCount === 1 ? "1 intermediary hop." : `${selectedSwapPath.hopCount} intermediary hops.`} Via Stellar path payment.`}
                     >
-                      <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Path:</Text>
+                      <Text style={[styles.costLabel, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.path")}</Text>
                       <Text style={[styles.costValue, { color: theme.textPrimary }]} accessibilityElementsHidden={true} importantForAccessibility="no">
                         {selectedSwapPath.hopCount === 1
-                          ? "1 intermediary"
-                          : `${selectedSwapPath.hopCount} intermediaries`}
+                          ? `1 ${t("paymentConfirmation.intermediary")}`
+                          : `${selectedSwapPath.hopCount} ${t("paymentConfirmation.intermediaries")}`}
                       </Text>
                     </View>
                   </>
@@ -428,26 +429,26 @@ export default function PaymentConfirmationScreen() {
             disabled={isConnected === false}
             accessibilityLabel={
               isConnected === false
-                ? "Payment is disabled. You are currently offline. Connect to the internet to pay."
-                : `Pay ${amount} ${asset}${isPrivate ? ' with X-Ray privacy shield' : ''} to @${username} using your connected Stellar wallet.`
+                ? t("paymentConfirmation.paymentDisabled")
+                : t("paymentConfirmation.payToRecipient", { amount, asset, privacy: isPrivate ? t("paymentConfirmation.withXRayPrivacy") : '', username })
             }
             accessibilityRole="button"
             accessibilityState={{ disabled: isConnected === false }}
-            accessibilityHint="Double-tap to authenticate and launch your wallet with the payment URI"
+            accessibilityHint={t("paymentConfirmation.authenticateAndLaunch")}
           >
             <Text style={[styles.primaryBtnText, { color: theme.buttonPrimaryText }]} accessibilityElementsHidden={true} importantForAccessibility="no">
-              {isConnected === false ? "Offline: Payment Disabled" : "Pay with Wallet"}
+              {isConnected === false ? t("paymentConfirmation.offlinePaymentDisabledButton") : t("paymentConfirmation.payWithWallet")}
             </Text>
           </Pressable>
         </NetworkMismatchGuard>
         <Pressable
           style={styles.secondaryBtn}
           onPress={() => router.replace("/")}
-          accessibilityLabel="Cancel this payment and return to the home screen"
+          accessibilityLabel={t("paymentConfirmation.cancelPayment")}
           accessibilityRole="button"
-          accessibilityHint="Double-tap to go back to the home screen without paying"
+          accessibilityHint={t("paymentConfirmation.cancelPaymentHint")}
         >
-          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">Cancel</Text>
+          <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]} accessibilityElementsHidden={true} importantForAccessibility="no">{t("paymentConfirmation.cancel")}</Text>
         </Pressable>
         <Pressable
           style={[styles.secondaryBtn, { marginTop: 8 }]}
@@ -455,16 +456,16 @@ export default function PaymentConfirmationScreen() {
           disabled={savingContact || isConnected === false}
           accessibilityLabel={
             savingContact
-              ? `Saving recipient @${username} to your contacts. Please wait...`
+              ? t("paymentConfirmation.savingRecipient", { username })
               : isConnected === false
-                ? "Save recipient as contact is disabled while offline. Connect to internet to save."
-                : `Save recipient @${username} to your address book contacts.`
+                ? t("paymentConfirmation.saveRecipientDisabled")
+                : t("paymentConfirmation.saveRecipient", { username })
           }
           accessibilityRole="button"
           accessibilityState={{ disabled: savingContact || isConnected === false }}
         >
           <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }, isConnected === false && { opacity: 0.5 }]} accessibilityElementsHidden={true} importantForAccessibility="no">
-            {savingContact ? "Saving..." : "Save Recipient as Contact"}
+            {savingContact ? t("paymentConfirmation.saving") : t("paymentConfirmation.saveRecipientAsContact")}
           </Text>
         </Pressable>
       </View>
