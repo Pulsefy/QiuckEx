@@ -19,6 +19,29 @@ import { SorobanRpcService } from "./soroban-rpc.service";
 import { mapSorobanError } from "../common/soroban-errors";
 import { SorobanErrorCode } from "../common/soroban-errors";
 
+type BuildAndSimulateResult =
+  | {
+      success: true;
+      tx: StellarSdk.Transaction;
+      simulationResult: SorobanRpc.Api.SimulateTransactionResponse;
+      resourceEstimate: ResourceEstimate;
+      minResourceFee: string;
+      simulationLatencyMs: number;
+    }
+  | {
+      success: false;
+      error: string;
+      userMessage: string;
+      details?: Record<string, unknown>;
+      simulationLatencyMs: number;
+    };
+
+function isSimulationSuccessResult(
+  result: BuildAndSimulateResult,
+): result is Extract<BuildAndSimulateResult, { success: true }> {
+  return result.success === true;
+}
+
 const STROOPS_PER_XLM = 10_000_000;
 const BASE_FEE = 100; // stroops
 
@@ -57,6 +80,130 @@ export class TransactionsService {
       return cached;
     }
 
+    const sim = await this.buildAndSimulateTransaction(dto);
+    if (!isSimulationSuccessResult(sim)) {
+      const failedResponse: ComposeTransactionError = {
+        success: false,
+        error: sim.error,
+        userMessage: sim.userMessage,
+        details: sim.details,
+      };
+      this.rememberResponse(idempotencyKey, payloadFingerprint, failedResponse);
+      return failedResponse;
+    }
+
+    // 9. Assemble transaction with simulation results (sets soroban data & resource fee)
+    const assembledTx = SorobanRpc.assembleTransaction(
+      sim.tx,
+      sim.simulationResult,
+    ).build();
+
+    const resourceEstimate = sim.resourceEstimate;
+
+    // 11. Fee breakdown
+    const minResourceFee = sim.minResourceFee;
+    const totalFeeStroops = BASE_FEE + Number(minResourceFee);
+
+    const feeEstimate: FeeEstimate = {
+      baseFee: String(BASE_FEE),
+      inclusionFee: minResourceFee,
+      totalFee: String(totalFeeStroops),
+      totalFeeXLM: (totalFeeStroops / STROOPS_PER_XLM).toFixed(7),
+    };
+
+    // 12. Return unsigned XDR
+    const unsignedXdr = assembledTx.toEnvelope().toXDR("base64");
+
+    this.logger.log(
+      `Transaction composed successfully in ${sim.simulationLatencyMs}ms — ` +
+        `${dto.contractId}::${dto.method}, fee: ${totalFeeStroops} stroops`,
+    );
+
+    const txDataAny = (
+      sim.simulationResult as unknown as {
+        transactionData?: { build?: () => any } | any;
+      }
+    ).transactionData;
+    const sorobanData =
+      typeof txDataAny?.build === "function" ? txDataAny.build() : txDataAny;
+    const resources =
+      sorobanData && typeof sorobanData.resources === "function"
+        ? sorobanData.resources()
+        : undefined;
+
+    const response: ComposeTransactionResponse = {
+      success: true,
+      unsignedXdr,
+      resourceEstimate,
+      feeEstimate,
+      minResourceFee,
+      simulationLatencyMs: sim.simulationLatencyMs,
+      idempotencyKey,
+      simulationSummary: {
+        status: "success" as const,
+        footprint: {
+          readOnly: resources ? resources.footprint().readOnly().length : 0,
+          readWrite: resources ? resources.footprint().readWrite().length : 0,
+        },
+        estimatedCost: {
+          cpuInstructions: resourceEstimate.cpuInstructions,
+          ledgerReads: resourceEstimate.ledgerReads,
+          ledgerWrites: resourceEstimate.ledgerWrites,
+          eventBytes: resourceEstimate.eventBytes,
+          returnValueBytes: resourceEstimate.returnValueBytes,
+        },
+      },
+    };
+    this.rememberResponse(idempotencyKey, payloadFingerprint, response);
+    return response;
+  }
+
+  async simulateOperation(
+    dto: SimulateOperationDto,
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    userMessage?: string;
+    details?: Record<string, unknown>;
+  }> {
+    const sim = await this.buildAndSimulateTransaction(dto);
+    if (!isSimulationSuccessResult(sim)) {
+      return {
+        success: false,
+        error: sim.error,
+        userMessage: sim.userMessage,
+        details: sim.details,
+      };
+    }
+
+    return {
+      success: true,
+      details: {
+        cpuInstructions: sim.resourceEstimate.cpuInstructions,
+        memoryBytes: sim.resourceEstimate.memoryBytes,
+        ledgerReads: sim.resourceEstimate.ledgerReads,
+        ledgerWrites: sim.resourceEstimate.ledgerWrites,
+        eventBytes: sim.resourceEstimate.eventBytes,
+        ...(sim.resourceEstimate.returnValueBytes !== undefined
+          ? { returnValueBytes: sim.resourceEstimate.returnValueBytes }
+          : {}),
+        ...(sim.minResourceFee !== undefined
+          ? { minResourceFee: sim.minResourceFee }
+          : {}),
+      },
+    };
+  }
+
+  private async buildAndSimulateTransaction(dto: {
+    contractId: string;
+    method: string;
+    params: ComposeTransactionDto["params"];
+    sourceAccount: string;
+    networkPassphrase?: string;
+    memo?: ComposeTransactionDto["memo"];
+  }): Promise<BuildAndSimulateResult> {
+    this.validatePayload(dto);
+
     const startTime = Date.now();
 
     // 1. Resolve network passphrase
@@ -73,6 +220,7 @@ export class TransactionsService {
         success: false,
         error: err.message,
         userMessage: `Source account not found: ${err.message}`,
+        simulationLatencyMs: Date.now() - startTime,
       };
     }
 
@@ -95,28 +243,33 @@ export class TransactionsService {
     })
       .addOperation(operation)
       .setTimeout(StellarSdk.TimeoutInfinite);
-    
+
     // Add canonical memo if provided
     if (dto.memo) {
       switch (dto.memo.type) {
-        case 'text':
+        case "text":
           txBuilder.addMemo(StellarSdk.Memo.text(dto.memo.value));
           break;
-        case 'id':
-          // Memo.id requires a string representation of the number
+        case "id":
           txBuilder.addMemo(StellarSdk.Memo.id(dto.memo.value));
           break;
-        case 'hash':
-          // Memo.hash requires a base64 string, not a Buffer
-          txBuilder.addMemo(StellarSdk.Memo.hash(Buffer.from(dto.memo.value, 'hex').toString('base64')));
+        case "hash":
+          txBuilder.addMemo(
+            StellarSdk.Memo.hash(
+              Buffer.from(dto.memo.value, "hex").toString("base64"),
+            ),
+          );
           break;
-        case 'return':
-          // Memo.return requires a base64 string, not a Buffer
-          txBuilder.addMemo(StellarSdk.Memo.return(Buffer.from(dto.memo.value, 'hex').toString('base64')));
+        case "return":
+          txBuilder.addMemo(
+            StellarSdk.Memo.return(
+              Buffer.from(dto.memo.value, "hex").toString("base64"),
+            ),
+          );
           break;
       }
     }
-    
+
     const tx = txBuilder.build();
 
     // 6. Simulate (preflight)
@@ -139,20 +292,21 @@ export class TransactionsService {
     // 7. Handle simulation failure
     if (SorobanRpc.Api.isSimulationError(simulationResult)) {
       const mapped = mapSorobanError(simulationResult.error);
-      this.logger.warn(`Simulation failed [${mapped.code}]: ${simulationResult.error}`);
-      const failedResponse: ComposeTransactionError = {
+      this.logger.warn(
+        `Simulation failed [${mapped.code}]: ${simulationResult.error}`,
+      );
+      return {
         success: false,
         error: mapped.code,
         userMessage: mapped.message,
         details: mapped.details,
+        simulationLatencyMs,
       };
-      this.rememberResponse(idempotencyKey, payloadFingerprint, failedResponse);
-      return failedResponse;
     }
 
     // 8. Handle restoration needed
     if (SorobanRpc.Api.isSimulationRestore(simulationResult)) {
-      const restoreResponse = {
+      return {
         success: false,
         error: SorobanErrorCode.RESTORE_REQUIRED,
         userMessage:
@@ -160,144 +314,73 @@ export class TransactionsService {
         details: {
           restorePreamble: simulationResult.restorePreamble,
         },
-      } as ComposeTransactionError;
-      this.rememberResponse(idempotencyKey, payloadFingerprint, restoreResponse);
-      return restoreResponse;
-    }
-
-    // 9. Assemble transaction with simulation results (sets soroban data & resource fee)
-    const assembledTx = SorobanRpc.assembleTransaction(
-      tx,
-      simulationResult,
-    ).build();
-
-    // 10. Extract resource estimates  ← REPLACE FROM HERE
-    const sorobanData = simulationResult.transactionData.build();
-    const resources = sorobanData.resources();
-
-    const resourceEstimate: ResourceEstimate = {
-      cpuInstructions: Number(resources.instructions()),
-      memoryBytes: 0, // not exposed by Soroban RPC simulate response
-      ledgerReads:
-        resources.footprint().readOnly().length +
-        resources.footprint().readWrite().length,
-      ledgerWrites: resources.footprint().readWrite().length,
-      eventBytes: Number(resources.writeBytes() ?? 0),
-      returnValueBytes: simulationResult.result?.retval
-        ? simulationResult.result.retval.toXDR().length
-        : 0,
-    };
-
-    // 11. Fee breakdown
-    const minResourceFee = simulationResult.minResourceFee ?? "0";
-    const totalFeeStroops = BASE_FEE + Number(minResourceFee);
-
-    const feeEstimate: FeeEstimate = {
-      baseFee: String(BASE_FEE),
-      inclusionFee: minResourceFee,
-      totalFee: String(totalFeeStroops),
-      totalFeeXLM: (totalFeeStroops / STROOPS_PER_XLM).toFixed(7),
-    };
-
-    // 12. Return unsigned XDR
-    const unsignedXdr = assembledTx.toEnvelope().toXDR("base64");
-
-    this.logger.log(
-      `Transaction composed successfully in ${simulationLatencyMs}ms — ` +
-        `${dto.contractId}::${dto.method}, fee: ${totalFeeStroops} stroops`,
-    );
-
-    const response: ComposeTransactionResponse = {
-      success: true,
-      unsignedXdr,
-      resourceEstimate,
-      feeEstimate,
-      minResourceFee,
-      simulationLatencyMs,
-      idempotencyKey,
-      simulationSummary: {
-        status: "success" as const,
-        footprint: {
-          readOnly: resources.footprint().readOnly().length,
-          readWrite: resources.footprint().readWrite().length,
-        },
-        estimatedCost: {
-          cpuInstructions: resourceEstimate.cpuInstructions,
-          ledgerReads: resourceEstimate.ledgerReads,
-          ledgerWrites: resourceEstimate.ledgerWrites,
-          eventBytes: resourceEstimate.eventBytes,
-          returnValueBytes: resourceEstimate.returnValueBytes,
-        },
-      },
-    };
-    this.rememberResponse(idempotencyKey, payloadFingerprint, response);
-    return response;
-  }
-
-  async simulateOperation(
-    dto: SimulateOperationDto,
-  ): Promise<{ success: boolean; error?: string; userMessage?: string; details?: Record<string, unknown> }> {
-    // This endpoint returns deterministic failure reasons based on input parameters
-    const { contractId, method, params } = dto;
-    
-    // Create a deterministic hash from input to get consistent failures
-    const inputHash = createHash('sha256').update(JSON.stringify({ contractId, method, params })).digest('hex');
-    
-    // Deterministic simulation failures based on hash
-    if (inputHash.startsWith('00')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.INSUFFICIENT_BALANCE,
-        userMessage: 'Insufficient balance to complete this operation. Please add funds to your account.',
-        details: { required: '10.0 XLM', available: '5.0 XLM' }
-      };
-    } else if (inputHash.startsWith('01')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.UNAUTHORIZED,
-        userMessage: 'You are not authorised to perform this operation on this contract.',
-        details: { caller: dto.sourceAccount, requiredRole: 'admin' }
-      };
-    } else if (inputHash.startsWith('02')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.CONTRACT_PAUSED,
-        userMessage: 'The contract is currently paused. Please try again later.',
-        details: { pausedUntil: '2025-12-31T23:59:59Z' }
-      };
-    } else if (inputHash.startsWith('03')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.BUDGET_EXCEEDED,
-        userMessage: 'The transaction exceeds Soroban compute limits. Try simplifying the operation.',
-        details: { used: '150000000', limit: '100000000' }
-      };
-    } else if (inputHash.startsWith('04')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.RESTORE_REQUIRED,
-        userMessage: 'Some contract state entries have expired and must be restored before this transaction can proceed.',
-        details: { entriesToRestore: 3 }
-      };
-    } else if (inputHash.startsWith('05')) {
-      return {
-        success: false,
-        error: SorobanErrorCode.STORAGE_MISSING,
-        userMessage: 'A required contract state entry does not exist. The resource may not have been initialised.',
-        details: { missingKey: 'user_profile:123' }
+        simulationLatencyMs,
       };
     }
-    
-    // Default: simulation successful
+
+    // Extract resource estimates
+    const resourceEstimate = this.extractResourceEstimate(simulationResult);
+    const minResourceFee =
+      (simulationResult as unknown as { minResourceFee?: string })
+        .minResourceFee ?? "0";
+
     return {
       success: true,
-      details: {
-        cpuInstructions: 1000000,
-        memoryBytes: 256000,
-        ledgerReads: 5,
-        ledgerWrites: 2,
-        eventBytes: 128
+      tx,
+      simulationResult,
+      resourceEstimate,
+      minResourceFee,
+      simulationLatencyMs,
+    };
+  }
+
+  private extractResourceEstimate(
+    simulationResult: SorobanRpc.Api.SimulateTransactionResponse,
+  ): ResourceEstimate {
+    const txDataAny = (
+      simulationResult as unknown as {
+        transactionData?: { build?: () => any } | any;
       }
+    ).transactionData;
+    const sorobanData =
+      typeof txDataAny?.build === "function" ? txDataAny.build() : txDataAny;
+    const resources =
+      sorobanData && typeof sorobanData.resources === "function"
+        ? sorobanData.resources()
+        : undefined;
+
+    const readOnlyLength =
+      resources && typeof resources.footprint === "function"
+        ? resources.footprint().readOnly().length
+        : 0;
+    const readWriteLength =
+      resources && typeof resources.footprint === "function"
+        ? resources.footprint().readWrite().length
+        : 0;
+
+    return {
+      cpuInstructions:
+        resources && typeof resources.instructions === "function"
+          ? Number(resources.instructions())
+          : 0,
+      memoryBytes: 0, // not exposed by Soroban RPC simulate response
+      ledgerReads: readOnlyLength + readWriteLength,
+      ledgerWrites: readWriteLength,
+      eventBytes:
+        resources && typeof resources.writeBytes === "function"
+          ? Number(resources.writeBytes() ?? 0)
+          : 0,
+      returnValueBytes: (
+        simulationResult as unknown as {
+          result?: { retval?: { toXDR: () => string | Buffer } };
+        }
+      ).result?.retval
+        ? (
+            simulationResult as unknown as {
+              result?: { retval?: { toXDR: () => string | Buffer } };
+            }
+          ).result!.retval!.toXDR().length
+        : 0,
     };
   }
 
@@ -360,7 +443,9 @@ export class TransactionsService {
     return response;
   }
 
-  private validatePayload(dto: ComposeTransactionDto): void {
+  private validatePayload(
+    dto: ComposeTransactionDto | SimulateOperationDto,
+  ): void {
     const payloadSize = Buffer.byteLength(JSON.stringify(dto.params ?? []), "utf8");
     if (payloadSize > 4096) {
       throw new BadRequestException("Transaction parameters exceed the 4KB limit.");
