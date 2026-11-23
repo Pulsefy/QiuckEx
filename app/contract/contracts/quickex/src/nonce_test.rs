@@ -142,9 +142,12 @@ mod tests {
                 ActionType::StealthWithdraw,
                 ActionType::SetPrivacy,
                 ActionType::Upgrade,
+                ActionType::DepositMultiSig,
                 ActionType::BatchCreate,
                 ActionType::BatchRelease,
                 ActionType::BatchRefund,
+                ActionType::BatchCreateMultiSig,
+                ActionType::BatchCreateMultiSig,
             ];
             for action in &actions {
                 assert!(
@@ -452,6 +455,8 @@ mod tests {
             (ActionType::StealthWithdraw, "STEALTH_WITHDRAW"),
             (ActionType::SetPrivacy, "SET_PRIVACY"),
             (ActionType::Upgrade, "UPGRADE"),
+            (ActionType::DepositMultiSig, "DEPOSIT_MULTI_SIG"),
+            (ActionType::BatchCreateMultiSig, "BATCH_CREATE_MULTI_SIG"),
         ];
         for (variant, expected) in &actions {
             assert_eq!(variant.as_bytes(), expected.as_bytes());

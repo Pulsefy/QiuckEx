@@ -46,6 +46,8 @@ pub enum EntryPoint {
     BatchRelease = 18,
     /// `QuickexContract::batch_refund` — batched counterpart of `Refund`.
     BatchRefund = 19,
+    /// `QuickexContract::batch_create_multi_sig` — batched M-of-N deposit.
+    BatchCreateMultiSig = 20,
 }
 
 impl EntryPoint {
@@ -60,7 +62,8 @@ impl EntryPoint {
             | EntryPoint::DepositPartial
             | EntryPoint::PartialPayment
             | EntryPoint::StealthDeposit
-            | EntryPoint::BatchCreate => Some(PauseFlag::Deposit),
+            | EntryPoint::BatchCreate
+            | EntryPoint::BatchCreateMultiSig => Some(PauseFlag::Deposit),
             EntryPoint::DepositWithCommitment => Some(PauseFlag::DepositWithCommitment),
             EntryPoint::Withdraw | EntryPoint::StealthWithdraw | EntryPoint::BatchRelease => {
                 Some(PauseFlag::Withdrawal)

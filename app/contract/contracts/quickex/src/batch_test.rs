@@ -22,7 +22,10 @@ use crate::{
         assert_escrow_not_found, assert_escrow_pending, assert_escrow_refunded,
         assert_escrow_spent, assert_qx_err,
     },
-    batch::{BatchCreateItem, BatchItemResult, BatchRefundItem, BatchReleaseItem, MAX_BATCH_SIZE},
+    batch::{
+        BatchCreateItem, BatchCreateMultiSigItem, BatchItemResult, BatchRefundItem,
+        BatchReleaseItem, MAX_BATCH_SIZE,
+    },
     errors::QuickexError,
     pause_policy::EntryPoint,
     storage::PauseFlag,
@@ -30,7 +33,10 @@ use crate::{
     types::EscrowStatus,
 };
 
-use soroban_sdk::{testutils::Ledger, token, Address, Bytes, BytesN, Vec};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    token, Address, Bytes, BytesN, Vec,
+};
 
 extern crate std;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -135,6 +141,26 @@ fn do_create(ctx: &TestContext, items: Vec<BatchCreateItem>) -> Vec<BatchItemRes
     ctx.client.batch_create(&items)
 }
 
+fn multi_sig_item(
+    ctx: &TestContext,
+    tag: u8,
+    amount: i128,
+    arbiters: Vec<Address>,
+    threshold: u32,
+) -> BatchCreateMultiSigItem {
+    BatchCreateMultiSigItem {
+        token: ctx.token.clone(),
+        amount,
+        owner: ctx.alice.clone(),
+        salt: salt_for(ctx, tag),
+        timeout_secs: TIMEOUT,
+        arbiters,
+        arbiter_threshold: threshold,
+        nonce: next_nonce(),
+        valid_until: u64::MAX,
+    }
+}
+
 /// Run a `batch_create` of `count` identical-shape items for one owner, all
 /// with `timeout_secs`, and return the derived commitments.
 fn fund(
@@ -167,6 +193,48 @@ fn fund(
 // ---------------------------------------------------------------------------
 // batch_create — funds actually move
 // ---------------------------------------------------------------------------
+
+#[test]
+fn batch_create_multi_sig_keeps_per_item_validation_errors_isolated() {
+    let ctx = setup();
+    ctx.mint(&ctx.alice, AMOUNT * 2);
+
+    let valid_arbiters = Vec::from_array(
+        &ctx.env,
+        [Address::generate(&ctx.env), Address::generate(&ctx.env)],
+    );
+    let invalid_arbiters: Vec<Address> = Vec::new(&ctx.env);
+    let mut items = Vec::new(&ctx.env);
+    items.push_back(multi_sig_item(&ctx, 40, AMOUNT, valid_arbiters, 1));
+    items.push_back(multi_sig_item(&ctx, 41, AMOUNT, invalid_arbiters, 1));
+
+    let results = ctx.client.batch_create_multi_sig(&items);
+    assert_eq!(results.len(), 2);
+    assert_success(&results.get(0).unwrap(), 0);
+    assert_failure(&results.get(1).unwrap(), 1, QuickexError::QuorumOutOfBounds);
+    assert_eq!(balance(&ctx, &ctx.client.address), AMOUNT);
+    assert_eq!(balance(&ctx, &ctx.alice), AMOUNT);
+}
+
+#[test]
+fn batch_create_multi_sig_rejects_oversize_before_authorization() {
+    let ctx = setup();
+    let mut items = Vec::new(&ctx.env);
+    for tag in 0..=MAX_BATCH_SIZE {
+        items.push_back(multi_sig_item(
+            &ctx,
+            tag as u8,
+            AMOUNT,
+            Vec::from_array(&ctx.env, [Address::generate(&ctx.env)]),
+            1,
+        ));
+    }
+
+    assert_qx_err(
+        ctx.client.try_batch_create_multi_sig(&items),
+        QuickexError::BatchSizeExceeded,
+    );
+}
 
 /// The core regression: `batch_create` must pull real tokens out of the owner's
 /// wallet and into the contract, once per successful item.
